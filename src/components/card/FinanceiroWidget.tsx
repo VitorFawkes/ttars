@@ -68,6 +68,8 @@ interface FinancialItem {
     data_inicio: string | null
     data_fim: string | null
     observacoes: string | null
+    last_change_summary: string | null
+    last_change_at: string | null
 }
 
 export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCollapse }: FinanceiroWidgetProps) {
@@ -84,7 +86,7 @@ export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCol
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data, error } = await (supabase.from('card_financial_items') as any)
-                .select('id, description, sale_value, supplier_cost, is_ready, notes, fornecedor, representante, documento, data_inicio, data_fim, observacoes')
+                .select('id, description, sale_value, supplier_cost, is_ready, notes, fornecedor, representante, documento, data_inicio, data_fim, observacoes, last_change_summary, last_change_at')
                 .eq('card_id', cardId)
                 .is('archived_at', null)
                 .order('created_at')
@@ -360,10 +362,14 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
         },
     })
 
+    const hasChangeAlert = !!item.last_change_summary && !item.is_ready
+
     return (
         <div className={cn(
             "border-l-2 transition-colors",
-            item.is_ready ? "border-l-emerald-400 bg-emerald-50/30" : "border-l-amber-400"
+            hasChangeAlert ? "border-l-orange-500 bg-orange-50/40"
+                : item.is_ready ? "border-l-emerald-400 bg-emerald-50/30"
+                : "border-l-amber-400"
         )}>
             {/* Product header */}
             <div className="px-4 py-2.5">
@@ -418,6 +424,17 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
                                 <p className="text-[11px] text-amber-800 leading-snug line-clamp-2">
                                     <span className="font-medium">Planner:</span> {item.observacoes}
                                 </p>
+                            </div>
+                        )}
+                        {/* Monde re-import change alert — visible até a equipe re-marcar feito */}
+                        {hasChangeAlert && (
+                            <div className="mt-1 flex items-start gap-1.5 rounded bg-orange-50 border border-orange-200 px-2 py-1">
+                                <AlertCircle className="h-3 w-3 text-orange-500 mt-0.5 shrink-0" />
+                                <div className="text-[11px] leading-snug min-w-0">
+                                    <span className="font-semibold text-orange-800">Alterado no Monde</span>
+                                    <span className="text-orange-700"> · {item.last_change_summary}</span>
+                                    <span className="text-orange-500 italic"> — confira e marque feito de novo</span>
+                                </div>
                             </div>
                         )}
                     </div>

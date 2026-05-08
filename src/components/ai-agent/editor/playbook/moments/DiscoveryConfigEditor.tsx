@@ -198,6 +198,11 @@ function SlotItem({
               {slot.questions.length === 0
                 ? 'sem perguntas escritas — agente improvisa'
                 : `${slot.questions.length} pergunta${slot.questions.length > 1 ? 's' : ''} escrita${slot.questions.length > 1 ? 's' : ''}`}
+              {slot.coverage_notes && slot.coverage_notes.trim() && (
+                <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-medium">
+                  + contexto
+                </span>
+              )}
             </div>
           </div>
         </button>
@@ -280,6 +285,22 @@ function SlotItem({
             />
             <p className="text-[10px] text-slate-400 mt-0.5">
               Se escolher, conecta esta informação aos critérios de qualificação que usam esse campo.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-medium text-slate-600 mb-1">
+              O que essa pergunta precisa cobrir <span className="text-slate-400 font-normal">(opcional — guia pra IA improvisar)</span>
+            </label>
+            <textarea
+              value={slot.coverage_notes ?? ''}
+              onChange={(e) => onChange({ coverage_notes: e.target.value || null })}
+              placeholder='Ex: precisa de mês E ano. Não aceita "no fim do ano" — confirme mês específico. Se cliente disser só "janeiro", pergunte qual ano.'
+              rows={3}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y"
+            />
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              Use isso pra explicar pro agente o que essa pergunta precisa contemplar — formato, edge cases, clarificações exigidas. Vale tanto pra perguntas escritas quanto pra improvisação.
             </p>
           </div>
 

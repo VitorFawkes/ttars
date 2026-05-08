@@ -13,6 +13,12 @@
 > **Stats:** 191 tabelas | 151 paginas | 236 hooks | 22 views | 657 components
 > **Stats:** 191 tabelas | 151 paginas | 236 hooks | 22 views | 657 components
 > **Stats:** 191 tabelas | 151 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 144 paginas | 238 hooks | 22 views | 661 components
+> **Stats:** 191 tabelas | 144 paginas | 238 hooks | 22 views | 661 components
+> **Stats:** 191 tabelas | 144 paginas | 238 hooks | 22 views | 661 components
+> **Stats:** 191 tabelas | 144 paginas | 238 hooks | 22 views | 661 components
+> **Stats:** 191 tabelas | 144 paginas | 238 hooks | 22 views | 661 components
+> **Stats:** 191 tabelas | 144 paginas | 238 hooks | 22 views | 661 components
 
 ---
 
@@ -175,6 +181,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
 > **236 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **238 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -493,6 +500,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 ### 3.3 All Pages (AUTO-GENERATED)
 
 > **151 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **144 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|

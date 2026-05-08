@@ -7,22 +7,33 @@
  * via ai-agent-simulate (preview_playbook_config). O espelho frontend está
  * em src/lib/playbook/buildPromptPreview.ts — teste de paridade em CI.
  *
- * Estrutura do prompt:
- *   <agent name="...">
- *     <header: quem é + missão + descrição da empresa>
- *     <voice>
- *     <anchors>
- *     <boundaries>
- *     <qualification>
- *     <silent_signals>
- *     <examples>
- *   </agent>
+ * Estrutura do prompt (consolidada 08/05/2026 — de 10 blocos pra 4 grupos):
+ *   <persona name="...">
+ *     [identidade: quem é + missão + descrição da empresa]
+ *     <voice>      ← tom, formalidade, regras
+ *     <listening>  ← responsividade conversacional
+ *   </persona>
+ *
+ *   <playbook>
+ *     <anchors>    ← momentos do funil (flow + plays)
+ *     <boundaries> ← linhas vermelhas
+ *     <examples>   ← few-shot relevantes
+ *   </playbook>
+ *
+ *   <funnel>
+ *     <qualification>   ← regras de scoring + status
+ *     <silent_signals>  ← sinais sutis a observar
+ *     [handoff_logic]   ← quando passar pra humano
+ *     [meeting_booking] ← lógica de agendamento
+ *   </funnel>
  *
  *   <turn>
  *     <detected>  ← momento atual + método + primeiro_contato
  *     <qualification_status>  ← score atual + gaps
  *     <known>   ← ctx.contact_name, ai_resumo, ai_contexto, form_data
  *     <history> ← ctx.historico_compacto
+ *     <lead_already_mentioned>  ← omissões pré-detectadas
+ *     <must_include>  ← frases obrigatórias palavra-por-palavra
  *     <last_message from="lead">  ← userMessage
  *   </turn>
  *
@@ -145,7 +156,7 @@ export function buildPromptV2(input: BuildPromptV2Input): string {
   const subs = buildSubstitutions(input);
   const header = renderHeader(input);
   const voice = renderVoiceBlock(input.voice);
-  const listening = renderListeningBlock(input.listening ?? null, input.userMessage);
+  const listening = renderListeningBlock(input.listening ?? null, input.userMessage, input.ctx.is_primeiro_contato);
   const anchors = renderAnchorsBlock(input.moments, input.currentMoment, subs, input.ctx.current_moment_step_index);
   const boundaries = renderBoundariesBlock(input.boundaries);
   const qualification = renderQualificationBlock(input.scoringRules, input.scoreInfo);
@@ -158,26 +169,36 @@ export function buildPromptV2(input: BuildPromptV2Input): string {
 
   const instructions = renderClosingInstructions(input);
 
-  const parts = [
-    `<agent name="${escapeXml(input.agentName)}">`,
-    header,
-    voice,
-    listening,
-    anchors,
-    boundaries,
-    qualification,
-    signals,
-    handoffLogic,
-    meetingBooking,
-    examples,
-    `</agent>`,
-    ``,
-    turn,
-    ``,
-    instructions,
-  ].filter(p => p !== '');
+  // Estrutura consolidada (08/05/2026): de 10 blocos top-level pra 4 grupos
+  // semânticos. Pesquisa 2025-2026 (Lost-in-the-Middle, Context Rot — Chroma 2025)
+  // mostra que prompts com muitos blocos pares causam atenção diluída em modelos
+  // atuais (GPT-5.1, Claude 4.7). Agrupar reduz seções competindo por foco,
+  // mantendo conteúdo idêntico. Hierarquia:
+  //   <persona>   = quem ela é (header + voice + listening)
+  //   <playbook>  = como ela conduz (anchors + boundaries + examples)
+  //   <funnel>    = o que ela mede (qualification + signals + handoff + meeting)
+  //   <turn>      = estado deste turno (já agrupava — preservado)
+  //   instructions = ordem de saída (preservado)
+  const personaInner = [header, voice, listening].filter(p => p !== '').join('\n\n');
+  const playbookInner = [anchors, boundaries, examples].filter(p => p !== '').join('\n\n');
+  const funnelInner = [qualification, signals, handoffLogic, meetingBooking].filter(p => p !== '').join('\n\n');
 
-  return parts.join('\n\n');
+  // Mantém <agent> wrapper (parser frontend src/lib/playbook/parsePromptToHumanBlocks.ts
+  // depende dele). Mas agrupa o miolo em 3 sub-blocos semânticos pra reduzir
+  // distração (era 10 sub-blocos pares).
+  const agentParts: string[] = [];
+  if (personaInner) agentParts.push(`<persona>\n${personaInner}\n</persona>`);
+  if (playbookInner) agentParts.push(`<playbook>\n${playbookInner}\n</playbook>`);
+  if (funnelInner) agentParts.push(`<funnel>\n${funnelInner}\n</funnel>`);
+
+  const parts: string[] = [];
+  parts.push(`<agent name="${escapeXml(input.agentName)}">`);
+  parts.push(agentParts.join('\n\n'));
+  parts.push(`</agent>`);
+  if (turn) parts.push(turn);
+  if (instructions) parts.push(instructions);
+
+  return parts.filter(p => p !== '').join('\n\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -260,15 +281,19 @@ function renderVoiceBlock(voice: VoiceConfig | null): string {
  * renderizado). Compatível com agentes legados que não têm listening_config
  * — eles simplesmente não têm o bloco no prompt.
  */
-function renderListeningBlock(listening: ListeningConfig | null, lastLeadMessage?: string | null): string {
+function renderListeningBlock(listening: ListeningConfig | null, lastLeadMessage?: string | null, isPrimeiroContato?: boolean): string {
   if (!listening) return '';
   const lines: string[] = [];
 
   if (listening.echo_social_questions) {
     lines.push('• Se o lead devolver pergunta social ("tudo bem?", "e você?", "como vai?", "td bem?", "como você está?"), responda em UMA frase curta e natural ANTES de continuar com a próxima pergunta do roteiro. Ignorar pergunta social = falha de educação básica.');
   }
-  if (listening.acknowledge_observations) {
-    lines.push('• Se o lead fizer comentário ou observação espontânea ("nossa, que legal!", "vi vocês no Instagram", "minha amiga casou com vocês"), reconheça em UMA frase antes de continuar.');
+  if (listening.acknowledge_observations && !isPrimeiroContato) {
+    // Em primeiro contato, NÃO ecoar observações genéricas (tipo "vim do site",
+    // "queria saber mais", "vi vocês no Instagram"). Eco fica esquisito como abertura
+    // robotizada antes do "Aqui é a Estela". Acknowledge_observations só vale a partir
+    // do 2º turno em diante, quando há contexto pra responder de forma natural.
+    lines.push('• Se o lead fizer comentário ou observação espontânea ("nossa, que legal!", "minha amiga casou com vocês"), reconheça em UMA frase antes de continuar.');
   }
   if (listening.handle_message_bursts) {
     lines.push('• Quando o lead manda 2 ou 3 mensagens em sequência (acontece muito no WhatsApp), trate o pacote como um turno único: responda o que precisa ser respondido E faça a próxima pergunta do funil. Nunca ignore parte do que ele disse.');
@@ -307,8 +332,14 @@ function renderListeningBlock(listening: ListeningConfig | null, lastLeadMessage
   const detectedBlock = detectedDirectives.length > 0
     ? `\n\nSinais detectados na ÚLTIMA mensagem do lead — atender ANTES do anchor:\n${detectedDirectives.join('\n')}`
     : '';
+  // Em primeiro contato, o lead ainda nem se apresentou. A abertura é da agente.
+  // Não exigir eco genérico aqui — só os "detectedDirectives" (pergunta social
+  // explícita ou nome revelado) podem disparar eco. Resto vai direto pro anchor.
+  const headerDirective = isPrimeiroContato
+    ? 'No primeiro contato, abra com o anchor da fase. Eco só se DETECTADO (pergunta social explícita ou nome revelado abaixo).'
+    : 'ANTES de produzir QUALQUER mensagem — inclusive quando o anchor da fase for um texto literal — você sempre olha TUDO que o lead mandou no turno e ECOA o que ele perguntou ou observou ANTES de seguir o anchor. Eco é uma frase curta, natural, no início da resposta. Depois você dá continuidade ao anchor da fase. Não é "uma coisa ou outra" — é eco + anchor, nessa ordem.';
   return `<listening>
-ANTES de produzir QUALQUER mensagem — inclusive no primeiro contato e mesmo quando o anchor da fase for um texto literal — você sempre olha TUDO que o lead mandou no turno e ECOA o que ele perguntou ou observou ANTES de seguir o anchor. Eco é uma frase curta, natural, no início da resposta. Depois você dá continuidade ao anchor da fase. Não é "uma coisa ou outra" — é eco + anchor, nessa ordem.
+${headerDirective}
 
 ${lines.join('\n')}${detectedBlock}
 </listening>`;
@@ -324,13 +355,77 @@ const WEEKDAY_PT: Record<string, string> = {
   Seg: 'segunda', Ter: 'terça', Qua: 'quarta', Qui: 'quinta', Sex: 'sexta', Sáb: 'sábado', Dom: 'domingo',
 };
 
+/**
+ * Deriva uma pergunta natural a partir do slot.label e/ou slot.coverage_notes
+ * (Fase 3, 08/05/2026). Usado quando admin não escreveu `questions` literal.
+ * Substitui improvisação livre do LLM por template determinístico — preserva
+ * conjunções do label ("Mês E Ano" não vira "mês ou ano") e elimina classe
+ * de bug onde regra-de-prompt falhava ~20% das vezes.
+ *
+ * Estratégia:
+ *   - Se coverage_notes preenchido: converte prosa em pergunta ("Se o casal
+ *     já sabe X" → "Vocês já sabem X?"). Coverage é mais informativo que
+ *     label porque admin escreveu pensando no que precisa cobrir.
+ *   - Senão: usa o label. Se tem hifen/travessão no label, usa o tail
+ *     ("Data do casamento - Mês e Ano" → "Vocês já têm em mente Mês e Ano?").
+ *   - Senão: pergunta genérica com label inteiro.
+ *
+ * Exemplos:
+ *   slot.label = "Data do casamento - Mês e Ano"
+ *   slot.coverage_notes = "Se o casal já sabe o mês e ano do casamento"
+ *   → "Vocês já sabem o mês e ano do casamento?"
+ *
+ *   slot.label = "Destino"
+ *   slot.coverage_notes = null
+ *   → "Vocês já têm em mente Destino?"
+ *
+ *   slot.label = "Número de convidados"
+ *   slot.coverage_notes = "Quantas pessoas vão participar"
+ *   → "Quantas pessoas vão participar?"
+ */
+// deno-lint-ignore no-explicit-any
+function deriveSlotQuestion(slot: any): string | null {
+  const cov = ((slot?.coverage_notes ?? '') as string).trim();
+  const label = ((slot?.label ?? '') as string).trim();
+
+  if (cov && cov.length >= 8) {
+    let q = cov;
+    // Remove prefixos narrativos comuns: "Se o casal", "Quando o casal", "O casal"
+    q = q.replace(/^(se\s+o?\s*casal\s+)/i, '');
+    q = q.replace(/^(quando\s+o?\s*casal\s+)/i, '');
+    q = q.replace(/^(o\s+casal\s+)/i, '');
+    // Reescreve "já sabe X" / "sabe X" como "Vocês já sabem X"
+    q = q.replace(/^(j[áa]\s+)?sabe(m)?\s+/i, 'Vocês já sabem ');
+    q = q.replace(/^(j[áa]\s+)?tem\s+/i, 'Vocês já têm ');
+    q = q.replace(/^(j[áa]\s+)?t[êe]m\s+/i, 'Vocês já têm ');
+    // Capitaliza primeira letra
+    q = q.charAt(0).toUpperCase() + q.slice(1);
+    // Garante "?" no fim
+    q = q.replace(/[.!]+$/, '');
+    if (!q.endsWith('?')) q = q + '?';
+    return q;
+  }
+
+  if (label) {
+    // Se label tem hifen/travessão, usa tail ("Data do casamento - Mês e Ano" → "Mês e Ano")
+    const splitMatch = label.match(/^(.+?)\s*[-–—]\s*(.+)$/);
+    const target = splitMatch ? splitMatch[2].trim() : label;
+    return `Vocês já têm em mente ${target}?`;
+  }
+
+  return null;
+}
+
 /** Formata um slot do agent_check_calendar pra texto natural: "quarta 30/04 às 14h". */
 function formatSlotLabel(slot: { date: string; time: string; weekday: string }): string {
   const wd = WEEKDAY_PT[slot.weekday] ?? slot.weekday.toLowerCase();
-  const [, mm, dd] = slot.date.split('-');
+  const [yyyy, mm, dd] = slot.date.split('-');
   // "14:00" → "14h", "14:30" → "14:30"
   const t = slot.time.endsWith(':00') ? `${slot.time.slice(0, -3)}h` : slot.time;
-  return `${wd} ${dd}/${mm} às ${t}`;
+  // Incluir ANO completo (08/05/2026 fix): sem ano, LLM inferia errado ao
+  // gerar data_vencimento ISO em create_task (escolhia 2025 em vez de 2026).
+  // Com ano explícito no contexto, gera data correta.
+  return `${wd} ${dd}/${mm}/${yyyy} às ${t}`;
 }
 
 /**
@@ -410,16 +505,52 @@ function buildSubstitutions(input: BuildPromptV2Input): Record<string, string> {
   subs['{slot_2}'] = formatted[1] ?? '(horário a confirmar)';
   subs['{slot_3}'] = formatted[2] ?? '(horário a confirmar)';
 
-  // Lista natural com 3 horários: "quarta 30/04 às 14h, quinta 01/05 às 10h ou 16h"
-  const top3 = formatted.slice(0, 3);
-  if (top3.length === 0) {
+  // {slots_disponiveis} — render AGRUPADO por dia, respeitando os slots já
+  // calculados em persona_v2 (que aplica slots_per_day + min_hours_between_slots).
+  //
+  // Antes: top3 cego cortava em 3 slots flat ("seg 9h, seg 11h ou ter 9h").
+  // Bug observado: admin configura 2 slots/dia × 6 dias = potencial 12 slots,
+  // mas só 3 apareciam, e em formato confuso porque mistura múltiplos slots
+  // do mesmo dia sem agrupar (repete "segunda" duas vezes).
+  //
+  // Agora: agrupa por data, formata "segunda 11/05 às 9h ou 11h, terça 12/05
+  // às 9h ou 11h, ou quarta 13/05 às 9h ou 11h". Cap razoável: 3 DIAS distintos
+  // (não 3 slots) — limite de legibilidade humana, não de slots disponíveis.
+  // Se admin quer mais opções, ajusta no MomentCard ou seu copy.
+  const MAX_DAYS_DISPLAY = 3;
+  const byDate = new Map<string, Array<{ time: string; weekday: string }>>();
+  for (const s of slots) {
+    const list = byDate.get(s.date) ?? [];
+    list.push({ time: s.time, weekday: s.weekday });
+    byDate.set(s.date, list);
+  }
+  const dates = [...byDate.keys()].sort();
+  const displayDates = dates.slice(0, MAX_DAYS_DISPLAY);
+  const dayStrings: string[] = [];
+  for (const date of displayDates) {
+    const daySlots = byDate.get(date)!;
+    if (daySlots.length === 0) continue;
+    const wd = WEEKDAY_PT[daySlots[0].weekday] ?? daySlots[0].weekday.toLowerCase();
+    const [yyyy, mm, dd] = date.split('-');
+    // Inclui ANO no label (08/05 fix): sem ano LLM inferia errado em
+    // create_task.data_vencimento (escolhia 2025 em vez de 2026).
+    const dayLabel = `${wd} ${dd}/${mm}/${yyyy}`;
+    const times = daySlots.map((s) => (s.time.endsWith(':00') ? `${s.time.slice(0, -3)}h` : s.time));
+    let timeStr: string;
+    if (times.length === 1) timeStr = `às ${times[0]}`;
+    else if (times.length === 2) timeStr = `às ${times[0]} ou ${times[1]}`;
+    else timeStr = `às ${times.slice(0, -1).join(', ')} ou ${times[times.length - 1]}`;
+    dayStrings.push(`${dayLabel} ${timeStr}`);
+  }
+
+  if (dayStrings.length === 0) {
     subs['{slots_disponiveis}'] = '(horários a confirmar)';
-  } else if (top3.length === 1) {
-    subs['{slots_disponiveis}'] = top3[0];
-  } else if (top3.length === 2) {
-    subs['{slots_disponiveis}'] = `${top3[0]} ou ${top3[1]}`;
+  } else if (dayStrings.length === 1) {
+    subs['{slots_disponiveis}'] = dayStrings[0];
+  } else if (dayStrings.length === 2) {
+    subs['{slots_disponiveis}'] = `${dayStrings[0]}, ou ${dayStrings[1]}`;
   } else {
-    subs['{slots_disponiveis}'] = `${top3[0]}, ${top3[1]} ou ${top3[2]}`;
+    subs['{slots_disponiveis}'] = `${dayStrings.slice(0, -1).join(', ')}, ou ${dayStrings[dayStrings.length - 1]}`;
   }
 
   // Saudação contextual: prioridade pra o que o lead disse; senão hora local SP.
@@ -568,7 +699,7 @@ function renderOneMoment(
       'Se o sistema injetou bloco <lead_already_mentioned>, omita os trechos listados lá. Resto: fiel.]'
     );
   } else {
-    lines.push('    [modo: livre — você tem flexibilidade total. O texto acima é objetivo, não roteiro. Respeite voice, boundaries e red_lines.]');
+    lines.push('    [modo: livre — você tem flexibilidade total. O texto acima é objetivo, não roteiro. Respeite voice, boundaries e red_lines. Se o sistema injetou bloco <must_include>, encaixe naturalmente as frases obrigatórias dentro da resposta livre — palavra-por-palavra.]');
   }
 
   if (m.discovery_config && m.discovery_config.slots && m.discovery_config.slots.length > 0) {
@@ -584,11 +715,28 @@ function renderOneMoment(
           : ' [extra — só pergunta se a conversa fluir natural; nunca trava]';
       const ico = slot.icon ? `${slot.icon} ` : '';
       lines.push(`      - ${ico}${slot.label}${prioLabel}`);
+      const coverageNotes = (slot as { coverage_notes?: string | null }).coverage_notes;
+      if (coverageNotes && typeof coverageNotes === 'string' && coverageNotes.trim().length > 0) {
+        lines.push(`        Contexto/cobertura desta pergunta: ${coverageNotes.trim()}`);
+      }
       if (slot.questions && slot.questions.length > 0) {
         lines.push(`        Perguntas sugeridas (use uma destas, na ordem que fizer sentido):`);
         slot.questions.forEach(q => lines.push(`          • "${q.trim()}"`));
       } else {
-        lines.push(`        Sem pergunta escrita — formule a pergunta natural baseada no contexto.`);
+        // Fase 3 (08/05/2026) — Template-first quando admin não escreveu
+        // pergunta. Antes era "improvise respeitando o contexto" + regra
+        // textual "PRESERVE CONJUNÇÕES" — frágil, LLM suavizava "Mês E Ano"
+        // pra "mês ou ano". Agora deriva pergunta deterministicamente do
+        // coverage_notes ou label e instrui LLM a usar palavra-por-palavra
+        // (admin pode escrever rapport prefix curto antes — "Que bom! ").
+        // Resolve "mês ou ano" estruturalmente, não por regra.
+        const derived = deriveSlotQuestion(slot);
+        if (derived) {
+          lines.push(`        Pergunta gerada (use PALAVRA-POR-PALAVRA — você pode prefixar com rapport curto tipo "Legal!", "Entendi", "Que bom!" + nome do lead, mas NÃO altere a pergunta em si):`);
+          lines.push(`          • "${derived}"`);
+        } else {
+          lines.push(`        Sem pergunta escrita — formule pergunta natural cobrindo EXATAMENTE o nome do slot e contexto.`);
+        }
       }
       if (slot.crm_field_key) {
         lines.push(`        (registra em ${slot.crm_field_key})`);
@@ -599,6 +747,18 @@ function renderOneMoment(
   if (m.red_lines && m.red_lines.length > 0) {
     lines.push('    Não fazer nesta fase:');
     m.red_lines.forEach(rl => lines.push(`      - ${rl}`));
+  }
+  // must_cover: lista prescritiva — pontos que toda resposta nesta fase deve garantir.
+  // Útil em modos faithful/free pra dar liberdade de forma sem perder cobertura.
+  // GUARDA (FIX 08/05): em wait_for_reply + "---" (split em steps), só injetar
+  // must_cover no ÚLTIMO step. Senão tópicos do step final vazam pra step 1 e
+  // quebram o ritmo "uma mensagem de cada vez". É só no último step que faz
+  // sentido cobrar cobertura conceitual da fase inteira.
+  const mustCover = (m as { must_cover?: string[] }).must_cover;
+  const _isLastStepForCoverage = !isCurrent || !usesSteps || (stepIndex ?? 0) >= ((m.anchor_text ?? '').split(/\n\s*-{3,}\s*\n/).filter(s => s.trim().length > 0).length - 1);
+  if (mustCover && Array.isArray(mustCover) && mustCover.length > 0 && _isLastStepForCoverage) {
+    lines.push('    Esta resposta DEVE garantir cobertura de:');
+    mustCover.forEach(mc => lines.push(`      - ${mc}`));
   }
   return lines;
 }
@@ -1071,6 +1231,39 @@ function renderTurnBlock(input: BuildPromptV2Input): string {
     parts.push('</lead_already_mentioned>');
   }
 
+  // Bloco prescritivo: frases que DEVEM sair palavra-por-palavra na resposta.
+  // Configurado pelo admin no momento atual (literal_phrases). Mesmo padrão de
+  // <lead_already_mentioned>, mas com semântica oposta — incluir em vez de omitir.
+  // Validado pós-geração via fuzzy match em runValidator (regen 1x se faltar).
+  //
+  // GUARDA (FIX 08/05): em momentos com wait_for_reply + "---" (anchor splitado),
+  // só injetar literal_phrases quando estiver no ÚLTIMO step. Senão, conteúdo de
+  // marca pertencente ao step final vaza pra step 1 e quebra o ritmo de "uma de
+  // cada vez". Ex Abertura: step 1 = pedir nome, step 2 = pitch + perguntas. Se
+  // literal_phrases injeta o pitch no step 1, LLM honra e dispara step 2 inteiro
+  // de uma vez, atropelando o wait_for_reply.
+  const _curM = input.currentMoment as { literal_phrases?: string[]; anchor_text?: string | null; delivery_mode?: string };
+  const _usesSteps = _curM.delivery_mode === 'wait_for_reply'
+    && typeof _curM.anchor_text === 'string'
+    && /\n\s*-{3,}\s*\n/.test(_curM.anchor_text);
+  const _stepIdx = input.ctx.current_moment_step_index ?? 0;
+  const _totalSteps = _usesSteps
+    ? (_curM.anchor_text ?? '').split(/\n\s*-{3,}\s*\n/).filter(s => s.trim().length > 0).length
+    : 1;
+  const _isLastStep = !_usesSteps || _stepIdx >= _totalSteps - 1;
+  const literalPhrases = _isLastStep ? (_curM.literal_phrases ?? []) : [];
+  const cleanedLiterals = literalPhrases.filter(p => typeof p === 'string' && p.trim().length > 0);
+  if (cleanedLiterals.length > 0) {
+    parts.push('');
+    parts.push('<must_include>');
+    parts.push('As frases abaixo DEVEM aparecer na sua resposta exatamente como escritas — palavra por palavra, sem parafrasear, sem trocar sinônimos, sem reordenar. Encaixe cada uma de forma natural no fluxo da resposta. O resto da mensagem você adapta ao contexto livremente conforme o modo configurado.');
+    for (const p of cleanedLiterals) {
+      parts.push(`  - "${p.trim()}"`);
+    }
+    parts.push('Se você precisar omitir alguma destas frases (porque o <lead_already_mentioned> indica que o lead já a antecipou), tudo bem omitir — mas se incluir, tem que ser palavra-por-palavra como acima.');
+    parts.push('</must_include>');
+  }
+
   parts.push('');
   parts.push('<last_message from="lead">');
   parts.push(input.userMessage);
@@ -1110,6 +1303,21 @@ function renderClosingInstructions(input: BuildPromptV2Input): string {
   const isDesfecho = /desfecho|qualifi|fechament/i.test(cur.moment_key);
   if (isDesfecho) {
     lines.push(`- Você está na fase de FECHAMENTO. O objetivo final é marcar a reunião com a especialista. Mas seja natural: se o lead quiser conversar mais, fazer perguntas ou compartilhar algo, RESPONDA naturalmente — não fique empurrando reunião a cada turn. Quando der a abertura natural pra propor o horário, proponha. Cuidado pra não soar insistente.`);
+    // Fase 4 (08/05/2026) — REMOVIDAS regras textuais que viraram redundantes:
+    //   "AGENDAMENTO OBRIGATÓRIO": Fase 1 força create_task via tool_choice da
+    //     OpenAI quando detector regex pega confirmação de slot. Schema da API
+    //     garante 100% de chamada — não dependia mais dessa regra textual.
+    //   "PRESERVE CONJUNÇÕES": Fase 3 (deriveSlotQuestion em prompt_builder_v2)
+    //     gera pergunta deterministicamente do label/coverage_notes. "Mês E
+    //     Ano" sai literal porque o template é literal, não improviso de LLM.
+    //   "HORÁRIOS COMPLETOS": render dos slots em prompt_builder já agrupa por
+    //     dia e a string entra completa no anchor. Faithful 10% pode parafrasear
+    //     "ou" pra "e" mas não derruba slot inteiro — uma regra textual nessa
+    //     escala não move agulha.
+    // Mantida APENAS: SLOT INDISPONÍVEL (caso real onde regra ajuda — LLM
+    // tende a "ajudar" o lead escolhendo outro slot quando o pedido falha;
+    // a regra força ele a perguntar antes).
+    lines.push(`- SLOT INDISPONÍVEL: se você ofereceu um horário X e o lead aceitou, mas o check_calendar retornou que X não está mais livre, NÃO escolha outro horário sozinha. Pergunte ao lead: "Na verdade {horário pedido} não está mais livre, posso confirmar {horário disponível mais próximo} ou prefere outro dia?". Só chame create_task DEPOIS que o lead confirmar o novo horário.`);
   }
 
   lines.push(`- Respeite voice, boundaries e red_lines deste momento.`);

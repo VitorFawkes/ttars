@@ -14,6 +14,7 @@ import { TagBadge } from '../card/TagBadge'
 import { useCardTags } from '../../hooks/useCardTags'
 import { useSeenCards } from '../../hooks/useSeenCards'
 import { isGanhoDireto, getPhaseOwnerName } from '../../lib/pipeline/phaseLabels'
+import { calculateExpectedPosVendaStage, isStageMismatch } from '../../lib/pipeline/posVendaStageRule'
 import { useCardTeamCounts } from '../../hooks/useCardTeamCounts'
 import { TIPO_LABEL, type CardConciergeStats } from '../../hooks/concierge/types'
 
@@ -443,10 +444,22 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap }: Kanba
             const label = renderTripDate(ev, (card as any).data_viagem_inicio)
             if (!label) return null
 
+            const expectedStage = calculateExpectedPosVendaStage(produtoData, card.pipeline_id)
+            const wrongStage = isStageMismatch(card.pipeline_stage_id, expectedStage)
+
             return (
-                <div key={fieldId} className="flex items-center text-xs text-gray-500 mt-1">
-                    <Calendar className="mr-1.5 h-3 w-3 flex-shrink-0 text-blue-600" />
-                    <span className="truncate block flex-1 text-gray-700">{label}</span>
+                <div key={fieldId} className={cn(
+                    "flex items-center text-xs mt-1",
+                    wrongStage ? "text-red-600" : "text-gray-500"
+                )}>
+                    <Calendar className={cn(
+                        "mr-1.5 h-3 w-3 flex-shrink-0",
+                        wrongStage ? "text-red-600" : "text-blue-600"
+                    )} />
+                    <span className={cn(
+                        "truncate block flex-1",
+                        wrongStage ? "text-red-700 font-medium" : "text-gray-700"
+                    )}>{label}</span>
                 </div>
             )
         }

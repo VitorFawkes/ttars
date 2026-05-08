@@ -129,6 +129,13 @@ export async function runPersonaAgent_v2(
   callLLM: (
     model: string, temp: number, maxTok: number,
     systemPrompt: string, userMsg: string,
+    /**
+     * Fase 1 (08/05/2026): quando passado, força LLM a chamar essa tool
+     * específica na primeira iteração via tool_choice. Persona detecta
+     * confirmação de slot em desfecho_qualificado e passa "create_task"
+     * pra garantir que a reunião sai do CRM.
+     */
+    forceToolName?: string,
   ) => Promise<{ response: string; inputTokens: number; outputTokens: number }>,
 ): Promise<PersonaV2Result> {
 
@@ -370,17 +377,61 @@ export async function runPersonaAgent_v2(
     let availableSlots: Array<{ date: string; time: string; weekday: string }> = [];
     if (bookCfg.responsavel_id) {
       try {
+        // Config de janela vinda da UI. Defaults seguros se não setado.
+        const sched = (bookCfg as unknown as { scheduling?: {
+          skip_today?: boolean;
+          business_days_ahead?: number;
+          slots_per_day?: number;
+          min_hours_between_slots?: number;
+        } | null }).scheduling ?? null;
+        const skipToday = sched?.skip_today ?? true;
+        const businessDaysAhead = Math.max(1, Math.min(15, sched?.business_days_ahead ?? 6));
+        const slotsPerDay = Math.max(1, Math.min(6, sched?.slots_per_day ?? 2));
+        const minHoursBetweenSlots = Math.max(0, Math.min(8, sched?.min_hours_between_slots ?? 2));
+
+        // Calcula data de início: hoje OU próximo dia útil (sex→seg).
         const today = new Date();
-        const dateFrom = today.toISOString().slice(0, 10);
-        const dateTo = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const startDay = new Date(today);
+        if (skipToday) {
+          startDay.setDate(startDay.getDate() + 1);
+        }
+        while (startDay.getDay() === 0 || startDay.getDay() === 6) {
+          startDay.setDate(startDay.getDate() + 1);
+        }
+        const dateFrom = startDay.toISOString().slice(0, 10);
+        // Janela em dias corridos = businessDaysAhead × ~1.5 pra cobrir fim de semana
+        const dateTo = new Date(startDay.getTime() + Math.ceil(businessDaysAhead * 1.5) * 24 * 60 * 60 * 1000)
+          .toISOString().slice(0, 10);
         const { data: cal } = await supabase.rpc('agent_check_calendar', {
           p_owner_id: bookCfg.responsavel_id,
           p_date_from: dateFrom,
           p_date_to: dateTo,
+          p_org_id: agent.org_id,
         });
         const slotsRaw = (cal as { available_slots?: Array<{ date: string; time: string; weekday: string }> } | null)?.available_slots ?? [];
-        // Pega no máximo 8 — LLM escolhe os 2-3 melhores
-        availableSlots = slotsRaw.slice(0, 8);
+
+        // Seleção balanceada respeitando config: N horários por dia, espaçados ≥X horas, M dias.
+        const byDay = new Map<string, Array<{ date: string; time: string; weekday: string }>>();
+        for (const s of slotsRaw) {
+          const list = byDay.get(s.date) ?? [];
+          list.push(s);
+          byDay.set(s.date, list);
+        }
+        const days = [...byDay.keys()].sort().slice(0, businessDaysAhead);
+        const balanced: Array<{ date: string; time: string; weekday: string }> = [];
+        for (const day of days) {
+          const daySlots = byDay.get(day) ?? [];
+          if (daySlots.length === 0) continue;
+          const picked: typeof daySlots = [daySlots[0]];
+          for (let i = 1; i < daySlots.length && picked.length < slotsPerDay; i++) {
+            const last = picked[picked.length - 1];
+            const lastH = parseInt(last.time.split(':')[0], 10) + parseInt(last.time.split(':')[1], 10) / 60;
+            const candH = parseInt(daySlots[i].time.split(':')[0], 10) + parseInt(daySlots[i].time.split(':')[1], 10) / 60;
+            if (candH - lastH >= minHoursBetweenSlots) picked.push(daySlots[i]);
+          }
+          balanced.push(...picked);
+        }
+        availableSlots = balanced;
       } catch (err) {
         console.warn('[persona_v2] pré-busca de slots falhou:', err);
       }
@@ -430,7 +481,12 @@ export async function runPersonaAgent_v2(
   // tem >=3 dos 4 campos críticos`, salta pro último step da abertura. Isso
   // mantém o segundo turno (pitch) sem perder o cumprimento, e libera a
   // sondagem mais rápido. Mantém literal puro e determinístico.
-  if (usesSteps && currentMomentStepIndex < (() => {
+  //
+  // GUARDA (FIX 08/05): nunca pular step em primeiro contato. Mesmo que o
+  // Data Agent tenha alucinado e populado form_data com algum valor genérico
+  // ("vim do site" não tem fato pra extrair), o step 1 da abertura é a
+  // apresentação dela — pular significa cliente nunca ouvir "Aqui é a Estela".
+  if (!ctx.is_primeiro_contato && usesSteps && currentMomentStepIndex < (() => {
     const totalSteps = (cur.anchor_text ?? '').split(/\n\s*-{3,}\s*\n/).filter(s => s.trim().length > 0).length;
     return totalSteps - 1;
   })()) {
@@ -464,14 +520,24 @@ export async function runPersonaAgent_v2(
   }
 
   // 5c. Detecção determinística de fatos do anchor que o lead já mencionou.
-  // SÓ roda em modos literal/faithful (modo 'free' não precisa — agente já
-  // adapta). E só roda quando há mensagens prévias do lead pra analisar.
-  // Esse pedaço transforma a "instrução fuzzy" do prompt anterior em decisão
-  // determinística — antes o LLM principal precisava lembrar de checar
-  // histórico (~70% confiabilidade). Agora ele recebe a lista pronta (~95%).
+  // SÓ roda em modo `faithful` — modo `literal` foi REMOVIDO desta detecção
+  // em 08/05/2026.
+  //
+  // Por quê: em literal o admin curou o texto palavra-por-palavra. O detector
+  // (mini-LLM) tem ~15-20% taxa de falso-positivo em extração de substring
+  // (Yang 2025, vLLM HaluGate dez/2025). Quando classifica errado um termo
+  // de marca como "lead já mencionou" (ex: "Destination Wedding"), o
+  // renderLiteralResponse fazia text.split(trecho).join('') cego, deletando
+  // a string do meio da frase e quebrando gramática ("produtora de da
+  // América Latina"). Antipattern reconhecido em NLG safety 2025.
+  //
+  // Em literal, premissa é: admin sabe o que escreveu, não fazer cirurgia.
+  // Repetição ocasional de info que o lead já mencionou é trade-off aceitável
+  // pra garantir gramática íntegra. Em modo `faithful` (10% leeway) o
+  // detector ainda vale — LLM pode adaptar sem mutilar.
   let trechosAOmitir: string[] = [];
   let leadResumo = '';
-  const shouldDetectOmissions = (cur.message_mode === 'literal' || cur.message_mode === 'faithful')
+  const shouldDetectOmissions = cur.message_mode === 'faithful'
     && cur.anchor_text
     && cur.anchor_text.trim().length > 0
     && ctx.historico_compacto.includes('[lead]:');
@@ -582,6 +648,7 @@ export async function runPersonaAgent_v2(
       companyName: business?.company_name ?? '',
       bookMeeting: bookMeetingForPrompt,
       historicoCompacto: ctx.historico_compacto,
+      lastLeadMessage: userMessage,
       omitExcerpts: trechosAOmitir,
     });
     return {
@@ -603,10 +670,79 @@ export async function runPersonaAgent_v2(
   const personaTemp = agent.pipeline_models?.main?.temperature ?? agent.temperature;
   const personaMaxTok = agent.pipeline_models?.main?.max_tokens ?? agent.max_tokens;
 
-  const { response, inputTokens, outputTokens } = await callLLM(
+  // Fase 1 (08/05/2026) — Detector de confirmação de slot em desfecho_qualificado.
+  // Quando lead diz "pode ser 9h", "fechado terça", "ok dia 11" etc., e moment é
+  // desfecho com book_meeting habilitado, FORÇA o LLM a chamar create_task na 1ª
+  // iteração via tool_choice da OpenAI API. Garante estruturalmente que tarefa é
+  // criada (e cascade handoff_actions roda: change_stage + apply_tag + notify).
+  // Resolve o problema "regra-de-prompt sobre AGENDAMENTO OBRIGATÓRIO falha às
+  // vezes". Schema strict da API é determinístico, regra textual não é.
+  const forceToolName = (
+    cur.moment_key === 'desfecho_qualificado'
+    && bookCfg?.enabled === true
+    && detectSlotConfirmation(userMessage)
+  ) ? 'create_task' : undefined;
+  if (forceToolName) {
+    console.log(JSON.stringify({
+      event: 'force_tool_create_task',
+      agent_id: agent.id,
+      moment: cur.moment_key,
+      user_msg_excerpt: userMessage.slice(0, 80),
+    }));
+  }
+
+  let { response, inputTokens, outputTokens } = await callLLM(
     personaModel, personaTemp, personaMaxTok,
-    prompt, userMessage,
+    prompt, userMessage, forceToolName,
   );
+
+  // 6c. Enforcement de literal_phrases (frases obrigatórias palavra-por-palavra).
+  // Mecanismo: depois da resposta, normalizar e checar se cada frase aparece. Se
+  // alguma faltar (parafraseou ou omitiu), regen 1x com instrução reforçada.
+  // Padrão Salesforce/HubSpot: ~80% das vezes LLM acerta de primeira; regen pega
+  // mais 15%. Restante 5% loga e segue (não bloqueia turno do lead).
+  // Pula a checagem se: (a) sem literal_phrases configuradas; (b) trechosAOmitir
+  // cobre todos (lead já mencionou, então omitir é OK); (c) wait_for_reply +
+  // step não-final — frases pertencem ao step final, não fazem sentido cobrar
+  // em steps intermediários.
+  const _totalStepsLP = usesSteps
+    ? (cur.anchor_text ?? '').split(/\n\s*-{3,}\s*\n/).filter(s => s.trim().length > 0).length
+    : 1;
+  const _isLastStepLP = !usesSteps || currentMomentStepIndex >= _totalStepsLP - 1;
+  const literalPhrases = _isLastStepLP
+    ? ((cur as { literal_phrases?: string[] }).literal_phrases ?? [])
+        .filter(p => typeof p === 'string' && p.trim().length > 0)
+    : [];
+  if (literalPhrases.length > 0) {
+    const missingAfterFirst = checkMissingLiteralPhrases(response, literalPhrases, trechosAOmitir);
+    if (missingAfterFirst.length > 0) {
+      console.warn(`[persona_v2] literal_phrases missing after first pass: ${JSON.stringify(missingAfterFirst)} — regenerating once`);
+      const regenInstruction = `${userMessage}
+
+[INSTRUÇÃO CRÍTICA DO SISTEMA — sua resposta anterior omitiu/parafraseou frases obrigatórias. Reescreva a resposta encaixando NATURALMENTE estas frases EXATAS, palavra por palavra:
+${missingAfterFirst.map(p => `  - "${p}"`).join('\n')}
+Mantenha o tom e o resto do conteúdo, mas garanta que as frases acima apareçam idênticas.]`;
+      try {
+        const regen = await callLLM(personaModel, personaTemp, personaMaxTok, prompt, regenInstruction);
+        const stillMissing = checkMissingLiteralPhrases(regen.response, literalPhrases, trechosAOmitir);
+        if (stillMissing.length === 0) {
+          response = regen.response;
+          inputTokens += regen.inputTokens;
+          outputTokens += regen.outputTokens;
+        } else {
+          console.warn(`[persona_v2] literal_phrases STILL missing after regen: ${JSON.stringify(stillMissing)} — keeping first response, logging gap`);
+          // Prefere regen se ela cobriu MAIS frases (mesmo que não todas)
+          if (stillMissing.length < missingAfterFirst.length) {
+            response = regen.response;
+            inputTokens += regen.inputTokens;
+            outputTokens += regen.outputTokens;
+          }
+        }
+      } catch (regenErr) {
+        console.warn('[persona_v2] literal_phrases regen failed:', regenErr);
+      }
+    }
+  }
 
   return {
     response,
@@ -622,6 +758,88 @@ export async function runPersonaAgent_v2(
   };
 }
 
+/**
+ * Verifica quais literal_phrases NÃO aparecem na resposta (com tolerância a
+ * pontuação, espaços, case e a omissões legítimas via lead_already_mentioned).
+ *
+ * Algoritmo: normaliza ambos (lowercase, sem acentos, sem pontuação não-letra,
+ * espaços colapsados) e faz substring match. Tolerância suficiente pra detectar
+ * "ganhamos prêmio Vogue 2024" copiado certo mesmo com vírgula extra, mas pega
+ * paráfrase tipo "temos prêmios reconhecidos".
+ *
+ * Frases que estão dentro de trechosAOmitir não contam como faltando — o lead
+ * já mencionou, omitir é correto.
+ */
+function checkMissingLiteralPhrases(
+  response: string,
+  literalPhrases: string[],
+  trechosAOmitir: string[],
+): string[] {
+  const normalize = (s: string): string =>
+    s.toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  const normResponse = normalize(response);
+  // Heurística allowedToOmit via fact_omission_detector REMOVIDA (FIX 08/05):
+  // era permissiva demais — se lead mencionou substring do literal (ex: "wedding"
+  // dentro de "destination wedding desde 2012 e 5 prêmios..."), marcava literal
+  // INTEIRO como "OK omitir". Regen nunca disparava em casos legítimos.
+  // literal_phrases é compromisso explícito do admin — sempre cobrar.
+  const missing: string[] = [];
+  for (const phrase of literalPhrases) {
+    const normPhrase = normalize(phrase);
+    if (!normPhrase) continue;
+    if (!normResponse.includes(normPhrase)) {
+      missing.push(phrase);
+    }
+  }
+  return missing;
+}
+
+// ---------------------------------------------------------------------------
+// Helper: detectSlotConfirmation — lead aceitou um horário oferecido?
+// Usado por persona_v2 em desfecho_qualificado pra decidir se força create_task
+// via tool_choice da OpenAI. Escopo restrito (só roda em desfecho), então
+// falsos positivos têm impacto controlado — schema do create_task valida args.
+//
+// Padrões cobertos:
+//   "Posso na terça"           — verbo + dia
+//   "Pode ser as 9h"           — verbo + hora
+//   "Fechado pra segunda"      — verbo + dia
+//   "Confirma terça 11h"       — verbo + dia + hora
+//   "Ok, vamos"                — confirmação seca
+//   "Sim, dia 12 às 14h"       — sim + data
+//   "9h"                       — resposta curta com hora
+//   "Terça"                    — resposta curta com dia da semana
+// ---------------------------------------------------------------------------
+
+function detectSlotConfirmation(userMessage: string): boolean {
+  if (!userMessage) return false;
+  const msg = userMessage.toLowerCase().trim();
+  if (msg.length === 0 || msg.length > 200) return false;
+
+  // Padrão 1: verbo de confirmação + referência temporal
+  const confirmAndTime = /\b(pode|posso|pra mim|fechado|confirma|confirmado|combinado|ok|sim|t[áa]\s*bom|tudo\s*certo|vamos|fica|fico|topa|topo|beleza)\b[^.]{0,40}\b(seg|ter[çc]a|qua|qui|sex|s[áa]b|dom|segunda|quarta|quinta|sexta|s[áa]bado|domingo|h\b|\d+\s*h|às|dia\s+\d|manh[ãa]|tarde|noite|amanh[ãa]|hoje|próxim)\b/i;
+  if (confirmAndTime.test(userMessage)) return true;
+
+  // Padrão 2: verbo de confirmação isolado em msg curta (lead aceitando proposta sem reespecificar)
+  // Ex: "ok!", "fechado", "pode ser", "tá bom"
+  if (msg.length < 30) {
+    const justConfirm = /^\s*(ok|okay|sim|fechado|pode|combinado|tá\s*ok|tá\s*bom|beleza|topa|vamos|isso|certo|perfeito|ótimo|otimo|claro)[\s.!?]*$/i;
+    if (justConfirm.test(userMessage)) return true;
+  }
+
+  // Padrão 3: msg curta com hora/dia explícito (resposta direta a "qual horário?")
+  if (msg.length < 50) {
+    const justTimeRef = /\b(\d+\s*h|\d{1,2}:\d{2}|seg|ter[çc]a|qua|qui|sex|s[áa]b|dom|segunda|quarta|quinta|sexta|s[áa]bado|domingo|manh[ãa]|tarde|noite|amanh[ãa])\b/i;
+    if (justTimeRef.test(userMessage)) return true;
+  }
+
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 // Helper: detectShortClosing — lead mandou só agradecimento/despedida?
 // Regex ANCORADA pra mensagem inteira normalizada — não pega "ok pode ser
@@ -635,7 +853,7 @@ function detectShortClosing(userMessage: string): ClosingType | null {
   // Normaliza: lowercase, remove acentos, tira pontuação no fim, trim
   const normalized = userMessage
     .toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[!.?]+$/g, '')
     .trim();
   if (normalized.length === 0 || normalized.length > 40) return null;
@@ -676,12 +894,22 @@ interface RenderLiteralInput {
   companyName: string;
   bookMeeting: Parameters<typeof buildPromptV2>[0]['bookMeeting'];
   historicoCompacto: string;
+  /**
+   * Mensagem inteira do lead deste turno (já combinada pelo buffer caso sejam
+   * múltiplas msgs em sequência). Necessário porque o histórico_compacto perde
+   * continuação multi-linha — quando lead manda "Oi Estela" + "Me chamo Vitor"
+   * em sequência, o buffer combina como "Oi Estela\nMe chamo Vitor" e o
+   * histórico só prefixa a primeira linha com [lead]:. Detectores de eco
+   * social e name reveal precisam ver o texto completo.
+   */
+  lastLeadMessage: string;
   omitExcerpts: string[];
 }
 
 function renderLiteralResponse(input: RenderLiteralInput): string {
   const { moment, stepIndex, usesSteps, contactNameKnown, contactName,
-          agentName, companyName, bookMeeting, historicoCompacto, omitExcerpts } = input;
+          agentName, companyName, bookMeeting, historicoCompacto,
+          lastLeadMessage, omitExcerpts } = input;
 
   if (!moment.anchor_text) return '';
 
@@ -697,22 +925,59 @@ function renderLiteralResponse(input: RenderLiteralInput): string {
     text = text.split(trecho).join('').replace(/\s{2,}/g, ' ').trim();
   }
 
-  // 2.5. Eco determinístico de pergunta social (FIX 07/05/2026).
+  // 2.5. Eco determinístico de pergunta social (FIX 07/05/2026, atualizado 08/05).
   // Em modo literal o LLM nunca é chamado, então a diretiva
   // `<detected_social_question>` injetada em renderListeningBlock fica órfã.
   // Resultado observado: cliente diz "Oi tudo bem?" e Estela responde "Olá,
   // tudo bem? Aqui é a Estela!" — ignorando a pergunta social do cliente.
   // Solução: prepend determinístico de uma frase de eco curto antes do anchor
   // quando regex bate na última msg do lead. Sem LLM, sem variabilidade.
-  const _leadLines2 = historicoCompacto.split('\n').filter(l => l.startsWith('[lead]:'));
-  const _lastLeadMsg = _leadLines2.length > 0
-    ? _leadLines2[_leadLines2.length - 1].replace(/^\[lead\]:\s*/, '').trim()
-    : '';
+  //
+  // FIX 08/05: usar `lastLeadMessage` (passado direto, já combinado pelo buffer)
+  // em vez de parsear historicoCompacto. Quando o buffer combina múltiplas
+  // msgs ("Oi Estela\nMe chamo Vitor"), o histórico só prefixa [lead]: na
+  // primeira linha, e a continuação ficava invisível pro detector.
+  const _lastLeadMsg = (lastLeadMessage || '').trim();
   const _hasSocialQuestion = /\b(e\s+voc[eê]\??|td\s+bem\??|tudo\s+bem\??|como\s+vai\??|como\s+(voc[eê]\s+)?est[áa]\??|tudo\s+(bom|certo|joia)\??)\b/i.test(_lastLeadMsg.toLowerCase());
   // Só prepend se o anchor não começa já com "tudo bem" ou "tudo ótimo" — evita duplicar quando admin já escreveu eco no anchor.
   const _anchorAlreadyEchoes = /^(tudo\s+(bem|ótimo|otimo|bom|certo)|td\s+bem)/i.test(text.trim());
   if (_hasSocialQuestion && !_anchorAlreadyEchoes) {
     text = 'Tudo ótimo por aqui, obrigada!\n\n' + text;
+  }
+
+  // 2.6. Prepend determinístico de "Prazer, Nome" quando lead se identifica.
+  //
+  // Em modo literal o LLM nunca é chamado e a diretiva injetada em
+  // renderListeningBlock fica órfã. Sem isso: lead diz "Me chamo Vitor" e
+  // Estela ignora o nome no step 2 da abertura, soa robotizada.
+  //
+  // Estratégia (FIX 08/05/2026 v2): combinar 2 paths pra cobrir typos.
+  //   Path 1 — regex direto: pega "me chamo X", "sou o Y", "meu nome é Z"
+  //            quando texto está limpo.
+  //   Path 2 — fallback via Data Agent: se contactNameKnown=true (Data Agent
+  //            já extraiu o nome neste turn) E o nome aparece na última msg
+  //            do lead (case-insensitive, sem acentos), usa o nome extraído.
+  //            Cobre o caso real de typo "Me cham,o Vitor" — regex falha mas
+  //            Data Agent (LLM gpt-5.1) entende e extrai "Vitor"; apareceu em
+  //            "Me cham,o Vitor", então prepend.
+  //   Ambos bloqueados se anchor já começa com "Prazer Nome" pra evitar dup.
+  const _detectedName = (() => {
+    const m = _lastLeadMsg.match(/\b(?:sou\s+o|sou\s+a|aqui\s+[ée]\s+o|aqui\s+[ée]\s+a|meu\s+nome\s+[ée]|me\s+chamo|pode\s+me\s+chamar\s+de)\s+([A-ZÁÉÍÓÚÂÊÔÃÕÇ][a-záéíóúâêôãõç]{1,30}(?:\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇ][a-záéíóúâêôãõç]{1,30})?)/i);
+    if (m) return m[1].split(/\s+/)[0];
+    if (contactNameKnown && contactName && contactName.trim().length >= 2) {
+      const firstName = contactName.trim().split(/\s+/)[0];
+      const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      if (norm(_lastLeadMsg).includes(norm(firstName))) {
+        return firstName;
+      }
+    }
+    return null;
+  })();
+  if (_detectedName) {
+    const _anchorAlreadyGreets = new RegExp(`^(prazer|legal\\s+te\\s+conhecer|oi)[,\\s]*${_detectedName}\\b`, 'i').test(text.trim());
+    if (!_anchorAlreadyGreets) {
+      text = `Prazer, ${_detectedName}.\n\n` + text;
+    }
   }
 
   // 3. Substitui variáveis
@@ -726,11 +991,11 @@ function renderLiteralResponse(input: RenderLiteralInput): string {
     subs['{responsavel_first_name}'] = bookMeeting.responsavel_name.trim().split(/\s+/)[0];
   }
   // Saudação detectada da última msg do lead (boa noite/tarde/dia)
-  const leadLines = historicoCompacto.split('\n').filter(l => l.startsWith('[lead]:'));
-  const lastLead = leadLines.length > 0 ? leadLines[leadLines.length - 1].replace(/^\[lead\]:\s*/, '').trim() : '';
+  // FIX 08/05: usar lastLeadMessage direto (já combinada pelo buffer) — mesmo
+  // motivo do fix do eco social acima.
   let detectedGreeting: string | null = null;
-  if (lastLead) {
-    const head = lastLead.toLowerCase().slice(0, 30);
+  if (_lastLeadMsg) {
+    const head = _lastLeadMsg.toLowerCase().slice(0, 30);
     if (/\bboa\s+noite\b/.test(head)) detectedGreeting = 'Boa noite';
     else if (/\bboa\s+tarde\b/.test(head)) detectedGreeting = 'Boa tarde';
     else if (/\bbom\s+dia\b/.test(head)) detectedGreeting = 'Bom dia';

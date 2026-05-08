@@ -59,6 +59,21 @@ export interface BookMeetingConfig {
   titulo_template: string
   /** Mensagem que a agente envia pro lead após agendar. Mesmas variáveis + {data} {hora}. */
   mensagem_confirmacao_template: string
+  /**
+   * Janela de slots oferecidos ao lead. Quando ausente, usa defaults seguros
+   * (skip_today=true, business_days_ahead=6, slots_per_day=2, min_hours_between_slots=2).
+   * Adicionado 07/05/2026 — admin pode ajustar pela UI sem precisar de deploy.
+   */
+  scheduling?: {
+    /** true = não oferece reunião pra hoje (começa do próximo dia útil). */
+    skip_today?: boolean
+    /** Quantos dias úteis à frente oferecer slots. Default 6. */
+    business_days_ahead?: number
+    /** Quantos horários por dia oferecer no máximo. Default 2. */
+    slots_per_day?: number
+    /** Espaçamento mínimo (em horas) entre os horários do mesmo dia. Default 2. */
+    min_hours_between_slots?: number
+  } | null
 }
 
 export interface HandoffActions {

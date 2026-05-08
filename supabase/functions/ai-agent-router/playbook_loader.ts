@@ -60,6 +60,15 @@ export interface PlaybookMoment {
   intent?: string | null;
   anchor_text: string | null;
   red_lines: string[];
+  /** Pontos que toda resposta nesta fase deve cobrir (oposto prescritivo de red_lines). */
+  must_cover?: string[];
+  /**
+   * Frases que devem sair palavra-por-palavra na resposta (qualquer modo).
+   * Renderizada como bloco <must_include> no prompt + validada pós-geração via
+   * fuzzy match. Se faltar, persona regera 1x com instrução reforçada.
+   * Independente de must_cover (cobertura conceitual em modo livre).
+   */
+  literal_phrases?: string[];
   collects_fields: string[];
   /** Slots da Sondagem (só preenchido em fases de descoberta, kind=flow). */
   discovery_config: DiscoveryConfig | null;

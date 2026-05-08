@@ -385,7 +385,7 @@ async function analyzeImage(base64: string, mimeType: string, apiKey: string): P
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "gpt-4.1-mini",
+      model: "gpt-5.1",
       messages: [{ role: "user", content: [
         { type: "text", text: MEDIA_IMAGE_PROMPT },
         { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}`, detail: "low" } },
@@ -422,7 +422,7 @@ async function analyzeDocument(base64: string, mimeType: string, apiKey: string)
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "gpt-4.1-mini",
+        model: "gpt-5.1",
         messages: [{ role: "user", content: [
           { type: "text", text: MEDIA_DOCUMENT_PROMPT },
           { type: "file", file: { file_id: fileObj.id } },
@@ -545,7 +545,8 @@ async function findAgentForLine(
         handoff_signals, intelligent_decisions, prompts_extra,
         pipeline_models, timings, validator_rules,
         test_mode_phone_whitelist, multimodal_config,
-        handoff_actions
+        handoff_actions,
+        playbook_enabled, identity_config, voice_config, boundaries_config, listening_config
       )
     `)
     .in("phone_line_id", lineIds)
@@ -1788,6 +1789,7 @@ async function executeToolCall(
           p_owner_id: ownerForCalendar,
           p_date_from: args.date_from as string,
           p_date_to: args.date_to as string,
+          p_org_id: agent.org_id, // defesa em profundidade — só lê tarefas da org do agente
         });
         result = JSON.stringify(calResult || { error: "Sem dados de agenda" });
         break;
@@ -1836,12 +1838,19 @@ async function executeToolCall(
             responsavelName = (profileRow as { nome?: string | null } | null)?.nome ?? null;
           }
 
-          // Renderiza template do título com variáveis disponíveis
+          // Renderiza template do título com variáveis disponíveis.
+          // {responsavel_first_name} é primeiro nome (mais natural — admin
+          // costuma escrever "Reunião com {contact_name} — {responsavel_first_name}").
+          // Bug observado 07/05/2026: tarefa salva com título literal
+          // "Reunião com Vitor — {responsavel_first_name}" porque a substituição
+          // não cobria a variante de primeiro nome.
           if (bookCfg.titulo_template) {
+            const respFirstName = (responsavelName ?? "").trim().split(/\s+/)[0] || (responsavelName ?? "");
             titulo = bookCfg.titulo_template
               .replace(/\{contact_name\}/g, ctx.contact_name || "lead")
               .replace(/\{agent_name\}/g, agent.nome || "")
-              .replace(/\{responsavel_name\}/g, responsavelName ?? "");
+              .replace(/\{responsavel_name\}/g, responsavelName ?? "")
+              .replace(/\{responsavel_first_name\}/g, respFirstName);
           }
         }
 
@@ -2158,6 +2167,14 @@ async function callLLMWithTools(
   ctx: ConversationContext,
   agent: AgentConfig,
   business?: BusinessConfig | null,
+  /**
+   * Fase 1 (08/05/2026) — força LLM a chamar uma tool específica na primeira
+   * iteração. Usado em desfecho_qualificado quando regex detecta que o lead
+   * confirmou um slot. Garante estruturalmente que create_task vai rodar
+   * (e por consequência o cascade handoff_actions: change_stage + apply_tag
+   * + notify_responsible). Resolve gap de regra-de-prompt onde LLM esquecia.
+   */
+  forceToolName?: string,
 ): Promise<{ response: string; inputTokens: number; outputTokens: number }> {
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
@@ -2181,7 +2198,14 @@ async function callLLMWithTools(
     };
     if (tools.length > 0) {
       body.tools = tools;
-      body.tool_choice = "auto";
+      // Primeira iter + forceToolName → OpenAI obriga LLM a retornar tool_call
+      // dessa função específica. Iters seguintes voltam pra "auto" pra LLM
+      // poder finalizar a resposta de texto após receber o tool result.
+      if (iteration === 0 && forceToolName) {
+        body.tool_choice = { type: "function", function: { name: forceToolName } };
+      } else {
+        body.tool_choice = "auto";
+      }
     }
 
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -2337,6 +2361,31 @@ REGRAS:
 5. Se nada mudou, mantenha textos identicos ao atual
 6. Em primeiro contato generico: NAO altere ai_resumo, apenas ai_contexto
 
+REGRA CRITICA — RESPOSTA CURTA (FIX 08/05/2026 — bug 5):
+Quando a ULTIMA mensagem da agente foi uma PERGUNTA e o lead respondeu com
+poucas palavras ("25", "100k", "sim", "Nordeste", "janeiro"), interprete a
+resposta NO CONTEXTO da pergunta antes de decidir se atualiza ai_resumo.
+- Pergunta agente: "quantas pessoas?" + Lead: "25" → ai_resumo deve incluir "~25 convidados"
+- Pergunta agente: "qual orçamento?" + Lead: "100k" → ai_resumo deve incluir "orçamento ~R$100k"
+- Pergunta agente: "região?" + Lead: "Nordeste" → ai_resumo deve incluir "Nordeste"
+- mudancas.ai_resumo = TRUE quando a resposta curta adiciona fato novo, mesmo
+  que isolada parecesse vazia. NAO ignore so porque a mensagem do lead tem 1-3
+  palavras — a maioria das respostas em conversa real é assim.
+
+REGRA CRITICA — ESTADOS CONFIRMADOS VS ESPECULATIVOS (Fase 2, 08/05/2026):
+NAO afirme em ai_resumo/ai_contexto fatos que dependem de execucao do sistema
+sem checar a flag determinística correspondente. Use APENAS:
+- "Reunião agendada"/"reunião marcada"/"aceitou reunião" → SOMENTE quando
+  ctx.meeting_created_or_confirmed = ${ctx.meeting_created_or_confirmed}.
+  Se a flag for false, escreva "em negociação de horário", "discutindo
+  agenda", ou similar — NUNCA "aceitou", "marcou", "confirmou".
+- "Lead disse X" / "casal mencionou Y" → sempre OK, isso é fato da conversa
+  literal e não depende de execução.
+Esta regra existe porque o Backoffice nao tem visibilidade de tarefas
+criadas, etapas mudadas, tags coladas — só do texto da conversa. Sem essa
+regra, voce alucinou (08/05) "Aceitou reunião 11/05 às 09h" quando o slot
+não estava livre e a Estela ainda estava negociando 11h.
+
 Resposta OBRIGATORIA em JSON:
 {
   "ai_resumo": "<texto final>",
@@ -2462,7 +2511,10 @@ async function runDataAgentLLM(
   // Default sugerido só quando admin não configurou nada. RPC agent_update_card_data_v2
   // valida de novo contra system_fields e protected_fields antes de escrever.
   const autoUpdateFields = business?.auto_update_fields || [];
-  const defaultSugestao = ["titulo", "ai_resumo", "ai_contexto", "pipeline_stage_id"];
+  // titulo NAO entra no default — exige opt-in explicito do admin em
+  // business.auto_update_fields para evitar reescrita automatica do nome do
+  // card a cada conversa. Edicao manual via UI continua livre.
+  const defaultSugestao = ["ai_resumo", "ai_contexto", "pipeline_stage_id"];
   const configuredCardFields = autoUpdateFields.length > 0 ? autoUpdateFields : defaultSugestao;
 
   // Traveler hard-lock: mesmo que admin tenha liberado titulo/stage, viajante não pode mexer.
@@ -2534,12 +2586,26 @@ ${stagesOpts || "(nenhum stage configurado com advance_to_stage_id)"}
 - Campos permitidos no contato: ${allowedContactFields.join(", ")}.
 
 ### Normalizacoes
-- titulo (so se primary): "Viagem [Destino] - [Nome]". Ex: "Viagem Italia - Joao". Nao atualizar se ja tem titulo compativel.
+- titulo: NAO atualizar automaticamente. So gravar se "titulo" estiver explicitamente em "Campos permitidos no card".
 - cpf: so digitos, 11 caracteres.
 - passaporte: alfanumerico uppercase.
 - data_nascimento / data_viagem_inicio / data_viagem_fim: YYYY-MM-DD.
 - nome/sobrenome: primeira letra maiuscula.
 - Campos dinamicos permitidos em "Campos permitidos no card" (ex: mkt_destino, ww_sdr_ajuda_familia): grave quando o cliente indicou explicitamente.
+
+### Datas com ano AMBÍGUO (FIX 08/05/2026 — bug 4)
+Quando o cliente disser SO MES sem ano ("em janeiro", "em maio", "no fim do ano",
+"primavera"), e o campo é uma data de evento futuro (ww_data_casamento,
+ww_data_viagem, mkt_pretende_viajar_quando, data_viagem_inicio):
+- NAO INFIRA o ano. Nao grave "2027-01" só porque hoje é maio/2026.
+- DEIXE o campo SEM gravar nesta rodada. O Persona vai pedir confirmação no
+  próximo turn ("janeiro de 2027 ou 2028?"). Quando cliente confirmar ano,
+  proxima passada do Data Agent grava completo.
+- EXCECAO: cliente disse explicitamente o ano ("janeiro de 2028", "maio do ano
+  que vem", "daqui a 2 anos"). Aí pode gravar com inferência clara.
+- Em qualification_signals, registre o sinal parcial mesmo: ex
+  {"ww_data_casamento_ambigua": "janeiro - ano nao confirmado"}. Isso permite
+  Persona pedir confirmação sem re-perguntar o mês.
 
 ### Captura de NOME (regra crítica — não pular)
 Quando o cliente DISSER seu nome ou sobrenome (em qualquer formato natural), isso NÃO é inferência, é fato literal: SEMPRE inclua em contact_patch.
@@ -2850,14 +2916,17 @@ async function runPersonaAgent(
         } : null,
         userMessage,
         qualificationSignals,
-        async (model, temp, maxTok, sys, userMsg) => {
+        async (model, temp, maxTok, sys, userMsg, forceToolName) => {
           // Tool-calling habilitado em v2: persona pode chamar check_calendar
           // pra ver disponibilidade, create_task pra agendar, search_knowledge_base
           // pra responder fatos da KB, etc. Sem tools (lista vazia), o callLLMWithTools
           // se comporta como callLLM puro — fail-safe.
+          // forceToolName: persona detecta confirmação de slot em desfecho e força
+          // create_task estruturalmente (Fase 1, 08/05/2026).
           return callLLMWithTools(
             supabase, model, temp, maxTok,
             sys, userMsg, v2History, v2Tools, ctx, agent, business,
+            forceToolName,
           );
         },
       );
@@ -3205,7 +3274,7 @@ ${response}
 SAÍDA: apenas o texto final (original EXATO, ou corrigido se algum dos 4 problemas
 graves foi detectado). Nada mais.`;
 
-    const validatorModelLit = agent.pipeline_models?.validator?.model || "gpt-4.1-mini";
+    const validatorModelLit = agent.pipeline_models?.validator?.model || "gpt-5.1";
     const validatorTempLit = agent.pipeline_models?.validator?.temperature ?? 0.1;
     const validatorMaxTokLit = agent.pipeline_models?.validator?.max_tokens ?? 1024;
 
@@ -3256,7 +3325,7 @@ Se PRECISA CORRECAO: responda o texto CORRIGIDO, pronto para enviar.
 
 SAIDA: APENAS o texto final (original ou corrigido). Nada mais.`;
 
-  const validatorModel = agent.pipeline_models?.validator?.model || "gpt-4.1-mini";
+  const validatorModel = agent.pipeline_models?.validator?.model || "gpt-5.1";
   const validatorTemp = agent.pipeline_models?.validator?.temperature ?? 0.1;
   const validatorMaxTok = agent.pipeline_models?.validator?.max_tokens ?? 1024;
 

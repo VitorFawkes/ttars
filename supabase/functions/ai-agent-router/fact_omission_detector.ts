@@ -36,7 +36,7 @@ export interface FactOmissionInput {
   /** Últimas mensagens do lead (sem mensagens do agente). 8-10 turns suficientes. */
   leadMessages: string[];
   openaiApiKey: string;
-  /** Default 'gpt-4.1-mini' — barato e rápido. */
+  /** Default 'gpt-5.1'. Auxiliares unificados na geração 5.1 (08/05/2026). */
   model?: string;
 }
 
@@ -86,7 +86,7 @@ Identifique os trechos do TEXTO-ÂNCORA que o lead já mencionou explicitamente 
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: input.model ?? 'gpt-4.1-mini',
+        model: input.model ?? 'gpt-5.1',
         temperature: 0.1,
         response_format: { type: 'json_object' },
         messages: [

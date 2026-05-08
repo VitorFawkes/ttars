@@ -766,3 +766,17 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-08T12:24:02Z | supabase/migrations/20260507d_cadence_steps_card_action.sql | applied_to_prod
 2026-05-08T12:25:32Z | supabase/migrations/20260508a_fix_concierge_outcome_trigger_domain.sql | applied_to_prod
 2026-05-08T14:03:42Z | supabase/migrations/20260507e_replace_cadence_steps_branch_end.sql | applied_to_prod
+20260507a_agent_update_card_data_filter_nulls.sql|2026-05-07T18:50|hot-applied via Management API (MCP indisponível)
+20260507b_agent_check_calendar_v3_org_filter.sql|2026-05-07T19:50|hot-applied via Management API
+2026-05-07T19:35:59Z | supabase/migrations/20260507e_archive_monde_zombie_aggregates.sql | applied_to_prod
+2026-05-07T19:36:30Z | supabase/migrations/20260507f_count_monde_zombie_items_rpc.sql | applied_to_prod
+2026-05-07T19:37:28Z | supabase/migrations/20260507d_enrich_activity_actor_specific_labels.sql | applied_to_prod
+2026-05-07T19:40:25Z | supabase/migrations/20260507e_normalize_stage_field_config_per_phase.sql | applied_to_prod
+2026-05-07T19:40:57Z | supabase/migrations/20260507e_normalize_stage_field_config_per_phase.sql | applied_to_prod
+2026-05-07T20:05:02Z | supabase/migrations/20260507g_bulk_import_financial_items_preserve_state.sql | applied_to_prod
+2026-05-07T20:12:49Z | supabase/migrations/20260507h_bulk_import_financial_items_archive_removed.sql | applied_to_prod
+20260507i_add_must_cover_to_moments.sql|2026-05-07T20:13|hot-applied via Management API
+2026-05-07T21:04:07Z | supabase/migrations/20260507j_bulk_import_diff_unmarks_ready.sql | applied_to_prod
+20260507j_add_literal_phrases_to_moments.sql|2026-05-07T23:19|hot-applied via Management API
+2026-05-08T12:49:11Z | supabase/migrations/20260508a_resolve_whatsapp_target_for_card.sql | applied_to_prod
+20260508b_reset_agent_test_conversation_v6_soft_cards.sql|2026-05-08T13:14|hot-applied via Management API
