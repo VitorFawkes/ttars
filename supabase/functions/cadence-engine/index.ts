@@ -2156,6 +2156,18 @@ async function executeStep(supabaseClient: SupabaseClient, queueItem: any) {
     // UI = fonte de verdade: se admin pausou o template, paramos de executar steps.
     if (instance.template?.is_active === false) {
         console.log(`[CadenceEngine] Template of instance ${instance.id} is inactive, skipping step`);
+        await logEvent(supabaseClient, {
+            instance_id: instance.id,
+            card_id: instance.card_id,
+            event_type: 'cadence_step_skipped',
+            event_source: 'cadence_engine',
+            event_data: {
+                reason: 'template_inactive',
+                step_id: step?.id,
+                step_key: step?.step_key,
+            },
+            action_taken: 'skip_template_inactive',
+        });
         return { skipped: true, reason: 'template_inactive' };
     }
 
@@ -3761,6 +3773,8 @@ function calculateBusinessTime(
 async function logEvent(supabaseClient: SupabaseClient, data: {
     instance_id?: string;
     card_id?: string;
+    /** Opcional. Se ausente e card_id presente, é resolvido via cards.org_id. */
+    org_id?: string;
     event_type: string;
     event_source: string;
     event_data?: any;
@@ -3768,7 +3782,20 @@ async function logEvent(supabaseClient: SupabaseClient, data: {
     action_result?: any;
 }) {
     try {
-        await supabaseClient.from("cadence_event_log").insert(data);
+        const payload: Record<string, unknown> = { ...data };
+        // cadence_event_log.org_id é NOT NULL — resolve via card se faltar
+        if (!payload.org_id && data.card_id) {
+            const { data: card } = await supabaseClient
+                .from('cards')
+                .select('org_id')
+                .eq('id', data.card_id)
+                .maybeSingle();
+            if (card?.org_id) payload.org_id = card.org_id;
+        }
+        const { error } = await supabaseClient.from("cadence_event_log").insert(payload);
+        if (error) {
+            console.error("[CadenceEngine] cadence_event_log insert error:", error.message, "payload keys:", Object.keys(payload));
+        }
     } catch (error) {
         console.error("[CadenceEngine] Error logging event:", error);
     }

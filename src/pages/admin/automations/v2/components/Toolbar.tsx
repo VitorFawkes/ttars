@@ -120,20 +120,33 @@ export const Toolbar: React.FC = () => {
         if (!cardId) return
         if (!window.confirm('Confirma rodar a cadência completa? Mensagens vão chegar pro contato real e ações de card vão ser aplicadas.')) return
 
+        // Template precisa estar ativo — engine skipa steps de template inativo
+        // silenciosamente (queue marca completed mas nada é enviado).
+        let activatedNow = false
+        if (!state.isActive) {
+            if (!window.confirm('O template está inativo. Ativar e salvar antes de disparar?\n\n(Você pode desativar depois usando o switch.)')) {
+                return
+            }
+            useWorkflowStore.getState().setIsActive(true)
+            activatedNow = true
+        }
+
         setRunning(true)
         try {
             // 1) Garante que o template está salvo (senão start_cadence não tem o que disparar)
             let templateId = state.templateId
-            if (!templateId) {
+            if (!templateId || activatedNow) {
+                // Re-lê o store pra capturar o isActive recém atualizado
+                const fresh = useWorkflowStore.getState()
                 const saveResult = await saveWorkflow({
-                    templateId: state.templateId,
-                    name: state.name || 'Workflow sem nome',
-                    description: state.description,
-                    isActive: state.isActive,
-                    autoCancelOnStageChange: state.autoCancelOnStageChange,
-                    respectBusinessHours: state.respectBusinessHours,
-                    nodes: state.nodes,
-                    edges: state.edges,
+                    templateId: fresh.templateId,
+                    name: fresh.name || 'Workflow sem nome',
+                    description: fresh.description,
+                    isActive: fresh.isActive,
+                    autoCancelOnStageChange: fresh.autoCancelOnStageChange,
+                    respectBusinessHours: fresh.respectBusinessHours,
+                    nodes: fresh.nodes,
+                    edges: fresh.edges,
                 })
                 if (!saveResult.success) {
                     toast.error(`Falhou ao salvar antes de disparar: ${saveResult.error}`)
