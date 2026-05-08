@@ -545,7 +545,8 @@ async function findAgentForLine(
         handoff_signals, intelligent_decisions, prompts_extra,
         pipeline_models, timings, validator_rules,
         test_mode_phone_whitelist, multimodal_config,
-        handoff_actions
+        handoff_actions,
+        playbook_enabled, identity_config, voice_config, boundaries_config, listening_config
       )
     `)
     .in("phone_line_id", lineIds)
