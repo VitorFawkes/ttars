@@ -27,7 +27,8 @@ import type {
 // Mapping node → step_type / action_type
 // ----------------------------------------------------------------------------
 
-/** Tipos de node que podem virar cadence_steps (encadeados). */
+/** Tipos de node que podem virar cadence_steps (encadeados).
+ *  Todos os 22 ActionNodeType cobertos — nenhum bloqueio mais. */
 const NODE_TO_STEP_TYPE: Partial<Record<ActionNodeType, string>> = {
     'action.create_task':  'task',
     'action.send_message': 'message',
@@ -35,6 +36,7 @@ const NODE_TO_STEP_TYPE: Partial<Record<ActionNodeType, string>> = {
     'action.wait':         'wait',
     'action.branch':       'branch',
     'action.end':          'end',
+    // Echo (sub-action dentro de echo_config.action)
     'action.echo_assign':          'echo_action',
     'action.echo_release':         'echo_action',
     'action.echo_close':           'echo_action',
@@ -43,10 +45,18 @@ const NODE_TO_STEP_TYPE: Partial<Record<ActionNodeType, string>> = {
     'action.echo_remove_tag':      'echo_action',
     'action.echo_add_co_owner':    'echo_action',
     'action.echo_remove_co_owner': 'echo_action',
+    // Card actions (sub-action dentro de card_action_config.action)
+    'action.change_stage':        'card_action',
+    'action.add_tag':             'card_action',
+    'action.remove_tag':          'card_action',
+    'action.update_field':        'card_action',
+    'action.notify_internal':     'card_action',
+    'action.start_cadence':       'card_action',
+    'action.trigger_n8n_webhook': 'card_action',
 }
 
-/** Tipos de node que ainda só funcionam como action única do trigger. */
-const NODE_TO_TRIGGER_ACTION: Partial<Record<ActionNodeType, string>> = {
+/** Sub-action de cada node do tipo card_action. */
+const NODE_TO_CARD_SUB_ACTION: Partial<Record<ActionNodeType, string>> = {
     'action.change_stage':        'change_stage',
     'action.add_tag':             'add_tag',
     'action.remove_tag':          'remove_tag',
@@ -74,7 +84,11 @@ const EVENT_TYPE_TO_NODE = Object.fromEntries(
     Object.entries(NODE_TO_EVENT_TYPE).map(([k, v]) => [v, k as TriggerNodeType]),
 ) as Record<string, TriggerNodeType>
 
-const STEP_TYPE_TO_NODE = (step: { step_type: string; echo_config?: { action?: string } | null }): ActionNodeType => {
+const STEP_TYPE_TO_NODE = (step: {
+    step_type: string
+    echo_config?: { action?: string } | null
+    card_action_config?: { action?: string } | null
+}): ActionNodeType => {
     switch (step.step_type) {
         case 'task':       return 'action.create_task'
         case 'wait':       return 'action.wait'
@@ -94,6 +108,19 @@ const STEP_TYPE_TO_NODE = (step: { step_type: string; echo_config?: { action?: s
                 case 'add_co_owner':    return 'action.echo_add_co_owner'
                 case 'remove_co_owner': return 'action.echo_remove_co_owner'
                 default:                return 'action.echo_assign'
+            }
+        }
+        case 'card_action': {
+            const sub = step.card_action_config?.action
+            switch (sub) {
+                case 'change_stage':        return 'action.change_stage'
+                case 'add_tag':             return 'action.add_tag'
+                case 'remove_tag':          return 'action.remove_tag'
+                case 'update_field':        return 'action.update_field'
+                case 'notify_internal':     return 'action.notify_internal'
+                case 'start_cadence':       return 'action.start_cadence'
+                case 'trigger_n8n_webhook': return 'action.trigger_n8n_webhook'
+                default:                    return 'action.change_stage'
             }
         }
         default: return 'action.create_task'
@@ -130,19 +157,19 @@ export async function saveWorkflow(payload: SavePayload): Promise<SaveResult> {
         return { success: false, error: 'Dê um nome ao workflow.' }
     }
 
-    // Validar tipos não persistíveis como step
+    // Validar tipos não persistíveis como step (todos os ActionNodeType
+    // hoje têm step_type — bloqueio só dispara se aparecer um tipo novo
+    // que ainda não foi mapeado).
     const unsupportedSteps = payload.nodes.filter((n) => {
         const t = n.type as ActionNodeType
         if ((n.type as string).startsWith('trigger.')) return false
-        if (NODE_TO_STEP_TYPE[t]) return false
-        if (NODE_TO_TRIGGER_ACTION[t]) return true  // só vale como ação imediata
-        return true
+        return !NODE_TO_STEP_TYPE[t]
     })
-    if (unsupportedSteps.length > 0 && payload.nodes.filter(n => !((n.type as string).startsWith('trigger.'))).length > 1) {
+    if (unsupportedSteps.length > 0) {
         const names = unsupportedSteps.map((n) => n.data.label).join(', ')
         return {
             success: false,
-            error: `As ações "${names}" ainda não funcionam como passo encadeado. Mova pra ação direta do gatilho ou remova.`,
+            error: `Tipo desconhecido: "${names}". Atualize o app.`,
         }
     }
 
@@ -232,13 +259,22 @@ export async function saveWorkflow(payload: SavePayload): Promise<SaveResult> {
             'action.end':          'end_config',
         }
         const isEcho = (node.type as string).startsWith('action.echo_')
-        const slot = isEcho ? 'echo_config' : (slotByType[node.type as ActionNodeType] || 'task_config')
+        const cardSubAction = NODE_TO_CARD_SUB_ACTION[node.type as ActionNodeType]
+        const isCardAction = !!cardSubAction
+        let slot: string
+        if (isEcho) slot = 'echo_config'
+        else if (isCardAction) slot = 'card_action_config'
+        else slot = slotByType[node.type as ActionNodeType] || 'task_config'
         const stepConfig: Record<string, unknown> = { [slot]: cfg }
 
-        // Se for echo, garantir action no echo_config
+        // Echo: sub-action vem do tipo do node, garantida no echo_config
         if (isEcho) {
             const sub = (node.type as string).replace('action.echo_', '')
             stepConfig.echo_config = { ...cfg, action: sub }
+        }
+        // Card actions: mesmo padrão, action no card_action_config
+        if (isCardAction) {
+            stepConfig.card_action_config = { ...cfg, action: cardSubAction }
         }
 
         // Branch precisa de branches[] no branch_config baseado nas edges
@@ -379,11 +415,13 @@ export async function loadWorkflow(templateId: string): Promise<LoadResult> {
         const nodeType = STEP_TYPE_TO_NODE({
             step_type: s.step_type as string,
             echo_config: s.echo_config as { action?: string } | null,
+            card_action_config: s.card_action_config as { action?: string } | null,
         })
         // Recupera config do slot certo
         const cfg = (s.message_config as Record<string, unknown>)
             || (s.media_config as Record<string, unknown>)
             || (s.echo_config as Record<string, unknown>)
+            || (s.card_action_config as Record<string, unknown>)
             || (s.task_config as Record<string, unknown>)
             || (s.wait_config as Record<string, unknown>)
             || (s.branch_config as Record<string, unknown>)
@@ -446,4 +484,4 @@ export async function loadWorkflow(templateId: string): Promise<LoadResult> {
 
 // Re-exporta pra uso interno do pacote v2 — evita ciclo
 void STEP_TYPE_TO_NODE
-void NODE_TO_TRIGGER_ACTION
+void NODE_TO_CARD_SUB_ACTION

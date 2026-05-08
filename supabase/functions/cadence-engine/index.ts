@@ -2193,6 +2193,9 @@ async function executeStep(supabaseClient: SupabaseClient, queueItem: any) {
         case 'echo_action':
             return await executeEchoActionStep(supabaseClient, instance, step, card);
 
+        case 'card_action':
+            return await executeCardActionStep(supabaseClient, instance, step, card);
+
         default:
             throw new Error(`Unknown step type: ${step.step_type}`);
     }
@@ -3073,6 +3076,107 @@ async function executeEchoActionStep(
 
     await advanceLinearStep(supabaseClient, instance, step);
     return { ok: result.ok, sub_action: subAction };
+}
+
+// ----------------------------------------------------------------------------
+// executeCardActionStep: ações sobre o card encadeadas (change_stage,
+// add_tag, remove_tag, update_field, notify_internal, start_cadence,
+// trigger_n8n_webhook). Reusa os mesmos executors usados pelos triggers
+// (executeChangeStageAction etc), montando um trigger virtual a partir
+// do card_action_config.
+// ----------------------------------------------------------------------------
+async function executeCardActionStep(
+    supabaseClient: SupabaseClient,
+    instance: any,
+    step: any,
+    card: any,
+) {
+    if (await maybeCancelOnStageChange(supabaseClient, instance, card, step.step_key)) {
+        return { skipped: true, reason: 'card_left_initial_stage' };
+    }
+
+    const config = step.card_action_config || {};
+    const subAction: string = config.action;
+    if (!subAction) {
+        await logEvent(supabaseClient, {
+            instance_id: instance.id, card_id: card.id,
+            event_type: 'cadence_step_card_action_skipped',
+            event_source: 'cadence_engine',
+            event_data: { step_key: step.step_key, reason: 'missing_action' },
+            action_taken: 'skip',
+        });
+        await advanceLinearStep(supabaseClient, instance, step);
+        return { skipped: true, reason: 'missing_action' };
+    }
+
+    // Trigger virtual no formato que os executors esperam.
+    // action_config = config sem o discriminator 'action'.
+    const { action: _ignored, ...actionConfig } = config;
+    void _ignored;
+    const virtualTrigger = {
+        id: `step:${step.id || step.step_key}`,
+        name: instance.template?.name || 'Cadência',
+        action_type: subAction,
+        action_config: actionConfig,
+    };
+
+    const orgId = card.org_id || '';
+    let actionResult: unknown = null;
+    let ok = true;
+
+    try {
+        switch (subAction) {
+            case 'change_stage':
+                actionResult = await executeChangeStageAction(supabaseClient, card.id, virtualTrigger, orgId);
+                break;
+            case 'add_tag':
+                actionResult = await executeAddTagAction(supabaseClient, card.id, virtualTrigger, orgId);
+                break;
+            case 'remove_tag':
+                actionResult = await executeRemoveTagAction(supabaseClient, card.id, virtualTrigger, orgId);
+                break;
+            case 'update_field':
+                actionResult = await executeUpdateFieldAction(supabaseClient, card.id, virtualTrigger, orgId);
+                break;
+            case 'notify_internal':
+                actionResult = await executeNotifyInternalAction(supabaseClient, card.id, virtualTrigger, orgId);
+                break;
+            case 'start_cadence':
+                actionResult = await executeStartCadenceAction(supabaseClient, card.id, virtualTrigger, orgId);
+                break;
+            case 'trigger_n8n_webhook':
+                actionResult = await executeTriggerN8nWebhookAction(supabaseClient, card.id, virtualTrigger, orgId);
+                break;
+            default:
+                throw new Error(`card_action: sub-action desconhecida "${subAction}"`);
+        }
+    } catch (e) {
+        ok = false;
+        actionResult = { error: (e as Error).message };
+    }
+
+    await logEvent(supabaseClient, {
+        instance_id: instance.id, card_id: card.id,
+        event_type: ok ? 'cadence_step_card_action_done' : 'cadence_step_card_action_failed',
+        event_source: 'cadence_engine',
+        event_data: {
+            step_key: step.step_key,
+            step_order: step.step_order,
+            sub_action: subAction,
+        },
+        action_taken: `card_${subAction}`,
+        action_result: actionResult,
+    });
+
+    if (ok) {
+        await supabaseClient
+            .from('cadence_instances')
+            .update({ current_step_id: step.id, status: 'active' })
+            .eq('id', instance.id);
+    }
+
+    await advanceLinearStep(supabaseClient, instance, step);
+    return { ok, sub_action: subAction };
 }
 
 // ============================================================================

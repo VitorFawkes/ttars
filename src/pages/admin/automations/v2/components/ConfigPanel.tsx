@@ -24,13 +24,8 @@ export const ConfigPanel: React.FC = () => {
     const selectNode = useWorkflowStore((s) => s.selectNode)
 
     if (!selectedNodeId || !node) {
-        return (
-            <aside className="w-80 bg-white border-l border-slate-200 flex flex-col h-full">
-                <div className="p-4 text-sm text-slate-500 text-center">
-                    Selecione um passo no canvas pra configurar.
-                </div>
-            </aside>
-        )
+        // Sem seleção, esconde a sidebar inteira pra dar mais canvas.
+        return null
     }
 
     const meta = NODE_BY_TYPE.get(node.type as WorkflowNodeType)
