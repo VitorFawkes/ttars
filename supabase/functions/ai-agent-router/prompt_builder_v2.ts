@@ -419,10 +419,13 @@ function deriveSlotQuestion(slot: any): string | null {
 /** Formata um slot do agent_check_calendar pra texto natural: "quarta 30/04 às 14h". */
 function formatSlotLabel(slot: { date: string; time: string; weekday: string }): string {
   const wd = WEEKDAY_PT[slot.weekday] ?? slot.weekday.toLowerCase();
-  const [, mm, dd] = slot.date.split('-');
+  const [yyyy, mm, dd] = slot.date.split('-');
   // "14:00" → "14h", "14:30" → "14:30"
   const t = slot.time.endsWith(':00') ? `${slot.time.slice(0, -3)}h` : slot.time;
-  return `${wd} ${dd}/${mm} às ${t}`;
+  // Incluir ANO completo (08/05/2026 fix): sem ano, LLM inferia errado ao
+  // gerar data_vencimento ISO em create_task (escolhia 2025 em vez de 2026).
+  // Com ano explícito no contexto, gera data correta.
+  return `${wd} ${dd}/${mm}/${yyyy} às ${t}`;
 }
 
 /**
@@ -528,8 +531,10 @@ function buildSubstitutions(input: BuildPromptV2Input): Record<string, string> {
     const daySlots = byDate.get(date)!;
     if (daySlots.length === 0) continue;
     const wd = WEEKDAY_PT[daySlots[0].weekday] ?? daySlots[0].weekday.toLowerCase();
-    const [, mm, dd] = date.split('-');
-    const dayLabel = `${wd} ${dd}/${mm}`;
+    const [yyyy, mm, dd] = date.split('-');
+    // Inclui ANO no label (08/05 fix): sem ano LLM inferia errado em
+    // create_task.data_vencimento (escolhia 2025 em vez de 2026).
+    const dayLabel = `${wd} ${dd}/${mm}/${yyyy}`;
     const times = daySlots.map((s) => (s.time.endsWith(':00') ? `${s.time.slice(0, -3)}h` : s.time));
     let timeStr: string;
     if (times.length === 1) timeStr = `às ${times[0]}`;
