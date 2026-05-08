@@ -513,14 +513,24 @@ export async function runPersonaAgent_v2(
   }
 
   // 5c. Detecção determinística de fatos do anchor que o lead já mencionou.
-  // SÓ roda em modos literal/faithful (modo 'free' não precisa — agente já
-  // adapta). E só roda quando há mensagens prévias do lead pra analisar.
-  // Esse pedaço transforma a "instrução fuzzy" do prompt anterior em decisão
-  // determinística — antes o LLM principal precisava lembrar de checar
-  // histórico (~70% confiabilidade). Agora ele recebe a lista pronta (~95%).
+  // SÓ roda em modo `faithful` — modo `literal` foi REMOVIDO desta detecção
+  // em 08/05/2026.
+  //
+  // Por quê: em literal o admin curou o texto palavra-por-palavra. O detector
+  // (mini-LLM) tem ~15-20% taxa de falso-positivo em extração de substring
+  // (Yang 2025, vLLM HaluGate dez/2025). Quando classifica errado um termo
+  // de marca como "lead já mencionou" (ex: "Destination Wedding"), o
+  // renderLiteralResponse fazia text.split(trecho).join('') cego, deletando
+  // a string do meio da frase e quebrando gramática ("produtora de da
+  // América Latina"). Antipattern reconhecido em NLG safety 2025.
+  //
+  // Em literal, premissa é: admin sabe o que escreveu, não fazer cirurgia.
+  // Repetição ocasional de info que o lead já mencionou é trade-off aceitável
+  // pra garantir gramática íntegra. Em modo `faithful` (10% leeway) o
+  // detector ainda vale — LLM pode adaptar sem mutilar.
   let trechosAOmitir: string[] = [];
   let leadResumo = '';
-  const shouldDetectOmissions = (cur.message_mode === 'literal' || cur.message_mode === 'faithful')
+  const shouldDetectOmissions = cur.message_mode === 'faithful'
     && cur.anchor_text
     && cur.anchor_text.trim().length > 0
     && ctx.historico_compacto.includes('[lead]:');
@@ -850,6 +860,23 @@ function renderLiteralResponse(input: RenderLiteralInput): string {
   const _anchorAlreadyEchoes = /^(tudo\s+(bem|ótimo|otimo|bom|certo)|td\s+bem)/i.test(text.trim());
   if (_hasSocialQuestion && !_anchorAlreadyEchoes) {
     text = 'Tudo ótimo por aqui, obrigada!\n\n' + text;
+  }
+
+  // 2.6. Prepend determinístico de "Prazer, Nome" quando lead se identifica
+  // (FIX 08/05/2026). Mesmo padrão do eco social: em modo literal o LLM
+  // nunca é chamado e a diretiva injetada em renderListeningBlock fica órfã.
+  // Sem isso: lead diz "Me chamo Vitor" e Estela ignora o nome no step 2 da
+  // abertura, soa robotizada.
+  // Detector regex idêntico ao de prompt_builder_v2:299 — captura "sou o X",
+  // "me chamo Z", "aqui é o Y", etc. Só prepend se anchor não começa já com
+  // saudação personalizada (Prazer/Legal/Oi <nome>) — evita duplicação.
+  const _nameRevealMatch = _lastLeadMsg.match(/\b(?:sou\s+o|sou\s+a|aqui\s+[ée]\s+o|aqui\s+[ée]\s+a|meu\s+nome\s+[ée]|me\s+chamo|pode\s+me\s+chamar\s+de)\s+([A-ZÁÉÍÓÚÂÊÔÃÕÇ][a-záéíóúâêôãõç]{1,30}(?:\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇ][a-záéíóúâêôãõç]{1,30})?)/i);
+  if (_nameRevealMatch) {
+    const _detectedName = _nameRevealMatch[1].split(/\s+/)[0];
+    const _anchorAlreadyGreets = new RegExp(`^(prazer|legal\\s+te\\s+conhecer|oi)[,\\s]*${_detectedName}\\b`, 'i').test(text.trim());
+    if (!_anchorAlreadyGreets) {
+      text = `Prazer, ${_detectedName}.\n\n` + text;
+    }
   }
 
   // 3. Substitui variáveis

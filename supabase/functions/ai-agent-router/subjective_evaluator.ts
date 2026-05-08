@@ -14,7 +14,7 @@
  *   5. Passa como parte de p_inputs; converte condition_value pra boolean_true
  *      em memória antes de mandar pra RPC (ou a RPC aceita direto).
  *
- * Esta abordagem: 1 chamada LLM extra por turno (barata, gpt-4.1-mini),
+ * Esta abordagem: 1 chamada LLM extra por turno (gpt-5.1, atualizado 08/05/2026),
  * determinística no cache da conversa.
  */
 
@@ -213,7 +213,7 @@ Responda em JSON estrito:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: input.model ?? "gpt-4.1-mini",
+        model: input.model ?? "gpt-5.1",
         temperature: 0.1,
         // Sem max_completion_tokens — deixa o modelo usar o default. Cap fixo
         // truncava JSON e causava parse error silencioso (bug 2026-04-27).

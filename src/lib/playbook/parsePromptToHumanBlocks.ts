@@ -154,7 +154,14 @@ export function parsePromptToHumanBlocks(prompt: string): HumanBlock[] {
   const agentMatch = trimmed.match(AGENT_RE)
   let afterAgent = trimmed
   if (agentMatch) {
+    // Remove wrappers semânticos <persona>/<playbook>/<funnel> introduzidos
+    // em 08/05/2026 pra agrupar o miolo. Parser ignora pra manter compat com
+    // prompts antigos. Tags inner (<voice>, <anchors>, etc) continuam sendo
+    // extraídas pela busca abaixo, independente de nesting.
     const agentInner = agentMatch[1]
+      .replace(/<\/?persona\b[^>]*>/g, '')
+      .replace(/<\/?playbook\b[^>]*>/g, '')
+      .replace(/<\/?funnel\b[^>]*>/g, '')
 
     // Header = texto livre dentro de <agent> antes da primeira tag conhecida
     let firstTagIdx = agentInner.length

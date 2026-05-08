@@ -385,7 +385,7 @@ async function analyzeImage(base64: string, mimeType: string, apiKey: string): P
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "gpt-4.1-mini",
+      model: "gpt-5.1",
       messages: [{ role: "user", content: [
         { type: "text", text: MEDIA_IMAGE_PROMPT },
         { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}`, detail: "low" } },
@@ -422,7 +422,7 @@ async function analyzeDocument(base64: string, mimeType: string, apiKey: string)
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "gpt-4.1-mini",
+        model: "gpt-5.1",
         messages: [{ role: "user", content: [
           { type: "text", text: MEDIA_DOCUMENT_PROMPT },
           { type: "file", file: { file_id: fileObj.id } },
@@ -3217,7 +3217,7 @@ ${response}
 SAÍDA: apenas o texto final (original EXATO, ou corrigido se algum dos 4 problemas
 graves foi detectado). Nada mais.`;
 
-    const validatorModelLit = agent.pipeline_models?.validator?.model || "gpt-4.1-mini";
+    const validatorModelLit = agent.pipeline_models?.validator?.model || "gpt-5.1";
     const validatorTempLit = agent.pipeline_models?.validator?.temperature ?? 0.1;
     const validatorMaxTokLit = agent.pipeline_models?.validator?.max_tokens ?? 1024;
 
@@ -3268,7 +3268,7 @@ Se PRECISA CORRECAO: responda o texto CORRIGIDO, pronto para enviar.
 
 SAIDA: APENAS o texto final (original ou corrigido). Nada mais.`;
 
-  const validatorModel = agent.pipeline_models?.validator?.model || "gpt-4.1-mini";
+  const validatorModel = agent.pipeline_models?.validator?.model || "gpt-5.1";
   const validatorTemp = agent.pipeline_models?.validator?.temperature ?? 0.1;
   const validatorMaxTok = agent.pipeline_models?.validator?.max_tokens ?? 1024;
 

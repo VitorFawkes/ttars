@@ -7,22 +7,33 @@
  * via ai-agent-simulate (preview_playbook_config). O espelho frontend está
  * em src/lib/playbook/buildPromptPreview.ts — teste de paridade em CI.
  *
- * Estrutura do prompt:
- *   <agent name="...">
- *     <header: quem é + missão + descrição da empresa>
- *     <voice>
- *     <anchors>
- *     <boundaries>
- *     <qualification>
- *     <silent_signals>
- *     <examples>
- *   </agent>
+ * Estrutura do prompt (consolidada 08/05/2026 — de 10 blocos pra 4 grupos):
+ *   <persona name="...">
+ *     [identidade: quem é + missão + descrição da empresa]
+ *     <voice>      ← tom, formalidade, regras
+ *     <listening>  ← responsividade conversacional
+ *   </persona>
+ *
+ *   <playbook>
+ *     <anchors>    ← momentos do funil (flow + plays)
+ *     <boundaries> ← linhas vermelhas
+ *     <examples>   ← few-shot relevantes
+ *   </playbook>
+ *
+ *   <funnel>
+ *     <qualification>   ← regras de scoring + status
+ *     <silent_signals>  ← sinais sutis a observar
+ *     [handoff_logic]   ← quando passar pra humano
+ *     [meeting_booking] ← lógica de agendamento
+ *   </funnel>
  *
  *   <turn>
  *     <detected>  ← momento atual + método + primeiro_contato
  *     <qualification_status>  ← score atual + gaps
  *     <known>   ← ctx.contact_name, ai_resumo, ai_contexto, form_data
  *     <history> ← ctx.historico_compacto
+ *     <lead_already_mentioned>  ← omissões pré-detectadas
+ *     <must_include>  ← frases obrigatórias palavra-por-palavra
  *     <last_message from="lead">  ← userMessage
  *   </turn>
  *
@@ -158,26 +169,36 @@ export function buildPromptV2(input: BuildPromptV2Input): string {
 
   const instructions = renderClosingInstructions(input);
 
-  const parts = [
-    `<agent name="${escapeXml(input.agentName)}">`,
-    header,
-    voice,
-    listening,
-    anchors,
-    boundaries,
-    qualification,
-    signals,
-    handoffLogic,
-    meetingBooking,
-    examples,
-    `</agent>`,
-    ``,
-    turn,
-    ``,
-    instructions,
-  ].filter(p => p !== '');
+  // Estrutura consolidada (08/05/2026): de 10 blocos top-level pra 4 grupos
+  // semânticos. Pesquisa 2025-2026 (Lost-in-the-Middle, Context Rot — Chroma 2025)
+  // mostra que prompts com muitos blocos pares causam atenção diluída em modelos
+  // atuais (GPT-5.1, Claude 4.7). Agrupar reduz seções competindo por foco,
+  // mantendo conteúdo idêntico. Hierarquia:
+  //   <persona>   = quem ela é (header + voice + listening)
+  //   <playbook>  = como ela conduz (anchors + boundaries + examples)
+  //   <funnel>    = o que ela mede (qualification + signals + handoff + meeting)
+  //   <turn>      = estado deste turno (já agrupava — preservado)
+  //   instructions = ordem de saída (preservado)
+  const personaInner = [header, voice, listening].filter(p => p !== '').join('\n\n');
+  const playbookInner = [anchors, boundaries, examples].filter(p => p !== '').join('\n\n');
+  const funnelInner = [qualification, signals, handoffLogic, meetingBooking].filter(p => p !== '').join('\n\n');
 
-  return parts.join('\n\n');
+  // Mantém <agent> wrapper (parser frontend src/lib/playbook/parsePromptToHumanBlocks.ts
+  // depende dele). Mas agrupa o miolo em 3 sub-blocos semânticos pra reduzir
+  // distração (era 10 sub-blocos pares).
+  const agentParts: string[] = [];
+  if (personaInner) agentParts.push(`<persona>\n${personaInner}\n</persona>`);
+  if (playbookInner) agentParts.push(`<playbook>\n${playbookInner}\n</playbook>`);
+  if (funnelInner) agentParts.push(`<funnel>\n${funnelInner}\n</funnel>`);
+
+  const parts: string[] = [];
+  parts.push(`<agent name="${escapeXml(input.agentName)}">`);
+  parts.push(agentParts.join('\n\n'));
+  parts.push(`</agent>`);
+  if (turn) parts.push(turn);
+  if (instructions) parts.push(instructions);
+
+  return parts.filter(p => p !== '').join('\n\n');
 }
 
 // ---------------------------------------------------------------------------
