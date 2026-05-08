@@ -616,8 +616,13 @@ function renderOneMoment(
   }
   // must_cover: lista prescritiva — pontos que toda resposta nesta fase deve garantir.
   // Útil em modos faithful/free pra dar liberdade de forma sem perder cobertura.
+  // GUARDA (FIX 08/05): em wait_for_reply + "---" (split em steps), só injetar
+  // must_cover no ÚLTIMO step. Senão tópicos do step final vazam pra step 1 e
+  // quebram o ritmo "uma mensagem de cada vez". É só no último step que faz
+  // sentido cobrar cobertura conceitual da fase inteira.
   const mustCover = (m as { must_cover?: string[] }).must_cover;
-  if (mustCover && Array.isArray(mustCover) && mustCover.length > 0) {
+  const _isLastStepForCoverage = !isCurrent || !usesSteps || (stepIndex ?? 0) >= ((m.anchor_text ?? '').split(/\n\s*-{3,}\s*\n/).filter(s => s.trim().length > 0).length - 1);
+  if (mustCover && Array.isArray(mustCover) && mustCover.length > 0 && _isLastStepForCoverage) {
     lines.push('    Esta resposta DEVE garantir cobertura de:');
     mustCover.forEach(mc => lines.push(`      - ${mc}`));
   }
@@ -1096,7 +1101,23 @@ function renderTurnBlock(input: BuildPromptV2Input): string {
   // Configurado pelo admin no momento atual (literal_phrases). Mesmo padrão de
   // <lead_already_mentioned>, mas com semântica oposta — incluir em vez de omitir.
   // Validado pós-geração via fuzzy match em runValidator (regen 1x se faltar).
-  const literalPhrases = (input.currentMoment as { literal_phrases?: string[] }).literal_phrases ?? [];
+  //
+  // GUARDA (FIX 08/05): em momentos com wait_for_reply + "---" (anchor splitado),
+  // só injetar literal_phrases quando estiver no ÚLTIMO step. Senão, conteúdo de
+  // marca pertencente ao step final vaza pra step 1 e quebra o ritmo de "uma de
+  // cada vez". Ex Abertura: step 1 = pedir nome, step 2 = pitch + perguntas. Se
+  // literal_phrases injeta o pitch no step 1, LLM honra e dispara step 2 inteiro
+  // de uma vez, atropelando o wait_for_reply.
+  const _curM = input.currentMoment as { literal_phrases?: string[]; anchor_text?: string | null; delivery_mode?: string };
+  const _usesSteps = _curM.delivery_mode === 'wait_for_reply'
+    && typeof _curM.anchor_text === 'string'
+    && /\n\s*-{3,}\s*\n/.test(_curM.anchor_text);
+  const _stepIdx = input.ctx.current_moment_step_index ?? 0;
+  const _totalSteps = _usesSteps
+    ? (_curM.anchor_text ?? '').split(/\n\s*-{3,}\s*\n/).filter(s => s.trim().length > 0).length
+    : 1;
+  const _isLastStep = !_usesSteps || _stepIdx >= _totalSteps - 1;
+  const literalPhrases = _isLastStep ? (_curM.literal_phrases ?? []) : [];
   const cleanedLiterals = literalPhrases.filter(p => typeof p === 'string' && p.trim().length > 0);
   if (cleanedLiterals.length > 0) {
     parts.push('');

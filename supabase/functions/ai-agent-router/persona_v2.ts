@@ -663,9 +663,17 @@ export async function runPersonaAgent_v2(
   // Padrão Salesforce/HubSpot: ~80% das vezes LLM acerta de primeira; regen pega
   // mais 15%. Restante 5% loga e segue (não bloqueia turno do lead).
   // Pula a checagem se: (a) sem literal_phrases configuradas; (b) trechosAOmitir
-  // cobre todos (lead já mencionou, então omitir é OK).
-  const literalPhrases = ((cur as { literal_phrases?: string[] }).literal_phrases ?? [])
-    .filter(p => typeof p === 'string' && p.trim().length > 0);
+  // cobre todos (lead já mencionou, então omitir é OK); (c) wait_for_reply +
+  // step não-final — frases pertencem ao step final, não fazem sentido cobrar
+  // em steps intermediários.
+  const _totalStepsLP = usesSteps
+    ? (cur.anchor_text ?? '').split(/\n\s*-{3,}\s*\n/).filter(s => s.trim().length > 0).length
+    : 1;
+  const _isLastStepLP = !usesSteps || currentMomentStepIndex >= _totalStepsLP - 1;
+  const literalPhrases = _isLastStepLP
+    ? ((cur as { literal_phrases?: string[] }).literal_phrases ?? [])
+        .filter(p => typeof p === 'string' && p.trim().length > 0)
+    : [];
   if (literalPhrases.length > 0) {
     const missingAfterFirst = checkMissingLiteralPhrases(response, literalPhrases, trechosAOmitir);
     if (missingAfterFirst.length > 0) {
