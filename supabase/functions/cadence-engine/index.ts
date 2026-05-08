@@ -1029,11 +1029,9 @@ async function dispatchEchoMessage(args: DispatchArgs): Promise<DispatchResult> 
     let sendSuccess = false;
 
     if (hsmTemplateName) {
-        // HSM: /send-template
+        // HSM: /send-template — formato simplificado do Echo
+        // (body_parameters como array de strings; Echo converte pro shape Meta).
         const renderedParams = hsmParams.map(renderVars);
-        const components = renderedParams.length > 0
-            ? [{ type: 'body', parameters: renderedParams.map((t) => ({ type: 'text', text: t })) }]
-            : [];
 
         let humanReadableBody = `[HSM ${hsmTemplateName}] ${JSON.stringify(renderedParams)}`;
         try {
@@ -1079,6 +1077,12 @@ async function dispatchEchoMessage(args: DispatchArgs): Promise<DispatchResult> 
         }
         const ownRowId = ownRow?.id;
 
+        // Echo API /send-template aceita formato SIMPLES (body_parameters: [...]
+        // como array de strings) — Echo converte pro shape Meta internamente.
+        // O parâmetro language do Meta é "language_code" no Echo. Bug anterior:
+        // mandávamos `language` + `components: [{type:body, parameters:[...]}]`
+        // que o Echo não traduzia, então a Meta recebia template SEM
+        // parameters e devolvia o {{1}} literal pro destinatário.
         const echoRes = await fetch(`${echoBase}/send-template`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-api-key': echoApiKey },
@@ -1086,8 +1090,8 @@ async function dispatchEchoMessage(args: DispatchArgs): Promise<DispatchResult> 
                 to: normalizedPhone,
                 phone_number_id: phoneNumberId,
                 template_name: hsmTemplateName,
-                language: hsmLanguage,
-                components,
+                language_code: hsmLanguage,
+                body_parameters: renderedParams,
             }),
         });
         respData = await echoRes.json().catch(() => ({}));
@@ -2160,7 +2164,10 @@ async function executeStep(supabaseClient: SupabaseClient, queueItem: any) {
 
     // Verificar se o template da cadência foi desligado na UI.
     // UI = fonte de verdade: se admin pausou o template, paramos de executar steps.
-    if (instance.template?.is_active === false) {
+    // EXCEÇÃO: instances criadas com force=true (modo teste do botão "Disparar
+    // agora") têm context.bypass_inactive=true e rodam mesmo template inativo.
+    const bypassInactive = instance.context?.bypass_inactive === true;
+    if (instance.template?.is_active === false && !bypassInactive) {
         console.log(`[CadenceEngine] Template of instance ${instance.id} is inactive, skipping step`);
         await logEvent(supabaseClient, {
             instance_id: instance.id,
@@ -3202,7 +3209,10 @@ async function executeCardActionStep(
 // ============================================================================
 
 async function handleStartCadence(supabaseClient: SupabaseClient, body: any) {
-    const { card_id, template_id } = body;
+    const { card_id, template_id, force } = body;
+    // force=true: cria a instance mesmo se template.is_active=false (modo teste).
+    // Marca context.bypass_inactive=true pra que executeStep não pule os steps
+    // dela quando o template estiver inativo.
 
     if (!card_id || !template_id) {
         return new Response(JSON.stringify({
@@ -3292,7 +3302,10 @@ async function handleStartCadence(supabaseClient: SupabaseClient, body: any) {
             template_id,
             current_step_id: initialSteps[0].id,
             status: 'active',
-            context: { initial_stage_id: initialStageId }
+            context: {
+                initial_stage_id: initialStageId,
+                ...(force ? { bypass_inactive: true } : {}),
+            },
         })
         .select()
         .single();

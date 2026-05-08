@@ -133,33 +133,24 @@ export const Toolbar: React.FC = () => {
         if (!cardId) return
         if (!window.confirm('Confirma rodar a cadência completa? Mensagens vão chegar pro contato real e ações de card vão ser aplicadas.')) return
 
-        // Template precisa estar ativo — engine skipa steps de template inativo
-        // silenciosamente (queue marca completed mas nada é enviado).
-        let activatedNow = false
-        if (!state.isActive) {
-            if (!window.confirm('O template está inativo. Ativar e salvar antes de disparar?\n\n(Você pode desativar depois usando o switch.)')) {
-                return
-            }
-            useWorkflowStore.getState().setIsActive(true)
-            activatedNow = true
-        }
+        // "Disparar agora" é modo teste — passa force=true pro engine pra
+        // rodar mesmo com template inativo, sem alterar o switch "Ativa"
+        // do template. Activate definitivo continua manual via toggle.
 
         setRunning(true)
         try {
             // 1) Garante que o template está salvo (senão start_cadence não tem o que disparar)
             let templateId = state.templateId
-            if (!templateId || activatedNow) {
-                // Re-lê o store pra capturar o isActive recém atualizado
-                const fresh = useWorkflowStore.getState()
+            if (!templateId) {
                 const saveResult = await saveWorkflow({
-                    templateId: fresh.templateId,
-                    name: fresh.name || 'Workflow sem nome',
-                    description: fresh.description,
-                    isActive: fresh.isActive,
-                    autoCancelOnStageChange: fresh.autoCancelOnStageChange,
-                    respectBusinessHours: fresh.respectBusinessHours,
-                    nodes: fresh.nodes,
-                    edges: fresh.edges,
+                    templateId: state.templateId,
+                    name: state.name || 'Workflow sem nome',
+                    description: state.description,
+                    isActive: state.isActive,
+                    autoCancelOnStageChange: state.autoCancelOnStageChange,
+                    respectBusinessHours: state.respectBusinessHours,
+                    nodes: state.nodes,
+                    edges: state.edges,
                 })
                 if (!saveResult.success) {
                     toast.error(`Falhou ao salvar antes de disparar: ${saveResult.error}`)
@@ -173,8 +164,8 @@ export const Toolbar: React.FC = () => {
                 navigate(`/settings/automations/v2/${templateId}`, { replace: true })
             }
 
-            // 2) Tenta start_cadence
-            let result = await runWorkflowFull({ cardId, templateId })
+            // 2) Tenta start_cadence em modo teste (force=true bypassa is_active)
+            let result = await runWorkflowFull({ cardId, templateId, force: true })
 
             // 3) Se já existe instance ativa, oferece cancelar e reiniciar
             if (result.alreadyRunning) {
@@ -186,7 +177,7 @@ export const Toolbar: React.FC = () => {
                     toast.error(`Não consegui cancelar a anterior: ${cancelRes.error}`)
                     return
                 }
-                result = await runWorkflowFull({ cardId, templateId })
+                result = await runWorkflowFull({ cardId, templateId, force: true })
                 if (!result.success) {
                     toast.error(`Falhou após reiniciar: ${result.error}`)
                     return

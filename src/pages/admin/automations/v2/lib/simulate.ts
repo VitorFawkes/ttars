@@ -147,11 +147,13 @@ export interface RunFullResult extends SimulationResult {
 export async function runWorkflowFull(args: {
     cardId: string
     templateId: string
+    /** force=true: roda mesmo se o template estiver inativo (modo teste manual) */
+    force?: boolean
 }): Promise<RunFullResult> {
-    const { cardId, templateId } = args
+    const { cardId, templateId, force } = args
 
     const { data, error } = await supabase.functions.invoke('cadence-engine', {
-        body: { action: 'start_cadence', card_id: cardId, template_id: templateId },
+        body: { action: 'start_cadence', card_id: cardId, template_id: templateId, force: !!force },
     })
 
     if (error) {
