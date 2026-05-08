@@ -7,7 +7,7 @@
  * - Salvar: persiste template + steps + trigger
  */
 import React, { useState } from 'react'
-import { ArrowLeft, Play, Save, Loader2, AlignVerticalJustifyCenter, Zap } from 'lucide-react'
+import { ArrowLeft, Play, Save, Loader2, AlignVerticalJustifyCenter, Zap, Activity } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
@@ -17,6 +17,7 @@ import { useWorkflowStore } from '../store/useWorkflowStore'
 import { saveWorkflow } from '../lib/persistence'
 import { applyAutoLayout } from '../lib/autoLayout'
 import { simulateWorkflow, runWorkflowFull, cancelActiveInstance } from '../lib/simulate'
+import { useTemplateInstances } from '../hooks/useTemplateInstances'
 import { NODE_BY_TYPE } from '../nodes/registry'
 import type { WorkflowNodeType } from '../types'
 
@@ -33,6 +34,18 @@ export const Toolbar: React.FC = () => {
     const setIsActive = useWorkflowStore((s) => s.setIsActive)
     const nodeCount = useWorkflowStore((s) => s.nodes.length)
     const setNodes = useWorkflowStore((s) => s.setNodes)
+    const templateId = useWorkflowStore((s) => s.templateId)
+    const executionsPanelOpen = useWorkflowStore((s) => s.executionsPanelOpen)
+    const toggleExecutionsPanel = useWorkflowStore((s) => s.toggleExecutionsPanel)
+
+    // Live counter de quantas instâncias estão rodando agora — atualiza
+    // sempre que o painel está aberto OU a cada 15s pra mostrar o badge
+    // sem ser intrusivo. Quando o painel está aberto o próprio painel
+    // refetch a cada 5s e share a mesma queryKey, então é gratuito.
+    const { data: liveData } = useTemplateInstances(templateId, {
+        refreshMs: executionsPanelOpen ? 5000 : 15000,
+    })
+    const runningCount = liveData?.runningCount ?? 0
 
     const handleSave = async () => {
         const state = useWorkflowStore.getState()
@@ -216,6 +229,28 @@ export const Toolbar: React.FC = () => {
                 <span className="text-xs text-slate-500">Ativa</span>
                 <Switch checked={isActive} onCheckedChange={setIsActive} />
             </div>
+
+            <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleExecutionsPanel}
+                disabled={!templateId}
+                title={templateId ? 'Ver execuções ao vivo' : 'Salve o workflow pra ver execuções'}
+                className={executionsPanelOpen ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : ''}
+            >
+                <Activity className="w-4 h-4 mr-1" />
+                {runningCount > 0 ? (
+                    <span className="flex items-center gap-1">
+                        <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        {runningCount} ao vivo
+                    </span>
+                ) : (
+                    'Execuções'
+                )}
+            </Button>
 
             <Button
                 variant="outline"

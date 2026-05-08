@@ -26,6 +26,7 @@ import { Toolbar } from './components/Toolbar'
 import { Toolbox } from './components/Toolbox'
 import { Canvas } from './components/Canvas'
 import { ConfigPanel } from './components/ConfigPanel'
+import { ExecutionsPanel } from './components/ExecutionsPanel'
 import { useWorkflowStore } from './store/useWorkflowStore'
 import { NODE_BY_TYPE } from './nodes/registry'
 import type { WorkflowNodeType } from './types'
@@ -91,16 +92,33 @@ const WorkflowEditorPage: React.FC = () => {
     return (
         <NodeRefLabelsProvider>
             <ReactFlowProvider>
-                <div className="h-full flex flex-col bg-slate-50/50">
-                    <Toolbar />
-                    <div className="flex-1 flex min-h-0">
-                        <Toolbox hasTrigger={hasTrigger} />
-                        <Canvas />
-                        <ConfigPanel />
-                    </div>
-                </div>
+                <WorkflowEditorLayout hasTrigger={hasTrigger} />
             </ReactFlowProvider>
         </NodeRefLabelsProvider>
+    )
+}
+
+// Componente interno que consome a store pra mostrar o painel de execuções
+const WorkflowEditorLayout: React.FC<{ hasTrigger: boolean }> = ({ hasTrigger }) => {
+    const executionsPanelOpen = useWorkflowStore((s) => s.executionsPanelOpen)
+    const setExecutionsPanelOpen = useWorkflowStore((s) => s.setExecutionsPanelOpen)
+    const templateId = useWorkflowStore((s) => s.templateId)
+
+    return (
+        <div className="h-full flex flex-col bg-slate-50/50">
+            <Toolbar />
+            <div className="flex-1 flex min-h-0">
+                <Toolbox hasTrigger={hasTrigger} />
+                <Canvas />
+                <ConfigPanel />
+                {executionsPanelOpen && (
+                    <ExecutionsPanel
+                        templateId={templateId}
+                        onClose={() => setExecutionsPanelOpen(false)}
+                    />
+                )}
+            </div>
+        </div>
     )
 }
 

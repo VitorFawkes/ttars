@@ -55,6 +55,11 @@ interface WorkflowState {
     /** Substitui a lista inteira de nodes (usado pelo auto-layout) */
     setNodes: (nodes: WorkflowNode[]) => void
 
+    /** Painel "Execuções" lateral aberto/fechado */
+    executionsPanelOpen: boolean
+    toggleExecutionsPanel: () => void
+    setExecutionsPanelOpen: (open: boolean) => void
+
     /** Duplica nodes selecionados (com novos IDs, offset de posição, edges internas) */
     duplicateSelected: () => void
     /** Copia seleção pra clipboard interno */
@@ -273,6 +278,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     },
 
     setNodes: (nodes) => set({ nodes }),
+
+    executionsPanelOpen: false,
+    toggleExecutionsPanel: () => set({ executionsPanelOpen: !get().executionsPanelOpen }),
+    setExecutionsPanelOpen: (open) => set({ executionsPanelOpen: open }),
 
     duplicateSelected: () => {
         const state = get()
