@@ -5,8 +5,14 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-05-07
+> **Last Updated:** 2026-05-08
 > **Trigger:** ALWAYS ON
+> **Stats:** 191 tabelas | 151 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 151 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 151 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 151 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 151 paginas | 236 hooks | 22 views | 657 components
+> **Stats:** 191 tabelas | 151 paginas | 236 hooks | 22 views | 657 components
 > **Stats:** 191 tabelas | 144 paginas | 238 hooks | 22 views | 661 components
 > **Stats:** 191 tabelas | 144 paginas | 238 hooks | 22 views | 661 components
 > **Stats:** 191 tabelas | 144 paginas | 238 hooks | 22 views | 661 components
@@ -174,6 +180,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
+> **236 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 > **238 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
@@ -292,9 +299,9 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useCurrentProductMeta()` | `useCurrentProductMeta.ts` |
 | `useDateFeatureSettings()` | `useDateFeatureSettings.ts` |
 | `useDebouncedValue()` | `useDebouncedValue.ts` |
+| `useEchoCatalogs()` | `useEchoCatalogs.ts` |
 | `useEmpresaPessoas()` | `useEmpresaPessoas.ts` |
 | `useEmpresas()` | `useEmpresas.ts` |
-| `useEmpresas 2()` | `useEmpresas 2.ts` |
 | `useFlightLookup()` | `useFlightLookup.ts` |
 | `useFotos()` | `useFotos.ts` |
 | `useFutureOpportunities()` | `useFutureOpportunities.ts` |
@@ -350,7 +357,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useTasksList()` | `useTasksList.ts` |
 | `useTemplateUsages()` | `useTemplateUsages.ts` |
 | `useToggleCritical()` | `useToggleCritical.ts` |
-| `useToggleCritical 2()` | `useToggleCritical 2.ts` |
 | `useTripComments()` | `useTripComments.ts` |
 | `useTripItemHistory()` | `useTripItemHistory.ts` |
 | `useTripPlan()` | `useTripPlan.ts` |
@@ -395,7 +401,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useFilterOptions()` | `useFilterOptions.ts` |
 | `useKanbanTarefas()` | `useKanbanTarefas.ts` |
 | `useKanbanViagens()` | `useKanbanViagens.ts` |
-| `useKanbanViagens 2()` | `useKanbanViagens 2.ts` |
 | `useLeadsFilters()` | `useLeadsFilters.ts` |
 | `useMyAssistCardIds()` | `useMyAssistCardIds.ts` |
 | `usePipelineCards()` | `usePipelineCards.ts` |
@@ -494,6 +499,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
+> **151 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 > **144 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
@@ -517,7 +523,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `CardViagem` | `src/pages/CardViagem.tsx` |
 | `Cards` | `src/pages/Cards.tsx` |
 | `CreateCardFromEcho` | `src/pages/CreateCardFromEcho.tsx` |
-| `Empresas 2` | `src/pages/Empresas 2.tsx` |
 | `Empresas` | `src/pages/Empresas.tsx` |
 | `ForgotPassword` | `src/pages/ForgotPassword.tsx` |
 | `GroupsPage` | `src/pages/GroupsPage.tsx` |
@@ -570,6 +575,14 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `AutomationsListPage` | `src/pages/admin/automations/AutomationsListPage.tsx` |
 | `CronRoteamentoDetailPage` | `src/pages/admin/automations/CronRoteamentoDetailPage.tsx` |
 | `NewAutomationPage` | `src/pages/admin/automations/NewAutomationPage.tsx` |
+| `WorkflowEditorPage` | `src/pages/admin/automations/v2/WorkflowEditorPage.tsx` |
+| `DeletableEdge` | `src/pages/admin/automations/v2/edges/DeletableEdge.tsx` |
+| `CardActionEditors` | `src/pages/admin/automations/v2/editors/CardActionEditors.tsx` |
+| `EditorRouter` | `src/pages/admin/automations/v2/editors/EditorRouter.tsx` |
+| `FlowEditors` | `src/pages/admin/automations/v2/editors/FlowEditors.tsx` |
+| `TriggerEditor` | `src/pages/admin/automations/v2/editors/TriggerEditor.tsx` |
+| `BaseNode` | `src/pages/admin/automations/v2/nodes/BaseNode.tsx` |
+| `NodeRefLabels` | `src/pages/admin/automations/v2/store/NodeRefLabels.tsx` |
 | `AutomacaoBuilderPage` | `src/pages/admin/cadence/AutomacaoBuilderPage.tsx` |
 | `CadenceBuilderPage` | `src/pages/admin/cadence/CadenceBuilderPage.tsx` |
 | `CadenceMonitorPage` | `src/pages/admin/cadence/CadenceMonitorPage.tsx` |

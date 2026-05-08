@@ -191,11 +191,23 @@ export default function AutomationsListPage() {
       navigate(`/settings/automations/roteamento/${item.id}`)
       return
     }
+    // Templates marcados como v2 (criados no editor visual) voltam pro v2,
+    // tanto se o item for o template direto quanto um trigger start_cadence
+    // que aponta pra ele.
+    if (item.editor_version === 'v2') {
+      const templateId = item.source === 'cadence_template'
+        ? item.id
+        : item.target_template_id
+      if (templateId) {
+        navigate(`/settings/automations/v2/${templateId}`)
+        return
+      }
+    }
     if (item.source === 'cadence_template') {
-      // Templates sempre abrem no builder de blocos (AutomacaoBuilderPage)
+      // Templates v1 abrem no builder de blocos (AutomacaoBuilderPage)
       navigate(`/settings/automations/automacao/${item.id}`)
     } else if (item.action_type === 'start_cadence' && item.target_template_id) {
-      // Trigger start_cadence → abre o editor da cadência vinculada
+      // Trigger start_cadence v1 → abre o editor da cadência vinculada
       navigate(`/settings/automations/automacao/${item.target_template_id}`)
     } else {
       // Triggers simples (create_task, send_message, change_stage)
@@ -233,6 +245,15 @@ export default function AutomationsListPage() {
               >
                 <Timer className="w-4 h-4" />
                 Processos que executam
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => navigate('/settings/automations/v2/new')}
+                className="gap-2"
+                title="Editor visual com canvas (estilo n8n)"
+              >
+                <Plus className="w-4 h-4" />
+                Editor visual
               </Button>
               <Button onClick={() => navigate('/settings/automations/new')} className="gap-2">
                 <Plus className="w-4 h-4" />

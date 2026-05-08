@@ -110,6 +110,8 @@ import CronRoteamentoDetailPage from './pages/admin/automations/CronRoteamentoDe
 import CadenceBuilderPage from './pages/admin/cadence/CadenceBuilderPage'
 import AutomacaoBuilderPage from './pages/admin/cadence/AutomacaoBuilderPage'
 import CadenceMonitorPage from './pages/admin/cadence/CadenceMonitorPage'
+// Workflow Editor v2 (estilo n8n, canvas com nodes)
+import WorkflowEditorPage from './pages/admin/automations/v2/WorkflowEditorPage'
 // Templates de Mensagem (biblioteca unificada usada por automações)
 import MensagemTemplatePage from './pages/admin/MensagemTemplatePage'
 // Agentes IA WhatsApp
@@ -341,6 +343,10 @@ function App() {
                     <Route path="automations/new" element={<NewAutomationPage />} />
                     <Route path="automations/automacao/new" element={<AutomacaoBuilderPage />} />
                     <Route path="automations/automacao/:id" element={<AutomacaoBuilderPage />} />
+                    <Route path="automations/cadence/new" element={<CadenceBuilderPage />} />
+                    {/* Workflow Editor v2 (canvas estilo n8n) — beta */}
+                    <Route path="automations/v2/new" element={<WorkflowEditorPage />} />
+                    <Route path="automations/v2/:id" element={<WorkflowEditorPage />} />
                     <Route path="automations/trigger/new" element={<AutomationBuilderPage />} />
                     <Route path="automations/trigger/:id" element={<AutomationBuilderPage />} />
                     <Route path="automations/roteamento/:id" element={<CronRoteamentoDetailPage />} />

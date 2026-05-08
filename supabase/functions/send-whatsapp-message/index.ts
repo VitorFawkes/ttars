@@ -85,6 +85,12 @@ function renderVariables(
   // Contact variables
   if (contact) {
     result = result.replace(/\{\{contact\.nome\}\}/g, contact.nome || "");
+    // primeiro_nome: alias prático = primeiro token de contact.nome
+    const firstName = (contact.nome || "").split(" ")[0] || "";
+    result = result.replace(
+      /\{\{contact\.primeiro_nome\}\}/g,
+      firstName
+    );
     result = result.replace(
       /\{\{contact\.sobrenome\}\}/g,
       contact.sobrenome || ""

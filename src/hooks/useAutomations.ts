@@ -30,6 +30,8 @@ export interface AutomationItem {
   steps_count?: number
   /** Apenas se source=cadence_template: modo de execução (decide qual builder abrir) */
   execution_mode?: 'linear' | 'blocks'
+  /** Versão do builder que criou — 'v2' = editor visual; 'v1' (default) = form-based legados */
+  editor_version?: 'v1' | 'v2'
   /** Se source=trigger e action_type=start_cadence: id do template vinculado */
   target_template_id?: string | null
   /** Config da ação (usado para descrição em cron_roteamento) */
@@ -62,7 +64,7 @@ export function useAutomations() {
           .order('created_at', { ascending: false }),
         sb
           .from('cadence_templates')
-          .select('id, name, description, is_active, execution_mode, created_at, updated_at, applicable_stages')
+          .select('id, name, description, is_active, execution_mode, editor_version, created_at, updated_at, applicable_stages')
           .order('created_at', { ascending: false }),
         sb.from('cadence_instances').select('template_id, status'),
         sb
@@ -129,6 +131,13 @@ export function useAutomations() {
         )
       )
 
+      // Mapa de editor_version por template — define se "Editar" abre v1 ou v2
+      const templateEditorVersionMap = new Map<string, 'v1' | 'v2'>(
+        (templatesRes.data || []).map((tpl: { id: string; editor_version: string | null }) =>
+          [tpl.id, (tpl.editor_version === 'v2' ? 'v2' : 'v1') as 'v1' | 'v2'] as const
+        )
+      )
+
       // Mapa auxiliar: nome → template_id (para casar triggers órfãos por nome)
       const templateIdByName = new Map<string, string>()
       for (const tpl of templatesRes.data || []) {
@@ -179,6 +188,7 @@ export function useAutomations() {
           target_template_id: effectiveTargetId,
           action_config: t.action_config,
           execution_mode: effectiveTargetId ? templateModeMap.get(effectiveTargetId) : undefined,
+          editor_version: effectiveTargetId ? templateEditorVersionMap.get(effectiveTargetId) : undefined,
           stats: { triggered_count: firedByTrigger.get(t.id) || 0 },
           created_at: t.created_at,
           updated_at: t.updated_at,
@@ -191,6 +201,7 @@ export function useAutomations() {
         .map((tpl: {
           id: string; name: string; description: string | null; is_active: boolean;
           execution_mode: 'linear' | 'blocks' | null;
+          editor_version: 'v1' | 'v2' | string | null;
           created_at: string; updated_at: string | null;
         }) => {
           const counts = instByTemplate.get(tpl.id) || { active: 0, completed: 0 }
@@ -204,6 +215,7 @@ export function useAutomations() {
             event_type: null,
             action_type: 'cadence_steps' as const,
             execution_mode: tpl.execution_mode || 'blocks',
+            editor_version: (tpl.editor_version === 'v2' ? 'v2' : 'v1') as 'v1' | 'v2',
             stats: {
               active_instances: counts.active,
               completed_instances: counts.completed,

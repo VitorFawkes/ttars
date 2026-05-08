@@ -1,0 +1,260 @@
+/**
+ * CardActionEditors — ações que tocam o card:
+ *   create_task, change_stage, add_tag, remove_tag, update_field, notify_internal
+ *
+ * Reusa pickers que já existem (stages, tags, users, fields).
+ */
+import React from 'react'
+import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/Input'
+import { Textarea } from '@/components/ui/textarea'
+import { Select as CustomSelect } from '@/components/ui/Select'
+import { usePipelineStages } from '@/hooks/usePipelineStages'
+import { useCardTags } from '@/hooks/useCardTags'
+import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
+import { useProductContext } from '@/hooks/useProductContext'
+import { useUsers } from '@/hooks/useUsers'
+
+interface ConfigEditorProps {
+    config: Record<string, unknown>
+    onChange: (next: Record<string, unknown>) => void
+}
+
+const TASK_TYPES = [
+    { value: 'tarefa',                label: 'Tarefa' },
+    { value: 'contato',               label: 'Contato' },
+    { value: 'email',                 label: 'E-mail' },
+    { value: 'reuniao',               label: 'Reunião' },
+    { value: 'solicitacao_mudanca',   label: 'Mudança' },
+    { value: 'enviar_proposta',       label: 'Proposta' },
+    { value: 'coleta_documentos',     label: 'Coleta Docs' },
+]
+
+const PRIORITIES = [
+    { value: 'high',   label: 'Alta' },
+    { value: 'medium', label: 'Média' },
+    { value: 'low',    label: 'Baixa' },
+]
+
+const FIELD_WHITELIST = [
+    { value: 'status_comercial',    label: 'Status comercial' },
+    { value: 'prioridade',          label: 'Prioridade' },
+    { value: 'valor_estimado',      label: 'Valor estimado' },
+    { value: 'valor_final',         label: 'Valor final' },
+    { value: 'condicoes_pagamento', label: 'Condições de pagamento' },
+    { value: 'data_viagem_inicio',  label: 'Data de início da viagem' },
+    { value: 'data_viagem_fim',     label: 'Data de fim da viagem' },
+    { value: 'destino',             label: 'Destino' },
+]
+
+// ─── create_task ─────────────────────────────────────────────────────────────
+export const CreateTaskEditor: React.FC<ConfigEditorProps> = ({ config, onChange }) => {
+    const { users } = useUsers()
+    const set = (patch: Record<string, unknown>) => onChange({ ...config, ...patch })
+    const userOptions = (users || [])
+        .filter((u) => u.active)
+        .map((u) => ({ value: u.id, label: u.nome || u.email }))
+
+    return (
+        <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-2">
+                    <Label className="text-xs">Tipo</Label>
+                    <CustomSelect
+                        value={(config.tipo as string) || 'contato'}
+                        onChange={(v) => set({ tipo: v })}
+                        options={TASK_TYPES}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label className="text-xs">Prioridade</Label>
+                    <CustomSelect
+                        value={(config.prioridade as string) || 'high'}
+                        onChange={(v) => set({ prioridade: v })}
+                        options={PRIORITIES}
+                    />
+                </div>
+            </div>
+            <div className="space-y-2">
+                <Label className="text-xs">Título</Label>
+                <Input
+                    value={(config.titulo as string) || ''}
+                    onChange={(e) => set({ titulo: e.target.value })}
+                    placeholder="Ex: 1ª tentativa de contato"
+                />
+            </div>
+            <div className="space-y-2">
+                <Label className="text-xs">Descrição (opcional)</Label>
+                <Textarea
+                    value={(config.descricao as string) || ''}
+                    onChange={(e) => set({ descricao: e.target.value })}
+                    rows={2}
+                />
+            </div>
+            <div className="space-y-2">
+                <Label className="text-xs">Responsável</Label>
+                <CustomSelect
+                    value={(config.assign_to as string) || 'card_owner'}
+                    onChange={(v) => set({ assign_to: v })}
+                    options={[
+                        { value: 'card_owner', label: 'Responsável do card' },
+                        { value: 'specific',   label: 'Pessoa específica' },
+                    ]}
+                />
+            </div>
+            {config.assign_to === 'specific' && (
+                <div className="space-y-2">
+                    <Label className="text-xs">Pessoa</Label>
+                    <CustomSelect
+                        value={(config.assign_to_user_id as string) || ''}
+                        onChange={(v) => set({ assign_to_user_id: v || null })}
+                        options={[{ value: '', label: 'Selecionar...' }, ...userOptions]}
+                    />
+                </div>
+            )}
+        </div>
+    )
+}
+
+// ─── change_stage ────────────────────────────────────────────────────────────
+export const ChangeStageEditor: React.FC<ConfigEditorProps> = ({ config, onChange }) => {
+    const { pipelineId } = useCurrentProductMeta()
+    const { data: stages = [] } = usePipelineStages(pipelineId)
+    const set = (patch: Record<string, unknown>) => onChange({ ...config, ...patch })
+
+    return (
+        <div className="space-y-2">
+            <Label className="text-xs">Mover card para</Label>
+            <CustomSelect
+                value={(config.target_stage_id as string) || ''}
+                onChange={(v) => set({ target_stage_id: v || null })}
+                options={[
+                    { value: '', label: 'Selecionar etapa...' },
+                    ...stages.map((s) => ({ value: s.id, label: s.nome })),
+                ]}
+            />
+        </div>
+    )
+}
+
+// ─── add_tag / remove_tag (no card, não na conversa Echo) ────────────────────
+export const CardTagEditor: React.FC<ConfigEditorProps> = ({ config, onChange }) => {
+    const product = useProductContext((s) => s.currentProduct)
+    const { tags } = useCardTags(product || undefined)
+    const set = (patch: Record<string, unknown>) => onChange({ ...config, ...patch })
+
+    return (
+        <div className="space-y-2">
+            <Label className="text-xs">Tag</Label>
+            <CustomSelect
+                value={(config.tag_id as string) || ''}
+                onChange={(v) => set({ tag_id: v || null })}
+                options={[
+                    { value: '', label: 'Selecionar tag...' },
+                    ...tags.map((t) => ({ value: t.id, label: t.name })),
+                ]}
+            />
+        </div>
+    )
+}
+
+// ─── update_field ────────────────────────────────────────────────────────────
+export const UpdateFieldEditor: React.FC<ConfigEditorProps> = ({ config, onChange }) => {
+    const set = (patch: Record<string, unknown>) => onChange({ ...config, ...patch })
+    return (
+        <div className="space-y-3">
+            <div className="space-y-2">
+                <Label className="text-xs">Campo</Label>
+                <CustomSelect
+                    value={(config.field_key as string) || ''}
+                    onChange={(v) => set({ field_key: v || null })}
+                    options={[
+                        { value: '', label: 'Selecionar campo...' },
+                        ...FIELD_WHITELIST,
+                    ]}
+                />
+            </div>
+            <div className="space-y-2">
+                <Label className="text-xs">Novo valor</Label>
+                <Input
+                    value={(config.value as string) ?? ''}
+                    onChange={(e) => set({ value: e.target.value })}
+                    placeholder="Ex: ganho"
+                />
+            </div>
+        </div>
+    )
+}
+
+// ─── notify_internal ─────────────────────────────────────────────────────────
+export const NotifyInternalEditor: React.FC<ConfigEditorProps> = ({ config, onChange }) => {
+    const { users } = useUsers()
+    const set = (patch: Record<string, unknown>) => onChange({ ...config, ...patch })
+    const mode = (config.recipient_mode as string) || 'card_owner'
+    const userOptions = (users || [])
+        .filter((u) => u.active)
+        .map((u) => ({ value: u.id, label: u.nome || u.email }))
+
+    return (
+        <div className="space-y-3">
+            <div className="space-y-2">
+                <Label className="text-xs">Para quem</Label>
+                <CustomSelect
+                    value={mode}
+                    onChange={(v) => set({ recipient_mode: v })}
+                    options={[
+                        { value: 'card_owner', label: 'Responsável do card' },
+                        { value: 'specific',   label: 'Pessoa específica' },
+                    ]}
+                />
+            </div>
+            {mode === 'specific' && (
+                <div className="space-y-2">
+                    <Label className="text-xs">Pessoa</Label>
+                    <CustomSelect
+                        value={(config.user_id as string) || ''}
+                        onChange={(v) => set({ user_id: v || null })}
+                        options={[{ value: '', label: 'Selecionar...' }, ...userOptions]}
+                    />
+                </div>
+            )}
+            <div className="space-y-2">
+                <Label className="text-xs">Título</Label>
+                <Input
+                    value={(config.title as string) || ''}
+                    onChange={(e) => set({ title: e.target.value })}
+                    placeholder="Ex: Card precisa de atenção"
+                />
+            </div>
+            <div className="space-y-2">
+                <Label className="text-xs">Mensagem</Label>
+                <Textarea
+                    value={(config.body as string) || ''}
+                    onChange={(e) => set({ body: e.target.value })}
+                    rows={3}
+                    placeholder="Conteúdo da notificação. Suporta {{contact.nome}}, {{card.titulo}}."
+                />
+            </div>
+        </div>
+    )
+}
+
+// ─── trigger_n8n_webhook ─────────────────────────────────────────────────────
+export const N8nWebhookEditor: React.FC<ConfigEditorProps> = ({ config, onChange }) => {
+    const set = (patch: Record<string, unknown>) => onChange({ ...config, ...patch })
+    return (
+        <div className="space-y-3">
+            <div className="space-y-2">
+                <Label className="text-xs">URL do webhook</Label>
+                <Input
+                    value={(config.url as string) || ''}
+                    onChange={(e) => set({ url: e.target.value })}
+                    placeholder="https://n8n.exemplo.com/webhook/..."
+                />
+            </div>
+            <p className="text-xs text-slate-500">
+                Faz POST com payload <code className="bg-slate-100 px-1 rounded">{`{ card, contact }`}</code>.
+            </p>
+        </div>
+    )
+}

@@ -760,6 +760,12 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-07T16:28:32Z | supabase/migrations/20260507b_log_internal_ops.sql | applied_to_prod
 2026-05-07T16:29:45Z | supabase/migrations/20260507b_log_internal_ops.sql | applied_to_prod
 2026-05-07T16:32:03Z | supabase/migrations/20260507c_fix_briefing_jsonb.sql | applied_to_prod
+2026-05-07T17:08:28Z | supabase/migrations/20260507_cadence_steps_message_type.sql | applied_to_prod
+2026-05-07T17:46:19Z | supabase/migrations/20260507b_cadence_echo_actions.sql | applied_to_prod
+2026-05-07T18:59:50Z | supabase/migrations/20260507c_cadence_templates_editor_version.sql | applied_to_prod
+2026-05-08T12:24:02Z | supabase/migrations/20260507d_cadence_steps_card_action.sql | applied_to_prod
+2026-05-08T12:25:32Z | supabase/migrations/20260508a_fix_concierge_outcome_trigger_domain.sql | applied_to_prod
+2026-05-08T14:03:42Z | supabase/migrations/20260507e_replace_cadence_steps_branch_end.sql | applied_to_prod
 20260507a_agent_update_card_data_filter_nulls.sql|2026-05-07T18:50|hot-applied via Management API (MCP indisponível)
 20260507b_agent_check_calendar_v3_org_filter.sql|2026-05-07T19:50|hot-applied via Management API
 2026-05-07T19:35:59Z | supabase/migrations/20260507e_archive_monde_zombie_aggregates.sql | applied_to_prod
