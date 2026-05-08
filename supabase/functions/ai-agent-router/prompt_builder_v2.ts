@@ -441,16 +441,50 @@ function buildSubstitutions(input: BuildPromptV2Input): Record<string, string> {
   subs['{slot_2}'] = formatted[1] ?? '(horário a confirmar)';
   subs['{slot_3}'] = formatted[2] ?? '(horário a confirmar)';
 
-  // Lista natural com 3 horários: "quarta 30/04 às 14h, quinta 01/05 às 10h ou 16h"
-  const top3 = formatted.slice(0, 3);
-  if (top3.length === 0) {
+  // {slots_disponiveis} — render AGRUPADO por dia, respeitando os slots já
+  // calculados em persona_v2 (que aplica slots_per_day + min_hours_between_slots).
+  //
+  // Antes: top3 cego cortava em 3 slots flat ("seg 9h, seg 11h ou ter 9h").
+  // Bug observado: admin configura 2 slots/dia × 6 dias = potencial 12 slots,
+  // mas só 3 apareciam, e em formato confuso porque mistura múltiplos slots
+  // do mesmo dia sem agrupar (repete "segunda" duas vezes).
+  //
+  // Agora: agrupa por data, formata "segunda 11/05 às 9h ou 11h, terça 12/05
+  // às 9h ou 11h, ou quarta 13/05 às 9h ou 11h". Cap razoável: 3 DIAS distintos
+  // (não 3 slots) — limite de legibilidade humana, não de slots disponíveis.
+  // Se admin quer mais opções, ajusta no MomentCard ou seu copy.
+  const MAX_DAYS_DISPLAY = 3;
+  const byDate = new Map<string, Array<{ time: string; weekday: string }>>();
+  for (const s of slots) {
+    const list = byDate.get(s.date) ?? [];
+    list.push({ time: s.time, weekday: s.weekday });
+    byDate.set(s.date, list);
+  }
+  const dates = [...byDate.keys()].sort();
+  const displayDates = dates.slice(0, MAX_DAYS_DISPLAY);
+  const dayStrings: string[] = [];
+  for (const date of displayDates) {
+    const daySlots = byDate.get(date)!;
+    if (daySlots.length === 0) continue;
+    const wd = WEEKDAY_PT[daySlots[0].weekday] ?? daySlots[0].weekday.toLowerCase();
+    const [, mm, dd] = date.split('-');
+    const dayLabel = `${wd} ${dd}/${mm}`;
+    const times = daySlots.map((s) => (s.time.endsWith(':00') ? `${s.time.slice(0, -3)}h` : s.time));
+    let timeStr: string;
+    if (times.length === 1) timeStr = `às ${times[0]}`;
+    else if (times.length === 2) timeStr = `às ${times[0]} ou ${times[1]}`;
+    else timeStr = `às ${times.slice(0, -1).join(', ')} ou ${times[times.length - 1]}`;
+    dayStrings.push(`${dayLabel} ${timeStr}`);
+  }
+
+  if (dayStrings.length === 0) {
     subs['{slots_disponiveis}'] = '(horários a confirmar)';
-  } else if (top3.length === 1) {
-    subs['{slots_disponiveis}'] = top3[0];
-  } else if (top3.length === 2) {
-    subs['{slots_disponiveis}'] = `${top3[0]} ou ${top3[1]}`;
+  } else if (dayStrings.length === 1) {
+    subs['{slots_disponiveis}'] = dayStrings[0];
+  } else if (dayStrings.length === 2) {
+    subs['{slots_disponiveis}'] = `${dayStrings[0]}, ou ${dayStrings[1]}`;
   } else {
-    subs['{slots_disponiveis}'] = `${top3[0]}, ${top3[1]} ou ${top3[2]}`;
+    subs['{slots_disponiveis}'] = `${dayStrings.slice(0, -1).join(', ')}, ou ${dayStrings[dayStrings.length - 1]}`;
   }
 
   // Saudação contextual: prioridade pra o que o lead disse; senão hora local SP.
@@ -1205,6 +1239,12 @@ function renderClosingInstructions(input: BuildPromptV2Input): string {
     // Cura: instrução pra confirmar com o lead se o horário pedido não estiver
     // disponível, em vez de escolher sozinha.
     lines.push(`- SLOT INDISPONÍVEL: se você ofereceu um horário X e o lead aceitou, mas o check_calendar retornou que X não está mais livre, NÃO escolha outro horário sozinha. Pergunte ao lead: "Na verdade {horário pedido} não está mais livre, posso confirmar {horário disponível mais próximo} ou prefere outro dia?". Só chame create_task DEPOIS que o lead confirmar o novo horário.`);
+    // FIX 08/05/2026 — preservar lista de horários (variável {slots_disponiveis})
+    // em modo faithful. Sintoma: admin configura slots_per_day=2 × 3 dias = 6
+    // slots agrupados, mas LLM em faithful (10% leeway) simplificava pra 2 slots
+    // de dias diferentes ("seg 9h ou ter 9h"), perdendo opções que cabiam.
+    // Cura: instrução explícita pra preservar TODOS os horários listados.
+    lines.push(`- HORÁRIOS COMPLETOS: se o anchor inclui múltiplos horários (ex: "segunda 11/05 às 9h ou 11h, terça 12/05 às 9h ou 11h"), preserve TODOS — não simplifique escolhendo um subconjunto. O admin já balanceou no config. Cliente prefere ver opções e escolher.`);
   }
 
   lines.push(`- Respeite voice, boundaries e red_lines deste momento.`);
