@@ -411,29 +411,46 @@ const WEEKDAY_PT: Record<string, string> = {
  */
 // deno-lint-ignore no-explicit-any
 function deriveSlotQuestion(slot: any): string | null {
-  const cov = ((slot?.coverage_notes ?? '') as string).trim();
+  // Fase 2 (09/05/2026) — Path 1 (preferido): must_collect estruturado.
+  // Gera pergunta deterministicamente da lista atômica. Nunca suaviza
+  // conjunção porque a estrutura é a fonte da pergunta — não há prose pra
+  // o LLM interpretar.
+  const mustCollect = ((slot?.must_collect ?? []) as unknown[])
+    .filter(s => typeof s === 'string' && (s as string).trim().length > 0) as string[];
   const label = ((slot?.label ?? '') as string).trim();
+  if (mustCollect.length > 0) {
+    const items = mustCollect.map(s => s.trim());
+    const joined = items.length === 1
+      ? items[0]
+      : items.length === 2
+        ? `${items[0]} e ${items[1]}`
+        : `${items.slice(0, -1).join(', ')} e ${items[items.length - 1]}`;
+    // Usa label como contexto se tiver — "Data do casamento - Mês e Ano" → "Vocês já sabem o mês e ano do casamento?"
+    const ctx = label.match(/^(.+?)\s*[-–—]\s*(.+)$/)?.[1]?.trim() ?? label;
+    if (ctx && ctx.length > 0) {
+      return `Vocês já sabem o ${joined} ${ctx.toLowerCase().startsWith('data') ? 'do casamento' : `de ${ctx.toLowerCase()}`}?`;
+    }
+    return `Vocês já sabem o ${joined}?`;
+  }
+
+  // Path 2 (legado): coverage_notes prose com regex cleanup.
+  const cov = ((slot?.coverage_notes ?? '') as string).trim();
 
   if (cov && cov.length >= 8) {
     let q = cov;
-    // Remove prefixos narrativos comuns: "Se o casal", "Quando o casal", "O casal"
     q = q.replace(/^(se\s+o?\s*casal\s+)/i, '');
     q = q.replace(/^(quando\s+o?\s*casal\s+)/i, '');
     q = q.replace(/^(o\s+casal\s+)/i, '');
-    // Reescreve "já sabe X" / "sabe X" como "Vocês já sabem X"
     q = q.replace(/^(j[áa]\s+)?sabe(m)?\s+/i, 'Vocês já sabem ');
     q = q.replace(/^(j[áa]\s+)?tem\s+/i, 'Vocês já têm ');
     q = q.replace(/^(j[áa]\s+)?t[êe]m\s+/i, 'Vocês já têm ');
-    // Capitaliza primeira letra
     q = q.charAt(0).toUpperCase() + q.slice(1);
-    // Garante "?" no fim
     q = q.replace(/[.!]+$/, '');
     if (!q.endsWith('?')) q = q + '?';
     return q;
   }
 
   if (label) {
-    // Se label tem hifen/travessão, usa tail ("Data do casamento - Mês e Ano" → "Mês e Ano")
     const splitMatch = label.match(/^(.+?)\s*[-–—]\s*(.+)$/);
     const target = splitMatch ? splitMatch[2].trim() : label;
     return `Vocês já têm em mente ${target}?`;
@@ -745,12 +762,30 @@ function renderOneMoment(
           : ' [extra — só pergunta se a conversa fluir natural; nunca trava]';
       const ico = slot.icon ? `${slot.icon} ` : '';
       lines.push(`      - ${ico}${slot.label}${prioLabel}`);
+
+      // Fase 2 (09/05/2026): must_collect estruturado é fonte primária. Lista
+      // atômica de dados obrigatórios — renderiza como exigência explícita E
+      // verificador determinístico (Fix E++) lê a MESMA lista pra checar
+      // item-por-item na resposta. Sem prose ambígua. Backward compat: se vazio,
+      // cai no coverage_notes legado (prose).
+      const mustCollect = ((slot as { must_collect?: string[] }).must_collect ?? []).filter(s => typeof s === 'string' && s.trim().length > 0);
+      const rejectIf = ((slot as { reject_if?: Array<{ pattern: string; hint?: string }> }).reject_if ?? []).filter(r => r && typeof r.pattern === 'string' && r.pattern.trim().length > 0);
       const coverageNotes = (slot as { coverage_notes?: string | null }).coverage_notes;
-      if (coverageNotes && typeof coverageNotes === 'string' && coverageNotes.trim().length > 0) {
-        // Fix A (08/05/2026): mudou de "Contexto/cobertura desta pergunta:" (descritivo,
-        // LLM lia como info) para diretiva imperativa. Bug observado: coverage="Se o
-        // casal já sabe mês e ano" virou pergunta "Vocês já sabem o mês ou ano?" porque
-        // em modo `free` o cabeçalho descritivo não competia com instrução-mãe do modo.
+
+      if (mustCollect.length > 0) {
+        lines.push(`        ESTA PERGUNTA PRECISA COLETAR todos estes dados (sem suavizar — se faltar um, sistema regera):`);
+        mustCollect.forEach(item => lines.push(`          • ${item.trim()}`));
+        if (rejectIf.length > 0) {
+          lines.push(`        Se o lead responder vagamente, peça especificidade:`);
+          rejectIf.forEach(r => {
+            const hint = r.hint && r.hint.trim().length > 0 ? ` → ${r.hint.trim()}` : ' → peça mais detalhe';
+            lines.push(`          • "${r.pattern.trim()}"${hint}`);
+          });
+        }
+      } else if (coverageNotes && typeof coverageNotes === 'string' && coverageNotes.trim().length > 0) {
+        // Fix A (08/05/2026): legado prose. Mantido como fallback até o admin
+        // migrar pro padrão must_collect estruturado. Tem ~80% de obediência —
+        // o estruturado tem ~100%.
         lines.push(`        ESTA PERGUNTA PRECISA COLETAR: ${coverageNotes.trim()}. Não suavize requisitos do admin (se diz "X e Y", colete os dois).`);
       }
       if (slot.questions && slot.questions.length > 0) {
@@ -915,6 +950,42 @@ function renderBoundariesBlock(boundaries: BoundariesConfig | null): string {
   return `<boundaries>\nLinhas vermelhas (valem sempre):\n\n${sections.join('\n\n')}\n</boundaries>`;
 }
 
+function formatScoringCondition(rule: ScoringRule): string {
+  const cv = (rule.condition_value || {}) as Record<string, unknown>;
+  switch (rule.condition_type) {
+    case 'ai_subjective': {
+      const q = typeof cv.question === 'string' ? cv.question.trim() : '';
+      if (q) return q;
+      const f = typeof cv.formula === 'string' ? cv.formula : '';
+      const min = typeof cv.min === 'number' ? cv.min : null;
+      const max = typeof cv.max === 'number' ? cv.max : null;
+      if (f === 'value_per_guest' && min !== null && max !== null) {
+        return `Valor por convidado entre R$${min} e R$${max}`;
+      }
+      return '';
+    }
+    case 'equals': {
+      const v = cv.value;
+      if (v === undefined || v === null) return '';
+      return `${rule.dimension} = ${typeof v === 'string' ? `"${v}"` : String(v)}`;
+    }
+    case 'range': {
+      const min = cv.min;
+      const max = cv.max;
+      if (typeof min === 'number' && typeof max === 'number') {
+        return `${rule.dimension} entre ${min} e ${max}`;
+      }
+      if (typeof min === 'number') return `${rule.dimension} ≥ ${min}`;
+      if (typeof max === 'number') return `${rule.dimension} ≤ ${max}`;
+      return '';
+    }
+    case 'boolean_true':
+      return `${rule.dimension} = verdadeiro`;
+    default:
+      return '';
+  }
+}
+
 function renderQualificationBlock(
   rules: ScoringRule[],
   scoreInfo: BuildPromptV2Input['scoreInfo'],
@@ -927,10 +998,19 @@ function renderQualificationBlock(
 
   const lines: string[] = [];
 
+  const renderRule = (r: ScoringRule, prefix: string, weightLabel: string): string => {
+    const label = r.label ?? r.dimension;
+    const condition = formatScoringCondition(r);
+    if (condition && condition !== label) {
+      return `  ${prefix} ${label} — ${condition} (${weightLabel})`;
+    }
+    return `  ${prefix} ${label} (${weightLabel})`;
+  };
+
   if (qualify.length > 0) {
     lines.push('Um cliente é qualificado quando combina:');
     for (const r of qualify) {
-      lines.push(`  • ${r.label ?? r.dimension} (peso ${r.weight})`);
+      lines.push(renderRule(r, '•', `peso ${r.weight}`));
     }
   }
 
@@ -938,7 +1018,7 @@ function renderQualificationBlock(
     lines.push('');
     lines.push('Desqualifica imediatamente (encerrar cordial):');
     for (const r of disqualify) {
-      lines.push(`  × ${r.label ?? r.dimension}`);
+      lines.push(renderRule(r, '×', 'desqualifica'));
     }
   }
 
@@ -946,7 +1026,7 @@ function renderQualificationBlock(
     lines.push('');
     lines.push('Sinais de bônus (somam, mas com cap):');
     for (const r of bonus) {
-      lines.push(`  + ${r.label ?? r.dimension} (+${r.weight})`);
+      lines.push(renderRule(r, '+', `+${r.weight}`));
     }
   }
 

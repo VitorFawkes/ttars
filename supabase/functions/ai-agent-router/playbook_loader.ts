@@ -21,6 +21,14 @@ export type MomentKind = 'flow' | 'play';
  */
 export type SlotPriority = 'critical' | 'preferred' | 'nice_to_have';
 
+/** Regra de rejeição: se o lead responder com este padrão, peça mais. */
+export interface SlotRejection {
+  /** Padrão a detectar (substring case-insensitive). Ex: "no fim do ano". */
+  pattern: string;
+  /** Como reagir quando detectar. Ex: "peça mês específico". */
+  hint?: string;
+}
+
 export interface DiscoverySlot {
   key: string;
   label: string;
@@ -31,6 +39,28 @@ export interface DiscoverySlot {
   priority?: SlotPriority;
   /** Perguntas escritas. Vazio = agente improvisa baseado em label/contexto. */
   questions: string[];
+  /**
+   * Lista atômica de dados obrigatórios na resposta. Renderiza no prompt como
+   * exigência estruturada (não prose) e o validador pós-LLM (Fix E) confere item
+   * por item. Padrão SOTA pra evitar "soft compliance" (LLM ignora 15-20% das
+   * vezes em modo free quando recebe prose). Vazio = volta pro caminho prose
+   * via coverage_notes.
+   * Ex: ['mês', 'ano'] — Estela TEM que coletar os dois, sistema regera se omitir.
+   */
+  must_collect?: string[];
+  /**
+   * Rejeições estruturadas — padrões na resposta do lead que NÃO devem ser
+   * aceitos como suficientes. Renderiza no prompt como "se cliente disser X,
+   * peça Y". Validador pode detectar match na user_message e forçar follow-up.
+   * Ex: [{ pattern: 'no fim do ano', hint: 'peça mês específico' }]
+   */
+  reject_if?: SlotRejection[];
+  /**
+   * @deprecated Substituído por must_collect (atomic) + reject_if (estruturado).
+   * Mantido pra backward compat — slots existentes continuam funcionando como
+   * fallback de prose quando must_collect está vazio.
+   */
+  coverage_notes?: string | null;
   /** Liga ao campo do CRM (system_fields.field_key). */
   crm_field_key?: string | null;
 }

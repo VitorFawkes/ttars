@@ -360,6 +360,7 @@ export async function runPersonaAgent_v2(
   // pra checar slots ALTERNATIVOS quando o lead propor outro dia/hora.
   const bookCfg = agent.handoff_actions?.book_meeting ?? null;
   let bookMeetingForPrompt: Parameters<typeof buildPromptV2>[0]['bookMeeting'] = null;
+  let bookMeetingDisabledReason: string | null = null;
   if (bookCfg?.enabled === true) {
     let responsavelName: string | null = null;
     if (bookCfg.responsavel_id) {
@@ -369,6 +370,21 @@ export async function runPersonaAgent_v2(
         .eq('id', bookCfg.responsavel_id)
         .maybeSingle();
       responsavelName = (profileRow as { nome?: string | null } | null)?.nome ?? null;
+
+      // Cross-check: o closer escolhido pelo admin precisa ser membro do mesmo
+      // workspace do agente. Sem isso, create_task falha silenciosamente no
+      // backend (FK/RLS) e o lead recebe "marquei!" mas a tarefa nunca aparece
+      // no CRM. Verifica via org_members (modelo Account+Workspace).
+      const { data: memberRow } = await supabase
+        .from('org_members')
+        .select('user_id')
+        .eq('user_id', bookCfg.responsavel_id)
+        .eq('org_id', agent.org_id)
+        .maybeSingle();
+      if (!memberRow) {
+        bookMeetingDisabledReason = `closer ${responsavelName ?? bookCfg.responsavel_id} não é membro do workspace ${agent.org_id} — agendamento desabilitado`;
+        console.warn(`[persona_v2] book_meeting disabled: ${bookMeetingDisabledReason}`);
+      }
     }
 
     // Pré-busca os próximos slots disponíveis (próximos 14 dias) — usa a mesma
@@ -437,16 +453,22 @@ export async function runPersonaAgent_v2(
       }
     }
 
-    bookMeetingForPrompt = {
-      enabled: true,
-      responsavel_name: responsavelName,
-      tipo: bookCfg.tipo ?? 'reuniao_video',
-      duracao_minutos: bookCfg.duracao_minutos ?? 60,
-      titulo_template: bookCfg.titulo_template ?? 'Reunião com {contact_name}',
-      mensagem_confirmacao_template: bookCfg.mensagem_confirmacao_template ??
-        'Perfeito! Marquei {responsavel_first_name} pra falar com vocês {data} às {hora}.',
-      available_slots: availableSlots,
-    };
+    if (bookMeetingDisabledReason) {
+      // Closer não é membro do workspace — desabilita o auto-booking pra evitar
+      // tarefas órfãs. Estela ainda pode marcar manualmente sem propor slot.
+      bookMeetingForPrompt = null;
+    } else {
+      bookMeetingForPrompt = {
+        enabled: true,
+        responsavel_name: responsavelName,
+        tipo: bookCfg.tipo ?? 'reuniao_video',
+        duracao_minutos: bookCfg.duracao_minutos ?? 60,
+        titulo_template: bookCfg.titulo_template ?? 'Reunião com {contact_name}',
+        mensagem_confirmacao_template: bookCfg.mensagem_confirmacao_template ??
+          'Perfeito! Marquei {responsavel_first_name} pra falar com vocês {data} às {hora}.',
+        available_slots: availableSlots,
+      };
+    }
   }
 
   // 5b. Step sequencial em fases wait_for_reply.
@@ -757,24 +779,26 @@ Mantenha o tom e o resto do conteúdo, mas garanta que as frases acima apareçam
   // escritas pelo admin (admin já tem controle).
   const slotViolations = checkSlotConjunctionViolations(response, cur, ctx.form_data);
   if (slotViolations.length > 0) {
-    console.warn(`[persona_v2] slot conjunctions missing: ${JSON.stringify(slotViolations)} — regenerating once`);
+    console.warn(`[persona_v2] slot must_collect missing: ${JSON.stringify(slotViolations)} — regenerating once`);
     const regenInstruction = `${userMessage}
 
-[INSTRUÇÃO CRÍTICA — sua resposta anterior omitiu tokens críticos da pergunta. O admin configurou que a pergunta deve cobrir AMBOS os tokens conectados por "e". Reescreva incluindo TODOS:
-${slotViolations.map(v => `  - Slot "${v.label}": precisa cobrir "${v.t1}" E "${v.t2}" (você incluiu apenas ${v.found.join(', ') || 'nenhum'})`).join('\n')}
-Mantenha o tom e prefixo de rapport. Só reescreva a pergunta pra incluir os tokens faltantes.]`;
+[INSTRUÇÃO CRÍTICA — sua resposta anterior omitiu dados obrigatórios da pergunta. O admin marcou estes itens como "DEVE coletar". Reescreva a pergunta cobrindo TODOS:
+${slotViolations.map(v => `  - Slot "${v.label}": precisa cobrir ${v.missing.map(t => `"${t}"`).join(' E ')}${v.found.length > 0 ? ` (você incluiu ${v.found.map(t => `"${t}"`).join(', ')} mas faltaram os outros)` : ' (você não cobriu nenhum)'}`).join('\n')}
+Mantenha o tom e prefixo de rapport. Só reescreva a pergunta pra incluir os itens faltantes.]`;
     try {
       const regen = await callLLM(personaModel, personaTemp, personaMaxTok, prompt, regenInstruction);
       const stillViolations = checkSlotConjunctionViolations(regen.response, cur, ctx.form_data);
+      // Aceita regen se reduziu violations (tenta progressão); usa first response
+      // só se regen piorou ou empatou — evita degradar resposta com instrução pior.
       if (stillViolations.length < slotViolations.length) {
         response = regen.response;
         inputTokens += regen.inputTokens;
         outputTokens += regen.outputTokens;
         if (stillViolations.length > 0) {
-          console.warn(`[persona_v2] slot conjunctions still partially missing after regen: ${JSON.stringify(stillViolations)}`);
+          console.warn(`[persona_v2] slot must_collect still partially missing after regen: ${JSON.stringify(stillViolations)}`);
         }
       } else {
-        console.warn(`[persona_v2] slot conjunctions regen didn't help, keeping first response`);
+        console.warn(`[persona_v2] slot must_collect regen didn't help, keeping first response`);
       }
     } catch (regenErr) {
       console.warn('[persona_v2] slot conjunction regen failed:', regenErr);
@@ -865,7 +889,7 @@ function checkSlotConjunctionViolations(
   // deno-lint-ignore no-explicit-any
   moment: any,
   formData: Record<string, string>,
-): Array<{ label: string; t1: string; t2: string; found: string[] }> {
+): Array<{ label: string; missing: string[]; found: string[] }> {
   const slots = moment?.discovery_config?.slots ?? [];
   if (!Array.isArray(slots) || slots.length === 0) return [];
 
@@ -877,7 +901,7 @@ function checkSlotConjunctionViolations(
       .trim();
   const normResp = norm(response);
 
-  const violations: Array<{ label: string; t1: string; t2: string; found: string[] }> = [];
+  const violations: Array<{ label: string; missing: string[]; found: string[] }> = [];
 
   for (const slot of slots) {
     // Skip se admin escreveu perguntas literais
@@ -885,12 +909,38 @@ function checkSlotConjunctionViolations(
     // Skip se slot já foi coletado
     if (slot.crm_field_key && formData[slot.crm_field_key]) continue;
 
-    // Source da extração: coverage_notes (mais informativo) ou label
-    const source = (slot.coverage_notes || slot.label || '').toString();
+    // Fase 2 (09/05/2026) — Path 1 (preferido): must_collect estruturado.
+    // Cada item é exigência atômica do admin. O prompt builder renderiza a
+    // MESMA lista como exigência — verificador só confere item-por-item.
+    const mustCollect = ((slot as { must_collect?: string[] }).must_collect ?? [])
+      .filter((s: unknown) => typeof s === 'string' && (s as string).trim().length > 0) as string[];
+    if (mustCollect.length > 0) {
+      const missing: string[] = [];
+      const found: string[] = [];
+      for (const item of mustCollect) {
+        const itemN = norm(item);
+        const isPhrase = itemN.includes(' ');
+        const present = isPhrase
+          ? normResp.includes(itemN)
+          : new RegExp(`\\b${itemN}\\b`).test(normResp);
+        if (present) found.push(item);
+        else missing.push(item);
+      }
+      if (missing.length > 0) {
+        violations.push({
+          label: slot.label || '(sem label)',
+          missing,
+          found,
+        });
+      }
+      continue;
+    }
+
+    // Path 2 (legado): regex de "X e Y" no coverage_notes/label. Mantido pra
+    // slots não migrados pro must_collect estruturado.
+    const source = ((slot as { coverage_notes?: string | null }).coverage_notes || slot.label || '').toString();
     if (!source) continue;
 
-    // Detecta padrão "X e Y" — palavras 3+ chars conectadas por " e "
-    // Cada match vira uma verificação independente
     const conjunctions = [...source.matchAll(/\b([a-záéíóúâêôãõç]{3,})\s+e\s+([a-záéíóúâêôãõç]{3,})\b/gi)];
 
     for (const m of conjunctions) {
@@ -898,18 +948,18 @@ function checkSlotConjunctionViolations(
       const t2 = m[2];
       const t1n = norm(t1);
       const t2n = norm(t2);
-      // Skip stopwords/genéricos
       if (SLOT_CONJUNCTION_STOPWORDS.has(t1n) || SLOT_CONJUNCTION_STOPWORDS.has(t2n)) continue;
-      // Verifica se ambos aparecem na resposta como palavra inteira
       const t1Present = new RegExp(`\\b${t1n}\\b`).test(normResp);
       const t2Present = new RegExp(`\\b${t2n}\\b`).test(normResp);
       if (!t1Present || !t2Present) {
+        const missing: string[] = [];
         const found: string[] = [];
-        if (t1Present) found.push(t1);
-        if (t2Present) found.push(t2);
+        if (t1Present) found.push(t1); else missing.push(t1);
+        if (t2Present) found.push(t2); else missing.push(t2);
         violations.push({
           label: slot.label || '(sem label)',
-          t1, t2, found,
+          missing,
+          found,
         });
       }
     }

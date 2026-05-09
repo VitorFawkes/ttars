@@ -149,6 +149,15 @@ function SlotItem({
 }) {
   const [expanded, setExpanded] = useState(false)
   const [newQuestion, setNewQuestion] = useState('')
+  const [newMustCollect, setNewMustCollect] = useState('')
+  const [newRejPattern, setNewRejPattern] = useState('')
+  const [newRejHint, setNewRejHint] = useState('')
+  const [showLegacyCoverage, setShowLegacyCoverage] = useState(
+    !!(slot.coverage_notes && slot.coverage_notes.trim()),
+  )
+
+  const mustCollect = slot.must_collect ?? []
+  const rejectIf = slot.reject_if ?? []
 
   const addQuestion = () => {
     const q = newQuestion.trim()
@@ -160,6 +169,48 @@ function SlotItem({
   const removeQuestion = (i: number) => {
     onChange({ questions: slot.questions.filter((_, j) => j !== i) })
   }
+
+  const addMustCollect = () => {
+    const v = newMustCollect.trim()
+    if (!v) return
+    onChange({ must_collect: [...mustCollect, v] })
+    setNewMustCollect('')
+  }
+
+  const removeMustCollect = (i: number) => {
+    onChange({ must_collect: mustCollect.filter((_, j) => j !== i) })
+  }
+
+  const addRejection = () => {
+    const p = newRejPattern.trim()
+    if (!p) return
+    onChange({ reject_if: [...rejectIf, { pattern: p, hint: newRejHint.trim() || undefined }] })
+    setNewRejPattern('')
+    setNewRejHint('')
+  }
+
+  const removeRejection = (i: number) => {
+    onChange({ reject_if: rejectIf.filter((_, j) => j !== i) })
+  }
+
+  // Preview da pergunta auto-gerada do must_collect.
+  const generatedPreview = (() => {
+    if (mustCollect.length === 0) return null
+    const items = mustCollect.map(s => s.trim()).filter(Boolean)
+    if (items.length === 0) return null
+    const joined = items.length === 1
+      ? items[0]
+      : items.length === 2
+        ? `${items[0]} e ${items[1]}`
+        : `${items.slice(0, -1).join(', ')} e ${items[items.length - 1]}`
+    const labelMatch = slot.label.match(/^(.+?)\s*[-–—]\s*(.+)$/)
+    const ctx = labelMatch ? labelMatch[1].trim() : slot.label
+    if (ctx && ctx.length > 0) {
+      const isData = ctx.toLowerCase().startsWith('data')
+      return `Vocês já sabem o ${joined} ${isData ? 'do casamento' : `de ${ctx.toLowerCase()}`}?`
+    }
+    return `Vocês já sabem o ${joined}?`
+  })()
 
   return (
     <div className={cn('bg-white border rounded-lg', expanded ? 'border-slate-300' : 'border-slate-200')}>
@@ -288,20 +339,130 @@ function SlotItem({
             </p>
           </div>
 
-          <div>
-            <label className="block text-[11px] font-medium text-slate-600 mb-1">
-              O que essa pergunta precisa cobrir <span className="text-slate-400 font-normal">(opcional — guia pra IA improvisar)</span>
-            </label>
-            <textarea
-              value={slot.coverage_notes ?? ''}
-              onChange={(e) => onChange({ coverage_notes: e.target.value || null })}
-              placeholder='Ex: precisa de mês E ano. Não aceita "no fim do ano" — confirme mês específico. Se cliente disser só "janeiro", pergunte qual ano.'
-              rows={3}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y"
-            />
-            <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
-              💡 Vai pro prompt como <strong>exigência</strong> ao agente. Forma imperativa funciona: <em>"precisa coletar mês E ano"</em> &gt; <em>"sobre data do casamento"</em>. Quando você fala "X e Y", a agente cobre os dois (sistema valida e regera se ela esquecer um).
-            </p>
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 space-y-2.5">
+            <div>
+              <label className="block text-[11px] font-medium text-emerald-900 mb-1">
+                Dados que a resposta DEVE coletar
+              </label>
+              <p className="text-[10px] text-emerald-800 mb-2 leading-relaxed">
+                Cada item é uma exigência atômica. Sistema regera a resposta se a agente esquecer algum.
+              </p>
+              {mustCollect.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {mustCollect.map((item, i) => (
+                    <span key={i} className="text-xs px-2 py-1 rounded-md bg-emerald-100 border border-emerald-200 text-emerald-900 inline-flex items-center gap-1.5 font-medium">
+                      {item}
+                      <button onClick={() => removeMustCollect(i)} className="text-emerald-600 hover:text-rose-600">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <input
+                  value={newMustCollect}
+                  onChange={(e) => setNewMustCollect(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      addMustCollect()
+                    }
+                  }}
+                  placeholder='Ex: mês'
+                  className="flex-1 rounded-lg border border-emerald-200 px-3 py-1.5 text-xs"
+                />
+                <Button size="sm" variant="outline" onClick={addMustCollect} className="gap-1">
+                  <Plus className="w-3.5 h-3.5" /> adicionar
+                </Button>
+              </div>
+            </div>
+
+            <div className="border-t border-emerald-200 pt-2.5">
+              <label className="block text-[11px] font-medium text-emerald-900 mb-1">
+                Rejeições <span className="text-emerald-700 font-normal">(opcional)</span>
+              </label>
+              <p className="text-[10px] text-emerald-800 mb-2 leading-relaxed">
+                Se o lead responder vagamente (ex: "no fim do ano"), agente pede o detalhe que faltou.
+              </p>
+              {rejectIf.length > 0 && (
+                <div className="space-y-1.5 mb-2">
+                  {rejectIf.map((r, i) => (
+                    <div key={i} className="flex items-start gap-2 px-2.5 py-1.5 rounded-md bg-amber-50 border border-amber-200">
+                      <span className="text-xs text-amber-900 flex-1">
+                        Se disser <strong>"{r.pattern}"</strong> {r.hint ? <em className="text-amber-700">→ {r.hint}</em> : <em className="text-amber-700">→ pede mais detalhe</em>}
+                      </span>
+                      <button onClick={() => removeRejection(i)} className="text-amber-600 hover:text-rose-600">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="grid grid-cols-12 gap-1.5">
+                <input
+                  value={newRejPattern}
+                  onChange={(e) => setNewRejPattern(e.target.value)}
+                  placeholder='Padrão (ex: "no fim do ano")'
+                  className="col-span-5 rounded-lg border border-amber-200 px-2.5 py-1.5 text-xs"
+                />
+                <input
+                  value={newRejHint}
+                  onChange={(e) => setNewRejHint(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      addRejection()
+                    }
+                  }}
+                  placeholder='Reação (ex: "peça mês específico")'
+                  className="col-span-5 rounded-lg border border-amber-200 px-2.5 py-1.5 text-xs"
+                />
+                <Button size="sm" variant="outline" onClick={addRejection} className="col-span-2 gap-1">
+                  <Plus className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+
+            {generatedPreview && (
+              <div className="border-t border-emerald-200 pt-2.5">
+                <label className="block text-[11px] font-medium text-emerald-900 mb-1">
+                  👁 Pergunta sugerida (gerada automaticamente)
+                </label>
+                <div className="text-xs text-emerald-900 italic px-3 py-2 rounded-md bg-white border border-emerald-100">
+                  "{generatedPreview}"
+                </div>
+                <p className="text-[10px] text-emerald-800 mt-1">
+                  Se você quiser texto fixo, cadastre em "Perguntas escritas" abaixo. Senão a agente improvisa cobrindo os itens acima.
+                </p>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setShowLegacyCoverage(!showLegacyCoverage)}
+              className="text-[10px] text-emerald-700 hover:text-emerald-900 underline pt-1"
+            >
+              {showLegacyCoverage ? 'Esconder modo legado (texto livre)' : 'Modo legado (texto livre — não recomendado)'}
+            </button>
+
+            {showLegacyCoverage && (
+              <div className="border-t border-emerald-200 pt-2.5">
+                <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                  Notas em texto livre <span className="text-slate-400 font-normal">(legado, ~80% obediência)</span>
+                </label>
+                <textarea
+                  value={slot.coverage_notes ?? ''}
+                  onChange={(e) => onChange({ coverage_notes: e.target.value || null })}
+                  placeholder='Ex: precisa de mês E ano. Não aceita "no fim do ano".'
+                  rows={2}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs leading-relaxed resize-y"
+                />
+                <p className="text-[10px] text-slate-500 mt-0.5">
+                  Só usado quando a lista "Dados que a resposta DEVE coletar" está vazia. Migre pro estruturado quando puder.
+                </p>
+              </div>
+            )}
           </div>
 
           <div>

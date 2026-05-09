@@ -13,6 +13,14 @@ export type MomentKind = 'flow' | 'play'
  */
 export type SlotPriority = 'critical' | 'preferred' | 'nice_to_have'
 
+/** Regra de rejeição: se o lead responder com este padrão, peça mais detalhe. */
+export interface SlotRejection {
+  /** Padrão a detectar (substring case-insensitive). Ex: "no fim do ano". */
+  pattern: string
+  /** Como reagir. Ex: "peça mês específico". */
+  hint?: string
+}
+
 /** Cada slot da Sondagem: informação a coletar + perguntas escritas (opcionais). */
 export interface DiscoverySlot {
   key: string
@@ -25,12 +33,23 @@ export interface DiscoverySlot {
   /** Perguntas escritas. Vazio = agente improvisa baseado em label/contexto. */
   questions: string[]
   /**
-   * Notas pro agente sobre o que essa pergunta PRECISA cobrir: que dados
-   * extrair, que clarificações exigir, formato esperado, edge cases. Usado
-   * especialmente quando `questions` está vazio (improvisação) — guia a IA
-   * a fazer a pergunta certa sem copiar texto literal.
-   * Ex: "precisa de mês E ano. Não aceita 'no fim do ano' — confirme mês
-   * específico. Se cliente disser só 'janeiro', pergunte qual ano."
+   * Lista atômica de dados obrigatórios na resposta da agente. Substitui o
+   * coverage_notes (textarea livre) por estrutura: cada item vira instrução
+   * imperativa no prompt + verificação determinística pós-LLM. Sem "soft
+   * compliance" — se faltar item, sistema regera com instrução literal.
+   * Ex: ['mês', 'ano'] — Estela coleta os dois ou regera.
+   */
+  must_collect?: string[]
+  /**
+   * Rejeições estruturadas — padrões que NÃO devem ser aceitos como resposta
+   * suficiente. Cada um vira "se cliente disser X, peça Y" no prompt.
+   * Ex: [{pattern: 'no fim do ano', hint: 'peça mês específico'}]
+   */
+  reject_if?: SlotRejection[]
+  /**
+   * @deprecated Substituído por must_collect (atômico) + reject_if (estruturado).
+   * Mantido pra backward compat — slots existentes continuam funcionando como
+   * fallback de prose quando must_collect está vazio. Migrar via UI quando possível.
    */
   coverage_notes?: string | null
   /** Liga ao campo do CRM (system_fields.field_key) — usado pra ligação visual com critérios. */
