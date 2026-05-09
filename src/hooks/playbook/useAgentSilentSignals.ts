@@ -1,6 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 
+/**
+ * Modo de detecção do sinal silencioso:
+ * - 'inferred' (default): LLM julga pelo contexto da conversa via detection_hint.
+ *   ~60-80% obediência (prose).
+ * - 'explicit': sinal só é creditado se lead mencionar palavra de evidence_keywords.
+ *   Estrutura dá ao admin controle exato sobre o que conta como evidência.
+ */
+export type SignalDetectionMode = 'inferred' | 'explicit'
+
 export interface PlaybookSilentSignal {
   id: string
   agent_id: string
@@ -9,6 +18,9 @@ export interface PlaybookSilentSignal {
   detection_hint: string
   crm_field_key: string | null
   how_to_use: string | null
+  detection_mode?: SignalDetectionMode
+  /** Lista de palavras/frases que contam como evidência explícita. Usado quando detection_mode='explicit'. */
+  evidence_keywords?: string[]
   enabled: boolean
   display_order: number
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Loader2, Plus, Trash2, Save } from 'lucide-react'
+import { Loader2, Plus, Trash2, Save, X } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
 import { useAgentSilentSignals, type PlaybookSilentSignal, type PlaybookSignalInput } from '@/hooks/playbook/useAgentSilentSignals'
@@ -29,6 +30,8 @@ export function SilentSignalsSection({ agentId, agentName, companyName }: Props)
       detection_hint: '',
       crm_field_key: null,
       how_to_use: null,
+      detection_mode: 'inferred',
+      evidence_keywords: [],
       enabled: true,
       display_order: (signals[signals.length - 1]?.display_order ?? 0) + 1,
     }
@@ -78,8 +81,24 @@ function SignalEditorCard({
   const [hint, setHint] = useState(signal.detection_hint)
   const [crmField, setCrmField] = useState<string | null>(signal.crm_field_key ?? null)
   const [howTo, setHowTo] = useState(signal.how_to_use ?? '')
+  const [detectionMode, setDetectionMode] = useState<'inferred' | 'explicit'>(signal.detection_mode ?? 'inferred')
+  const [evidenceKeywords, setEvidenceKeywords] = useState<string[]>(signal.evidence_keywords ?? [])
+  const [newKeyword, setNewKeyword] = useState('')
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
+
+  const addKeyword = () => {
+    const v = newKeyword.trim()
+    if (!v) return
+    setEvidenceKeywords([...evidenceKeywords, v])
+    setNewKeyword('')
+    setDirty(true)
+  }
+
+  const removeKeyword = (i: number) => {
+    setEvidenceKeywords(evidenceKeywords.filter((_, j) => j !== i))
+    setDirty(true)
+  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -90,6 +109,8 @@ function SignalEditorCard({
         detection_hint: hint.trim(),
         crm_field_key: crmField || null,
         how_to_use: howTo.trim() || null,
+        detection_mode: detectionMode,
+        evidence_keywords: detectionMode === 'explicit' ? evidenceKeywords : [],
         enabled: signal.enabled,
         display_order: signal.display_order,
       })
@@ -138,6 +159,76 @@ function SignalEditorCard({
         <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
           💡 Vai pro prompt como diretiva quando o sinal for detectado: <em>"Quando detectar, USE ASSIM: ..."</em>. Escreva imperativo (<em>"usa como teto"</em>, <em>"menciona em silêncio"</em>) — não descritivo.
         </p>
+      </div>
+
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 space-y-2">
+        <label className="block text-xs font-medium text-emerald-900 mb-1">
+          Como detectar este sinal
+        </label>
+        <div className="flex gap-2">
+          <label className={cn(
+            'flex-1 flex items-start gap-2 p-2 rounded border cursor-pointer text-xs',
+            detectionMode === 'inferred' ? 'border-emerald-400 bg-emerald-100' : 'border-slate-200 bg-white',
+          )}>
+            <input type="radio" checked={detectionMode === 'inferred'}
+              onChange={() => { setDetectionMode('inferred'); setDirty(true) }} className="mt-0.5" />
+            <div>
+              <div className="font-medium text-slate-900">Por contexto (inferred)</div>
+              <div className="text-[10px] text-slate-600">Agente julga pelo contexto. ~60-80% obediência. Use só se não dá pra listar palavras-chave.</div>
+            </div>
+          </label>
+          <label className={cn(
+            'flex-1 flex items-start gap-2 p-2 rounded border cursor-pointer text-xs',
+            detectionMode === 'explicit' ? 'border-emerald-400 bg-emerald-100' : 'border-slate-200 bg-white',
+          )}>
+            <input type="radio" checked={detectionMode === 'explicit'}
+              onChange={() => { setDetectionMode('explicit'); setDirty(true) }} className="mt-0.5" />
+            <div>
+              <div className="font-medium text-slate-900">Por palavra-chave (explicit)</div>
+              <div className="text-[10px] text-slate-600">Só credita se lead mencionar uma das palavras abaixo. ~95%+ obediência.</div>
+            </div>
+          </label>
+        </div>
+
+        {detectionMode === 'explicit' && (
+          <div className="border-t border-emerald-200 pt-2">
+            <label className="block text-[11px] font-medium text-emerald-900 mb-1">
+              Palavras/frases que contam como evidência <span className="text-emerald-700 font-normal">(lead deve mencionar pelo menos uma)</span>
+            </label>
+            {evidenceKeywords.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {evidenceKeywords.map((kw, i) => (
+                  <span key={i} className="text-xs px-2 py-1 rounded-md bg-emerald-100 border border-emerald-200 text-emerald-900 inline-flex items-center gap-1.5">
+                    "{kw}"
+                    <button onClick={() => removeKeyword(i)} className="text-emerald-600 hover:text-rose-600">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input
+                value={newKeyword}
+                onChange={(e) => setNewKeyword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    addKeyword()
+                  }
+                }}
+                placeholder='Ex: internacional'
+                className="flex-1 rounded-md border border-emerald-200 px-2.5 py-1 text-xs"
+              />
+              <Button size="sm" variant="outline" onClick={addKeyword} className="gap-1">
+                <Plus className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+            <p className="text-[10px] text-emerald-800 mt-1.5 leading-relaxed">
+              💡 Liste palavras/frases que o lead pode usar pra revelar este sinal. Ex: pra "viagem internacional recente", liste <em>"internacional"</em>, <em>"fora do Brasil"</em>, <em>"Europa"</em>, <em>"EUA"</em>, países específicos. Só essas palavras na fala do lead creditam o sinal.
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="flex justify-between pt-1">

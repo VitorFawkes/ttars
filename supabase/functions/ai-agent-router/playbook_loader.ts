@@ -118,6 +118,18 @@ export interface PlaybookSilentSignal {
   detection_hint: string;
   crm_field_key: string | null;
   how_to_use: string | null;
+  /**
+   * 'inferred' (default): LLM julga pelo contexto da conversa (prose hint).
+   * 'explicit': sinal só é creditado se lead mencionar palavra de evidence_keywords.
+   * Estruturado pra resolver detecção ambígua — admin define exatamente o que conta.
+   */
+  detection_mode?: 'inferred' | 'explicit';
+  /**
+   * Palavras/frases que contam como evidência explícita do sinal.
+   * Renderizado estruturalmente no prompt; (futuro) validador checa antes de creditar.
+   * Ex: ['internacional', 'fora do Brasil', 'Europa'] pra sinal de viagem internacional.
+   */
+  evidence_keywords?: string[];
   enabled: boolean;
   display_order: number;
 }

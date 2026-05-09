@@ -1241,12 +1241,24 @@ function renderSilentSignalsBlock(signals: PlaybookSilentSignal[]): string {
   const lines: string[] = [];
   lines.push('Sinais a registrar silenciosamente (sem comentar com o lead):');
   for (const s of signals) {
+    const evidenceMode = (s as { detection_mode?: string }).detection_mode === 'explicit';
+    const evidenceKeywords = ((s as { evidence_keywords?: string[] }).evidence_keywords ?? [])
+      .filter(k => typeof k === 'string' && k.trim().length > 0);
+
     let line = `• ${s.signal_label} — quando ${s.detection_hint}`;
     if (s.crm_field_key) line += ` → registra em ${s.crm_field_key}`;
     lines.push(line);
+
+    // Fase 3 (09/05/2026): evidence_keywords estruturado. Quando admin marcou
+    // detection_mode='explicit', renderiza lista de palavras que contam como
+    // evidência — LLM tem critério claro do que credita vs ignora.
+    if (evidenceMode && evidenceKeywords.length > 0) {
+      lines.push(`  EVIDÊNCIA OBRIGATÓRIA — só credite o sinal se o lead mencionar pelo menos uma destas palavras/frases:`);
+      evidenceKeywords.forEach(k => lines.push(`    - "${k.trim()}"`));
+      lines.push(`  Inferir sem evidência explícita = NÃO crédite o sinal. Aguarde menção real.`);
+    }
+
     // Fix D (08/05/2026): "uso: X" → "Quando detectar, USE ASSIM: X."
-    // Cabeçalho descritivo virou diretiva. UI também atualizada pra refletir
-    // que esse campo VAI pro prompt como instrução, não só doc administrativa.
     if (s.how_to_use) lines.push(`  Quando detectar, USE ASSIM: ${s.how_to_use}`);
   }
   return `<silent_signals>\n${lines.join('\n')}\n</silent_signals>`;
