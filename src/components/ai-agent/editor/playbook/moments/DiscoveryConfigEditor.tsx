@@ -1,9 +1,10 @@
-import { useState } from 'react'
-import { Plus, X, ChevronDown, ChevronRight, ShieldAlert, Zap, Sparkles } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { AlertTriangle, Plus, X, ChevronDown, ChevronRight, ShieldAlert, Zap, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import { SingleFieldPicker } from '@/components/ai-agent/editor/CRMFieldPicker'
 import { resolveSlotPriority, type DiscoveryConfig, type DiscoverySlot, type SlotPriority } from '@/hooks/playbook/useAgentMoments'
+import { detectLeaks, type LeakWarning } from '@/lib/playbook/leakDetector'
 
 const PRIORITY_OPTIONS: Array<{
   value: SlotPriority;
@@ -461,6 +462,7 @@ function SlotItem({
                 <p className="text-[10px] text-slate-500 mt-0.5">
                   Só usado quando a lista "Dados que a resposta DEVE coletar" está vazia. Migre pro estruturado quando puder.
                 </p>
+                <LeakWarningsList text={slot.coverage_notes ?? ''} />
               </div>
             )}
           </div>
@@ -472,17 +474,20 @@ function SlotItem({
             {slot.questions.length > 0 && (
               <div className="space-y-1.5 mb-2">
                 {slot.questions.map((q, i) => (
-                  <div key={i} className="flex items-start gap-2 px-2.5 py-1.5 rounded-md bg-slate-50 border border-slate-100">
-                    <span className="text-xs text-slate-400 mt-0.5">{i + 1}.</span>
-                    <span className="flex-1 text-xs text-slate-700">{q}</span>
-                    <button
-                      type="button"
-                      onClick={() => removeQuestion(i)}
-                      className="text-slate-400 hover:text-rose-600"
-                      title="Remover pergunta"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
+                  <div key={i} className="rounded-md bg-slate-50 border border-slate-100">
+                    <div className="flex items-start gap-2 px-2.5 py-1.5">
+                      <span className="text-xs text-slate-400 mt-0.5">{i + 1}.</span>
+                      <span className="flex-1 text-xs text-slate-700">{q}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeQuestion(i)}
+                        className="text-slate-400 hover:text-rose-600"
+                        title="Remover pergunta"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <LeakWarningsList text={q} />
                   </div>
                 ))}
               </div>
@@ -504,6 +509,7 @@ function SlotItem({
                 <Plus className="w-3.5 h-3.5" />
               </Button>
             </div>
+            <LeakWarningsList text={newQuestion} />
           </div>
 
           <div className="pt-2 border-t border-slate-100 flex justify-end">
@@ -513,6 +519,49 @@ function SlotItem({
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * Mostra warnings inline detectados pelo leakDetector. Renderizado abaixo de
+ * cada pergunta cadastrada e do input de nova pergunta. Não bloqueia save —
+ * só sinaliza pro admin enxergar antes de salvar.
+ *
+ * Memoiza por texto pra evitar re-roda regex toda render.
+ */
+function LeakWarningsList({ text }: { text: string }) {
+  const warnings: LeakWarning[] = useMemo(() => detectLeaks(text), [text])
+  if (warnings.length === 0) return null
+  return (
+    <div className="mt-1.5 space-y-1">
+      {warnings.map((w, i) => {
+        const colorClass =
+          w.severity === 'high'
+            ? 'border-rose-200 bg-rose-50 text-rose-900'
+            : w.severity === 'medium'
+              ? 'border-amber-200 bg-amber-50 text-amber-900'
+              : 'border-slate-200 bg-slate-50 text-slate-700'
+        const iconClass =
+          w.severity === 'high'
+            ? 'text-rose-600'
+            : w.severity === 'medium'
+              ? 'text-amber-600'
+              : 'text-slate-500'
+        return (
+          <div key={i} className={cn('flex items-start gap-1.5 px-2 py-1.5 rounded-md border text-[10px] leading-relaxed', colorClass)}>
+            <AlertTriangle className={cn('w-3 h-3 mt-0.5 shrink-0', iconClass)} />
+            <div className="flex-1 min-w-0">
+              <div>
+                <strong>"{w.match}"</strong> — {w.reason}
+              </div>
+              {w.suggestion && (
+                <div className="mt-0.5 italic opacity-80">💡 {w.suggestion}</div>
+              )}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

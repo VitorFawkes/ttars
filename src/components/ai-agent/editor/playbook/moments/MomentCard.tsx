@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, GripVertical, Trash2, Save, Loader2, X, Plus, Search } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import { AlertTriangle, ChevronDown, ChevronUp, GripVertical, Trash2, Save, Loader2, X, Plus, Search } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -7,6 +7,7 @@ import { useAgentMoments, type PlaybookMoment, type DiscoveryConfig } from '@/ho
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { SuggestVariationsButton } from '../shared/SuggestVariationsButton'
 import { DiscoveryConfigEditor } from './DiscoveryConfigEditor'
+import { detectLeaks, type LeakWarning } from '@/lib/playbook/leakDetector'
 
 const ANCHOR_VARIABLES: Array<{ token: string; label: string; hint?: string }> = [
   { token: '{contact_name}', label: 'Nome do lead' },
@@ -363,6 +364,7 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
               }
               className="w-full min-h-[120px] rounded-lg border border-slate-200 px-3 py-2 text-sm"
             />
+            <AnchorLeakWarnings text={anchor} />
             {deliveryMode === 'wait_for_reply' && mode !== 'free' && (
               <p className="text-[11px] text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-md px-2.5 py-1.5 mt-1.5 leading-relaxed">
                 ✨ <span className="font-medium">Sequência de mensagens:</span> separe cada mensagem com uma linha contendo só <code className="font-mono px-1 bg-white border border-indigo-200 rounded">---</code>.
@@ -534,6 +536,47 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * Warnings inline embaixo do anchor_text — detecta valores monetários,
+ * exemplos enviesantes, linguagem terapêutica, promessas. Não bloqueia salvar,
+ * só sinaliza pro admin enxergar antes de o agente usar essa frase com lead real.
+ */
+function AnchorLeakWarnings({ text }: { text: string }) {
+  const warnings: LeakWarning[] = useMemo(() => detectLeaks(text), [text])
+  if (warnings.length === 0) return null
+  return (
+    <div className="mt-1.5 space-y-1">
+      {warnings.map((w, i) => {
+        const colorClass =
+          w.severity === 'high'
+            ? 'border-rose-200 bg-rose-50 text-rose-900'
+            : w.severity === 'medium'
+              ? 'border-amber-200 bg-amber-50 text-amber-900'
+              : 'border-slate-200 bg-slate-50 text-slate-700'
+        const iconClass =
+          w.severity === 'high'
+            ? 'text-rose-600'
+            : w.severity === 'medium'
+              ? 'text-amber-600'
+              : 'text-slate-500'
+        return (
+          <div key={i} className={cn('flex items-start gap-1.5 px-2.5 py-1.5 rounded-md border text-[11px] leading-relaxed', colorClass)}>
+            <AlertTriangle className={cn('w-3.5 h-3.5 mt-0.5 shrink-0', iconClass)} />
+            <div className="flex-1 min-w-0">
+              <div>
+                <strong>"{w.match}"</strong> — {w.reason}
+              </div>
+              {w.suggestion && (
+                <div className="mt-0.5 italic opacity-80">💡 {w.suggestion}</div>
+              )}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
