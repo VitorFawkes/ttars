@@ -7,10 +7,16 @@
  * tempo real enquanto a instance permanece destacada.
  *
  * Como reconstrói o trajeto:
- *   1. cadence_instances → current_step_id, status, card.titulo, timestamps.
- *   2. cadence_event_log filtrado por instance_id → extrai step_keys de
- *      event_data->>step_key (eventos que tocam step).
- *   3. node.data.__stepKey (gravado no load em persistence.ts) → map
+ *   1. cadence_instances → status, card.titulo, timestamps + current_step_id
+ *      (usado só como fallback).
+ *   2. cadence_queue pendente filtrado por instance_id → FONTE DE VERDADE
+ *      pro current node. O engine às vezes não atualiza current_step_id
+ *      em wait/branch (deixa o ponteiro travado no step anterior). A fila
+ *      sempre tem o próximo step a executar com execute_at, então pegamos
+ *      o item pending mais antigo como "onde o card está agora".
+ *   3. cadence_event_log filtrado por instance_id → extrai step_keys de
+ *      event_data->>step_key pra reconstruir os nodes já visitados.
+ *   4. node.data.__stepKey (gravado no load em persistence.ts) → map
  *      step_key (banco) ↔ node.id (UI).
  */
 import { useEffect } from 'react'
@@ -31,6 +37,12 @@ interface EventRow {
     created_at: string
     event_type: string
     event_data: Record<string, unknown> | null
+}
+
+interface QueueRow {
+    step_id: string
+    execute_at: string
+    status: string
 }
 
 /** event_types que carregam step_key no event_data — usados para reconstruir o trajeto. */
@@ -55,9 +67,9 @@ export function useInstanceTrail(instanceId: string | null) {
         queryKey: ['instance-trail', instanceId],
         enabled: !!instanceId,
         refetchInterval: 5000,
-        queryFn: async (): Promise<{ instance: InstanceRow; events: EventRow[] } | null> => {
+        queryFn: async (): Promise<{ instance: InstanceRow; events: EventRow[]; queue: QueueRow[] } | null> => {
             if (!instanceId) return null
-            const [instanceRes, eventsRes] = await Promise.all([
+            const [instanceRes, eventsRes, queueRes] = await Promise.all([
                 supabase
                     .from('cadence_instances')
                     .select('id, card_id, status, started_at, current_step_id, card:cards!cadence_instances_card_id_fkey(titulo)')
@@ -69,12 +81,20 @@ export function useInstanceTrail(instanceId: string | null) {
                     .eq('instance_id', instanceId)
                     .order('created_at', { ascending: true })
                     .limit(200),
+                supabase
+                    .from('cadence_queue')
+                    .select('step_id, execute_at, status')
+                    .eq('instance_id', instanceId)
+                    .in('status', ['pending', 'processing'])
+                    .order('execute_at', { ascending: true })
+                    .limit(5),
             ])
             if (instanceRes.error) throw instanceRes.error
             if (!instanceRes.data) return null
             const instance = instanceRes.data as unknown as InstanceRow
             const events = ((eventsRes.data || []) as unknown as EventRow[])
-            return { instance, events }
+            const queue = ((queueRes.data || []) as unknown as QueueRow[])
+            return { instance, events, queue }
         },
     })
 
@@ -85,7 +105,7 @@ export function useInstanceTrail(instanceId: string | null) {
         }
         const payload = query.data
         if (!payload) return
-        const { instance, events } = payload
+        const { instance, events, queue } = payload
 
         // step_key → node.id usando __stepKey gravado no load
         const stepKeyToNodeId = new Map<string, string>()
@@ -109,8 +129,16 @@ export function useInstanceTrail(instanceId: string | null) {
             currentStepEnteredAt = ev.created_at
         }
 
-        // current node — direto pelo current_step_id (UUID → "step_<uuid>")
-        const currentNodeId = instance.current_step_id ? `step_${instance.current_step_id}` : null
+        // current node: prioriza a fila (cadence_queue pending/processing) porque
+        // o engine NÃO atualiza instance.current_step_id em todos os step types
+        // (wait/branch/end ficam "atrasados"). A fila sempre tem o próximo step
+        // agendado, então o item pending mais antigo é o foco atual.
+        // Fallback pro current_step_id da instance quando a fila está vazia
+        // (instance recém-iniciada ou step executando síncrono).
+        const nextQueued = queue.find((q) => q.status === 'pending' || q.status === 'processing')
+        const currentStepIdRaw = nextQueued?.step_id || instance.current_step_id
+        const currentNodeId = currentStepIdRaw ? `step_${currentStepIdRaw}` : null
+        if (nextQueued?.execute_at) currentStepEnteredAt = nextQueued.execute_at
 
         // Completed = todos os steps que apareceram em eventos, exceto o current
         const completedNodeIds = orderedStepKeys
