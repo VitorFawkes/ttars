@@ -1010,6 +1010,62 @@ export default function VendasMondePage() {
                                             )
                                         })()}
 
+                                        {/* Cancelled products detail panel */}
+                                        {(() => {
+                                            type CancelEntry = { vendaNum: string; cardId: string | null; cardTitle: string; produto: string; dataCancelamento: string }
+                                            const cancelled: CancelEntry[] = []
+                                            for (const m of matchResult.matched) {
+                                                for (const p of m.products) {
+                                                    if (p.dataCancelamento) {
+                                                        cancelled.push({ vendaNum: m.vendaNum, cardId: m.cardId, cardTitle: m.cardTitle, produto: p.produto || 'Produto', dataCancelamento: p.dataCancelamento })
+                                                    }
+                                                }
+                                            }
+                                            const groupedUnmatched = new Map<string, CsvRow[]>()
+                                            for (const row of parsedRows) {
+                                                if (matchResult.unmatched.includes(row.vendaNum)) {
+                                                    const existing = groupedUnmatched.get(row.vendaNum) || []
+                                                    existing.push(row)
+                                                    groupedUnmatched.set(row.vendaNum, existing)
+                                                }
+                                            }
+                                            for (const [vendaNum, prods] of groupedUnmatched) {
+                                                for (const p of prods) {
+                                                    if (p.dataCancelamento) {
+                                                        cancelled.push({ vendaNum, cardId: null, cardTitle: '(sem card no CRM)', produto: p.produto || 'Produto', dataCancelamento: p.dataCancelamento })
+                                                    }
+                                                }
+                                            }
+                                            if (cancelled.length === 0) return null
+                                            return (
+                                                <div className="bg-white border border-amber-200 rounded-xl shadow-sm overflow-hidden">
+                                                    <div className="px-4 py-3 border-b border-amber-200 bg-amber-50/50">
+                                                        <h3 className="text-sm font-semibold text-amber-800 flex items-center gap-2">
+                                                            ⊘ Produtos cancelados detectados ({cancelled.length})
+                                                        </h3>
+                                                        <p className="text-xs text-amber-700 mt-0.5">Essas linhas vêm com "Data Cancelamento" preenchida — os produtos serão arquivados nos cards correspondentes</p>
+                                                    </div>
+                                                    <div className="divide-y divide-amber-100 max-h-[300px] overflow-y-auto">
+                                                        {cancelled.map((c, idx) => (
+                                                            <div key={idx} className="px-4 py-2.5 flex items-center gap-3 text-sm">
+                                                                <span className="text-xs font-mono text-amber-700 shrink-0">#{c.vendaNum}</span>
+                                                                {c.cardId ? (
+                                                                    <Link to={`/cards/${c.cardId}`} target="_blank" className="text-slate-900 hover:text-indigo-700 hover:underline truncate font-medium">
+                                                                        {c.cardTitle}
+                                                                    </Link>
+                                                                ) : (
+                                                                    <span className="text-slate-400 italic truncate">{c.cardTitle}</span>
+                                                                )}
+                                                                <span className="text-slate-400">·</span>
+                                                                <span className="text-slate-700 truncate flex-1">{c.produto}</span>
+                                                                <span className="text-xs font-medium text-amber-700 shrink-0">cancelado em {displayDateBR(c.dataCancelamento)}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )
+                                        })()}
+
                                         {/* Matched cards list */}
                                         {matchResult.matched.length > 0 && (
                                             <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
