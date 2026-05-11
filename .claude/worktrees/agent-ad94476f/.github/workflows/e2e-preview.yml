@@ -1,0 +1,102 @@
+name: E2E Preview
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: e2e-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Playwright E2E contra preview
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm install
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Instalar Chromium (Playwright)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Instalar deps do sistema (se cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Aguardar preview Vercel (via API)
+        id: wait-preview
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          echo "Aguardando deploy Vercel para sha=$COMMIT_SHA..."
+          for i in $(seq 1 60); do
+            RESULT=$(curl -sf \
+              "https://api.vercel.com/v6/deployments?projectId=${VERCEL_PROJECT_ID}&teamId=${VERCEL_TEAM_ID}&limit=5&target=preview" \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              | python3 -c "
+          import json, sys
+          deps = json.load(sys.stdin).get('deployments', [])
+          sha = '${COMMIT_SHA}'
+          for d in deps:
+              meta = d.get('meta', {})
+              if meta.get('githubCommitSha','') == sha and d.get('state') == 'READY':
+                  print(d.get('url',''))
+                  sys.exit(0)
+          sys.exit(1)
+          " 2>/dev/null) && break
+            echo "  tentativa $i/60 — preview não pronto ainda..."
+            sleep 10
+          done
+          if [ -z "$RESULT" ]; then
+            echo "::error::Preview Vercel não ficou pronto em 10 minutos"
+            exit 1
+          fi
+          PREVIEW_URL="https://${RESULT}"
+          echo "Preview pronto: ${PREVIEW_URL}"
+          echo "url=${PREVIEW_URL}" >> $GITHUB_OUTPUT
+
+      - name: Rodar testes E2E
+        env:
+          CI: 'true'
+          BASE_URL: ${{ steps.wait-preview.outputs.url }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run test:e2e
+
+      - name: Upload relatório (sempre)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-pr-${{ github.event.pull_request.number }}
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload traces (só falhas)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces-pr-${{ github.event.pull_request.number }}
+          path: test-results/
+          retention-days: 14

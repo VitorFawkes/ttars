@@ -1,0 +1,207 @@
+<h2>Mapa dos 4 pilares diagnósticos — o que temos vs o que precisa</h2>
+<p class="subtitle">Cada dashboard de gestor vai ter <strong>camada de resultado</strong> (outcome) + <strong>camada de diagnóstico</strong> (processo). Essa é a camada de diagnóstico.</p>
+
+<div class="section">
+  <div class="label">Pilar 1 — Conversão por etapa (65% pronto)</div>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>✅ Já existe no banco</h4>
+      <ul>
+        <li>Toda transição logada em <code>activities</code> (stage_changed + old/new_stage_id)</li>
+        <li>Velocidade por etapa com p50/p75/p90 (<code>analytics_funnel_velocity</code>)</li>
+        <li>SLA por etapa (<code>pipeline_stages.sla_hours</code>)</li>
+        <li>Coorte de entrada em uma etapa (<code>get_card_ids_by_stage_entry</code>)</li>
+        <li>Contagem por etapa no snapshot (<code>current_count</code>)</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>❌ Falta construir</h4>
+      <ul>
+        <li><strong>Conversão A→B explícita</strong> — "% dos que entraram em Qualificação chegaram em Proposta"</li>
+        <li><strong>Rework flagging</strong> — card que voltou pra trás conta igual a avanço hoje</li>
+        <li><strong>Timeline completa por card</strong> — <code>fn_card_stage_history(card_id)</code></li>
+        <li><strong>Phase-level entry</strong> — "quando esse card entrou na fase Vendas" (não só stage)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Pilar 2 — Gestão de tarefas & atividades (50% pronto)</div>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>✅ Já existe</h4>
+      <ul>
+        <li>Tarefas com <code>responsavel_id, data_vencimento, concluida_em, outcome</code></li>
+        <li>4 caminhos de criação: manual, automation_rules, cadence_event_triggers, edge functions</li>
+        <li>Outcomes por tipo (atendeu, não_atendeu, respondido, enviado, realizada, aceita...)</li>
+        <li>Cadence system robusto (templates, steps, instances, queue)</li>
+        <li>Tarefas vencidas com drill-down (<code>analytics_saude_tarefas_vencidas</code>)</li>
+        <li>Activities log de task_created / task_completed</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>❌ Falta construir</h4>
+      <ul>
+        <li><strong>Produtividade por pessoa</strong> — # concluídas / período, duração média, on-time %</li>
+        <li><strong>Cadence compliance</strong> — % dos passos da cadência executados no prazo vs pulados</li>
+        <li><strong>Histórico de reassignment</strong> — quem iniciou vs quem concluiu</li>
+        <li><strong>Tipo de tarefa como ENUM</strong> — hoje é free-text (risco de drift)</li>
+        <li><strong>Abandono de lead</strong> — "card sem nenhuma tarefa ativa há &gt; N dias"</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Pilar 3 — Preenchimento de campos / Quality Gate (60% pronto)</div>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>✅ Já existe</h4>
+      <ul>
+        <li><code>stage_field_config</code> com 6 tipos de requisito (field, proposal, task, rule, document, team_member)</li>
+        <li>Enforcement no banco via trigger <code>enforce_stage_requirements_on_card_move</code></li>
+        <li>Hook <code>useFieldCompleteness</code> (por card, agregável no client)</li>
+        <li><code>card_financial_items.is_ready</code> + <code>prods_ready/prods_total</code> na view</li>
+        <li>Test suite recém-criado (<code>business-rules.test.sql</code>) — protege regressões</li>
+        <li>Bucket <code>sem_briefing</code> no <code>analytics_saude_summary</code></li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>❌ Falta construir</h4>
+      <ul>
+        <li><strong>Quality score agregado</strong> — % de campos obrigatórios preenchidos por pessoa/fase/período</li>
+        <li><strong>Qual campo mais deixam em branco</strong> — drill-down por fase</li>
+        <li><strong>Log de confirmações</strong> — quando o user explicitamente confirmou o valor</li>
+        <li><strong>Coluna materializada</strong> <code>quality_score_pct</code> no card (trigger mantém)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Pilar 4 — Tempo de resposta (75% pronto)</div>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>✅ Já existe</h4>
+      <ul>
+        <li><code>whatsapp_messages</code> com direction, sent_by_user_id (distingue AI de humano)</li>
+        <li><code>analytics_whatsapp_speed</code>: % resposta &lt; 1min / 5min / 15min / 30min / 1h</li>
+        <li>FRT trend, distribuição por hora do dia, AI vs humano</li>
+        <li><code>analytics_whatsapp_conversations</code>: status waiting/responded/inactive por contato</li>
+        <li>Breakdown por owner, phase, stage, produto</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>❌ Falta construir</h4>
+      <ul>
+        <li><strong>Business-hours aware</strong> — hoje é wall-clock (noite conta igual)</li>
+        <li><strong>Per-source</strong> — resposta a lead Facebook vs Google vs Indicação</li>
+        <li><strong>Handoff speed</strong> — tempo ganho_sdr_at → 1ª msg do Planner</li>
+        <li><strong>Dropped balls</strong> — "cliente mandou msg sem resposta há N horas"</li>
+        <li><strong>Email/telefone SLA</strong> — sem instrumentação (sai do v2, vira projeto futuro)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:30px">
+  <div class="label">Consolidação — o que o v2 precisa construir no backend</div>
+  <div class="mockup" style="border-color:#c7d2fe;background:#eef2ff">
+    <div class="mockup-body">
+      <p><strong>Além das correções já acordadas</strong> (attribution bug + 4 filtros universais + 2 RPCs de viagens), o v2 precisa adicionar:</p>
+      <table style="width:100%;font-size:12px;border-collapse:collapse;margin-top:10px">
+        <thead>
+          <tr style="background:white;border-bottom:2px solid #c7d2fe">
+            <th style="text-align:left;padding:8px">Novo RPC / objeto</th>
+            <th style="text-align:left;padding:8px">Responde a</th>
+            <th style="text-align:left;padding:8px">Usado em dashboard</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #e0e7ff">
+            <td style="padding:8px"><code>analytics_stage_conversion</code></td>
+            <td style="padding:8px">% conversão A→B por etapa</td>
+            <td style="padding:8px">SDR, Vendas, Comercial</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e0e7ff">
+            <td style="padding:8px"><code>fn_card_stage_history</code></td>
+            <td style="padding:8px">Timeline completa do card</td>
+            <td style="padding:8px">Drill-down em qualquer dashboard</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e0e7ff">
+            <td style="padding:8px">Flag de rework em activities</td>
+            <td style="padding:8px">Distinguir volta de avanço</td>
+            <td style="padding:8px">Velocidade (diagnóstico)</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e0e7ff">
+            <td style="padding:8px"><code>analytics_task_completion_by_person</code></td>
+            <td style="padding:8px">Produtividade, on-time %, tipo que mais atrasa</td>
+            <td style="padding:8px">SDR, Vendas, Pós, Comercial</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e0e7ff">
+            <td style="padding:8px"><code>analytics_cadence_compliance</code></td>
+            <td style="padding:8px">% passos executados no prazo</td>
+            <td style="padding:8px">SDR, Vendas</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e0e7ff">
+            <td style="padding:8px"><code>analytics_field_completeness</code></td>
+            <td style="padding:8px">Quality score por pessoa/fase</td>
+            <td style="padding:8px">Todos (diagnóstico)</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e0e7ff">
+            <td style="padding:8px">Coluna <code>quality_score_pct</code> + trigger</td>
+            <td style="padding:8px">Materialização do score</td>
+            <td style="padding:8px">Todos</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e0e7ff">
+            <td style="padding:8px"><code>analytics_trip_readiness</code></td>
+            <td style="padding:8px">% prontidão operacional por viagem</td>
+            <td style="padding:8px">Pós</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e0e7ff">
+            <td style="padding:8px"><code>analytics_proposal_versions</code></td>
+            <td style="padding:8px">N versões até aprovar, variação de preço</td>
+            <td style="padding:8px">Vendas</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e0e7ff">
+            <td style="padding:8px"><code>analytics_handoff_speed</code></td>
+            <td style="padding:8px">Tempo ganho_sdr → 1ª msg do Planner</td>
+            <td style="padding:8px">SDR, Vendas</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e0e7ff">
+            <td style="padding:8px">Business-hours em SLA + FRT</td>
+            <td style="padding:8px">SLA "real" (sem contar fim de semana)</td>
+            <td style="padding:8px">Todos</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e0e7ff">
+            <td style="padding:8px">Per-source em <code>analytics_whatsapp_speed</code></td>
+            <td style="padding:8px">Resposta por canal de origem</td>
+            <td style="padding:8px">SDR, Comercial</td>
+          </tr>
+          <tr>
+            <td style="padding:8px">Eventos de ganho em activities</td>
+            <td style="padding:8px">Cohort temporal de ganhos</td>
+            <td style="padding:8px">Todos</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-top:12px;color:#4338ca"><strong>Total:</strong> ~13 novos objetos de banco + 1 refactor (business-hours) + 5 RPCs existentes adaptadas aos filtros universais. Considerável, mas todas em cima de dado que já existe.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Por que isso importa — o que um gestor passa a poder responder</div>
+  <div class="mockup">
+    <div class="mockup-body">
+      <p><strong>Gestor SDR:</strong> "Minha equipe está respondendo rápido? Quem responde mal? Que % de leads entramos em contato no mesmo dia? Minhas tarefas de cadência estão sendo executadas?"</p>
+      <p><strong>Gestor Vendas:</strong> "Quanto tempo leva da proposta ao fechamento? Em qual etapa os cards travam? Quantas versões até o cliente aprovar? Meu time preenche os campos direito?"</p>
+      <p><strong>Gestor Pós:</strong> "Quais viagens estão em risco de não sair prontas? % de prontidão operacional por viagem? Tarefas atrasadas por tipo?"</p>
+      <p><strong>Gestor Comercial:</strong> "Em qual fase vazamos mais? Por onde o funil trava? Conversão real A→B por etapa?"</p>
+      <p><strong>Dono:</strong> "Tudo junto. Outcome + diagnóstico."</p>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:24px">Isso fecha o escopo diagnóstico. Me confirma que estou no caminho certo, que sigo pro desenho detalhado de cada um dos 5 dashboards.</p>

@@ -1,0 +1,4 @@
+# ai-agent-prompt-variations — chamada pelo frontend (autenticado) no editor
+# do Playbook. Exige JWT válido de authenticated user.
+[auth]
+verify_jwt = true

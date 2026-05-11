@@ -1,0 +1,4 @@
+# webhook-ingest: Recebe webhooks do ActiveCampaign
+# verify_jwt desabilitado porque AC não envia JWT - é um webhook externo
+[auth]
+verify_jwt = false

@@ -1,0 +1,970 @@
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Save, Plus, Zap, AlertCircle, BarChart3, CheckCircle2, Clock, XCircle, GripVertical } from 'lucide-react';
+import { getBlockRecipe, type BlockRecipe } from '@/components/automations/blockRecipes';
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    verticalListSortingStrategy,
+    arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Select } from '@/components/ui/Select';
+import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
+import { useUsers } from '@/hooks/useUsers';
+import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta';
+import { useConciergeUserIds } from '@/hooks/concierge/useConciergeUserIds';
+import type { TipoConcierge, CategoriaConcierge } from '@/hooks/concierge/types';
+import { usePipelineStages } from '@/hooks/usePipelineStages';
+import { BlockEditor, type Block, type BlockTask } from './components/BlockEditor';
+import {
+    encodeNaturalDue,
+    decodeNaturalDue,
+    formatDueOffset,
+} from './lib/dueOffsetCodec';
+
+type EventType =
+    | 'card_created'
+    | 'stage_enter'
+    | 'viagem.enviada'
+    | 'viagem.confirmada'
+    | 'viagem.item_aprovado'
+    | 'viagem.voucher_adicionado'
+    | 'viagem.comentario_cliente'
+    | 'viagem.nps_respondido'
+    | 'time_offset_from_date';
+
+interface AutomationForm {
+    name: string;
+    description: string;
+    is_active: boolean;
+    event_type: EventType;
+    stage_ids: string[];
+    respect_business_hours: boolean;
+    /** Para time_offset_from_date: fonte da data (card.data_viagem_inicio, viagem.embarque_inicio, etc) */
+    time_source: string;
+    /** Para time_offset_from_date: deslocamento (ex: -7 = 7 dias antes, 1 = 1 dia depois) */
+    offset_days: number;
+}
+
+const eventOptions: { value: EventType; label: string }[] = [
+    { value: 'stage_enter', label: 'Card movido para uma etapa' },
+    { value: 'card_created', label: 'Card criado' },
+    { value: 'viagem.enviada', label: 'Viagem enviada ao cliente (TP)' },
+    { value: 'viagem.confirmada', label: 'Cliente confirmou a viagem' },
+    { value: 'viagem.item_aprovado', label: 'Cliente aprovou um item da viagem' },
+    { value: 'viagem.voucher_adicionado', label: 'Voucher anexado a um item' },
+    { value: 'viagem.comentario_cliente', label: 'Cliente comentou' },
+    { value: 'viagem.nps_respondido', label: 'Cliente respondeu o NPS' },
+    { value: 'time_offset_from_date', label: 'Antes ou depois de uma data-chave' },
+];
+
+const timeSourceOptions: { value: string; label: string }[] = [
+    { value: 'viagem.embarque_inicio', label: 'Data de embarque da viagem' },
+    { value: 'card.data_viagem_inicio', label: 'Data de início (campo do card)' },
+    { value: 'card.data_viagem_fim', label: 'Data de retorno (campo do card)' },
+    { value: 'contato.data_nascimento', label: 'Aniversário do contato' },
+];
+
+/**
+ * Nova página unificada de Automações. Substitui conceitualmente o
+ * CadenceBuilderPage + CadenceEntryRulesTab: uma Automação = gatilho + blocos
+ * de tarefas encadeados. Salva como cadence_template (execution_mode='blocks')
+ * + cadence_event_trigger (action_type='start_cadence').
+ */
+
+function recipeToBlocks(recipe: BlockRecipe): Block[] {
+    return recipe.blocks.map((block, idx) => ({
+        id: `block_${idx}_${Date.now()}`,
+        startsFromTrigger: idx === 0 ? undefined : block.startsFromTrigger,
+        dependsOnBlock: idx === 0 ? null : (block.startsFromTrigger ? null : idx - 1),
+        tasks: block.tasks.map((task, tIdx) => ({
+            id: `temp_${idx}_${tIdx}_${Date.now()}`,
+            tipo: task.tipo,
+            titulo: task.titulo,
+            descricao: task.descricao || '',
+            prioridade: task.prioridade,
+            assign_to: 'card_owner' as const,
+            assign_to_user_id: null,
+            due_offset: {
+                unit: 'business_days' as const,
+                value: task.due_days,
+                anchor: idx === 0
+                    ? ('cadence_start' as const)
+                    : ('previous_block_completed' as const),
+            },
+        })),
+    }));
+}
+function SortableBlock({ block, children }: {
+    block: Block;
+    index: number;
+    totalBlocks: number;
+    children: React.ReactNode;
+}) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: block.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 10 : undefined,
+    };
+
+    return (
+        <div ref={setNodeRef} style={style}>
+            {/* Drag handle bar */}
+            <div
+                {...attributes}
+                {...listeners}
+                className="flex items-center justify-center gap-1 py-1 cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 transition-colors"
+                title="Arrastar para reordenar"
+            >
+                <GripVertical className="w-4 h-4" />
+                <span className="text-[10px] font-medium uppercase tracking-wider">arrastar</span>
+                <GripVertical className="w-4 h-4" />
+            </div>
+            {children}
+        </div>
+    );
+}
+
+export default function AutomacaoBuilderPage() {
+    const navigate = useNavigate();
+    const { id } = useParams<{ id: string }>();
+    const [searchParams] = useSearchParams();
+    const isNew = !id || id === 'new';
+    const recipeId = isNew ? searchParams.get('recipe') : null;
+    const initialRecipe = useMemo(
+        () => (recipeId ? getBlockRecipe(recipeId) : null),
+        [recipeId],
+    );
+    const { users } = useUsers();
+    const { pipelineId, slug: productSlug } = useCurrentProductMeta();
+    const conciergeUserIds = useConciergeUserIds();
+
+    const [form, setForm] = useState<AutomationForm>({
+        name: initialRecipe?.suggested_name || '',
+        description: initialRecipe?.summary || '',
+        is_active: false,
+        event_type: (initialRecipe?.event_type as EventType) || 'stage_enter',
+        stage_ids: [],
+        respect_business_hours: true,
+        time_source: 'viagem.embarque_inicio',
+        offset_days: -7,
+    });
+    const [blocks, setBlocks] = useState<Block[]>(
+        initialRecipe
+            ? recipeToBlocks(initialRecipe)
+            : [{ id: `block_${Date.now()}`, tasks: [] }],
+    );
+    const { data: allStages } = usePipelineStages();
+    const [triggerId, setTriggerId] = useState<string | null>(null);
+    const [loading, setLoading] = useState(!isNew);
+    const [saving, setSaving] = useState(false);
+
+    // Stats
+    interface BlockStats {
+        blockIndex: number;
+        waiting: number;
+        completed: number;
+        total: number;
+    }
+    interface AutomationStats {
+        totalActivations: number;
+        activeInstances: number;
+        completedInstances: number;
+        cancelledInstances: number;
+        perBlock: BlockStats[];
+    }
+    const [stats, setStats] = useState<AutomationStats | null>(null);
+
+    const userOptions = useMemo(() => {
+        const list = (users || [])
+            .filter(u => u.active)
+            .map(u => ({ value: u.id, label: u.nome || u.email }));
+        return [{ value: '', label: 'Selecionar pessoa…' }, ...list];
+    }, [users]);
+
+    const stageOptions = useMemo(
+        () => (allStages || []).map(s => ({ value: s.id, label: s.nome })),
+        [allStages]
+    );
+
+    // Carregar automação existente
+    useEffect(() => {
+        if (isNew) return;
+        (async () => {
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data: tpl, error: tplErr } = await (supabase as any)
+                    .from('cadence_templates')
+                    .select('*')
+                    .eq('id', id)
+                    .single();
+                if (tplErr) throw tplErr;
+
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data: stepsData } = await (supabase as any)
+                    .from('cadence_steps')
+                    .select('*')
+                    .eq('template_id', id)
+                    .order('block_index', { ascending: true })
+                    .order('step_order', { ascending: true });
+
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data: triggerRow } = await (supabase as any)
+                    .from('cadence_event_triggers')
+                    .select('*')
+                    .eq('target_template_id', id)
+                    .eq('action_type', 'start_cadence')
+                    .maybeSingle();
+
+                setForm({
+                    name: tpl.name || '',
+                    description: tpl.description || '',
+                    is_active: !!tpl.is_active,
+                    event_type: (triggerRow?.event_type as EventType) || 'stage_enter',
+                    stage_ids: triggerRow?.applicable_stage_ids || [],
+                    respect_business_hours: tpl.respect_business_hours ?? true,
+                    time_source: triggerRow?.event_config?.source || 'viagem.embarque_inicio',
+                    offset_days: triggerRow?.event_config?.offset_days ?? -7,
+                });
+                setTriggerId(triggerRow?.id || null);
+
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const allSteps: any[] = stepsData || [];
+                const isLinear = tpl.execution_mode !== 'blocks';
+
+                // Para templates lineares: converter task+wait intercalados em blocos
+                // Cada task vira um bloco; o wait ANTERIOR define o due_offset
+                if (isLinear) {
+                    const blocks: Block[] = [];
+                    let prevWait: { duration_minutes: number; duration_type: string } | null = null;
+                    let blockIdx = 0;
+                    for (const s of allSteps) {
+                        if (s.step_type === 'wait') {
+                            prevWait = s.wait_config || null;
+                            continue;
+                        }
+                        if (s.step_type === 'end') continue;
+                        const cfg = s.task_config || {};
+                        const dueFromWait = prevWait ? {
+                            unit: prevWait.duration_minutes >= 1440 ? 'business_days' as const : 'hours' as const,
+                            value: prevWait.duration_minutes >= 1440
+                                ? Math.round(prevWait.duration_minutes / 1440)
+                                : Math.round(prevWait.duration_minutes / 60),
+                            anchor: 'previous_block_completed' as const,
+                        } : {
+                            unit: 'business_days' as const,
+                            value: 0,
+                            anchor: blockIdx === 0 ? 'cadence_start' as const : 'previous_block_completed' as const,
+                        };
+                        blocks.push({
+                            id: `block_${blockIdx}`,
+                            tasks: [{
+                                id: s.id,
+                                tipo: cfg.tipo || 'contato',
+                                titulo: cfg.titulo || '',
+                                descricao: cfg.descricao || '',
+                                prioridade: cfg.prioridade || 'high',
+                                assign_to: cfg.assign_to || 'card_owner',
+                                assign_to_user_id: cfg.assign_to_user_id || null,
+                                due_offset: s.due_offset || dueFromWait,
+                                tipo_concierge: (s.tipo_concierge as TipoConcierge | null) || null,
+                                categoria_concierge: (s.categoria_concierge as CategoriaConcierge | null) || null,
+                            }],
+                            startsFromTrigger: false,
+                            dependsOnBlock: blockIdx > 0 ? blockIdx - 1 : null,
+                        });
+                        prevWait = null;
+                        blockIdx++;
+                    }
+                    setBlocks(blocks.length > 0 ? blocks : [{ id: `block_${Date.now()}`, tasks: [] }]);
+                } else {
+                    // Blocks mode: agrupar steps por block_index
+                    const byBlock = new Map<number, BlockTask[]>();
+                    const blockMeta = new Map<number, { dependsOn: number | null; requiresPrev: boolean }>();
+                    for (const s of allSteps) {
+                        if (s.step_type !== 'task') continue;
+                        const bi = s.block_index ?? 0;
+                        const arr = byBlock.get(bi) || [];
+                        const cfg = s.task_config || {};
+                        arr.push({
+                            id: s.id,
+                            tipo: cfg.tipo || 'contato',
+                            titulo: cfg.titulo || '',
+                            descricao: cfg.descricao || '',
+                            prioridade: cfg.prioridade || 'high',
+                            assign_to: cfg.assign_to || 'card_owner',
+                            assign_to_user_id: cfg.assign_to_user_id || null,
+                            due_offset: s.due_offset || decodeNaturalDue({
+                                day_offset: s.day_offset,
+                                wait_config: s.wait_config,
+                                requires_previous_completed: s.requires_previous_completed,
+                            }),
+                            tipo_concierge: (s.tipo_concierge as TipoConcierge | null) || null,
+                            categoria_concierge: (s.categoria_concierge as CategoriaConcierge | null) || null,
+                        });
+                        byBlock.set(bi, arr);
+                        if (!blockMeta.has(bi)) {
+                            blockMeta.set(bi, {
+                                dependsOn: s.wait_config?.depends_on_block ?? null,
+                                requiresPrev: !!s.requires_previous_completed,
+                            });
+                        }
+                    }
+                    const loadedBlocks: Block[] = Array.from(byBlock.entries())
+                        .sort(([a], [b]) => a - b)
+                        .map(([bi, tasks], idx) => {
+                            const meta = blockMeta.get(bi);
+                            const isParallel = idx > 0 && !meta?.requiresPrev;
+                            return {
+                                id: `block_${bi}`,
+                                tasks,
+                                startsFromTrigger: isParallel,
+                                dependsOnBlock: meta?.dependsOn ?? null,
+                            };
+                        });
+                    setBlocks(loadedBlocks.length > 0 ? loadedBlocks : [{ id: `block_${Date.now()}`, tasks: [] }]);
+                }
+            } catch (err) {
+                console.error(err);
+                toast.error('Erro ao carregar automação.');
+                navigate('/settings/automations');
+            } finally {
+                setLoading(false);
+            }
+        })();
+    }, [id, isNew, navigate]);
+
+    // Carregar stats para automação existente
+    useEffect(() => {
+        if (isNew || !id) return;
+        (async () => {
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data: instances } = await (supabase as any)
+                    .from('cadence_instances')
+                    .select('id, status, current_step_id')
+                    .eq('template_id', id);
+
+                if (!instances || instances.length === 0) {
+                    setStats({ totalActivations: 0, activeInstances: 0, completedInstances: 0, cancelledInstances: 0, perBlock: [] });
+                    return;
+                }
+
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data: steps } = await (supabase as any)
+                    .from('cadence_steps')
+                    .select('id, block_index')
+                    .eq('template_id', id);
+
+                const stepToBlock = new Map<string, number>();
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (steps || []).forEach((s: any) => stepToBlock.set(s.id, s.block_index ?? 0));
+
+                const blockIndices = [...new Set(stepToBlock.values())].sort((a, b) => a - b);
+
+                const perBlock: BlockStats[] = blockIndices.map((bi: number) => {
+                    const stepsInBlock = new Set(
+                        [...stepToBlock.entries()].filter(([, b]) => b === bi).map(([sid]) => sid)
+                    );
+                    let waiting = 0;
+                    let completed = 0;
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    instances.forEach((inst: any) => {
+                        const instBlock = stepToBlock.get(inst.current_step_id) ?? -1;
+                        if (inst.status === 'completed') {
+                            completed++;
+                        } else if (inst.status === 'cancelled') {
+                            // não conta
+                        } else if (stepsInBlock.has(inst.current_step_id)) {
+                            waiting++;
+                        } else if (instBlock > bi) {
+                            completed++;
+                        }
+                    });
+                    return { blockIndex: bi, waiting, completed, total: waiting + completed };
+                });
+
+                setStats({
+                    totalActivations: instances.length,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    activeInstances: instances.filter((i: any) => i.status === 'waiting_task' || i.status === 'active').length,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    completedInstances: instances.filter((i: any) => i.status === 'completed').length,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    cancelledInstances: instances.filter((i: any) => i.status === 'cancelled').length,
+                    perBlock,
+                });
+            } catch (err) {
+                console.error('Failed to load stats', err);
+            }
+        })();
+    }, [id, isNew]);
+
+    const addBlock = () => {
+        setBlocks([...blocks, { id: `block_${Date.now()}`, tasks: [] }]);
+    };
+
+    const updateBlock = (idx: number, next: Block) => {
+        setBlocks(blocks.map((b, i) => (i === idx ? next : b)));
+    };
+
+    const removeBlock = (idx: number) => {
+        if (blocks.length === 1) {
+            toast.error('A automação precisa ter pelo menos um bloco.');
+            return;
+        }
+        setBlocks(blocks.filter((_, i) => i !== idx));
+    };
+
+    const moveBlock = useCallback((fromIdx: number, toIdx: number) => {
+        setBlocks((prev) => arrayMove(prev, fromIdx, toIdx));
+    }, []);
+
+    // DnD sensors
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    );
+
+    const handleDragEnd = useCallback((event: DragEndEvent) => {
+        const { active, over } = event;
+        if (over && active.id !== over.id) {
+            const oldIndex = blocks.findIndex((b) => b.id === active.id);
+            const newIndex = blocks.findIndex((b) => b.id === over.id);
+            if (oldIndex !== -1 && newIndex !== -1) {
+                setBlocks((prev) => arrayMove(prev, oldIndex, newIndex));
+            }
+        }
+    }, [blocks]);
+
+    // Validação e save
+    const validationError = useMemo(() => {
+        if (!form.name.trim()) return 'Dê um nome para a automação.';
+        if (form.event_type === 'stage_enter' && form.stage_ids.length === 0) {
+            return 'Selecione ao menos uma etapa para o gatilho.';
+        }
+        const totalTasks = blocks.reduce((acc, b) => acc + b.tasks.length, 0);
+        if (totalTasks === 0) return 'Adicione ao menos uma tarefa.';
+        for (let i = 0; i < blocks.length; i++) {
+            const b = blocks[i];
+            if (b.tasks.length === 0) return `Bloco ${i + 1} está vazio.`;
+            for (const t of b.tasks) {
+                if (!t.titulo.trim()) return `Há tarefa sem título no Bloco ${i + 1}.`;
+                if (t.assign_to === 'specific' && !t.assign_to_user_id) {
+                    return `Selecione a pessoa responsável no Bloco ${i + 1}.`;
+                }
+                // Quando o responsável é Concierge, Tipo + Categoria são obrigatórios.
+                const isConciergeAssignee = !!(
+                    t.assign_to === 'specific'
+                    && t.assign_to_user_id
+                    && conciergeUserIds?.has(t.assign_to_user_id)
+                );
+                if (isConciergeAssignee) {
+                    if (!t.tipo_concierge) return `Escolha o tipo do atendimento de Concierge no Bloco ${i + 1}.`;
+                    if (!t.categoria_concierge) return `Escolha a categoria do atendimento de Concierge no Bloco ${i + 1}.`;
+                }
+            }
+        }
+        return null;
+    }, [form, blocks, conciergeUserIds]);
+
+    const totalTasks = blocks.reduce((acc, b) => acc + b.tasks.length, 0);
+
+    const handleSave = async () => {
+        if (validationError) {
+            toast.error(validationError);
+            return;
+        }
+
+        try {
+            setSaving(true);
+
+            const templatePayload = {
+                name: form.name,
+                description: form.description || null,
+                is_active: form.is_active,
+                execution_mode: 'blocks',
+                schedule_mode: 'interval', // placeholder — engine ignora no modo blocks
+                respect_business_hours: form.respect_business_hours,
+                target_audience: 'posvenda', // default; UI avançada virá depois
+            };
+
+            let templateId = id as string | undefined;
+
+            if (isNew) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data: created, error: createErr } = await (supabase as any)
+                    .from('cadence_templates')
+                    .insert(templatePayload)
+                    .select()
+                    .single();
+                if (createErr) throw createErr;
+                templateId = created.id;
+            } else {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { error: updErr } = await (supabase as any)
+                    .from('cadence_templates')
+                    .update(templatePayload)
+                    .eq('id', id);
+                if (updErr) throw updErr;
+            }
+
+            // Montar steps a partir dos blocks
+            const stepsPayload: Record<string, unknown>[] = [];
+            let orderCounter = 1;
+            blocks.forEach((block, blockIdx) => {
+                block.tasks.forEach((task) => {
+                    const currentOrder = orderCounter++;
+                    const legacy = encodeNaturalDue(task.due_offset);
+                    const stepKey = `b${blockIdx}_t${currentOrder}`;
+                    const dependsOn = block.startsFromTrigger ? null : (block.dependsOnBlock ?? (blockIdx > 0 ? blockIdx - 1 : null));
+                    const waitConfig = legacy.wait_config
+                        ? { ...legacy.wait_config, depends_on_block: dependsOn }
+                        : dependsOn != null ? { depends_on_block: dependsOn } : null;
+                    const base: Record<string, unknown> = {
+                        template_id: templateId,
+                        step_order: currentOrder,
+                        step_key: stepKey,
+                        step_type: 'task',
+                        block_index: blockIdx,
+                        day_offset: legacy.day_offset,
+                        wait_config: waitConfig,
+                        requires_previous_completed: !block.startsFromTrigger && blockIdx > 0,
+                        due_offset: task.due_offset,
+                        task_config: {
+                            tipo: task.tipo,
+                            titulo: task.titulo,
+                            descricao: task.descricao || '',
+                            prioridade: task.prioridade,
+                            assign_to: task.assign_to,
+                            assign_to_user_id: task.assign_to_user_id,
+                            wait_for_outcome: true,
+                        },
+                        next_step_key: null,
+                        // Concierge: gravado como COLUNAS (não no task_config) porque
+                        // o cadence-engine lê dali pra criar atendimentos_concierge.
+                        tipo_concierge: task.tipo_concierge || null,
+                        categoria_concierge: task.categoria_concierge || null,
+                        gera_atendimento_concierge: !!(task.tipo_concierge && task.categoria_concierge),
+                    };
+                    // Se é step existente (id persistido do DB), incluir id para upsert
+                    if (task.id && !task.id.startsWith('temp_')) {
+                        base.id = task.id;
+                    }
+                    stepsPayload.push(base);
+                });
+            });
+
+            if (!isNew) {
+                // RPC atômica: limpa FKs + deleta steps antigos + insere novos
+                const cleanPayload = stepsPayload.map(({ id: _unused, ...rest }) => { void _unused; return rest; });
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { error: rpcErr } = await (supabase as any)
+                    .rpc('replace_cadence_steps', {
+                        p_template_id: templateId,
+                        p_steps: cleanPayload,
+                    });
+                if (rpcErr) throw rpcErr;
+            } else {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { error: stepsErr } = await (supabase as any)
+                    .from('cadence_steps')
+                    .insert(stepsPayload);
+                if (stepsErr) throw stepsErr;
+            }
+
+            // Gravar trigger (start_cadence)
+            const triggerPayload: Record<string, unknown> = {
+                name: form.name,
+                event_type: form.event_type,
+                applicable_stage_ids: form.event_type === 'stage_enter' ? form.stage_ids : null,
+                applicable_pipeline_ids: pipelineId ? [pipelineId] : null,
+                action_type: 'start_cadence',
+                target_template_id: templateId,
+                is_active: form.is_active,
+                delay_minutes: 0,
+                delay_type: 'business',
+            };
+            if (form.event_type === 'time_offset_from_date') {
+                triggerPayload.event_config = {
+                    source: form.time_source,
+                    offset_days: form.offset_days,
+                };
+            }
+
+            if (triggerId) {
+                /* eslint-disable @typescript-eslint/no-explicit-any -- cadence tables not in generated types */
+                const { error: trigErr } = await (supabase as any)
+                    .from('cadence_event_triggers')
+                    .update(triggerPayload)
+                    .eq('id', triggerId);
+                /* eslint-enable @typescript-eslint/no-explicit-any */
+                if (trigErr) throw trigErr;
+            } else {
+                /* eslint-disable @typescript-eslint/no-explicit-any -- cadence tables not in generated types */
+                const { error: trigErr } = await (supabase as any)
+                    .from('cadence_event_triggers')
+                    .insert(triggerPayload);
+                /* eslint-enable @typescript-eslint/no-explicit-any */
+                if (trigErr) throw trigErr;
+            }
+
+            toast.success('Automação salva!');
+            navigate('/settings/automations');
+        } catch (err) {
+            console.error(err);
+            toast.error('Erro ao salvar automação.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="h-full flex items-center justify-center text-slate-500">
+                Carregando…
+            </div>
+        );
+    }
+
+    return (
+        <div className="h-full flex flex-col bg-slate-50">
+            {/* Header */}
+            <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shadow-sm">
+                <div className="flex items-center gap-4">
+                    <Button variant="ghost" size="sm" onClick={() => navigate('/settings/automations')}>
+                        <ArrowLeft className="w-4 h-4" />
+                    </Button>
+                    <div>
+                        <h1 className="text-lg font-semibold text-slate-900 tracking-tight">
+                            {isNew ? 'Nova Automação' : 'Editar Automação'}
+                        </h1>
+                        <p className="text-xs text-slate-500">
+                            {totalTasks} {totalTasks === 1 ? 'tarefa' : 'tarefas'} em {blocks.length}{' '}
+                            {blocks.length === 1 ? 'bloco' : 'blocos'}
+                        </p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                        <Switch
+                            checked={form.is_active}
+                            onCheckedChange={(v) => setForm({ ...form, is_active: v })}
+                        />
+                        <span className="text-xs text-slate-600">
+                            {form.is_active ? 'Ativa' : 'Inativa'}
+                        </span>
+                    </div>
+                    <Button
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="bg-indigo-600 hover:bg-indigo-700"
+                    >
+                        <Save className="w-4 h-4 mr-2" />
+                        {saving ? 'Salvando…' : 'Salvar'}
+                    </Button>
+                </div>
+            </header>
+
+            {/* Content */}
+            <div className="flex-1 overflow-auto">
+                <div className="max-w-4xl mx-auto p-6 space-y-6">
+                    {/* Nome + descrição */}
+                    <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 space-y-3">
+                        <div>
+                            <Label>Nome da Automação</Label>
+                            <Input
+                                value={form.name}
+                                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                                placeholder="Ex: Onboarding pós-venda"
+                                className="mt-1"
+                            />
+                        </div>
+                        <div>
+                            <Label>Descrição (opcional)</Label>
+                            <Textarea
+                                value={form.description}
+                                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                                placeholder="O que esta automação faz e por quê…"
+                                rows={2}
+                                className="mt-1"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Stats — só para automações existentes */}
+                    {!isNew && stats && stats.totalActivations > 0 && (
+                        <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 space-y-4">
+                            <div className="flex items-center gap-2">
+                                <BarChart3 className="w-4 h-4 text-indigo-600" />
+                                <h2 className="text-sm font-semibold text-slate-900">Desempenho</h2>
+                            </div>
+                            <div className="grid grid-cols-4 gap-3">
+                                <div className="bg-slate-50 rounded-lg p-3 text-center">
+                                    <div className="text-2xl font-bold text-slate-900">{stats.totalActivations}</div>
+                                    <div className="text-xs text-slate-500 mt-0.5">Total ativações</div>
+                                </div>
+                                <div className="bg-blue-50 rounded-lg p-3 text-center">
+                                    <div className="text-2xl font-bold text-blue-700 flex items-center justify-center gap-1">
+                                        <Clock className="w-4 h-4" />
+                                        {stats.activeInstances}
+                                    </div>
+                                    <div className="text-xs text-blue-600 mt-0.5">Em andamento</div>
+                                </div>
+                                <div className="bg-emerald-50 rounded-lg p-3 text-center">
+                                    <div className="text-2xl font-bold text-emerald-700 flex items-center justify-center gap-1">
+                                        <CheckCircle2 className="w-4 h-4" />
+                                        {stats.completedInstances}
+                                    </div>
+                                    <div className="text-xs text-emerald-600 mt-0.5">Concluídas</div>
+                                </div>
+                                <div className="bg-red-50 rounded-lg p-3 text-center">
+                                    <div className="text-2xl font-bold text-red-700 flex items-center justify-center gap-1">
+                                        <XCircle className="w-4 h-4" />
+                                        {stats.cancelledInstances}
+                                    </div>
+                                    <div className="text-xs text-red-600 mt-0.5">Canceladas</div>
+                                </div>
+                            </div>
+                            {stats.perBlock.length > 0 && (
+                                <div className="space-y-2">
+                                    <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider">Por bloco</h3>
+                                    {stats.perBlock.map((pb) => {
+                                        const denominator = stats.totalActivations - stats.cancelledInstances;
+                                        const pct = denominator > 0
+                                            ? Math.round((pb.completed / denominator) * 100)
+                                            : 0;
+                                        return (
+                                            <div key={pb.blockIndex} className="flex items-center gap-3">
+                                                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-600 text-white text-xs font-semibold flex-shrink-0">
+                                                    {pb.blockIndex + 1}
+                                                </span>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 text-xs text-slate-600 mb-1">
+                                                        <span>{pb.waiting} aguardando</span>
+                                                        <span className="text-slate-300">|</span>
+                                                        <span className="text-emerald-600">{pb.completed} concluíram</span>
+                                                        <span className="text-slate-300">|</span>
+                                                        <span className="font-medium">{isFinite(pct) ? pct : 0}% taxa de conclusão</span>
+                                                    </div>
+                                                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                        <div
+                                                            className="h-full bg-indigo-600 rounded-full transition-all"
+                                                            style={{ width: `${isFinite(pct) ? pct : 0}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Gatilho */}
+                    <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 space-y-3">
+                        <div className="flex items-center gap-2">
+                            <Zap className="w-4 h-4 text-indigo-600" />
+                            <h2 className="text-sm font-semibold text-slate-900">Quando isso acontecer</h2>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <Label className="text-xs">Evento</Label>
+                                <Select
+                                    value={form.event_type}
+                                    onChange={(v) =>
+                                        setForm({ ...form, event_type: v as EventType })
+                                    }
+                                    options={eventOptions}
+                                />
+                            </div>
+                            {form.event_type === 'stage_enter' && (
+                                <div>
+                                    <Label className="text-xs">
+                                        Etapa de destino {form.stage_ids.length > 0 && `(${form.stage_ids.length})`}
+                                    </Label>
+                                    <Select
+                                        value={form.stage_ids[0] || ''}
+                                        onChange={(v) =>
+                                            setForm({ ...form, stage_ids: v ? [v] : [] })
+                                        }
+                                        options={[{ value: '', label: 'Selecionar…' }, ...stageOptions]}
+                                    />
+                                </div>
+                            )}
+                            {form.event_type === 'time_offset_from_date' && (
+                                <>
+                                    <div>
+                                        <Label className="text-xs">Data de referência</Label>
+                                        <Select
+                                            value={form.time_source}
+                                            onChange={(v) =>
+                                                setForm({ ...form, time_source: v })
+                                            }
+                                            options={timeSourceOptions}
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <Label className="text-xs">Quando disparar</Label>
+                                        <div className="flex items-center gap-2">
+                                            <Input
+                                                type="number"
+                                                value={Math.abs(form.offset_days)}
+                                                onChange={(e) => {
+                                                    const n = Number(e.target.value) || 0
+                                                    const sign = form.offset_days < 0 ? -1 : 1
+                                                    setForm({ ...form, offset_days: n * sign })
+                                                }}
+                                                className="w-24"
+                                            />
+                                            <span className="text-sm text-slate-600">dias</span>
+                                            <Select
+                                                value={form.offset_days <= 0 ? 'antes' : 'depois'}
+                                                onChange={(v) => {
+                                                    const abs = Math.abs(form.offset_days) || 1
+                                                    setForm({
+                                                        ...form,
+                                                        offset_days: v === 'antes' ? -abs : abs,
+                                                    })
+                                                }}
+                                                options={[
+                                                    { value: 'antes', label: 'antes' },
+                                                    { value: 'depois', label: 'depois' },
+                                                ]}
+                                            />
+                                            <span className="text-sm text-slate-500">da data</span>
+                                        </div>
+                                        <p className="mt-1 text-[11px] text-slate-400">
+                                            Roda uma vez por dia de manhã (fuso São Paulo).
+                                        </p>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Blocks */}
+                    <div className="space-y-3">
+                        <h2 className="text-sm font-semibold text-slate-900 px-1">Blocos de tarefas</h2>
+                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                            <SortableContext items={blocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
+                                {blocks.map((block, idx) => (
+                                    <SortableBlock key={block.id} block={block} index={idx} totalBlocks={blocks.length}>
+                                        <BlockEditor
+                                            block={block}
+                                            index={idx}
+                                            isFirst={idx === 0}
+                                            totalBlocks={blocks.length}
+                                            userOptions={userOptions}
+                                            conciergeUserIds={conciergeUserIds}
+                                            productSlug={productSlug}
+                                            onChange={(next) => updateBlock(idx, next)}
+                                            onRemove={() => removeBlock(idx)}
+                                            onMoveUp={idx > 0 ? () => moveBlock(idx, idx - 1) : undefined}
+                                            onMoveDown={idx < blocks.length - 1 ? () => moveBlock(idx, idx + 1) : undefined}
+                                        />
+                                        {idx < blocks.length - 1 && (() => {
+                                            const nextBlock = blocks[idx + 1];
+                                            const nextStartsFromTrigger = nextBlock?.startsFromTrigger;
+                                            return nextStartsFromTrigger ? (
+                                                <div className="flex items-center gap-2 py-3 px-4 text-xs text-slate-400">
+                                                    <div className="flex-1 border-t border-dashed border-slate-200" />
+                                                    <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-full px-3 py-1">
+                                                        <Zap className="w-3 h-3 text-amber-500" />
+                                                        <span className="font-medium text-slate-500">Roda em paralelo (mesmo gatilho)</span>
+                                                    </div>
+                                                    <div className="flex-1 border-t border-dashed border-slate-200" />
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-2 py-3 px-4 text-xs text-amber-600">
+                                                    <div className="flex-1 border-t border-dashed border-amber-300" />
+                                                    <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
+                                                        <Clock className="w-3 h-3" />
+                                                        <span className="font-medium">Aguarda todas as tarefas acima serem concluídas</span>
+                                                    </div>
+                                                    <div className="flex-1 border-t border-dashed border-amber-300" />
+                                                </div>
+                                            );
+                                        })()}
+                                    </SortableBlock>
+                                ))}
+                            </SortableContext>
+                        </DndContext>
+                        <Button variant="outline" onClick={addBlock} className="w-full">
+                            <Plus className="w-4 h-4 mr-2" />
+                            Adicionar bloco que aguarda a conclusão do anterior
+                        </Button>
+                    </div>
+
+                    {/* Resumo */}
+                    {totalTasks > 0 && (
+                        <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5">
+                            <h2 className="text-sm font-semibold text-slate-900 mb-3">Resumo</h2>
+                            <ol className="space-y-2 text-sm">
+                                {blocks.map((block, idx) => (
+                                    <li key={block.id} className="flex gap-2">
+                                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 text-slate-600 text-xs font-semibold flex-shrink-0">
+                                            {idx + 1}
+                                        </span>
+                                        <div className="flex-1">
+                                            <div className="text-slate-900 text-sm">
+                                                {block.tasks.length}{' '}
+                                                {block.tasks.length === 1 ? 'tarefa' : 'tarefas'}
+                                                <span className="text-xs text-amber-600 ml-2 font-normal">
+                                                    {idx === 0 || block.startsFromTrigger
+                                                        ? '(criadas imediatamente)'
+                                                        : `(criadas quando Bloco ${(block.dependsOnBlock ?? idx - 1) + 1} concluir)`}
+                                                </span>
+                                            </div>
+                                            {block.tasks.map((t) => (
+                                                <div key={t.id} className="text-xs text-slate-500 ml-0">
+                                                    • {t.titulo || '(sem título)'} — concluir{' '}
+                                                    {formatDueOffset(t.due_offset).toLowerCase()}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </li>
+                                ))}
+                            </ol>
+                        </div>
+                    )}
+
+                    {validationError && (
+                        <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+                            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                            {validationError}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}

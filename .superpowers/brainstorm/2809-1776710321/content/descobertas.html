@@ -1,0 +1,114 @@
+<h2>O que o estudo profundo revelou</h2>
+<p class="subtitle">4 descobertas que mudam o desenho. Leia com calma — no final tem 2 decisões pendentes pra você.</p>
+
+<div class="section">
+  <div class="label">Descoberta 1 — Ganho por etapa tem 3 semânticas distintas</div>
+  <div class="mockup">
+    <div class="mockup-header">Quando cada flag dispara</div>
+    <div class="mockup-body">
+      <p><strong>ganho_sdr</strong> = SDR qualificou e passou o lead pro Planner (handoff). Timestamp: <code>ganho_sdr_at</code>.</p>
+      <p><strong>ganho_planner</strong> = Cliente aprovou a proposta e fechou a venda. Timestamp: <code>ganho_planner_at</code>.</p>
+      <p><strong>ganho_pos</strong> = Pós entregou a viagem 100% (viagem concluída). Timestamp: <code>ganho_pos_at</code>.</p>
+      <p><strong>ganho_total</strong> = <code>status_comercial='ganho'</code> — inclui também os fechamentos diretos (Planner fecha sem passar pelo Pós, via parâmetro <code>skip_pos_venda=true</code>).</p>
+      <p style="margin-top:10px;color:#0369a1"><strong>Implicação:</strong> Cada dashboard precisa explicitar qual "ganho" está medindo. "Win rate do Planner" usa ganho_planner. "Taxa de entrega" usa ganho_pos. "Faturamento" usa ganho_total. Não dá pra misturar.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Descoberta 2 — Cross-cutting NÃO EXISTE hoje (bug disfarçado)</div>
+  <div class="mockup">
+    <div class="mockup-header">O filtro de origem existe só na fachada</div>
+    <div class="mockup-body">
+      <p>O frontend tem uma store Zustand com um campo <code>origins[]</code>. O usuário consegue selecionar. <strong>Mas nenhuma RPC de analytics aceita esse filtro como parâmetro.</strong> O filtro é salvo no state, não vai pro banco, e é silenciosamente ignorado.</p>
+      <p style="margin-top:8px">Também não existe:</p>
+      <ul>
+        <li>Filtro por <strong>fase</strong> (só por etapa específica — pra filtrar "todo o Pós" teria que listar N stage_ids)</li>
+        <li>Conceito de <strong>lead entry path</strong> (veio do SDR vs direto Planner vs retorno vs indicação)</li>
+        <li>Filtro por <strong>destino</strong> (dado está em JSON, não extraído)</li>
+        <li>Índices de banco pra cruzar origem × fase rapidamente</li>
+      </ul>
+      <p style="margin-top:10px;color:#0369a1"><strong>Implicação:</strong> Pra sua pergunta "Pós com origem Travel Planner" funcionar de verdade, precisamos <strong>reescrever as RPCs</strong> aceitando filtros universais: <code>p_origem[]</code>, <code>p_phase_slug</code>, <code>p_lead_entry_path</code>, <code>p_destino[]</code>. E criar os índices.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Descoberta 3 — Bug sério de atribuição por pessoa</div>
+  <div class="mockup" style="border-color:#fecaca;background:#fef2f2">
+    <div class="mockup-header" style="background:#fef2f2;color:#991b1b">⚠️ Métrica "por Planner" / "por SDR" está errada hoje</div>
+    <div class="mockup-body">
+      <p>As RPCs <code>analytics_team_performance</code> e <code>analytics_team_leaderboard</code> filtram por <code>dono_atual_id</code> — que aponta pro <strong>dono da fase ATUAL</strong>, não pro dono histórico.</p>
+      <p style="margin-top:8px"><strong>Cenário real que quebra:</strong></p>
+      <ul>
+        <li>Planner A fecha uma venda (ganho_planner)</li>
+        <li>Card vai pro Pós, passa a ser da Concierge B</li>
+        <li>Hoje, <code>dono_atual_id</code> = Concierge B</li>
+        <li>"Win rate do Planner A" perde esse fechamento do denominador</li>
+      </ul>
+      <p style="margin-top:10px"><strong>O correto:</strong> usar <code>sdr_owner_id</code> pra métricas de SDR, <code>vendas_owner_id</code> pra Planner, <code>pos_owner_id</code> pra Pós. Esses campos SÃO preservados históricamente (não mudam quando o card avança).</p>
+      <p style="margin-top:8px;color:#0369a1"><strong>Implicação:</strong> Corrigir isso é mandatório pro v2, senão todo ranking por pessoa continua incorreto. Afeta ~5 RPCs.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Descoberta 4 — Modelo viagens/trip_items é ouro (ainda subutilizado)</div>
+  <div class="mockup">
+    <div class="mockup-header">O que o novo schema habilita (que hoje não aproveitamos)</div>
+    <div class="mockup-body">
+      <p><strong>viagens.estado</strong> (9 valores) mapeia toda a jornada pós-venda — desenho → em_recomendacao → em_aprovacao → confirmada → em_montagem → aguardando_embarque → em_andamento → pos_viagem → concluida. Transições automáticas por data + stage.</p>
+      <p><strong>trip_items.status</strong> (rascunho → proposto → aprovado → operacional → vivido) permite medir prontidão operacional item-a-item.</p>
+      <p><strong>trip_item_history</strong> loga TODA mudança de campo — permite calcular <em>"quantas versões até o cliente aprovar"</em>, <em>"quanto o valor mudou entre a proposta e a aprovação"</em>, <em>"quem editou o que"</em>.</p>
+      <p><strong>view_cards_acoes.prods_ready / prods_total</strong> já dá progresso operacional por card — pronto pra usar.</p>
+      <p style="margin-top:10px;color:#0369a1"><strong>Implicação:</strong> Pra dashboards de Pós-Venda e Vendas (versões de proposta), precisamos criar 2 RPCs novas: <code>analytics_trip_readiness</code> e <code>analytics_proposal_versions</code>. Dado já existe, é só agregar.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Como o cross-cut "Pós com origem Travel Planner" fica na prática</div>
+  <div class="mockup" style="border-color:#c7d2fe;background:#eef2ff">
+    <div class="mockup-header" style="background:#eef2ff;color:#4338ca">Exemplo concreto do uso que você descreveu</div>
+    <div class="mockup-body">
+      <p><strong>Você está no Dashboard do Pós.</strong> Vê 50 viagens em preparação.</p>
+      <p>Aplica o filtro <strong>"Entry path: Direto no Planner"</strong> no topo da tela (um dos filtros universais novos).</p>
+      <p>Resultado: das 50, 18 entraram direto no Planner (sdr_owner_id IS NULL). Mostra:</p>
+      <ul>
+        <li>% prontidão operacional dessas 18 (vs as 32 que vieram via SDR)</li>
+        <li>Ticket médio das 18 (indicação/retorno costumam ter ticket maior)</li>
+        <li>Tempo médio Ganho→Pronto dessas 18</li>
+        <li>Quais Planners geraram essas 18 (ranking)</li>
+      </ul>
+      <p style="margin-top:10px">Esse cruzamento é <strong>o caso de uso que você pediu</strong>. Hoje NÃO é possível. No v2 com as correções propostas, é trivial.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:30px">
+  <div class="label">O que isso faz no escopo do v2</div>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>Fundações novas (backend)</h4>
+      <ul>
+        <li>Reescrever ~10 RPCs com filtros universais (origem, phase_slug, lead_entry_path, destino)</li>
+        <li>Corrigir bug de atribuição (5 RPCs) usando owner por fase</li>
+        <li>Criar <code>analytics_trip_readiness</code> e <code>analytics_proposal_versions</code></li>
+        <li>Criar índices de suporte (origem × fase, owner histórico × status)</li>
+        <li>Registrar eventos de ganho em <code>activities</code> pra cohort temporal</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>UI / dashboards (frontend)</h4>
+      <ul>
+        <li>5 dashboards dedicados (Dono, Comercial, Vendas, Pós, SDR) + Explorar</li>
+        <li>Barra de filtros universais (sempre visível, cross-cut nativo)</li>
+        <li>Cada dashboard com métrica-norte + sub-métricas + alertas</li>
+        <li>Explicação explícita de qual "ganho" cada métrica usa</li>
+        <li>Landing automática por papel no login</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:24px">No chat eu vou te perguntar 2 coisas sobre o escopo dessas fundações.</p>

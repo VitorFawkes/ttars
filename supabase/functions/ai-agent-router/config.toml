@@ -1,0 +1,7 @@
+# ai-agent-router: chamado por whatsapp-webhook (interno) via fetch.
+# verify_jwt = false porque a chamada interna passa service_role no header
+# Authorization; o Supabase Edge Runtime rejeita JWTs antigos vs keys novas
+# (sb_secret_*) e bloqueia a chamada com UNAUTHORIZED_INVALID_JWT_FORMAT.
+# O roteador valida tudo que importa: agente ativo, routing_filter, whitelist.
+[auth]
+verify_jwt = false

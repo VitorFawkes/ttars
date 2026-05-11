@@ -1,0 +1,135 @@
+<h2>Seção 1 — Filtros & Navegação</h2>
+<p class="subtitle">Fundação do design. Tudo depende disso.</p>
+
+<div class="section">
+  <div class="label">Navegação principal</div>
+  <div class="mockup">
+    <div class="mockup-header">Sidebar de Analytics (substitui as 7 abas atuais)</div>
+    <div class="mockup-body">
+      <div style="display:flex;gap:16px">
+        <div class="mock-sidebar" style="width:200px">
+          <div style="padding:8px;background:#eef2ff;border-radius:6px;margin-bottom:6px"><strong>📊 Meu painel</strong><br><span style="font-size:10px;color:#64748b">adapta ao seu papel</span></div>
+          <div style="padding:8px;margin-bottom:6px">👑 Dono</div>
+          <div style="padding:8px;margin-bottom:6px">💼 Comercial</div>
+          <div style="padding:8px;margin-bottom:6px">👥 Vendas</div>
+          <div style="padding:8px;margin-bottom:6px">🛠️ Pós-Venda</div>
+          <div style="padding:8px;margin-bottom:6px">📞 SDR</div>
+          <div style="padding:8px;margin-top:12px;border-top:1px solid #e2e8f0">🔍 Explorar</div>
+        </div>
+        <div style="flex:1">
+          <p><strong>"Meu painel"</strong> leva ao dashboard do papel do usuário logado (role do profile). Se for admin/dono, vai pro Dono; se for Planner, vai pro Vendas; se for Concierge, vai pro Pós; etc.</p>
+          <p style="margin-top:8px">Abaixo, acesso livre aos 5 dashboards (admin/dono vê todos; operador vê o dele + os dashboards macro do time).</p>
+          <p style="margin-top:8px"><strong>"Explorar"</strong> é a ferramenta livre de slice-and-dice — cruzar qualquer métrica com qualquer filtro sem curadoria.</p>
+          <p style="margin-top:12px;font-size:11px;color:#64748b"><em>Permissão: cada persona só vê dashboards compatíveis com seu papel. Dono/admin vê tudo.</em></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Barra de filtros universais (fica no topo de todo dashboard)</div>
+  <div class="mockup">
+    <div class="mockup-header">Sempre visível · Filtros persistem na URL (compartilhável)</div>
+    <div class="mockup-body">
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px">
+          <div style="background:white;border:1px solid #cbd5e1;padding:6px 12px;border-radius:6px"><strong>📅 Últimos 30 dias</strong> ▾</div>
+          <div style="background:white;border:1px solid #cbd5e1;padding:6px 12px;border-radius:6px">Fase: <strong>Todas</strong> ▾</div>
+          <div style="background:white;border:1px solid #cbd5e1;padding:6px 12px;border-radius:6px">Dono: <strong>Todos</strong> ▾</div>
+          <div style="background:#eef2ff;border:1px solid #c7d2fe;padding:6px 12px;border-radius:6px;color:#4338ca">+ Mais filtros ▾</div>
+          <div style="margin-left:auto;display:flex;gap:6px">
+            <div style="background:white;border:1px solid #cbd5e1;padding:6px 10px;border-radius:6px;font-size:11px">🔗 Compartilhar</div>
+            <div style="background:white;border:1px solid #cbd5e1;padding:6px 10px;border-radius:6px;font-size:11px">↺ Limpar</div>
+          </div>
+        </div>
+        <div style="margin-top:10px;padding-top:10px;border-top:1px dashed #cbd5e1">
+          <p style="font-size:11px;color:#64748b;margin:0"><strong>"+ Mais filtros" expande:</strong></p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;font-size:11px">
+            <div style="background:white;border:1px dashed #cbd5e1;padding:5px 10px;border-radius:6px">Origem ▾ <span style="color:#64748b">(mkt, indicação, carteira, site...)</span></div>
+            <div style="background:white;border:1px dashed #cbd5e1;padding:5px 10px;border-radius:6px">Entry path ▾ <span style="color:#64748b">(SDR completo / Direto Planner / Retorno / Indicação)</span></div>
+            <div style="background:white;border:1px dashed #cbd5e1;padding:5px 10px;border-radius:6px">Destino ▾</div>
+            <div style="background:white;border:1px dashed #cbd5e1;padding:5px 10px;border-radius:6px">Tags ▾</div>
+            <div style="background:white;border:1px dashed #cbd5e1;padding:5px 10px;border-radius:6px">Modo (Entradas/Coorte/Ganho) ▾</div>
+          </div>
+        </div>
+      </div>
+      <p style="margin-top:12px"><strong>Sempre visíveis (3):</strong> Período, Fase, Dono — os essenciais.</p>
+      <p><strong>No "+ Mais filtros" (5):</strong> Origem, Entry path, Destino, Tags, Modo. Aparecem expandidos quando aplicados.</p>
+      <p><strong>Persistência na URL:</strong> toda combinação de filtros vira querystring. Dá pra mandar link no WhatsApp: "olha essa tela". Dá pra salvar favorito.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Defaults por persona (quando abre o dashboard)</div>
+  <div class="mockup">
+    <div class="mockup-header">Cada papel abre com os filtros pré-setados pra sua rotina</div>
+    <div class="mockup-body">
+      <table style="width:100%;font-size:12px;border-collapse:collapse">
+        <thead>
+          <tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0">
+            <th style="text-align:left;padding:8px">Persona</th>
+            <th style="text-align:left;padding:8px">Período default</th>
+            <th style="text-align:left;padding:8px">Fase default</th>
+            <th style="text-align:left;padding:8px">Dono default</th>
+            <th style="text-align:left;padding:8px">Modo default</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #e2e8f0">
+            <td style="padding:8px">👑 Dono</td>
+            <td style="padding:8px">Últ. trimestre</td>
+            <td style="padding:8px">Todas</td>
+            <td style="padding:8px">Todos</td>
+            <td style="padding:8px">Ganho total</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e2e8f0">
+            <td style="padding:8px">💼 Comercial</td>
+            <td style="padding:8px">Últ. 30 dias</td>
+            <td style="padding:8px">Todas</td>
+            <td style="padding:8px">Todos</td>
+            <td style="padding:8px">Entradas</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e2e8f0">
+            <td style="padding:8px">👥 Vendas</td>
+            <td style="padding:8px">Últ. 30 dias</td>
+            <td style="padding:8px">Vendas</td>
+            <td style="padding:8px">Todos do time</td>
+            <td style="padding:8px">Ganho Planner</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e2e8f0">
+            <td style="padding:8px">🛠️ Pós-Venda</td>
+            <td style="padding:8px">Próx. 30 dias</td>
+            <td style="padding:8px">Pós-Venda</td>
+            <td style="padding:8px">Todos do time</td>
+            <td style="padding:8px">Estado viagem</td>
+          </tr>
+          <tr>
+            <td style="padding:8px">📞 SDR</td>
+            <td style="padding:8px">Últ. 7 dias</td>
+            <td style="padding:8px">Pré-Venda</td>
+            <td style="padding:8px">Todos do time</td>
+            <td style="padding:8px">Entradas</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-top:10px;font-size:11px;color:#64748b"><em>Defaults são ponto de partida — user pode sobrescrever e salvar uma "view favorita" (fase 2).</em></p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Como o cross-cut "Pós com origem Travel Planner" se realiza</div>
+  <div class="mockup" style="border-color:#c7d2fe;background:#eef2ff">
+    <div class="mockup-body">
+      <p><strong>Passo 1:</strong> User abre 🛠️ Pós-Venda (defaults: Fase=Pós, Período=Próx. 30d)</p>
+      <p><strong>Passo 2:</strong> Clica em "+ Mais filtros" → Entry path → seleciona "Direto Planner"</p>
+      <p><strong>Passo 3:</strong> Todos os gráficos e KPIs do dashboard Pós se reajustam. A URL passa a ser <code>/analytics/pos?period=30d&entry=direct_planner</code> — compartilhável.</p>
+      <p><strong>Passo 4:</strong> Se quiser comparar, troca Entry path pra "SDR completo" — mesma tela, outra leitura.</p>
+      <p style="margin-top:10px;color:#4338ca"><strong>A chave:</strong> o dashboard é curado (Pós tem os widgets certos pra Pós), mas os filtros cruzam qualquer dimensão. Você nunca fica preso a uma visão.</p>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:24px">Essa fundação faz sentido? Me diz se muda alguma coisa, ou se tá aprovado vou pra Seção 2 (conteúdo dos dashboards).</p>

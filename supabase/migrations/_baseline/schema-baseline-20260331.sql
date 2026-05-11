@@ -1,0 +1,3643 @@
+-- ============================================================
+-- WelcomeCRM — Schema Baseline Snapshot
+-- Gerado em: 2026-03-31
+-- Fonte: Banco de produção (szyrzxvlptqqheizyrxu)
+-- 
+-- ATENÇÃO: Este arquivo é REFERÊNCIA, não executável.
+-- Ele documenta o estado real do banco nesta data.
+-- Para criar objetos, use migrations individuais.
+-- ============================================================
+
+-- ============================================================
+-- ENUMS
+-- ============================================================
+-- CREATE TYPE public.app_product AS ENUM ('TRIPS', 'WEDDING', 'CORP');
+-- CREATE TYPE public.app_role AS ENUM ('admin', 'gestor', 'sdr', 'vendas', 'pos_venda', 'concierge', 'financeiro');
+-- CREATE TYPE public.proposal_item_type AS ENUM ('hotel', 'flight', 'transfer', 'experience', 'service', 'insurance', 'fee', 'custom');
+-- CREATE TYPE public.proposal_section_type AS ENUM ('cover', 'itinerary', 'flights', 'hotels', 'experiences', 'transfers', 'services', 'terms', 'summary', 'custom');
+-- CREATE TYPE public.proposal_status AS ENUM ('draft', 'sent', 'viewed', 'in_progress', 'accepted', 'rejected', 'expired');
+-- CREATE TYPE public.requirement_type_enum AS ENUM ('field', 'proposal', 'task');
+-- CREATE TYPE public.tipo_pessoa_enum AS ENUM ('adulto', 'crianca');
+-- CREATE TYPE public.tipo_viajante_enum AS ENUM ('titular', 'acompanhante');
+
+-- ============================================================
+-- TABLES
+-- ============================================================
+
+-- TABLE: activities
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     card_id                                  uuid                 NOT NULL
+--     tipo                                     text                 NOT NULL
+--     descricao                                text                 NOT NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     created_by                               uuid                 NULL
+--     metadata                                 jsonb                NULL DEFAULT '{}'::jsonb
+--     party_type                               text                 NULL DEFAULT 'client'::text
+--   Indexes:
+--     activities_pkey
+--     idx_activities_card_created_desc
+--     idx_activities_card_id
+--     idx_activities_created_at
+--     idx_activities_stage_changed_new
+--     idx_activities_stage_changed_old
+--   RLS Policies:
+--     Users can insert activities (INSERT)
+--     Users can view activities (SELECT)
+
+-- TABLE: activity_categories
+--   Columns:
+--     key                                      text                 NOT NULL
+--     label                                    text                 NOT NULL
+--     scope                                    text                 NOT NULL
+--     visible                                  boolean              NULL DEFAULT true
+--     ordem                                    integer              NULL DEFAULT 0
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     activity_categories_pkey
+--   RLS Policies:
+--     Allow public read access (SELECT)
+
+-- TABLE: ai_extraction_field_config
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     field_key                                text                 NOT NULL
+--     section                                  text                 NOT NULL
+--     field_type                               text                 NOT NULL
+--     label                                    text                 NOT NULL
+--     prompt_question                          text                 NOT NULL
+--     prompt_format                            text                 NULL
+--     prompt_examples                          text                 NULL
+--     prompt_extract_when                      text                 NULL
+--     allowed_values                           jsonb                NULL
+--     sort_order                               integer              NULL DEFAULT 0
+--     is_active                                boolean              NULL DEFAULT true
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     ai_extraction_field_config_field_key_key
+--     ai_extraction_field_config_pkey
+--   RLS Policies:
+--     Authenticated read (SELECT)
+--     Service role full access (ALL)
+
+-- TABLE: api_keys
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     name                                     text                 NOT NULL
+--     key_hash                                 text                 NOT NULL
+--     key_prefix                               text                 NOT NULL
+--     permissions                              jsonb                NULL DEFAULT '{"read": true, "write": true}'::jsonb
+--     rate_limit                               integer              NULL DEFAULT 5000
+--     is_active                                boolean              NULL DEFAULT true
+--     last_used_at                             timestamp with time zone NULL
+--     request_count                            integer              NULL DEFAULT 0
+--     created_by                               uuid                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     expires_at                               timestamp with time zone NULL
+--     metadata                                 jsonb                NULL DEFAULT '{}'::jsonb
+--   Indexes:
+--     api_keys_key_hash_key
+--     api_keys_pkey
+--     idx_api_keys_hash
+--   RLS Policies:
+--     Admin manage api_keys (ALL)
+
+-- TABLE: api_request_logs
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     api_key_id                               uuid                 NULL
+--     endpoint                                 text                 NOT NULL
+--     method                                   text                 NOT NULL
+--     status_code                              integer              NOT NULL
+--     response_time_ms                         integer              NULL
+--     ip_address                               text                 NULL
+--     user_agent                               text                 NULL
+--     request_body                             jsonb                NULL
+--     error_message                            text                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     api_request_logs_pkey
+--     idx_api_logs_key_id
+--   RLS Policies:
+--     Admin read api_request_logs (SELECT)
+--     Service insert api_request_logs (INSERT)
+
+-- TABLE: arquivos
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     card_id                                  uuid                 NOT NULL
+--     pessoa_id                                uuid                 NULL
+--     caminho_arquivo                          text                 NOT NULL
+--     nome_original                            text                 NOT NULL
+--     mime_type                                text                 NULL
+--     tamanho_bytes                            bigint               NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     created_by                               uuid                 NULL
+--     descricao                                text                 NULL
+--   Indexes:
+--     arquivos_pkey
+--     idx_arquivos_card
+--   RLS Policies:
+--     Arquivos editable by authenticated (ALL)
+--     Arquivos viewable by authenticated (SELECT)
+
+-- TABLE: audit_logs
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     table_name                               text                 NOT NULL
+--     record_id                                uuid                 NOT NULL
+--     action                                   text                 NOT NULL
+--     old_data                                 jsonb                NULL
+--     new_data                                 jsonb                NULL
+--     changed_by                               uuid                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     audit_logs_pkey
+--   RLS Policies:
+--     System insert audit logs (INSERT)
+--     audit_logs_select_admin (SELECT)
+
+-- TABLE: automation_log
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     rule_id                                  uuid                 NULL
+--     card_id                                  uuid                 NOT NULL
+--     task_id                                  uuid                 NULL
+--     triggered_at                             timestamp with time zone NULL DEFAULT now()
+--     trigger_stage_from                       uuid                 NULL
+--     trigger_stage_to                         uuid                 NULL
+--     status                                   text                 NULL DEFAULT 'success'::text
+--     error_message                            text                 NULL
+--     conditions_evaluated                     jsonb                NULL
+--   Indexes:
+--     automation_log_pkey
+--     idx_automation_log_card
+--   RLS Policies:
+--     Admins can view automation_log (SELECT)
+--     Authenticated users can insert automation logs (INSERT)
+
+-- TABLE: automation_rules
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     pipeline_id                              uuid                 NOT NULL
+--     trigger_stage_id                         uuid                 NOT NULL
+--     timing_value                             integer              NULL DEFAULT 0
+--     task_titulo                              text                 NOT NULL
+--     task_tipo                                text                 NOT NULL
+--     task_prioridade                          text                 NULL DEFAULT 'media'::text
+--     is_active                                boolean              NULL DEFAULT true
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     trigger_type                             text                 NULL DEFAULT 'stage_enter'::text
+--     task_descricao                           text                 NULL
+--     assign_to                                text                 NULL DEFAULT 'card_owner'::text
+--     assign_to_user_id                        uuid                 NULL
+--     timing_type                              text                 NULL DEFAULT 'relative_minutes'::text
+--     timing_respect_business_hours            boolean              NULL DEFAULT false
+--     timing_business_hour_start               time without time zone NULL DEFAULT '09:00:00'::time without time zone
+--     timing_business_hour_end                 time without time zone NULL DEFAULT '18:00:00'::time without time zone
+--     conditions                               jsonb                NULL DEFAULT '{}'::jsonb
+--     order_index                              integer              NULL DEFAULT 0
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     automation_rules_pkey
+--   Triggers:
+--     audit_automation_rules_changes (AFTER INSERT)
+--     audit_automation_rules_changes (AFTER DELETE)
+--     audit_automation_rules_changes (AFTER UPDATE)
+--   RLS Policies:
+--     Admins and Gestores can edit rules (ALL)
+--     Admins and Gestores can view rules (SELECT)
+
+-- TABLE: cadence_dead_letter
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     original_queue_id                        uuid                 NULL
+--     instance_id                              uuid                 NULL
+--     step_id                                  uuid                 NULL
+--     error_message                            text                 NOT NULL
+--     error_details                            jsonb                NULL DEFAULT '{}'::jsonb
+--     failed_at                                timestamp with time zone NULL DEFAULT now()
+--     resolved_at                              timestamp with time zone NULL
+--     resolved_by                              uuid                 NULL
+--     resolution_action                        text                 NULL
+--     resolution_notes                         text                 NULL
+--   Indexes:
+--     cadence_dead_letter_pkey
+--   RLS Policies:
+--     cadence_dead_letter_all (ALL)
+
+-- TABLE: cadence_entry_queue
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     card_id                                  uuid                 NOT NULL
+--     trigger_id                               uuid                 NOT NULL
+--     event_type                               text                 NOT NULL
+--     event_data                               jsonb                NULL DEFAULT '{}'::jsonb
+--     execute_at                               timestamp with time zone NOT NULL
+--     status                                   text                 NULL DEFAULT 'pending'::text
+--     attempts                                 integer              NULL DEFAULT 0
+--     max_attempts                             integer              NULL DEFAULT 3
+--     last_error                               text                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     processed_at                             timestamp with time zone NULL
+--   Indexes:
+--     cadence_entry_queue_pkey
+--     idx_cadence_entry_queue_card
+--     idx_cadence_entry_queue_pending
+--   RLS Policies:
+--     cadence_entry_queue_all (ALL)
+--     cadence_entry_queue_owner_select (SELECT)
+
+-- TABLE: cadence_event_log
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     instance_id                              uuid                 NULL
+--     card_id                                  uuid                 NULL
+--     event_type                               text                 NOT NULL
+--     event_source                             text                 NOT NULL
+--     event_data                               jsonb                NULL DEFAULT '{}'::jsonb
+--     action_taken                             text                 NULL
+--     action_result                            jsonb                NULL DEFAULT '{}'::jsonb
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     cadence_event_log_pkey
+--     idx_cadence_event_log_card
+--     idx_cadence_event_log_instance
+--     idx_cadence_event_log_type
+--   RLS Policies:
+--     cadence_event_log_insert (INSERT)
+--     cadence_event_log_select (SELECT)
+--     cadence_event_log_service_role (ALL)
+
+-- TABLE: cadence_event_triggers
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     template_id                              uuid                 NULL
+--     is_global                                boolean              NULL DEFAULT false
+--     event_type                               text                 NOT NULL
+--     event_config                             jsonb                NULL DEFAULT '{}'::jsonb
+--     conditions                               jsonb                NULL DEFAULT '[]'::jsonb
+--     action_type                              text                 NOT NULL
+--     action_config                            jsonb                NULL DEFAULT '{}'::jsonb
+--     priority                                 integer              NULL DEFAULT 5
+--     is_active                                boolean              NULL DEFAULT true
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     name                                     text                 NULL
+--     target_template_id                       uuid                 NULL
+--     task_config                              jsonb                NULL DEFAULT '{}'::jsonb
+--     delay_minutes                            integer              NULL DEFAULT 0
+--     delay_type                               text                 NULL DEFAULT 'calendar'::text
+--     applicable_stage_ids                     ARRAY                NULL
+--     applicable_pipeline_ids                  ARRAY                NULL
+--     business_hours_start                     integer              NULL DEFAULT 9
+--     business_hours_end                       integer              NULL DEFAULT 18
+--     allowed_weekdays                         ARRAY                NULL DEFAULT '{1,2,3,4,5}'::integer[]
+--   Indexes:
+--     cadence_event_triggers_pkey
+--     idx_cadence_event_triggers_active_event
+--     idx_cadence_event_triggers_pipelines
+--     idx_cadence_event_triggers_stages
+--   Triggers:
+--     trg_cadence_event_triggers_updated_at (BEFORE UPDATE)
+--   RLS Policies:
+--     cadence_event_triggers_admin_all (ALL)
+--     cadence_event_triggers_select_active (SELECT)
+
+-- TABLE: cadence_instances
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     template_id                              uuid                 NOT NULL
+--     card_id                                  uuid                 NOT NULL
+--     current_step_id                          uuid                 NULL
+--     status                                   text                 NULL DEFAULT 'active'::text
+--     total_contacts_attempted                 integer              NULL DEFAULT 0
+--     successful_contacts                      integer              NULL DEFAULT 0
+--     context                                  jsonb                NULL DEFAULT '{}'::jsonb
+--     started_at                               timestamp with time zone NULL DEFAULT now()
+--     paused_at                                timestamp with time zone NULL
+--     completed_at                             timestamp with time zone NULL
+--     cancelled_at                             timestamp with time zone NULL
+--     cancelled_reason                         text                 NULL
+--     created_by                               uuid                 NULL
+--   Indexes:
+--     cadence_instances_pkey
+--     idx_cadence_instances_active_unique
+--   RLS Policies:
+--     cadence_instances_admin_all (ALL)
+--     cadence_instances_select (SELECT)
+
+-- TABLE: cadence_queue
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     instance_id                              uuid                 NOT NULL
+--     step_id                                  uuid                 NOT NULL
+--     execute_at                               timestamp with time zone NOT NULL
+--     priority                                 integer              NULL DEFAULT 5
+--     status                                   text                 NULL DEFAULT 'pending'::text
+--     attempts                                 integer              NULL DEFAULT 0
+--     max_attempts                             integer              NULL DEFAULT 3
+--     last_error                               text                 NULL
+--     last_attempt_at                          timestamp with time zone NULL
+--     claimed_by                               text                 NULL
+--     claimed_at                               timestamp with time zone NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     cadence_queue_pkey
+--     idx_cadence_queue_instance
+--     idx_cadence_queue_pending
+--   RLS Policies:
+--     cadence_queue_all (ALL)
+
+-- TABLE: cadence_steps
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     template_id                              uuid                 NOT NULL
+--     step_order                               integer              NOT NULL
+--     step_key                                 text                 NOT NULL
+--     step_type                                text                 NOT NULL
+--     task_config                              jsonb                NULL DEFAULT '{}'::jsonb
+--     wait_config                              jsonb                NULL DEFAULT '{}'::jsonb
+--     branch_config                            jsonb                NULL DEFAULT '{}'::jsonb
+--     end_config                               jsonb                NULL DEFAULT '{}'::jsonb
+--     next_step_key                            text                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     day_offset                               integer              NULL
+--     requires_previous_completed              boolean              NULL DEFAULT true
+--     time_of_day_minutes                      integer              NULL
+--     visibility_conditions                    jsonb                NULL DEFAULT '[]'::jsonb
+--   Indexes:
+--     cadence_steps_pkey
+--     cadence_steps_template_id_step_key_key
+--     cadence_steps_template_id_step_order_key
+--   RLS Policies:
+--     cadence_steps_admin_all (ALL)
+--     cadence_steps_select (SELECT)
+
+-- TABLE: cadence_templates
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     name                                     text                 NOT NULL
+--     description                              text                 NULL
+--     target_audience                          text                 NULL
+--     applicable_stages                        ARRAY                NULL
+--     respect_business_hours                   boolean              NULL DEFAULT true
+--     auto_cancel_on_stage_change              boolean              NULL DEFAULT true
+--     soft_break_after_days                    integer              NULL DEFAULT 14
+--     is_active                                boolean              NULL DEFAULT true
+--     created_by                               uuid                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     day_pattern                              jsonb                NULL
+--     schedule_mode                            text                 NULL DEFAULT 'interval'::text
+--     require_completion_for_next              boolean              NULL DEFAULT true
+--     business_hours_start                     integer              NULL DEFAULT 9
+--     business_hours_end                       integer              NULL DEFAULT 18
+--     allowed_weekdays                         ARRAY                NULL DEFAULT '{1,2,3,4,5}'::integer[]
+--   Indexes:
+--     cadence_templates_pkey
+--   Triggers:
+--     trg_cadence_templates_updated_at (BEFORE UPDATE)
+--   RLS Policies:
+--     cadence_templates_admin_all (ALL)
+--     cadence_templates_select_active (SELECT)
+
+-- TABLE: card_auto_creation_rules
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     source_pipeline_ids                      ARRAY                NOT NULL
+--     source_stage_ids                         ARRAY                NOT NULL
+--     source_owner_ids                         ARRAY                NULL
+--     target_pipeline_id                       uuid                 NOT NULL
+--     target_stage_id                          uuid                 NOT NULL
+--     target_owner_mode                        text                 NOT NULL DEFAULT 'same_as_source'::text
+--     target_owner_id                          uuid                 NULL
+--     copy_title                               boolean              NULL DEFAULT true
+--     copy_contacts                            boolean              NULL DEFAULT true
+--     title_prefix                             text                 NULL
+--     is_active                                boolean              NOT NULL DEFAULT true
+--     description                              text                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     created_by                               uuid                 NULL
+--   Indexes:
+--     card_auto_creation_rules_pkey
+--     idx_card_auto_rules_active
+--     idx_card_auto_rules_source
+--   Triggers:
+--     update_card_auto_creation_rules_updated_at (BEFORE UPDATE)
+--   RLS Policies:
+--     Authenticated users can manage rules (ALL)
+--     Authenticated users can view rules (SELECT)
+
+-- TABLE: card_creation_rules
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     team_id                                  uuid                 NOT NULL
+--     stage_id                                 uuid                 NOT NULL
+--     created_by                               uuid                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     card_creation_rules_pkey
+--     card_creation_rules_team_id_stage_id_key
+--     idx_card_creation_rules_stage
+--     idx_card_creation_rules_team
+--   RLS Policies:
+--     card_creation_rules_admin_delete (DELETE)
+--     card_creation_rules_admin_insert (INSERT)
+--     card_creation_rules_admin_update (UPDATE)
+--     card_creation_rules_select (SELECT)
+
+-- TABLE: card_document_requirements
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     card_id                                  uuid                 NOT NULL
+--     document_type_id                         uuid                 NOT NULL
+--     contato_id                               uuid                 NOT NULL
+--     status                                   text                 NOT NULL DEFAULT 'pendente'::text
+--     arquivo_id                               uuid                 NULL
+--     data_value                               text                 NULL
+--     notas                                    text                 NULL
+--     recebido_em                              timestamp with time zone NULL
+--     recebido_por                             uuid                 NULL
+--     created_at                               timestamp with time zone NOT NULL DEFAULT now()
+--     modo                                     text                 NOT NULL DEFAULT 'ambos'::text
+--   Indexes:
+--     card_document_requirements_card_id_document_type_id_contato_key
+--     card_document_requirements_pkey
+--     idx_card_doc_req_card
+--     idx_card_doc_req_status
+--   RLS Policies:
+--     cdr_all (ALL)
+
+-- TABLE: card_financial_items
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     card_id                                  uuid                 NOT NULL
+--     product_type                             text                 NOT NULL DEFAULT 'custom'::text
+--     description                              text                 NULL
+--     sale_value                               numeric              NOT NULL DEFAULT 0
+--     supplier_cost                            numeric              NOT NULL DEFAULT 0
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     is_ready                                 boolean              NULL DEFAULT false
+--     notes                                    text                 NULL
+--     fornecedor                               text                 NULL
+--     representante                            text                 NULL
+--     documento                                text                 NULL
+--     data_inicio                              date                 NULL
+--     data_fim                                 date                 NULL
+--     observacoes                              text                 NULL
+--   Indexes:
+--     card_financial_items_pkey
+--     idx_card_financial_items_card
+--     idx_cfi_card_ready
+--   RLS Policies:
+--     card_financial_items_delete (DELETE)
+--     card_financial_items_insert (INSERT)
+--     card_financial_items_select (SELECT)
+--     card_financial_items_update (UPDATE)
+
+-- TABLE: card_gift_assignments
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     card_id                                  uuid                 NULL
+--     status                                   text                 NOT NULL DEFAULT 'pendente'::text
+--     delivery_address                         text                 NULL
+--     delivery_date                            date                 NULL
+--     delivery_method                          text                 NULL
+--     budget                                   numeric              NULL
+--     notes                                    text                 NULL
+--     assigned_by                              uuid                 NULL
+--     shipped_by                               uuid                 NULL
+--     shipped_at                               timestamp with time zone NULL
+--     delivered_at                             timestamp with time zone NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     contato_id                               uuid                 NULL
+--     scheduled_ship_date                      date                 NULL
+--     tarefa_id                                uuid                 NULL
+--     gift_type                                text                 NOT NULL DEFAULT 'trip'::text
+--     occasion                                 text                 NULL
+--   Indexes:
+--     card_gift_assignments_pkey
+--     idx_card_gift_assignments_status
+--     idx_gift_assignments_card_contato_uq
+--     idx_gift_assignments_contato
+--     idx_gift_assignments_occasion
+--     idx_gift_assignments_ship_date
+--     idx_gift_assignments_status
+--     idx_gift_assignments_type
+--   RLS Policies:
+--     cga_delete (DELETE)
+--     cga_insert (INSERT)
+--     cga_select (SELECT)
+--     cga_update (UPDATE)
+
+-- TABLE: card_gift_items
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     assignment_id                            uuid                 NOT NULL
+--     product_id                               uuid                 NULL
+--     quantity                                 integer              NOT NULL DEFAULT 1
+--     unit_price_snapshot                      numeric              NOT NULL DEFAULT 0
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     custom_name                              text                 NULL
+--     notes                                    text                 NULL
+--   Indexes:
+--     card_gift_items_pkey
+--     idx_card_gift_items_assignment
+--     idx_card_gift_items_product
+--   RLS Policies:
+--     cgi_delete (DELETE)
+--     cgi_insert (INSERT)
+--     cgi_select (SELECT)
+--     cgi_update (UPDATE)
+
+-- TABLE: card_owner_history
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     card_id                                  uuid                 NOT NULL
+--     owner_id                                 uuid                 NULL
+--     fase                                     text                 NOT NULL
+--     started_at                               timestamp with time zone NOT NULL DEFAULT now()
+--     ended_at                                 timestamp with time zone NULL
+--     transfer_reason                          text                 NULL
+--     transferred_by                           uuid                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     card_owner_history_pkey
+--     idx_owner_history_card_id
+--     idx_owner_history_owner_id
+--   RLS Policies:
+--     Users can insert owner history (INSERT)
+--     Users can view owner history (SELECT)
+
+-- TABLE: card_tag_assignments
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     card_id                                  uuid                 NOT NULL
+--     tag_id                                   uuid                 NOT NULL
+--     assigned_by                              uuid                 NULL
+--     assigned_at                              timestamp with time zone NOT NULL DEFAULT now()
+--   Indexes:
+--     card_tag_assignments_pkey
+--     card_tag_assignments_unique
+--     idx_cta_card_id
+--     idx_cta_tag_id
+--   RLS Policies:
+--     card_tag_assignments_select (SELECT)
+--     card_tag_assignments_write (ALL)
+
+-- TABLE: card_tags
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     name                                     text                 NOT NULL
+--     color                                    text                 NOT NULL DEFAULT '#6366f1'::text
+--     description                              text                 NULL
+--     produto                                  text                 NULL
+--     is_active                                boolean              NOT NULL DEFAULT true
+--     created_by                               uuid                 NULL
+--     created_at                               timestamp with time zone NOT NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NOT NULL DEFAULT now()
+--   Indexes:
+--     card_tags_name_produto_unique
+--     card_tags_pkey
+--   Triggers:
+--     trg_card_tags_updated_at (BEFORE UPDATE)
+--   RLS Policies:
+--     card_tags_admin_write (ALL)
+--     card_tags_select (SELECT)
+
+-- TABLE: card_team_members
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     card_id                                  uuid                 NOT NULL
+--     profile_id                               uuid                 NOT NULL
+--     role                                     text                 NOT NULL DEFAULT 'apoio'::text
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     created_by                               uuid                 NULL
+--   Indexes:
+--     card_team_members_card_id_profile_id_key
+--     card_team_members_pkey
+--     idx_card_team_card
+--     idx_card_team_profile
+--   RLS Policies:
+--     Authenticated users can manage card team (ALL)
+
+-- TABLE: cards
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     titulo                                   text                 NOT NULL
+--     produto                                  USER-DEFINED         NOT NULL
+--     pessoa_principal_id                      uuid                 NULL
+--     sdr_owner_id                             uuid                 NULL
+--     vendas_owner_id                          uuid                 NULL
+--     pos_owner_id                             uuid                 NULL
+--     concierge_owner_id                       uuid                 NULL
+--     dono_atual_id                            uuid                 NULL
+--     pipeline_stage_id                        uuid                 NULL
+--     status_comercial                         text                 NOT NULL DEFAULT 'aberto'::text
+--     motivo_perda_id                          uuid                 NULL
+--     estado_operacional                       text                 NULL DEFAULT 'planejamento'::text
+--     valor_estimado                           numeric              NULL
+--     valor_final                              numeric              NULL
+--     moeda                                    text                 NULL DEFAULT 'BRL'::text
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     created_by                               uuid                 NULL
+--     updated_by                               uuid                 NULL
+--     codigo_cliente_erp                       text                 NULL
+--     codigo_projeto_erp                       text                 NULL
+--     forma_pagamento                          text                 NULL
+--     condicoes_pagamento                      text                 NULL
+--     pronto_para_contrato                     boolean              NULL DEFAULT false
+--     pronto_para_erp                          boolean              NULL DEFAULT false
+--     data_pronto_erp                          timestamp with time zone NULL
+--     taxa_ativa                               boolean              NULL DEFAULT false
+--     taxa_valor                               numeric              NULL
+--     taxa_status                              text                 NULL DEFAULT 'nao_aplicavel'::text
+--     taxa_data_status                         timestamp with time zone NULL
+--     taxa_meio_pagamento                      text                 NULL
+--     taxa_codigo_transacao                    text                 NULL
+--     taxa_alterado_por                        uuid                 NULL
+--     prioridade                               text                 NULL
+--     data_viagem_inicio                       timestamp with time zone NULL
+--     pipeline_id                              uuid                 NOT NULL
+--     produto_data                             jsonb                NULL DEFAULT '{}'::jsonb
+--     cliente_recorrente                       boolean              NULL DEFAULT false
+--     origem                                   text                 NULL
+--     external_id                              text                 NULL
+--     external_source                          text                 NULL
+--     campaign_id                              text                 NULL
+--     briefing_inicial                         jsonb                NULL
+--     data_viagem_fim                          timestamp with time zone NULL
+--     stage_entered_at                         timestamp with time zone NULL
+--     parent_card_id                           uuid                 NULL
+--     is_group_parent                          boolean              NULL DEFAULT false
+--     group_capacity                           integer              NULL
+--     group_total_revenue                      numeric              NULL DEFAULT 0
+--     group_total_pax                          integer              NULL DEFAULT 0
+--     marketing_data                           jsonb                NULL DEFAULT '{}'::jsonb
+--     deleted_at                               timestamp with time zone NULL
+--     deleted_by                               uuid                 NULL
+--     motivo_perda_comentario                  text                 NULL
+--     data_fechamento                          timestamp with time zone NULL
+--     origem_lead                              text                 NULL
+--     utm_source                               text                 NULL
+--     utm_medium                               text                 NULL
+--     utm_campaign                             text                 NULL
+--     utm_content                              text                 NULL
+--     utm_term                                 text                 NULL
+--     mkt_buscando_para_viagem                 text                 NULL
+--     epoca_mes_inicio                         smallint             NULL
+--     epoca_mes_fim                            smallint             NULL
+--     epoca_ano                                smallint             NULL
+--     epoca_tipo                               text                 NULL
+--     duracao_dias_min                         smallint             NULL
+--     duracao_dias_max                         smallint             NULL
+--     ganho_sdr                                boolean              NULL DEFAULT false
+--     ganho_sdr_at                             timestamp with time zone NULL
+--     ganho_planner                            boolean              NULL DEFAULT false
+--     ganho_planner_at                         timestamp with time zone NULL
+--     ganho_pos                                boolean              NULL DEFAULT false
+--     ganho_pos_at                             timestamp with time zone NULL
+--     card_type                                text                 NULL DEFAULT 'standard'::text
+--     sub_card_mode                            text                 NULL
+--     sub_card_status                          text                 NULL
+--     merged_at                                timestamp with time zone NULL
+--     merged_by                                uuid                 NULL
+--     merge_metadata                           jsonb                NULL
+--     locked_fields                            jsonb                NULL DEFAULT '{}'::jsonb
+--     archived_at                              timestamp with time zone NULL
+--     archived_by                              uuid                 NULL
+--     receita                                  numeric              NULL
+--     receita_source                           text                 NULL DEFAULT 'manual'::text
+--     ai_resumo                                text                 NULL
+--     ai_contexto                              text                 NULL
+--     ai_responsavel                           text                 NULL DEFAULT 'ia'::text
+--     indicado_por_id                          uuid                 NULL
+--     merge_config                             jsonb                NULL
+--     valor_proprio                            numeric              NULL
+--     sub_card_agregado_em                     timestamp with time zone NULL
+--     sub_card_category                        text                 NULL
+--   Indexes:
+--     cards_pkey
+--     idx_cards_active
+--     idx_cards_archived_at
+--     idx_cards_card_type
+--     idx_cards_created_at
+--     idx_cards_data_fechamento
+--     idx_cards_dono_atual
+--     idx_cards_duracao
+--     idx_cards_epoca_ano
+--     idx_cards_epoca_mes
+--     idx_cards_external_id_source
+--     idx_cards_ganho_planner_at
+--     idx_cards_ganho_pos_at
+--     idx_cards_ganho_sdr_at
+--     idx_cards_indicado_por_id
+--     idx_cards_locked_fields
+--     idx_cards_marketing_data
+--     idx_cards_monde_historico
+--     idx_cards_monde_number
+--     idx_cards_origem
+--     idx_cards_parent_card_id
+--     idx_cards_pessoa_principal
+--     idx_cards_pipeline_id
+--     idx_cards_pipeline_stage
+--     idx_cards_pipeline_stage_id
+--     idx_cards_produto_created
+--     idx_cards_produto_data
+--     idx_cards_receita
+--     idx_cards_status_comercial
+--     idx_cards_sub_card_status
+--     idx_cards_won_fechamento
+--     uq_cards_external_identity
+--   Triggers:
+--     card_changes_trigger (AFTER UPDATE)
+--     card_created_trigger (AFTER INSERT)
+--     card_update_activity_trigger (AFTER UPDATE)
+--     enforce_single_role_cards (BEFORE UPDATE)
+--     trg_aggregate_sub_card_values (AFTER UPDATE)
+--     trg_aggregate_sub_card_values (AFTER INSERT)
+--     trg_auto_assign_card_owner (BEFORE INSERT)
+--     trg_auto_cancel_sub_cards (AFTER UPDATE)
+--     trg_auto_start_cadence_on_card_insert (AFTER INSERT)
+--     trg_cadence_entry_on_card_create (AFTER INSERT)
+--     trg_cadence_entry_on_stage_change (AFTER UPDATE)
+--     trg_card_auto_creation (AFTER UPDATE)
+--     trg_card_auto_creation (AFTER INSERT)
+--     trg_card_outbound_insert (AFTER INSERT)
+--     trg_card_outbound_sync (AFTER UPDATE)
+--     trg_normalize_card_origem (BEFORE UPDATE)
+--     trg_normalize_card_origem (BEFORE INSERT)
+--     trg_notify_teams_on_assign (AFTER UPDATE)
+--     trg_notify_teams_on_assign (AFTER INSERT)
+--     trg_populate_historico_fases (AFTER UPDATE)
+--     trg_push_lead_assigned (AFTER UPDATE)
+--     trg_push_lead_assigned (AFTER INSERT)
+--     trg_set_sub_card_completed (BEFORE UPDATE)
+--     trg_snapshot_briefing (BEFORE UPDATE)
+--     trg_sync_travel_normalized (BEFORE UPDATE)
+--     trg_sync_travel_normalized (BEFORE INSERT)
+--     trg_sync_valor_proprio_on_parent_edit (BEFORE UPDATE)
+--     trg_update_group_totals_cards (AFTER INSERT)
+--     trg_update_group_totals_cards (AFTER DELETE)
+--     trg_update_group_totals_cards (AFTER UPDATE)
+--     trg_update_stage_entered_at (BEFORE UPDATE)
+--     trigger_audit_cards (AFTER UPDATE)
+--     trigger_audit_cards (AFTER DELETE)
+--     trigger_automation_rules (AFTER UPDATE)
+--     trigger_card_auto_advance (AFTER UPDATE)
+--     trigger_card_owner_phase_guard (BEFORE UPDATE)
+--     trigger_card_status_automation (BEFORE UPDATE)
+--     trigger_card_status_automation (BEFORE INSERT)
+--     trigger_enforce_value_rules (BEFORE UPDATE)
+--     trigger_enforce_value_rules (BEFORE INSERT)
+--     trigger_log_card_deletion (AFTER UPDATE)
+--     trigger_outbound_webhook_cards (AFTER UPDATE)
+--     trigger_outbound_webhook_cards (AFTER INSERT)
+--     trigger_recalc_stats_cards (AFTER DELETE)
+--     trigger_recalc_stats_cards (AFTER UPDATE)
+--     trigger_recalc_stats_cards (AFTER INSERT)
+--     trigger_sync_card_dates (BEFORE UPDATE)
+--     trigger_sync_card_dates_reverse (BEFORE UPDATE)
+--     trigger_validate_card_data (BEFORE UPDATE)
+--     trigger_validate_card_data (BEFORE INSERT)
+--   RLS Policies:
+--     Cards delete by admin (DELETE)
+--     Cards insert by authenticated (INSERT)
+--     Cards update by authenticated (UPDATE)
+--     Cards viewable by authenticated (SELECT)
+
+-- TABLE: cards_contatos
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     card_id                                  uuid                 NOT NULL
+--     contato_id                               uuid                 NOT NULL
+--     tipo_viajante                            USER-DEFINED         NOT NULL DEFAULT 'acompanhante'::tipo_viajante_enum
+--     ordem                                    integer              NOT NULL DEFAULT 0
+--     created_at                               timestamp with time zone NOT NULL DEFAULT now()
+--     tipo_vinculo                             text                 NULL
+--   Indexes:
+--     cards_contatos_pkey
+--     idx_cards_contatos_card_id
+--     idx_cards_contatos_contato_id
+--     idx_cards_contatos_ordem
+--     unique_card_contato
+--     uq_cards_contatos_card_contact
+--   Triggers:
+--     cards_contatos_activity_trigger (AFTER DELETE)
+--     cards_contatos_activity_trigger (AFTER UPDATE)
+--     cards_contatos_activity_trigger (AFTER INSERT)
+--     enforce_single_role_cards_contatos (BEFORE UPDATE)
+--     enforce_single_role_cards_contatos (BEFORE INSERT)
+--     trg_link_viajante_orphan_messages (AFTER INSERT)
+--     trg_update_group_totals_contacts (AFTER DELETE)
+--     trg_update_group_totals_contacts (AFTER UPDATE)
+--     trg_update_group_totals_contacts (AFTER INSERT)
+--     trigger_recalc_stats_cards_contatos (AFTER DELETE)
+--     trigger_recalc_stats_cards_contatos (AFTER UPDATE)
+--     trigger_recalc_stats_cards_contatos (AFTER INSERT)
+--     update_travelers_count_trigger (AFTER DELETE)
+--     update_travelers_count_trigger (AFTER INSERT)
+--     update_travelers_count_trigger (AFTER UPDATE)
+--   RLS Policies:
+--     Usuarios autenticados podem atualizar cards_contatos (UPDATE)
+--     Usuarios autenticados podem criar cards_contatos (INSERT)
+--     Usuarios autenticados podem deletar cards_contatos (DELETE)
+--     Usuarios autenticados podem ver cards_contatos (SELECT)
+
+-- TABLE: configuracao_taxa_trips
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     valor_padrao                             numeric              NULL
+--     texto_explicativo                        text                 NULL
+--     ativo_global                             boolean              NULL DEFAULT true
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_by                               uuid                 NULL
+--   Indexes:
+--     configuracao_taxa_trips_pkey
+--   Triggers:
+--     on_config_taxa_updated (BEFORE UPDATE)
+--   RLS Policies:
+--     Config Taxa modify by gestor (ALL)
+--     Config Taxa viewable by authenticated (SELECT)
+
+-- TABLE: contact_stats
+--   Columns:
+--     contact_id                               uuid                 NOT NULL
+--     total_trips                              integer              NULL DEFAULT 0
+--     total_spend                              numeric              NULL DEFAULT 0
+--     last_trip_date                           timestamp with time zone NULL
+--     next_trip_date                           timestamp with time zone NULL
+--     top_destinations                         jsonb                NULL DEFAULT '[]'::jsonb
+--     is_group_leader                          boolean              NULL DEFAULT false
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     contact_stats_pkey
+--   RLS Policies:
+--     Enable read access for authenticated users (SELECT)
+
+-- TABLE: contato_meios
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     contato_id                               uuid                 NOT NULL
+--     tipo                                     text                 NOT NULL
+--     valor                                    text                 NOT NULL
+--     valor_normalizado                        text                 NULL
+--     is_principal                             boolean              NULL DEFAULT false
+--     verificado                               boolean              NULL DEFAULT false
+--     verificado_em                            timestamp with time zone NULL
+--     origem                                   text                 NULL
+--     metadata                                 jsonb                NULL DEFAULT '{}'::jsonb
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     contato_meios_pkey
+--     idx_contato_meios_contato
+--     idx_contato_meios_unique
+--   Triggers:
+--     trg_normalize_contato_meio (BEFORE INSERT)
+--     trg_normalize_contato_meio (BEFORE UPDATE)
+--     trg_reprocess_whatsapp_on_new_phone (AFTER INSERT)
+--     trg_sync_meios_to_telefone (AFTER UPDATE)
+--     trg_sync_meios_to_telefone (AFTER INSERT)
+--   RLS Policies:
+--     contato_meios_delete (DELETE)
+--     contato_meios_insert (INSERT)
+--     contato_meios_select (SELECT)
+--     contato_meios_update (UPDATE)
+
+-- TABLE: contatos
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     nome                                     text                 NOT NULL
+--     email                                    text                 NULL
+--     telefone                                 text                 NULL
+--     data_nascimento                          date                 NULL
+--     cpf                                      text                 NULL
+--     passaporte                               text                 NULL
+--     tipo_pessoa                              USER-DEFINED         NOT NULL DEFAULT 'adulto'::tipo_pessoa_enum
+--     responsavel_id                           uuid                 NULL
+--     endereco                                 jsonb                NULL
+--     observacoes                              text                 NULL
+--     created_at                               timestamp with time zone NOT NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NOT NULL DEFAULT now()
+--     tags                                     ARRAY                NULL DEFAULT '{}'::text[]
+--     created_by                               uuid                 NULL
+--     chatpro_session_id                       text                 NULL
+--     last_whatsapp_sync                       timestamp with time zone NULL
+--     external_id                              text                 NULL
+--     external_source                          text                 NULL
+--     sobrenome                                text                 NULL
+--     last_whatsapp_conversation_id            text                 NULL
+--     origem                                   text                 NULL
+--     origem_detalhe                           text                 NULL
+--     telefone_normalizado                     text                 NULL
+--     rg                                       text                 NULL
+--     passaporte_validade                      date                 NULL
+--     cpf_normalizado                          text                 NULL
+--     sexo                                     text                 NULL
+--     tipo_cliente                             text                 NULL
+--     primeira_venda_data                      date                 NULL
+--     ultima_venda_data                        date                 NULL
+--     ultimo_retorno_data                      date                 NULL
+--     data_cadastro_original                   timestamp with time zone NULL
+--     deleted_at                               timestamp with time zone NULL
+--     deleted_by                               uuid                 NULL
+--   Indexes:
+--     contatos_pkey
+--     idx_contatos_cpf_normalizado
+--     idx_contatos_cpf_normalizado_unique
+--     idx_contatos_created_by
+--     idx_contatos_deleted_at
+--     idx_contatos_email
+--     idx_contatos_external_id
+--     idx_contatos_last_whatsapp_convo_id
+--     idx_contatos_responsavel
+--     idx_contatos_tags
+--     idx_contatos_telefone_normalizado
+--     unique_email
+--   Triggers:
+--     auto_calculate_tipo_pessoa (BEFORE INSERT)
+--     auto_calculate_tipo_pessoa (BEFORE UPDATE)
+--     trg_check_contato_required (BEFORE INSERT)
+--     trg_reprocess_whatsapp_on_contato_phone (AFTER INSERT)
+--     trg_reprocess_whatsapp_on_contato_phone (AFTER UPDATE)
+--     trg_sync_telefone_to_meios (AFTER UPDATE)
+--     trigger_outbound_webhook_contatos (AFTER INSERT)
+--     trigger_outbound_webhook_contatos (AFTER UPDATE)
+--     update_contatos_updated_at (BEFORE UPDATE)
+--   RLS Policies:
+--     Usuarios autenticados podem atualizar contatos (UPDATE)
+--     Usuarios autenticados podem criar contatos (INSERT)
+--     Usuarios autenticados podem deletar contatos (DELETE)
+--     Usuarios autenticados podem ver todos os contatos (SELECT)
+
+-- TABLE: contratos
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     card_id                                  uuid                 NOT NULL
+--     tipo                                     USER-DEFINED         NOT NULL
+--     nome_contrato                            text                 NOT NULL
+--     status                                   text                 NULL DEFAULT 'rascunho'::text
+--     plataforma                               text                 NULL
+--     valor                                    numeric              NULL
+--     moeda                                    text                 NULL DEFAULT 'BRL'::text
+--     data_criacao                             timestamp with time zone NULL DEFAULT now()
+--     data_envio                               timestamp with time zone NULL
+--     data_assinatura                          timestamp with time zone NULL
+--     responsavel_id                           uuid                 NULL
+--     observacoes                              text                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     contratos_pkey
+--     idx_contratos_card
+--     idx_contratos_status
+--   Triggers:
+--     contrato_activity_trigger (AFTER INSERT)
+--     contrato_activity_trigger (AFTER UPDATE)
+--     on_contratos_updated (BEFORE UPDATE)
+--   RLS Policies:
+--     Contratos access (ALL)
+--     Contratos viewable by authenticated (SELECT)
+
+-- TABLE: dados_cadastrais_pf
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     pessoa_id                                uuid                 NOT NULL
+--     cpf                                      text                 NULL
+--     rg                                       text                 NULL
+--     data_nascimento                          date                 NULL
+--     endereco_completo                        text                 NULL
+--     email_cobranca                           text                 NULL
+--     telefone_cobranca                        text                 NULL
+--     dados_bancarios                          text                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     dados_cadastrais_pf_cpf_key
+--     dados_cadastrais_pf_pessoa_id_key
+--     dados_cadastrais_pf_pkey
+--   Triggers:
+--     on_dados_pf_updated (BEFORE UPDATE)
+--   RLS Policies:
+--     PF Data access (ALL)
+
+-- TABLE: dados_cadastrais_pj
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     card_id                                  uuid                 NOT NULL
+--     razao_social                             text                 NULL
+--     nome_fantasia                            text                 NULL
+--     cnpj                                     text                 NULL
+--     inscricao_estadual                       text                 NULL
+--     endereco_cobranca                        text                 NULL
+--     contato_financeiro_nome                  text                 NULL
+--     contato_financeiro_email                 text                 NULL
+--     contato_financeiro_telefone              text                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     dados_cadastrais_pj_card_id_key
+--     dados_cadastrais_pj_pkey
+--   Triggers:
+--     on_dados_pj_updated (BEFORE UPDATE)
+--   RLS Policies:
+--     PJ Data access (ALL)
+
+-- TABLE: departments
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     name                                     text                 NOT NULL
+--     slug                                     text                 NOT NULL
+--     description                              text                 NULL
+--     created_at                               timestamp with time zone NOT NULL DEFAULT now()
+--   Indexes:
+--     departments_name_key
+--     departments_pkey
+--     departments_slug_key
+--   RLS Policies:
+--     departments_select_authenticated (SELECT)
+
+-- TABLE: destinations
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     name                                     text                 NOT NULL
+--     country                                  text                 NOT NULL
+--     region                                   text                 NULL
+--     continent                                text                 NULL
+--     timezone                                 text                 NULL
+--     currency                                 text                 NULL DEFAULT 'USD'::text
+--     language                                 text                 NULL
+--     cover_image_url                          text                 NULL
+--     thumbnail_url                            text                 NULL
+--     gallery_urls                             ARRAY                NULL DEFAULT '{}'::text[]
+--     usage_count                              integer              NULL DEFAULT 0
+--     avg_trip_duration                        integer              NULL
+--     avg_budget_per_person                    numeric              NULL
+--     popular_months                           ARRAY                NULL DEFAULT '{}'::integer[]
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     destinations_name_country_key
+--     destinations_pkey
+--   RLS Policies:
+--     Anyone can view destinations (SELECT)
+--     Team can manage destinations (ALL)
+
+-- TABLE: document_types
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     nome                                     text                 NOT NULL
+--     slug                                     text                 NOT NULL
+--     descricao                                text                 NULL
+--     requires_file                            boolean              NOT NULL DEFAULT true
+--     has_data_field                           boolean              NOT NULL DEFAULT false
+--     data_field_label                         text                 NULL
+--     campo_contato                            text                 NULL
+--     ativo                                    boolean              NOT NULL DEFAULT true
+--     ordem                                    integer              NOT NULL DEFAULT 0
+--     created_at                               timestamp with time zone NOT NULL DEFAULT now()
+--     created_by                               uuid                 NULL
+--   Indexes:
+--     document_types_pkey
+--     document_types_slug_key
+--   RLS Policies:
+--     dt_insert (INSERT)
+--     dt_select (SELECT)
+--     dt_update (UPDATE)
+
+-- TABLE: external_refs
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     source                                   text                 NOT NULL DEFAULT 'active_campaign'::text
+--     business_unit                            text                 NOT NULL DEFAULT 'GLOBAL'::text
+--     entity_type                              text                 NOT NULL
+--     external_id                              text                 NOT NULL
+--     internal_id                              uuid                 NOT NULL
+--     metadata                                 jsonb                NULL DEFAULT '{}'::jsonb
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     external_refs_pkey
+--     external_refs_source_business_unit_entity_type_external_id_key
+--     external_refs_source_business_unit_entity_type_internal_id_key
+--     idx_external_refs_lookup
+--   RLS Policies:
+--     Authenticated can view external_refs (SELECT)
+
+-- TABLE: financial_item_passengers
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     financial_item_id                        uuid                 NOT NULL
+--     card_id                                  uuid                 NOT NULL
+--     nome                                     text                 NOT NULL
+--     status                                   text                 NULL DEFAULT 'pendente'::text
+--     observacao                               text                 NULL
+--     concluido_em                             timestamp with time zone NULL
+--     concluido_por                            uuid                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     ordem                                    integer              NULL DEFAULT 0
+--   Indexes:
+--     financial_item_passengers_pkey
+--     idx_fip_card
+--     idx_fip_financial_item
+--   RLS Policies:
+--     fip_delete (DELETE)
+--     fip_insert (INSERT)
+--     fip_select (SELECT)
+--     fip_update (UPDATE)
+
+-- TABLE: future_opportunities
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     source_card_id                           uuid                 NOT NULL
+--     source_type                              text                 NOT NULL
+--     scheduled_date                           date                 NOT NULL
+--     titulo                                   text                 NOT NULL
+--     descricao                                text                 NULL
+--     sub_card_mode                            text                 NULL DEFAULT 'incremental'::text
+--     status                                   text                 NOT NULL DEFAULT 'pending'::text
+--     created_card_id                          uuid                 NULL
+--     executed_at                              timestamp with time zone NULL
+--     cancelled_at                             timestamp with time zone NULL
+--     produto                                  text                 NULL
+--     pipeline_id                              uuid                 NULL
+--     responsavel_id                           uuid                 NULL
+--     pessoa_principal_id                      uuid                 NULL
+--     created_by                               uuid                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     metadata                                 jsonb                NULL
+--   Indexes:
+--     future_opportunities_pkey
+--     idx_future_opp_pending
+--     idx_future_opp_source
+--   RLS Policies:
+--     future_opp_insert (INSERT)
+--     future_opp_select (SELECT)
+--     future_opp_service (ALL)
+--     future_opp_update (UPDATE)
+
+-- TABLE: historico_fases
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     card_id                                  uuid                 NOT NULL
+--     etapa_anterior_id                        uuid                 NULL
+--     etapa_nova_id                            uuid                 NOT NULL
+--     mudado_por                               uuid                 NULL
+--     data_mudanca                             timestamp with time zone NULL DEFAULT now()
+--     tempo_na_etapa_anterior                  interval             NULL
+--   Indexes:
+--     historico_fases_pkey
+--     idx_historico_fases_card_data
+--     idx_historico_fases_etapa_anterior
+--     idx_historico_fases_etapa_nova_data
+--   RLS Policies:
+--     Historico viewable by authenticated (SELECT)
+
+-- TABLE: integration_catalog
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     integration_id                           uuid                 NOT NULL
+--     entity_type                              text                 NOT NULL
+--     external_id                              text                 NOT NULL
+--     external_name                            text                 NOT NULL
+--     parent_external_id                       text                 NULL
+--     metadata                                 jsonb                NULL DEFAULT '{}'::jsonb
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     integration_catalog_integration_id_entity_type_external_id__key
+--     integration_catalog_pkey
+--   RLS Policies:
+--     Authenticated users can insert/update catalog (ALL)
+--     Authenticated users can view catalog (SELECT)
+
+-- TABLE: integration_conflict_log
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     integration_id                           uuid                 NULL
+--     event_id                                 uuid                 NULL
+--     card_id                                  uuid                 NULL
+--     trigger_id                               uuid                 NULL
+--     conflict_type                            text                 NOT NULL
+--     target_stage_id                          uuid                 NULL
+--     actual_stage_id                          uuid                 NULL
+--     missing_requirements                     jsonb                NOT NULL DEFAULT '[]'::jsonb
+--     resolution                               text                 NOT NULL
+--     resolved_by                              uuid                 NULL
+--     resolved_at                              timestamp with time zone NULL
+--     notes                                    text                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     idx_conflict_log_card
+--     idx_conflict_log_created
+--     idx_conflict_log_integration
+--     idx_conflict_log_unresolved
+--     integration_conflict_log_pkey
+--   RLS Policies:
+--     Authenticated users can insert conflict logs (INSERT)
+--     Authenticated users can update conflict logs (UPDATE)
+--     Authenticated users can view conflict logs (SELECT)
+
+-- TABLE: integration_events
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     integration_id                           uuid                 NOT NULL
+--     idempotency_key                          text                 NULL
+--     status                                   text                 NOT NULL DEFAULT 'pending'::text
+--     attempts                                 integer              NOT NULL DEFAULT 0
+--     next_retry_at                            timestamp with time zone NULL
+--     payload                                  jsonb                NULL
+--     response                                 jsonb                NULL
+--     logs                                     jsonb                NULL DEFAULT '[]'::jsonb
+--     created_at                               timestamp with time zone NOT NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NOT NULL DEFAULT now()
+--     row_key                                  text                 NULL
+--     source                                   text                 NULL DEFAULT 'active_campaign'::text
+--     entity_type                              text                 NULL
+--     external_id                              text                 NULL
+--     event_type                               text                 NULL
+--     processing_log                           text                 NULL
+--     processed_at                             timestamp with time zone NULL
+--     matched_trigger_id                       uuid                 NULL
+--   Indexes:
+--     idx_integration_events_idempotency
+--     idx_integration_events_integration_id
+--     idx_integration_events_next_retry_at
+--     idx_integration_events_status
+--     idx_integration_events_status_pending
+--     idx_integration_events_trigger
+--     integration_events_pkey
+--     integration_events_row_key_key
+--   Triggers:
+--     set_timestamp_integration_events (BEFORE UPDATE)
+--   RLS Policies:
+--     Admins can delete integration events (DELETE)
+--     Admins can insert integration events (INSERT)
+--     Admins can update integration events (UPDATE)
+--     Admins can view integration events (SELECT)
+
+-- TABLE: integration_field_catalog
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     integration_id                           uuid                 NULL
+--     direction                                text                 NOT NULL
+--     field_key                                text                 NOT NULL
+--     field_name                               text                 NOT NULL
+--     field_type                               text                 NULL DEFAULT 'text'::text
+--     is_required                              boolean              NULL DEFAULT false
+--     source                                   text                 NULL DEFAULT 'detected'::text
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     integration_field_catalog_integration_id_direction_field_ke_key
+--     integration_field_catalog_pkey
+--   RLS Policies:
+--     Allow admin write (ALL)
+--     Allow authenticated read (SELECT)
+
+-- TABLE: integration_field_map
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     source                                   text                 NOT NULL DEFAULT 'active_campaign'::text
+--     entity_type                              text                 NOT NULL
+--     external_field_id                        text                 NOT NULL
+--     local_field_key                          text                 NOT NULL
+--     direction                                text                 NULL DEFAULT 'bidirectional'::text
+--     integration_id                           uuid                 NULL
+--     section                                  text                 NULL
+--     external_pipeline_id                     text                 NULL
+--     sync_always                              boolean              NULL DEFAULT false
+--     is_active                                boolean              NULL DEFAULT true
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     storage_location                         text                 NULL
+--     db_column_name                           character varying    NULL
+--   Indexes:
+--     idx_integration_field_map_pipeline
+--     integration_field_map_pipeline_unique
+--     integration_field_map_pkey
+--     integration_field_map_unique_mapping
+--   RLS Policies:
+--     integration_field_map_admin_all (ALL)
+--     integration_field_map_authenticated_select (SELECT)
+--     integration_field_map_service_role (ALL)
+
+-- TABLE: integration_health_alerts
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     rule_id                                  uuid                 NOT NULL
+--     rule_key                                 text                 NOT NULL
+--     status                                   text                 NOT NULL DEFAULT 'active'::text
+--     context                                  jsonb                NOT NULL DEFAULT '{}'::jsonb
+--     fired_at                                 timestamp with time zone NOT NULL DEFAULT now()
+--     acknowledged_at                          timestamp with time zone NULL
+--     acknowledged_by                          uuid                 NULL
+--     resolved_at                              timestamp with time zone NULL
+--     created_at                               timestamp with time zone NOT NULL DEFAULT now()
+--   Indexes:
+--     idx_health_alerts_active_rule
+--     idx_health_alerts_fired_at
+--     idx_health_alerts_status
+--     integration_health_alerts_pkey
+--   RLS Policies:
+--     Admins can manage health alerts (ALL)
+--     Authenticated can view health alerts (SELECT)
+
+-- TABLE: integration_health_pulse
+--   Columns:
+--     channel                                  text                 NOT NULL
+--     label                                    text                 NOT NULL
+--     last_event_at                            timestamp with time zone NULL
+--     event_count_24h                          integer              NULL DEFAULT 0
+--     event_count_7d                           integer              NULL DEFAULT 0
+--     last_error_at                            timestamp with time zone NULL
+--     error_count_24h                          integer              NULL DEFAULT 0
+--     updated_at                               timestamp with time zone NOT NULL DEFAULT now()
+--   Indexes:
+--     integration_health_pulse_pkey
+--   RLS Policies:
+--     Authenticated can view pulse (SELECT)
+--     Service role can manage pulse (ALL)
+
+-- TABLE: integration_health_rules
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     rule_key                                 text                 NOT NULL
+--     label                                    text                 NOT NULL
+--     description                              text                 NULL
+--     category                                 text                 NOT NULL
+--     severity                                 text                 NOT NULL DEFAULT 'warning'::text
+--     threshold_hours                          numeric              NOT NULL DEFAULT 24
+--     threshold_count                          integer              NULL
+--     threshold_percent                        numeric              NULL
+--     is_enabled                               boolean              NOT NULL DEFAULT true
+--     created_at                               timestamp with time zone NOT NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NOT NULL DEFAULT now()
+--   Indexes:
+--     integration_health_rules_pkey
+--     integration_health_rules_rule_key_key
+--   Triggers:
+--     set_timestamp_integration_health_rules (BEFORE UPDATE)
+--   RLS Policies:
+--     Admins can manage health rules (ALL)
+--     Authenticated can view health rules (SELECT)
+
+-- TABLE: integration_inbound_triggers
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     integration_id                           uuid                 NOT NULL
+--     external_pipeline_id                     text                 NOT NULL
+--     external_stage_id                        text                 NOT NULL
+--     action_type                              text                 NOT NULL DEFAULT 'create_only'::text
+--     entity_types                             ARRAY                NOT NULL DEFAULT ARRAY['deal'::text, 'contact'::text]
+--     is_active                                boolean              NOT NULL DEFAULT true
+--     description                              text                 NULL
+--     created_at                               timestamp with time zone NOT NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NOT NULL DEFAULT now()
+--     external_owner_ids                       ARRAY                NULL
+--     target_stage_id                          uuid                 NULL
+--     target_pipeline_id                       uuid                 NULL
+--     external_pipeline_ids                    ARRAY                NULL
+--     external_stage_ids                       ARRAY                NULL
+--     name                                     text                 NULL
+--     bypass_validation                        boolean              NULL DEFAULT false
+--     validation_level                         text                 NULL DEFAULT 'fields_only'::text
+--     quarantine_mode                          text                 NULL DEFAULT 'stage'::text
+--     quarantine_stage_id                      uuid                 NULL
+--   Indexes:
+--     idx_inbound_triggers_lookup
+--     idx_inbound_triggers_owner_ids
+--     idx_inbound_triggers_pipeline_ids
+--     idx_inbound_triggers_stage_ids
+--     integration_inbound_triggers_pkey
+--   Triggers:
+--     trigger_update_inbound_triggers_timestamp (BEFORE UPDATE)
+--   RLS Policies:
+--     Allow authenticated delete (DELETE)
+--     Allow authenticated insert (INSERT)
+--     Allow authenticated select (SELECT)
+--     Allow authenticated update (UPDATE)
+
+-- TABLE: integration_outbound_field_map
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     integration_id                           uuid                 NULL
+--     internal_field                           text                 NOT NULL
+--     internal_field_label                     text                 NULL
+--     external_field_id                        text                 NOT NULL
+--     external_field_name                      text                 NULL
+--     sync_on_phases                           ARRAY                NULL DEFAULT '{}'::uuid[]
+--     sync_always                              boolean              NULL DEFAULT false
+--     transform_type                           text                 NULL DEFAULT 'direct'::text
+--     is_active                                boolean              NULL DEFAULT true
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     section                                  text                 NULL
+--     external_pipeline_id                     text                 NULL
+--     value_map                                jsonb                NULL
+--   Indexes:
+--     idx_outbound_field_map_pipeline
+--     integration_outbound_field_ma_integration_id_internal_field_key
+--     integration_outbound_field_map_pkey
+--     integration_outbound_field_map_unique_per_pipeline
+--   RLS Policies:
+--     Allow admin write (ALL)
+--     Allow authenticated read (SELECT)
+
+-- TABLE: integration_outbound_queue
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     card_id                                  uuid                 NULL
+--     integration_id                           uuid                 NULL
+--     external_id                              text                 NULL
+--     event_type                               text                 NOT NULL
+--     payload                                  jsonb                NOT NULL
+--     status                                   text                 NULL DEFAULT 'pending'::text
+--     processing_log                           text                 NULL
+--     attempts                                 integer              NULL DEFAULT 0
+--     max_attempts                             integer              NULL DEFAULT 3
+--     next_retry_at                            timestamp with time zone NULL
+--     triggered_by                             text                 NULL DEFAULT 'user'::text
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     processed_at                             timestamp with time zone NULL
+--     matched_trigger_id                       uuid                 NULL
+--     response_data                            jsonb                NULL
+--     tarefa_id                                uuid                 NULL
+--   Indexes:
+--     idx_outbound_queue_pending
+--     idx_outbound_queue_status_created
+--     idx_outbound_queue_trigger
+--     integration_outbound_queue_pkey
+--   RLS Policies:
+--     Allow authenticated read (SELECT)
+--     Allow system write (ALL)
+--     Allow trigger insert (INSERT)
+
+-- TABLE: integration_outbound_stage_map
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     integration_id                           uuid                 NULL
+--     internal_stage_id                        uuid                 NULL
+--     external_stage_id                        text                 NOT NULL
+--     external_stage_name                      text                 NULL
+--     is_active                                boolean              NULL DEFAULT true
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     integration_outbound_stage_ma_integration_id_internal_stage_key
+--     integration_outbound_stage_map_pkey
+--   RLS Policies:
+--     Allow admin write (ALL)
+--     Allow authenticated read (SELECT)
+
+-- TABLE: integration_outbound_triggers
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     integration_id                           uuid                 NULL
+--     name                                     text                 NOT NULL
+--     description                              text                 NULL
+--     source_pipeline_ids                      ARRAY                NULL
+--     source_stage_ids                         ARRAY                NULL
+--     source_owner_ids                         ARRAY                NULL
+--     source_status                            ARRAY                NULL
+--     event_types                              ARRAY                NULL DEFAULT '{stage_change,field_update,won,lost}'::text[]
+--     sync_field_mode                          text                 NULL DEFAULT 'all'::text
+--     sync_fields                              ARRAY                NULL
+--     action_mode                              text                 NULL DEFAULT 'allow'::text
+--     is_active                                boolean              NULL DEFAULT true
+--     priority                                 integer              NULL DEFAULT 100
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     action_type                              text                 NULL DEFAULT 'update_only'::text
+--   Indexes:
+--     idx_outbound_triggers_active
+--     idx_outbound_triggers_integration_id
+--     idx_outbound_triggers_priority
+--     integration_outbound_triggers_pkey
+--   Triggers:
+--     tr_outbound_triggers_updated_at (BEFORE UPDATE)
+--   RLS Policies:
+--     Admins can manage outbound triggers (ALL)
+--     Authenticated users can view outbound triggers (SELECT)
+
+-- TABLE: integration_outbox
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     destination                              text                 NOT NULL DEFAULT 'active_campaign'::text
+--     entity_type                              text                 NOT NULL
+--     internal_id                              uuid                 NOT NULL
+--     action                                   text                 NOT NULL
+--     payload                                  jsonb                NOT NULL
+--     status                                   text                 NOT NULL DEFAULT 'pending'::text
+--     retry_count                              integer              NULL DEFAULT 0
+--     error_log                                text                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     integration_outbox_pkey
+--   RLS Policies:
+--     integration_outbox_admin_insert (INSERT)
+--     integration_outbox_authenticated_select (SELECT)
+--     integration_outbox_service_role (ALL)
+
+-- TABLE: integration_provider_catalog
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     slug                                     text                 NOT NULL
+--     name                                     text                 NOT NULL
+--     description                              text                 NULL
+--     icon_name                                text                 NULL
+--     color                                    text                 NULL
+--     logo_url                                 text                 NULL
+--     category                                 text                 NOT NULL
+--     tags                                     ARRAY                NULL DEFAULT '{}'::text[]
+--     direction                                ARRAY                NOT NULL DEFAULT '{}'::text[]
+--     builder_type                             text                 NOT NULL DEFAULT 'webhook'::text
+--     config_schema                            jsonb                NULL
+--     required_credentials                     ARRAY                NULL DEFAULT '{}'::text[]
+--     documentation_url                        text                 NULL
+--     setup_guide                              text                 NULL
+--     is_active                                boolean              NULL DEFAULT true
+--     is_premium                               boolean              NULL DEFAULT false
+--     is_beta                                  boolean              NULL DEFAULT false
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     idx_provider_catalog_active
+--     idx_provider_catalog_category
+--     idx_provider_catalog_slug
+--     integration_provider_catalog_pkey
+--     integration_provider_catalog_slug_key
+--   Triggers:
+--     trigger_update_provider_catalog_updated_at (BEFORE UPDATE)
+--   RLS Policies:
+--     Anyone can read provider catalog (SELECT)
+--     Service role can manage provider catalog (ALL)
+
+-- TABLE: integration_router_config
+--   Columns:
+--     ac_pipeline_id                           text                 NOT NULL
+--     business_unit                            text                 NOT NULL
+--     target_pipeline_id                       uuid                 NULL
+--     description                              text                 NULL
+--     is_active                                boolean              NULL DEFAULT true
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     internal_pipeline_id                     uuid                 NULL
+--     external_pipeline_id                     text                 NULL
+--     integration_id                           uuid                 NULL
+--     pipeline_id                              uuid                 NULL
+--     external_list_id                         text                 NULL
+--   Indexes:
+--     integration_router_config_integration_pipeline_idx
+--     integration_router_config_pkey
+--   RLS Policies:
+--     Authenticated users can insert/update router config (ALL)
+--     Authenticated users can view router config (SELECT)
+
+-- TABLE: integration_settings
+--   Columns:
+--     key                                      text                 NOT NULL
+--     value                                    text                 NOT NULL
+--     description                              text                 NULL
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     integration_settings_pkey
+--   RLS Policies:
+--     integration_settings_admin_all (ALL)
+--     integration_settings_admin_select (SELECT)
+--     integration_settings_service_role (ALL)
+
+-- TABLE: integration_stage_map
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     integration_id                           uuid                 NOT NULL
+--     pipeline_id                              text                 NOT NULL
+--     external_stage_id                        text                 NOT NULL
+--     external_stage_name                      text                 NOT NULL
+--     internal_stage_id                        uuid                 NOT NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     direction                                text                 NULL DEFAULT 'inbound'::text
+--     label                                    text                 NULL
+--   Indexes:
+--     integration_stage_map_integration_id_pipeline_id_external_s_key
+--     integration_stage_map_pkey
+--   RLS Policies:
+--     Authenticated users can insert/update stage map (ALL)
+--     Authenticated users can view stage map (SELECT)
+
+-- TABLE: integration_task_sync_config
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     integration_id                           uuid                 NULL
+--     pipeline_id                              uuid                 NULL
+--     inbound_enabled                          boolean              NULL DEFAULT false
+--     outbound_enabled                         boolean              NULL DEFAULT false
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     integration_task_sync_config_integration_id_pipeline_id_key
+--     integration_task_sync_config_pkey
+--   RLS Policies:
+--     task_sync_config_admin (ALL)
+--     task_sync_config_select (SELECT)
+
+-- TABLE: integration_task_type_map
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     integration_id                           uuid                 NULL
+--     pipeline_id                              uuid                 NULL
+--     ac_task_type                             integer              NOT NULL
+--     crm_task_tipo                            text                 NOT NULL
+--     sync_direction                           text                 NOT NULL DEFAULT 'both'::text
+--     is_active                                boolean              NULL DEFAULT true
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     integration_task_type_map_integration_id_pipeline_id_ac_tas_key
+--     integration_task_type_map_pkey
+--   RLS Policies:
+--     task_type_map_admin (ALL)
+--     task_type_map_select (SELECT)
+
+-- TABLE: integration_user_map
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     integration_id                           uuid                 NOT NULL
+--     external_user_id                         text                 NOT NULL
+--     internal_user_id                         uuid                 NOT NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     direction                                text                 NULL DEFAULT 'inbound'::text
+--     label                                    text                 NULL
+--   Indexes:
+--     integration_user_map_integration_id_external_user_id_key
+--     integration_user_map_pkey
+--   RLS Policies:
+--     Authenticated users can insert/update user map (ALL)
+--     Authenticated users can view user map (SELECT)
+
+-- TABLE: integrations
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     name                                     text                 NOT NULL
+--     type                                     text                 NOT NULL
+--     provider                                 text                 NOT NULL DEFAULT 'webhook'::text
+--     config                                   jsonb                NOT NULL DEFAULT '{}'::jsonb
+--     transformer_rules                        jsonb                NOT NULL DEFAULT '[]'::jsonb
+--     is_active                                boolean              NOT NULL DEFAULT true
+--     created_at                               timestamp with time zone NOT NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NOT NULL DEFAULT now()
+--   Indexes:
+--     integrations_pkey
+--   Triggers:
+--     set_timestamp_integrations (BEFORE UPDATE)
+--   RLS Policies:
+--     Admins can manage integrations (ALL)
+
+-- TABLE: inventory_movements
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     product_id                               uuid                 NOT NULL
+--     quantity                                 integer              NOT NULL
+--     movement_type                            text                 NOT NULL
+--     reason                                   text                 NULL
+--     reference_id                             uuid                 NULL
+--     performed_by                             uuid                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     idx_inventory_movements_created
+--     idx_inventory_movements_product
+--     idx_inventory_movements_type
+--     inventory_movements_pkey
+--   Triggers:
+--     trg_update_inventory_stock (AFTER INSERT)
+--   RLS Policies:
+--     im_delete (DELETE)
+--     im_insert (INSERT)
+--     im_select (SELECT)
+--     im_update (UPDATE)
+
+-- TABLE: inventory_products
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     name                                     text                 NOT NULL
+--     sku                                      text                 NOT NULL
+--     description                              text                 NULL
+--     category                                 text                 NOT NULL DEFAULT 'geral'::text
+--     unit_price                               numeric              NOT NULL DEFAULT 0
+--     current_stock                            integer              NOT NULL DEFAULT 0
+--     low_stock_threshold                      integer              NOT NULL DEFAULT 5
+--     image_path                               text                 NULL
+--     active                                   boolean              NOT NULL DEFAULT true
+--     created_by                               uuid                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     idx_inventory_products_active
+--     idx_inventory_products_category
+--     idx_inventory_products_sku
+--     inventory_products_pkey
+--   RLS Policies:
+--     ip_delete (DELETE)
+--     ip_insert (INSERT)
+--     ip_select (SELECT)
+--     ip_update (UPDATE)
+
+-- TABLE: invitations
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     email                                    text                 NOT NULL
+--     role                                     text                 NOT NULL
+--     team_id                                  uuid                 NULL
+--     token                                    text                 NOT NULL
+--     expires_at                               timestamp with time zone NOT NULL
+--     created_at                               timestamp with time zone NOT NULL DEFAULT now()
+--     created_by                               uuid                 NULL
+--     used_at                                  timestamp with time zone NULL
+--     produtos                                 ARRAY                NULL
+--   Indexes:
+--     invitations_pkey
+--     invitations_token_key
+--   Triggers:
+--     trigger_cleanup_orphaned_user_on_invite_delete (AFTER DELETE)
+--   RLS Policies:
+--     Admins and managers can create invitations (INSERT)
+--     Admins and managers can delete invitations (DELETE)
+--     Admins and managers can view invitations (SELECT)
+
+-- TABLE: mensagens
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     card_id                                  uuid                 NOT NULL
+--     pessoa_id                                uuid                 NULL
+--     lado                                     text                 NOT NULL
+--     canal                                    text                 NOT NULL
+--     conteudo                                 text                 NULL
+--     assunto                                  text                 NULL
+--     data_hora                                timestamp with time zone NULL DEFAULT now()
+--     remetente_interno_id                     uuid                 NULL
+--     metadados                                jsonb                NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     idx_mensagens_card
+--     mensagens_pkey
+--   Triggers:
+--     mensagem_activity_trigger (AFTER INSERT)
+--   RLS Policies:
+--     Mensagens editable by authenticated (ALL)
+--     Mensagens viewable by authenticated (SELECT)
+
+-- TABLE: monde_import_log_items
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     import_log_id                            uuid                 NOT NULL
+--     card_id                                  uuid                 NOT NULL
+--     card_title                               text                 NOT NULL
+--     venda_num                                text                 NOT NULL
+--     products_count                           integer              NOT NULL DEFAULT 0
+--     total_venda                              numeric              NOT NULL DEFAULT 0
+--     total_receita                            numeric              NOT NULL DEFAULT 0
+--     status                                   text                 NOT NULL DEFAULT 'success'::text
+--     error_message                            text                 NULL
+--     created_at                               timestamp with time zone NOT NULL DEFAULT now()
+--   Indexes:
+--     idx_monde_log_items_card
+--     idx_monde_log_items_log
+--     monde_import_log_items_pkey
+--   RLS Policies:
+--     authenticated_insert_monde_log_items (INSERT)
+--     authenticated_read_monde_log_items (SELECT)
+
+-- TABLE: monde_import_logs
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     file_name                                text                 NOT NULL
+--     total_rows                               integer              NOT NULL DEFAULT 0
+--     matched_cards                            integer              NOT NULL DEFAULT 0
+--     unmatched_vendas                         integer              NOT NULL DEFAULT 0
+--     products_imported                        integer              NOT NULL DEFAULT 0
+--     status                                   text                 NOT NULL DEFAULT 'completed'::text
+--     error_message                            text                 NULL
+--     created_by                               uuid                 NOT NULL
+--     created_at                               timestamp with time zone NOT NULL DEFAULT now()
+--   Indexes:
+--     idx_monde_logs_created
+--     monde_import_logs_pkey
+--   RLS Policies:
+--     authenticated_insert_monde_logs (INSERT)
+--     authenticated_read_monde_logs (SELECT)
+
+-- TABLE: monde_sale_items
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     sale_id                                  uuid                 NOT NULL
+--     proposal_item_id                         uuid                 NULL
+--     proposal_flight_id                       uuid                 NULL
+--     item_type                                text                 NOT NULL
+--     title                                    text                 NOT NULL
+--     description                              text                 NULL
+--     supplier                                 text                 NULL
+--     unit_price                               numeric              NOT NULL DEFAULT 0
+--     quantity                                 integer              NOT NULL DEFAULT 1
+--     total_price                              numeric              NOT NULL DEFAULT 0
+--     service_date_start                       date                 NULL
+--     service_date_end                         date                 NULL
+--     item_metadata                            jsonb                NULL DEFAULT '{}'::jsonb
+--     created_at                               timestamp with time zone NOT NULL DEFAULT now()
+--     card_financial_item_id                   uuid                 NULL
+--   Indexes:
+--     idx_monde_sale_items_financial_item
+--     idx_monde_sale_items_proposal_flight
+--     idx_monde_sale_items_proposal_item
+--     idx_monde_sale_items_sale_id
+--     idx_monde_sale_items_unique_financial_item
+--     idx_monde_sale_items_unique_proposal_flight
+--     idx_monde_sale_items_unique_proposal_item
+--     monde_sale_items_pkey
+--   Triggers:
+--     trg_monde_sale_items_total (AFTER DELETE)
+--     trg_monde_sale_items_total (AFTER UPDATE)
+--     trg_monde_sale_items_total (AFTER INSERT)
+--   RLS Policies:
+--     Users can insert monde_sale_items (INSERT)
+--     Users can view monde_sale_items (SELECT)
+
+-- TABLE: monde_sales
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     card_id                                  uuid                 NOT NULL
+--     proposal_id                              uuid                 NULL
+--     monde_sale_id                            text                 NULL
+--     monde_sale_number                        text                 NULL
+--     idempotency_key                          uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     sale_date                                date                 NOT NULL
+--     travel_start_date                        date                 NULL
+--     travel_end_date                          date                 NULL
+--     total_value                              numeric              NOT NULL DEFAULT 0
+--     currency                                 text                 NOT NULL DEFAULT 'BRL'::text
+--     status                                   text                 NOT NULL DEFAULT 'pending'::text
+--     attempts                                 integer              NOT NULL DEFAULT 0
+--     max_attempts                             integer              NOT NULL DEFAULT 3
+--     next_retry_at                            timestamp with time zone NULL
+--     attempts_log                             jsonb                NULL DEFAULT '[]'::jsonb
+--     monde_response                           jsonb                NULL
+--     error_message                            text                 NULL
+--     created_by                               uuid                 NOT NULL
+--     sent_at                                  timestamp with time zone NULL
+--     created_at                               timestamp with time zone NOT NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NOT NULL DEFAULT now()
+--   Indexes:
+--     idx_monde_sales_card_id
+--     idx_monde_sales_created_by
+--     idx_monde_sales_monde_sale_id
+--     idx_monde_sales_pending_retry
+--     idx_monde_sales_sale_date
+--     idx_monde_sales_status
+--     monde_sales_idempotency_key_key
+--     monde_sales_pkey
+--   Triggers:
+--     trg_monde_sales_updated_at (BEFORE UPDATE)
+--   RLS Policies:
+--     Users can insert monde_sales (INSERT)
+--     Users can update monde_sales (UPDATE)
+--     Users can view monde_sales (SELECT)
+
+-- TABLE: motivos_perda
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     nome                                     text                 NOT NULL
+--     ativo                                    boolean              NULL DEFAULT true
+--   Indexes:
+--     motivos_perda_pkey
+--   RLS Policies:
+--     Admins can manage motivos_perda (ALL)
+--     Authenticated users can read motivos_perda (SELECT)
+--     Motivos viewable by authenticated (SELECT)
+
+-- TABLE: n8n_ai_extraction_queue
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     card_id                                  uuid                 NOT NULL
+--     message_count                            integer              NULL DEFAULT 1
+--     first_message_at                         timestamp with time zone NULL DEFAULT now()
+--     last_message_at                          timestamp with time zone NULL DEFAULT now()
+--     scheduled_for                            timestamp with time zone NOT NULL
+--     status                                   text                 NULL DEFAULT 'pending'::text
+--     sent_at                                  timestamp with time zone NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     idx_n8n_queue_card_pending
+--     idx_n8n_queue_pending
+--     n8n_ai_extraction_queue_pkey
+--   RLS Policies:
+--     Service role full access (ALL)
+
+-- TABLE: notification_type_config
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     type_key                                 text                 NOT NULL
+--     label                                    text                 NOT NULL
+--     description                              text                 NULL
+--     icon                                     text                 NOT NULL DEFAULT 'bell'::text
+--     color                                    text                 NOT NULL DEFAULT 'indigo'::text
+--     enabled                                  boolean              NULL DEFAULT true
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     notification_type_config_pkey
+--     notification_type_config_type_key_key
+--   RLS Policies:
+--     Admins can update notification config (UPDATE)
+--     Anyone can read notification config (SELECT)
+
+-- TABLE: notifications
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     user_id                                  uuid                 NOT NULL
+--     type                                     text                 NOT NULL DEFAULT 'lead_assigned'::text
+--     title                                    text                 NOT NULL
+--     body                                     text                 NULL
+--     url                                      text                 NULL
+--     read                                     boolean              NULL DEFAULT false
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     card_id                                  uuid                 NULL
+--   Indexes:
+--     idx_notifications_card_user
+--     idx_notifications_user_created
+--     idx_notifications_user_unread
+--     notifications_pkey
+--   RLS Policies:
+--     Service can insert notifications (INSERT)
+--     Users can update own notifications (UPDATE)
+--     Users can view own notifications (SELECT)
+
+-- TABLE: organization_settings
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     key                                      text                 NOT NULL
+--     value                                    jsonb                NOT NULL DEFAULT '{}'::jsonb
+--     description                              text                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     organization_settings_key_key
+--     organization_settings_pkey
+--   RLS Policies:
+--     Admins can manage settings (ALL)
+--     Authenticated users can read settings (SELECT)
+
+-- TABLE: organizations
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     name                                     text                 NOT NULL
+--     slug                                     text                 NOT NULL
+--     active                                   boolean              NOT NULL DEFAULT true
+--     created_at                               timestamp with time zone NOT NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NOT NULL DEFAULT now()
+--   Indexes:
+--     organizations_pkey
+--     organizations_slug_key
+--   RLS Policies:
+--     authenticated_read_orgs (SELECT)
+--     organizations_read_authenticated (SELECT)
+
+-- TABLE: participacoes
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     card_id                                  uuid                 NOT NULL
+--     pessoa_id                                uuid                 NOT NULL
+--     papel                                    text                 NOT NULL
+--     observacoes                              text                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     idx_participacoes_card
+--     idx_participacoes_unique
+--     participacoes_pkey
+
+-- TABLE: phase_visibility_rules
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     source_phase_id                          uuid                 NOT NULL
+--     target_phase_id                          uuid                 NOT NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     idx_phase_visibility_source
+--     phase_visibility_rules_pkey
+--     phase_visibility_rules_source_phase_id_target_phase_id_key
+--   RLS Policies:
+--     phase_visibility_rules_admin_delete (DELETE)
+--     phase_visibility_rules_admin_insert (INSERT)
+--     phase_visibility_rules_read (SELECT)
+
+-- TABLE: pipeline_card_settings
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     fase                                     text                 NOT NULL
+--     campos_visiveis                          jsonb                NULL DEFAULT '[]'::jsonb
+--     ordem_campos                             jsonb                NULL DEFAULT '[]'::jsonb
+--     usuario_id                               uuid                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     campos_kanban                            jsonb                NOT NULL DEFAULT '[]'::jsonb
+--     ordem_kanban                             jsonb                NOT NULL DEFAULT '[]'::jsonb
+--     phase_id                                 uuid                 NULL
+--   Indexes:
+--     idx_pipeline_card_settings_usuario
+--     pipeline_card_settings_phase_id_usuario_id_key
+--     pipeline_card_settings_pkey
+--   Triggers:
+--     trigger_update_pipeline_card_settings_updated_at (BEFORE UPDATE)
+--   RLS Policies:
+--     Global settings management (ALL)
+--     Settings editable by owner (ALL)
+--     Settings viewable by authenticated (SELECT)
+--     Users can insert their own settings (INSERT)
+--     Users can update their own settings (UPDATE)
+
+-- TABLE: pipeline_config
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     pipeline_id                              uuid                 NOT NULL
+--     config_type                              text                 NOT NULL
+--     from_stage_id                            uuid                 NULL
+--     to_stage_id                              uuid                 NULL
+--     conditions                               jsonb                NULL DEFAULT '{}'::jsonb
+--     actions                                  jsonb                NULL DEFAULT '{}'::jsonb
+--     ativo                                    boolean              NULL DEFAULT true
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     idx_pipeline_config_conditions
+--     idx_pipeline_config_pipeline
+--     pipeline_config_pkey
+--   RLS Policies:
+--     Pipeline config manageable by admin (ALL)
+--     Pipeline config viewable by authenticated (SELECT)
+
+-- TABLE: pipeline_phases
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     name                                     text                 NOT NULL
+--     label                                    text                 NOT NULL
+--     color                                    text                 NOT NULL
+--     order_index                              integer              NOT NULL DEFAULT 0
+--     active                                   boolean              NOT NULL DEFAULT true
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     slug                                     text                 NULL
+--     visible_in_card                          boolean              NULL DEFAULT true
+--   Indexes:
+--     pipeline_phases_pkey
+--     pipeline_phases_slug_key
+--   RLS Policies:
+--     Allow insert/delete for admins (ALL)
+--     Allow read access for authenticated users (SELECT)
+--     Allow update for authenticated users (UPDATE)
+
+-- TABLE: pipeline_stages
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     nome                                     text                 NOT NULL
+--     ordem                                    integer              NOT NULL
+--     tipo_responsavel                         USER-DEFINED         NULL
+--     ativo                                    boolean              NULL DEFAULT true
+--     pipeline_id                              uuid                 NOT NULL
+--     fase                                     text                 NULL
+--     sla_hours                                integer              NULL
+--     description                              text                 NULL
+--     is_won                                   boolean              NULL DEFAULT false
+--     is_lost                                  boolean              NULL DEFAULT false
+--     is_frozen                                boolean              NULL DEFAULT false
+--     target_role                              text                 NULL
+--     phase_id                                 uuid                 NULL
+--     is_sdr_won                               boolean              NULL DEFAULT false
+--     is_planner_won                           boolean              NULL DEFAULT false
+--     is_pos_won                               boolean              NULL DEFAULT false
+--     milestone_key                            text                 NULL
+--     auto_advance                             boolean              NOT NULL DEFAULT false
+--     target_phase_id                          uuid                 NULL
+--   Indexes:
+--     etapas_funil_pkey
+--     idx_pipeline_stages_milestone_key_unique
+--   Triggers:
+--     sync_stage_fase_trigger (BEFORE UPDATE)
+--     sync_stage_fase_trigger (BEFORE INSERT)
+--   RLS Policies:
+--     Admin full access (ALL)
+--     Etapas viewable by authenticated (SELECT)
+
+-- TABLE: pipelines
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     produto                                  USER-DEFINED         NOT NULL
+--     nome                                     text                 NOT NULL
+--     descricao                                text                 NULL
+--     ativo                                    boolean              NULL DEFAULT true
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     sub_card_default_stage_id                uuid                 NULL
+--   Indexes:
+--     pipelines_pkey
+--     pipelines_produto_key
+--   RLS Policies:
+--     Pipelines viewable by authenticated (SELECT)
+
+-- TABLE: pos_venda_import_log_items
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     import_log_id                            uuid                 NOT NULL
+--     card_id                                  uuid                 NULL
+--     action                                   text                 NOT NULL
+--     card_title                               text                 NULL
+--     pagante                                  text                 NULL
+--     cpf                                      text                 NULL
+--     venda_nums                               ARRAY                NULL
+--     data_inicio                              date                 NULL
+--     data_fim                                 date                 NULL
+--     products_count                           integer              NOT NULL DEFAULT 0
+--     total_venda                              numeric              NOT NULL DEFAULT 0
+--     total_receita                            numeric              NOT NULL DEFAULT 0
+--     stage_name                               text                 NULL
+--     error_message                            text                 NULL
+--     created_at                               timestamp with time zone NOT NULL DEFAULT now()
+--     reverted_at                              timestamp with time zone NULL
+--     reverted_by                              uuid                 NULL
+--     previous_state                           jsonb                NULL
+--   Indexes:
+--     idx_pv_import_log_items_log
+--     pos_venda_import_log_items_pkey
+--   RLS Policies:
+--     pos_venda_import_log_items_all (ALL)
+
+-- TABLE: pos_venda_import_logs
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     file_name                                text                 NOT NULL
+--     total_rows                               integer              NOT NULL DEFAULT 0
+--     trips_found                              integer              NOT NULL DEFAULT 0
+--     cards_created                            integer              NOT NULL DEFAULT 0
+--     cards_updated                            integer              NOT NULL DEFAULT 0
+--     contacts_created                         integer              NOT NULL DEFAULT 0
+--     duplicates_skipped                       integer              NOT NULL DEFAULT 0
+--     products_imported                        integer              NOT NULL DEFAULT 0
+--     status                                   text                 NOT NULL DEFAULT 'completed'::text
+--     error_message                            text                 NULL
+--     created_by                               uuid                 NULL
+--     created_at                               timestamp with time zone NOT NULL DEFAULT now()
+--     reverted_count                           integer              NOT NULL DEFAULT 0
+--   Indexes:
+--     idx_pv_import_logs_created
+--     pos_venda_import_logs_pkey
+--   RLS Policies:
+--     pos_venda_import_logs_all (ALL)
+
+-- TABLE: product_requirements
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     financial_item_id                        uuid                 NOT NULL
+--     card_id                                  uuid                 NOT NULL
+--     titulo                                   text                 NOT NULL
+--     status                                   text                 NULL DEFAULT 'pendente'::text
+--     data_value                               text                 NULL
+--     arquivo_id                               uuid                 NULL
+--     notas                                    text                 NULL
+--     concluido_em                             timestamp with time zone NULL
+--     concluido_por                            uuid                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     ordem                                    integer              NULL DEFAULT 0
+--   Indexes:
+--     idx_prod_req_card
+--     idx_prod_req_financial
+--     product_requirements_pkey
+--   RLS Policies:
+--     product_requirements_delete (DELETE)
+--     product_requirements_insert (INSERT)
+--     product_requirements_select (SELECT)
+--     product_requirements_update (UPDATE)
+
+-- TABLE: products
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     org_id                                   uuid                 NOT NULL
+--     slug                                     USER-DEFINED         NOT NULL
+--     name                                     text                 NOT NULL
+--     name_short                               text                 NOT NULL
+--     icon_name                                text                 NOT NULL
+--     color_class                              text                 NOT NULL
+--     pipeline_id                              uuid                 NULL
+--     deal_label                               text                 NULL
+--     deal_plural                              text                 NULL
+--     main_date_label                          text                 NULL
+--     not_found_label                          text                 NULL
+--     active                                   boolean              NOT NULL DEFAULT true
+--     display_order                            integer              NOT NULL DEFAULT 0
+--     created_at                               timestamp with time zone NOT NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NOT NULL DEFAULT now()
+--   Indexes:
+--     products_org_id_slug_key
+--     products_pkey
+--   RLS Policies:
+--     authenticated_read_products (SELECT)
+--     products_read_authenticated (SELECT)
+
+-- TABLE: profiles
+--   Columns:
+--     id                                       uuid                 NOT NULL
+--     nome                                     text                 NULL
+--     email                                    text                 NULL
+--     role                                     USER-DEFINED         NULL DEFAULT 'vendas'::app_role
+--     produtos                                 ARRAY                NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     active                                   boolean              NULL DEFAULT true
+--     is_admin                                 boolean              NULL DEFAULT false
+--     department_id                            uuid                 NULL
+--     team_id                                  uuid                 NULL
+--     phone                                    text                 NULL
+--     avatar_url                               text                 NULL
+--     role_id                                  uuid                 NULL
+--     org_id                                   uuid                 NOT NULL DEFAULT 'a0000000-0000-0000-0000-000000000001'::uuid
+--     teams_notify_enabled                     boolean              NULL DEFAULT false
+--   Indexes:
+--     idx_profiles_role_id
+--     idx_profiles_team_id
+--     profiles_pkey
+--   Triggers:
+--     audit_profiles_changes (AFTER DELETE)
+--     audit_profiles_changes (AFTER INSERT)
+--     audit_profiles_changes (AFTER UPDATE)
+--     on_profiles_updated (BEFORE UPDATE)
+--     trg_sync_role_from_team (BEFORE UPDATE)
+--   RLS Policies:
+--     Admins can update any profile (UPDATE)
+--     Allow authenticated users to view all profiles (SELECT)
+--     Users can update own profile (UPDATE)
+
+-- TABLE: proposal_client_selections
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     proposal_id                              uuid                 NOT NULL
+--     item_id                                  uuid                 NOT NULL
+--     option_id                                uuid                 NULL
+--     selected                                 boolean              NOT NULL DEFAULT true
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     selection_type                           text                 NULL
+--     flight_id                                uuid                 NULL
+--     selection_metadata                       jsonb                NULL DEFAULT '{}'::jsonb
+--     selected_at                              timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     idx_proposal_client_selections_proposal_id
+--     proposal_client_selections_pkey
+--     proposal_client_selections_proposal_id_item_id_key
+--   Triggers:
+--     update_proposal_client_selections_updated_at (BEFORE UPDATE)
+--   RLS Policies:
+--     Allow authenticated update (UPDATE)
+--     Anyone can view selections (SELECT)
+--     proposal_client_selections_insert_validated (INSERT)
+--     proposal_client_selections_update_validated (UPDATE)
+
+-- TABLE: proposal_comments
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     proposal_id                              uuid                 NOT NULL
+--     section_id                               uuid                 NULL
+--     parent_id                                uuid                 NULL
+--     author_type                              text                 NOT NULL
+--     author_id                                uuid                 NULL
+--     author_name                              text                 NOT NULL
+--     content                                  text                 NOT NULL
+--     visibility                               text                 NOT NULL DEFAULT 'internal'::text
+--     is_resolved                              boolean              NULL DEFAULT false
+--     resolved_by                              uuid                 NULL
+--     resolved_at                              timestamp with time zone NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     idx_comments_parent
+--     idx_comments_proposal
+--     idx_comments_section
+--     proposal_comments_pkey
+--   RLS Policies:
+--     Team can update comments (UPDATE)
+--     Team can view proposal comments (SELECT)
+--     proposal_comments_insert_validated (INSERT)
+
+-- TABLE: proposal_events
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     proposal_id                              uuid                 NOT NULL
+--     event_type                               text                 NOT NULL
+--     payload                                  jsonb                NULL DEFAULT '{}'::jsonb
+--     client_ip                                text                 NULL
+--     user_agent                               text                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     section_id                               uuid                 NULL
+--     item_id                                  uuid                 NULL
+--     flight_id                                uuid                 NULL
+--     duration_seconds                         integer              NULL
+--     scroll_depth                             integer              NULL
+--     device_type                              text                 NULL
+--     viewport_width                           integer              NULL
+--     referrer                                 text                 NULL
+--   Indexes:
+--     idx_events_analytics
+--     idx_proposal_events_created_at
+--     idx_proposal_events_proposal_id
+--     proposal_events_pkey
+--   RLS Policies:
+--     Authenticated users can view proposal events (SELECT)
+--     proposal_events_insert_validated (INSERT)
+
+-- TABLE: proposal_flights
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     proposal_id                              uuid                 NOT NULL
+--     section_id                               uuid                 NULL
+--     trip_leg                                 text                 NOT NULL
+--     option_group                             text                 NULL
+--     segment_order                            integer              NULL DEFAULT 0
+--     airline_code                             text                 NULL
+--     airline_name                             text                 NULL
+--     airline_logo_url                         text                 NULL
+--     flight_number                            text                 NULL
+--     origin_airport                           text                 NOT NULL
+--     origin_city                              text                 NULL
+--     destination_airport                      text                 NOT NULL
+--     destination_city                         text                 NULL
+--     departure_datetime                       timestamp with time zone NULL
+--     arrival_datetime                         timestamp with time zone NULL
+--     duration_minutes                         integer              NULL
+--     stops                                    integer              NULL DEFAULT 0
+--     layover_details                          jsonb                NULL DEFAULT '[]'::jsonb
+--     cabin_class                              text                 NULL
+--     baggage_included                         text                 NULL
+--     price_per_person                         numeric              NULL
+--     price_total                              numeric              NULL
+--     currency                                 text                 NULL DEFAULT 'BRL'::text
+--     is_selected                              boolean              NULL DEFAULT false
+--     is_recommended                           boolean              NULL DEFAULT false
+--     extracted_from_image                     boolean              NULL DEFAULT false
+--     extraction_confidence                    numeric              NULL
+--     raw_extracted_text                       text                 NULL
+--     ordem                                    integer              NULL DEFAULT 0
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     supplier_cost                            numeric              NULL DEFAULT 0
+--   Indexes:
+--     idx_flights_proposal
+--     proposal_flights_pkey
+--   RLS Policies:
+--     Users can manage proposal flights (ALL)
+
+-- TABLE: proposal_items
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     section_id                               uuid                 NOT NULL
+--     item_type                                USER-DEFINED         NOT NULL
+--     title                                    text                 NOT NULL
+--     description                              text                 NULL
+--     rich_content                             jsonb                NULL DEFAULT '{}'::jsonb
+--     base_price                               numeric              NOT NULL DEFAULT 0
+--     ordem                                    integer              NOT NULL DEFAULT 0
+--     is_optional                              boolean              NOT NULL DEFAULT false
+--     is_default_selected                      boolean              NOT NULL DEFAULT true
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     image_url                                text                 NULL
+--     supplier                                 text                 NULL
+--     supplier_cost                            numeric              NULL DEFAULT 0
+--   Indexes:
+--     idx_proposal_items_ordem
+--     idx_proposal_items_section_id
+--     idx_proposal_items_supplier
+--     idx_proposal_items_supplier_cost
+--     proposal_items_pkey
+--   Triggers:
+--     trg_sync_flight_items (AFTER INSERT)
+--     trg_sync_flight_items (AFTER UPDATE)
+--   RLS Policies:
+--     Public can view proposal items (SELECT)
+--     Users can delete proposal items (DELETE)
+--     Users can insert proposal items (INSERT)
+--     Users can update proposal items (UPDATE)
+--     Users can view proposal items (SELECT)
+
+-- TABLE: proposal_library
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     category                                 text                 NOT NULL
+--     name                                     text                 NOT NULL
+--     name_search                              text                 NULL
+--     content                                  jsonb                NOT NULL DEFAULT '{}'::jsonb
+--     base_price                               numeric              NULL DEFAULT 0
+--     currency                                 text                 NULL DEFAULT 'BRL'::text
+--     tags                                     ARRAY                NULL DEFAULT ARRAY[]::text[]
+--     supplier                                 text                 NULL
+--     destination                              text                 NULL
+--     created_by                               uuid                 NULL
+--     is_shared                                boolean              NOT NULL DEFAULT true
+--     usage_count                              integer              NOT NULL DEFAULT 0
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     ownership_type                           text                 NULL DEFAULT 'personal'::text
+--     saved_from_proposal_id                   uuid                 NULL
+--     last_used_at                             timestamp with time zone NULL
+--     star_rating                              integer              NULL
+--     thumbnail_url                            text                 NULL
+--     gallery_urls                             ARRAY                NULL DEFAULT '{}'::text[]
+--     location_city                            text                 NULL
+--     location_country                         text                 NULL
+--     amenities                                ARRAY                NULL DEFAULT '{}'::text[]
+--     check_in_time                            text                 NULL
+--     check_out_time                           text                 NULL
+--     cancellation_policy                      text                 NULL
+--   Indexes:
+--     idx_library_created_by
+--     idx_library_name_search
+--     idx_library_name_trgm
+--     idx_library_ownership
+--     idx_library_tags
+--     proposal_library_pkey
+--   Triggers:
+--     update_proposal_library_updated_at (BEFORE UPDATE)
+--   RLS Policies:
+--     Users can delete own library items (DELETE)
+--     Users can insert library items (INSERT)
+--     Users can update own library items (UPDATE)
+--     Users can view shared or own library items (SELECT)
+
+-- TABLE: proposal_options
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     item_id                                  uuid                 NOT NULL
+--     option_label                             text                 NOT NULL
+--     description                              text                 NULL
+--     price_delta                              numeric              NOT NULL DEFAULT 0
+--     details                                  jsonb                NULL DEFAULT '{}'::jsonb
+--     ordem                                    integer              NOT NULL DEFAULT 0
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     idx_proposal_options_item_id
+--     proposal_options_pkey
+--   RLS Policies:
+--     Public can view proposal options (SELECT)
+--     Users can delete proposal options (DELETE)
+--     Users can insert proposal options (INSERT)
+--     Users can update proposal options (UPDATE)
+--     Users can view proposal options (SELECT)
+
+-- TABLE: proposal_sections
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     version_id                               uuid                 NOT NULL
+--     section_type                             USER-DEFINED         NOT NULL
+--     title                                    text                 NOT NULL
+--     ordem                                    integer              NOT NULL DEFAULT 0
+--     config                                   jsonb                NULL DEFAULT '{}'::jsonb
+--     visible                                  boolean              NOT NULL DEFAULT true
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     idx_proposal_sections_ordem
+--     idx_proposal_sections_version_id
+--     proposal_sections_pkey
+--   RLS Policies:
+--     Public can view proposal sections (SELECT)
+--     Users can delete proposal sections (DELETE)
+--     Users can insert proposal sections (INSERT)
+--     Users can update proposal sections (UPDATE)
+--     Users can view proposal sections (SELECT)
+
+-- TABLE: proposal_templates
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     name                                     text                 NOT NULL
+--     description                              text                 NULL
+--     icon                                     text                 NULL DEFAULT 'file-text'::text
+--     sections                                 jsonb                NOT NULL DEFAULT '[]'::jsonb
+--     created_by                               uuid                 NULL
+--     is_global                                boolean              NULL DEFAULT false
+--     usage_count                              integer              NULL DEFAULT 0
+--     metadata                                 jsonb                NULL DEFAULT '{}'::jsonb
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     last_used_at                             timestamp with time zone NULL
+--   Indexes:
+--     idx_proposal_templates_created_by
+--     proposal_templates_pkey
+--   RLS Policies:
+--     Users can create templates (INSERT)
+--     Users can delete own templates (DELETE)
+--     Users can update own templates (UPDATE)
+--     proposal_templates_select (SELECT)
+
+-- TABLE: proposal_versions
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     proposal_id                              uuid                 NOT NULL
+--     version_number                           integer              NOT NULL
+--     title                                    text                 NOT NULL
+--     metadata                                 jsonb                NULL DEFAULT '{}'::jsonb
+--     created_by                               uuid                 NULL
+--     change_summary                           text                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     idx_proposal_versions_proposal_id
+--     proposal_versions_pkey
+--   RLS Policies:
+--     Public can view proposal versions by token (SELECT)
+--     Users can insert proposal versions (INSERT)
+--     Users can view proposal versions (SELECT)
+
+-- TABLE: proposals
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     card_id                                  uuid                 NULL
+--     status                                   text                 NOT NULL DEFAULT 'draft'::text
+--     version                                  integer              NULL DEFAULT 1
+--     content                                  jsonb                NULL DEFAULT '{}'::jsonb
+--     valid_until                              timestamp with time zone NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     created_by                               uuid                 NULL
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     active_version_id                        uuid                 NULL
+--     public_token                             text                 NULL
+--     expires_at                               timestamp with time zone NULL
+--     accepted_at                              timestamp with time zone NULL
+--     accepted_version_id                      uuid                 NULL
+--     card_linked_at                           timestamp with time zone NULL
+--     card_data_imported                       boolean              NULL DEFAULT false
+--     accepted_total                           numeric              NULL
+--   Indexes:
+--     idx_proposals_card_id
+--     idx_proposals_public_token
+--     proposals_pkey
+--     proposals_public_token_key
+--   Triggers:
+--     auto_generate_proposal_token_trigger (BEFORE INSERT)
+--     on_proposal_status_change (AFTER UPDATE)
+--     proposal_activity_trigger (AFTER UPDATE)
+--     proposal_activity_trigger (AFTER INSERT)
+--     trg_push_proposal_status (AFTER UPDATE)
+--     trg_sync_proposal_revenue (AFTER UPDATE)
+--     update_proposals_updated_at (BEFORE UPDATE)
+--   RLS Policies:
+--     Public can view proposals by token (SELECT)
+--     Users can delete own draft proposals (DELETE)
+--     Users can insert proposals (INSERT)
+--     Users can update proposals (UPDATE)
+--     Users can view proposals (SELECT)
+
+-- TABLE: push_notification_preferences
+--   Columns:
+--     user_id                                  uuid                 NOT NULL
+--     enabled                                  boolean              NULL DEFAULT true
+--     lead_assigned                            boolean              NULL DEFAULT true
+--     task_expiring                            boolean              NULL DEFAULT true
+--     task_overdue                             boolean              NULL DEFAULT true
+--     proposal_status                          boolean              NULL DEFAULT true
+--     meeting_reminder                         boolean              NULL DEFAULT true
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     push_notification_preferences_pkey
+--   RLS Policies:
+--     Users manage own notification preferences (ALL)
+
+-- TABLE: push_subscriptions
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     user_id                                  uuid                 NOT NULL
+--     endpoint                                 text                 NOT NULL
+--     p256dh                                   text                 NOT NULL
+--     auth                                     text                 NOT NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     idx_push_subs_user
+--     push_subscriptions_pkey
+--     push_subscriptions_user_id_endpoint_key
+--   RLS Policies:
+--     Users manage own push subscriptions (ALL)
+
+-- TABLE: reunioes
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     card_id                                  uuid                 NOT NULL
+--     titulo                                   text                 NOT NULL
+--     data_inicio                              timestamp with time zone NOT NULL
+--     data_fim                                 timestamp with time zone NULL
+--     participantes                            jsonb                NULL DEFAULT '[]'::jsonb
+--     local                                    text                 NULL
+--     notas                                    text                 NULL
+--     status                                   text                 NULL DEFAULT 'agendada'::text
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     created_by                               uuid                 NULL
+--     responsavel_id                           uuid                 NULL
+--     resultado                                text                 NULL
+--     feedback                                 text                 NULL
+--     motivo_cancelamento                      text                 NULL
+--     sdr_responsavel_id                       uuid                 NULL
+--     transcricao                              text                 NULL
+--     transcricao_metadata                     jsonb                NULL
+--     notificada_push                          boolean              NULL DEFAULT false
+--   Indexes:
+--     idx_reunioes_responsavel_id
+--     reunioes_pkey
+--   Triggers:
+--     log_reunioes_trigger (AFTER INSERT)
+--     log_reunioes_trigger (AFTER UPDATE)
+--     reuniao_activity_trigger (AFTER UPDATE)
+--     reuniao_activity_trigger (AFTER DELETE)
+--     reuniao_activity_trigger (AFTER INSERT)
+--   RLS Policies:
+--     Users can view own meetings (ALL)
+
+-- TABLE: roles
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     name                                     character varying    NOT NULL
+--     display_name                             character varying    NOT NULL
+--     description                              text                 NULL
+--     permissions                              jsonb                NULL DEFAULT '{}'::jsonb
+--     is_system                                boolean              NULL DEFAULT false
+--     color                                    character varying    NULL DEFAULT 'bg-gray-100 text-gray-800'::character varying
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     roles_name_key
+--     roles_pkey
+--   Triggers:
+--     roles_updated_at (BEFORE UPDATE)
+--   RLS Policies:
+--     Admins can manage roles (ALL)
+--     Authenticated users can read roles (SELECT)
+
+-- TABLE: section_field_config
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     section_key                              text                 NOT NULL
+--     field_key                                text                 NOT NULL
+--     is_visible                               boolean              NOT NULL DEFAULT true
+--     is_required                              boolean              NOT NULL DEFAULT false
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     idx_section_field_config_field
+--     idx_section_field_config_section
+--     section_field_config_pkey
+--     section_field_config_section_key_field_key_key
+--   RLS Policies:
+--     Admin full access (ALL)
+--     Public read access (SELECT)
+
+-- TABLE: sections
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     key                                      text                 NOT NULL
+--     label                                    text                 NOT NULL
+--     color                                    text                 NULL DEFAULT 'bg-gray-50 text-gray-700 border-gray-100'::text
+--     icon                                     text                 NULL DEFAULT 'layers'::text
+--     position                                 text                 NULL DEFAULT 'left_column'::text
+--     order_index                              integer              NULL DEFAULT 0
+--     pipeline_id                              uuid                 NULL
+--     is_governable                            boolean              NULL DEFAULT true
+--     is_system                                boolean              NULL DEFAULT false
+--     active                                   boolean              NULL DEFAULT true
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     widget_component                         text                 NULL
+--     produto                                  USER-DEFINED         NULL
+--     default_collapsed                        boolean              NOT NULL DEFAULT false
+--   Indexes:
+--     sections_key_key
+--     sections_pkey
+--   Triggers:
+--     trigger_sections_updated_at (BEFORE UPDATE)
+--   RLS Policies:
+--     Admin delete sections (DELETE)
+--     Admin insert sections (INSERT)
+--     Admin update sections (UPDATE)
+--     Public read sections (SELECT)
+
+-- TABLE: stage_field_config
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     stage_id                                 uuid                 NULL
+--     field_key                                text                 NULL
+--     is_visible                               boolean              NULL DEFAULT true
+--     is_required                              boolean              NULL DEFAULT false
+--     show_in_header                           boolean              NULL DEFAULT false
+--     custom_label                             text                 NULL
+--     order                                    integer              NULL DEFAULT 0
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     requirement_type                         text                 NOT NULL DEFAULT 'field'::text
+--     requirement_label                        text                 NULL
+--     description                              text                 NULL
+--     is_blocking                              boolean              NULL DEFAULT true
+--     proposal_min_status                      text                 NULL
+--     task_tipo                                text                 NULL
+--     task_require_completed                   boolean              NULL DEFAULT true
+--     bypass_sources                           ARRAY                NULL DEFAULT ARRAY[]::text[]
+--     is_secondary                             boolean              NOT NULL DEFAULT false
+--   Indexes:
+--     idx_stage_field_config_required
+--     idx_stage_field_config_stage_type
+--     stage_field_config_pkey
+--     stage_field_config_stage_id_field_key_key
+--   RLS Policies:
+--     Admin full access (ALL)
+--     Public read access (SELECT)
+
+-- TABLE: stage_fields_settings
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     stage_id                                 uuid                 NOT NULL
+--     field_key                                text                 NOT NULL
+--     required                                 boolean              NULL DEFAULT false
+--     label                                    text                 NOT NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_by                               uuid                 NULL
+--   Indexes:
+--     stage_fields_settings_pkey
+--     stage_fields_settings_stage_id_field_key_key
+--   Triggers:
+--     stage_fields_audit (AFTER UPDATE)
+--     stage_fields_audit (AFTER INSERT)
+--     stage_fields_audit (AFTER DELETE)
+--   RLS Policies:
+--     Admins can delete stage_fields_settings (DELETE)
+--     Admins can insert stage_fields_settings (INSERT)
+--     Admins can update stage_fields_settings (UPDATE)
+--     Authenticated can manage stage_fields_settings (ALL)
+--     stage_fields_settings_select_all (SELECT)
+
+-- TABLE: stage_section_config
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     stage_id                                 uuid                 NOT NULL
+--     section_key                              text                 NOT NULL
+--     is_visible                               boolean              NOT NULL DEFAULT true
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     default_collapsed                        boolean              NOT NULL DEFAULT false
+--   Indexes:
+--     idx_stage_section_config_key
+--     idx_stage_section_config_stage
+--     stage_section_config_pkey
+--     stage_section_config_stage_id_section_key_key
+--   RLS Policies:
+--     Admin full access (ALL)
+--     Public read access (SELECT)
+
+-- TABLE: stage_transitions
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     source_stage_id                          uuid                 NULL
+--     target_stage_id                          uuid                 NULL
+--     allowed                                  boolean              NULL DEFAULT true
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     stage_transitions_pkey
+--     stage_transitions_source_stage_id_target_stage_id_key
+--   RLS Policies:
+--     Allow admin to manage transitions (ALL)
+--     Allow read access to everyone (SELECT)
+
+-- TABLE: sub_card_sync_log
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     sub_card_id                              uuid                 NOT NULL
+--     parent_card_id                           uuid                 NOT NULL
+--     action                                   text                 NOT NULL
+--     old_value                                jsonb                NULL
+--     new_value                                jsonb                NULL
+--     metadata                                 jsonb                NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     created_by                               uuid                 NULL
+--   Indexes:
+--     idx_sub_card_sync_log_parent_card_id
+--     idx_sub_card_sync_log_sub_card_id
+--     sub_card_sync_log_pkey
+--   RLS Policies:
+--     sub_card_sync_log_insert_authenticated (INSERT)
+--     sub_card_sync_log_select_authenticated (SELECT)
+
+-- TABLE: system_fields
+--   Columns:
+--     key                                      text                 NOT NULL
+--     label                                    text                 NOT NULL
+--     type                                     text                 NOT NULL
+--     options                                  jsonb                NULL DEFAULT '[]'::jsonb
+--     active                                   boolean              NULL DEFAULT true
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     section                                  text                 NULL DEFAULT 'details'::text
+--     is_system                                boolean              NULL DEFAULT false
+--     section_id                               uuid                 NULL
+--     order_index                              integer              NULL DEFAULT 0
+--   Indexes:
+--     idx_system_fields_section_id
+--     system_fields_pkey
+--   RLS Policies:
+--     Authenticated users can manage system_fields (ALL)
+--     Everyone can read system_fields (SELECT)
+
+-- TABLE: tarefas
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     card_id                                  uuid                 NOT NULL
+--     titulo                                   text                 NOT NULL
+--     descricao                                text                 NULL
+--     responsavel_id                           uuid                 NULL
+--     data_vencimento                          timestamp with time zone NULL
+--     status                                   text                 NULL DEFAULT 'aberta'::text
+--     data_conclusao                           timestamp with time zone NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     created_by                               uuid                 NULL
+--     concluido_por                            uuid                 NULL
+--     tipo                                     text                 NULL DEFAULT 'outro'::text
+--     prioridade                               text                 NULL DEFAULT 'media'::text
+--     concluida                                boolean              NOT NULL DEFAULT false
+--     concluida_em                             timestamp with time zone NULL
+--     resultado                                text                 NULL
+--     started_at                               timestamp with time zone NULL
+--     metadata                                 jsonb                NULL
+--     deleted_at                               timestamp with time zone NULL
+--     participantes_externos                   ARRAY                NULL DEFAULT '{}'::text[]
+--     categoria_outro                          text                 NULL
+--     feedback                                 text                 NULL
+--     motivo_cancelamento                      text                 NULL
+--     rescheduled_to_id                        uuid                 NULL
+--     rescheduled_from_id                      uuid                 NULL
+--     outcome                                  text                 NULL
+--     transcricao                              text                 NULL
+--     transcricao_metadata                     jsonb                NULL
+--     external_id                              text                 NULL
+--     external_source                          text                 NULL DEFAULT 'activecampaign'::text
+--     notificada_push                          boolean              NULL DEFAULT false
+--   Indexes:
+--     idx_tarefas_card
+--     idx_tarefas_counts_optimized
+--     idx_tarefas_proxima_tarefa_optimized
+--     idx_tarefas_responsavel
+--     idx_tarefas_status
+--     idx_tarefas_ultima_interacao
+--     idx_tarefas_vencimento
+--     tarefas_pkey
+--     uq_tarefas_external
+--   Triggers:
+--     tarefa_activity_trigger_v2 (AFTER UPDATE)
+--     tarefa_activity_trigger_v2 (AFTER DELETE)
+--     tarefa_activity_trigger_v2 (AFTER INSERT)
+--     trg_tarefa_outbound_sync (AFTER INSERT)
+--     trg_tarefa_outbound_sync (AFTER UPDATE)
+--   RLS Policies:
+--     Tarefas delete by owner or admin (DELETE)
+--     Tarefas insert by authenticated (INSERT)
+--     Tarefas update by authenticated (UPDATE)
+--     Tarefas viewable by authenticated (SELECT)
+
+-- TABLE: task_queue
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     card_id                                  uuid                 NOT NULL
+--     rule_id                                  uuid                 NULL
+--     scheduled_for                            timestamp with time zone NOT NULL
+--     processed                                boolean              NULL DEFAULT false
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     error_message                            text                 NULL
+--   Indexes:
+--     idx_task_queue_card
+--     idx_task_queue_schedule
+--     task_queue_pkey
+--   RLS Policies:
+--     System can process queue (ALL)
+
+-- TABLE: task_type_outcomes
+--   Columns:
+--     tipo                                     text                 NOT NULL
+--     outcome_key                              text                 NOT NULL
+--     outcome_label                            text                 NOT NULL
+--     ordem                                    integer              NULL DEFAULT 0
+--     is_success                               boolean              NULL DEFAULT false
+--   Indexes:
+--     task_type_outcomes_pkey
+--   RLS Policies:
+--     Authenticated users can read outcomes (SELECT)
+
+-- TABLE: team_members
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     user_id                                  uuid                 NOT NULL
+--     team_id                                  uuid                 NOT NULL
+--     role                                     text                 NULL DEFAULT 'member'::text
+--     created_at                               timestamp with time zone NOT NULL DEFAULT now()
+--   Indexes:
+--     team_members_pkey
+--     team_members_user_id_team_id_key
+--   RLS Policies:
+--     Read access for authenticated users (SELECT)
+
+-- TABLE: teams
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     name                                     text                 NOT NULL
+--     department_id                            uuid                 NULL
+--     description                              text                 NULL
+--     created_at                               timestamp with time zone NOT NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     is_active                                boolean              NULL DEFAULT true
+--     color                                    character varying    NULL DEFAULT 'bg-blue-100 text-blue-800'::character varying
+--     leader_id                                uuid                 NULL
+--     phase_id                                 uuid                 NULL
+--   Indexes:
+--     idx_teams_department_id
+--     idx_teams_leader_id
+--     idx_teams_phase_id
+--     teams_pkey
+--   Triggers:
+--     teams_updated_at (BEFORE UPDATE)
+--   RLS Policies:
+--     Admins can manage teams (ALL)
+--     teams_select_authenticated (SELECT)
+
+-- TABLE: text_blocks
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     name                                     text                 NOT NULL
+--     category                                 text                 NOT NULL
+--     content                                  text                 NOT NULL
+--     content_html                             text                 NULL
+--     variables                                ARRAY                NULL DEFAULT '{}'::text[]
+--     trip_types                               ARRAY                NULL DEFAULT '{}'::text[]
+--     destination_tags                         ARRAY                NULL DEFAULT '{}'::text[]
+--     created_by                               uuid                 NULL
+--     ownership_type                           text                 NULL DEFAULT 'personal'::text
+--     is_default                               boolean              NULL DEFAULT false
+--     usage_count                              integer              NULL DEFAULT 0
+--     last_used_at                             timestamp with time zone NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     idx_text_blocks_ownership
+--     text_blocks_pkey
+--   RLS Policies:
+--     Users can delete own text_blocks (DELETE)
+--     Users can insert own text_blocks (INSERT)
+--     Users can update own text_blocks (UPDATE)
+--     Users can view own and global text_blocks (SELECT)
+
+-- TABLE: webhook_logs
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     payload                                  jsonb                NULL
+--     source                                   text                 NULL
+--   Indexes:
+--     webhook_logs_pkey
+--   RLS Policies:
+--     Enable insert access for all users (INSERT)
+--     Enable read access for all users (SELECT)
+
+-- TABLE: whatsapp_conversations
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     contact_id                               uuid                 NULL
+--     instance_id                              uuid                 NULL
+--     last_message_at                          timestamp with time zone NULL DEFAULT now()
+--     unread_count                             integer              NULL DEFAULT 0
+--     status                                   text                 NULL DEFAULT 'open'::text
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     external_conversation_id                 text                 NULL
+--     external_conversation_url                text                 NULL
+--     platform_id                              uuid                 NULL
+--     phone_number_label                       text                 NULL
+--   Indexes:
+--     idx_whatsapp_conversations_contact_platform
+--     whatsapp_conversations_contact_id_instance_id_key
+--     whatsapp_conversations_pkey
+--   RLS Policies:
+--     Authenticated users can view whatsapp_conversations (SELECT)
+
+-- TABLE: whatsapp_custom_fields
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     platform_id                              uuid                 NULL
+--     field_key                                text                 NOT NULL
+--     field_label                              text                 NOT NULL
+--     field_group                              text                 NULL DEFAULT 'Customizado'::text
+--     is_active                                boolean              NULL DEFAULT true
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     created_by                               uuid                 NULL
+--   Indexes:
+--     idx_whatsapp_custom_fields_platform
+--     whatsapp_custom_fields_pkey
+--     whatsapp_custom_fields_platform_id_field_key_key
+--   RLS Policies:
+--     Authenticated users can manage whatsapp_custom_fields (ALL)
+--     Authenticated users can view whatsapp_custom_fields (SELECT)
+
+-- TABLE: whatsapp_field_mappings
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     platform_id                              uuid                 NULL
+--     external_path                            text                 NOT NULL
+--     internal_field                           text                 NOT NULL
+--     transform_type                           text                 NULL DEFAULT 'direct'::text
+--     transform_config                         jsonb                NULL DEFAULT '{}'::jsonb
+--     is_active                                boolean              NULL DEFAULT true
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     description                              text                 NULL
+--   Indexes:
+--     whatsapp_field_mappings_pkey
+--     whatsapp_field_mappings_platform_id_external_path_key
+--   Triggers:
+--     set_timestamp_whatsapp_field_mappings (BEFORE UPDATE)
+--   RLS Policies:
+--     Authenticated users can manage whatsapp_field_mappings (ALL)
+--     Authenticated users can view whatsapp_field_mappings (SELECT)
+
+-- TABLE: whatsapp_groups
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     group_jid                                text                 NOT NULL
+--     group_name                               text                 NULL
+--     card_id                                  uuid                 NULL
+--     contact_id                               uuid                 NULL
+--     platform_id                              uuid                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     idx_whatsapp_groups_card_id
+--     whatsapp_groups_group_jid_key
+--     whatsapp_groups_pkey
+--   RLS Policies:
+--     Authenticated users can view whatsapp_groups (SELECT)
+--     Service role full access whatsapp_groups (ALL)
+
+-- TABLE: whatsapp_linha_config
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     platform_id                              uuid                 NULL
+--     phone_number_label                       text                 NOT NULL
+--     phone_number_id                          text                 NULL
+--     ativo                                    boolean              NULL DEFAULT false
+--     produto                                  text                 NULL
+--     pipeline_id                              uuid                 NULL
+--     stage_id                                 uuid                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     fase_label                               text                 NULL
+--     phase_id                                 uuid                 NULL
+--     criar_card                               boolean              NULL
+--     criar_contato                            boolean              NULL
+--     default_owner_id                         uuid                 NULL
+--   Indexes:
+--     whatsapp_linha_config_phone_number_label_key
+--     whatsapp_linha_config_pkey
+--   RLS Policies:
+--     whatsapp_linha_config_admin_modify (ALL)
+--     whatsapp_linha_config_select (SELECT)
+--     whatsapp_linha_config_service_role (ALL)
+
+-- TABLE: whatsapp_messages
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     contact_id                               uuid                 NULL
+--     platform_id                              uuid                 NULL
+--     raw_event_id                             uuid                 NULL
+--     external_id                              text                 NULL
+--     conversation_id                          text                 NULL
+--     session_id                               text                 NULL
+--     lead_id                                  text                 NULL
+--     sender_name                              text                 NULL
+--     sender_phone                             text                 NULL
+--     origem                                   text                 NULL
+--     direction                                text                 NULL
+--     type                                     text                 NULL DEFAULT 'text'::text
+--     message_type                             text                 NULL
+--     body                                     text                 NULL
+--     media_url                                text                 NULL
+--     status                                   text                 NULL DEFAULT 'sent'::text
+--     ack_status                               integer              NULL
+--     is_from_me                               boolean              NULL DEFAULT false
+--     metadata                                 jsonb                NULL DEFAULT '{}'::jsonb
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     produto                                  text                 NULL
+--     card_id                                  uuid                 NULL
+--     sent_by_user_id                          uuid                 NULL
+--     sent_by_user_name                        text                 NULL
+--     sent_by_user_role                        text                 NULL
+--     ecko_agent_id                            text                 NULL
+--     sector                                   text                 NULL
+--     phone_number_id                          text                 NULL
+--     phone_number_label                       text                 NULL
+--     actor_type                               text                 NULL
+--     conversation_status                      text                 NULL
+--     agent_email                              text                 NULL
+--     organization                             text                 NULL
+--     organization_id                          text                 NULL
+--     whatsapp_message_id                      text                 NULL
+--     is_read                                  boolean              NULL DEFAULT false
+--     has_error                                boolean              NULL DEFAULT false
+--     error_message                            text                 NULL
+--     contact_tags                             jsonb                NULL
+--     assigned_to                              text                 NULL
+--     fase_label                               text                 NULL
+--     media_content                            text                 NULL
+--     is_group                                 boolean              NULL DEFAULT false
+--     group_jid                                text                 NULL
+--     group_name                               text                 NULL
+--   Indexes:
+--     idx_whatsapp_messages_card_id
+--     idx_whatsapp_messages_contact
+--     idx_whatsapp_messages_fase_label
+--     idx_whatsapp_messages_group_jid
+--     idx_whatsapp_messages_pending_media
+--     idx_whatsapp_messages_platform
+--     idx_whatsapp_messages_platform_external_unique
+--     idx_whatsapp_messages_sent_by
+--     idx_wm_created_contact
+--     whatsapp_messages_pkey
+--   Triggers:
+--     trg_n8n_ai_extraction (AFTER INSERT)
+--   RLS Policies:
+--     Authenticated users can view whatsapp_messages (SELECT)
+
+-- TABLE: whatsapp_phase_instance_map
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     phase_id                                 uuid                 NULL
+--     platform_id                              uuid                 NULL
+--     priority                                 integer              NULL DEFAULT 1
+--     is_active                                boolean              NULL DEFAULT true
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     whatsapp_phase_instance_map_phase_id_platform_id_key
+--     whatsapp_phase_instance_map_pkey
+--   RLS Policies:
+--     Allow admin write (ALL)
+--     Allow authenticated read (SELECT)
+
+-- TABLE: whatsapp_platforms
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     name                                     text                 NOT NULL
+--     provider                                 text                 NOT NULL
+--     instance_id                              text                 NULL
+--     dashboard_url_template                   text                 NULL
+--     api_base_url                             text                 NULL
+--     api_key_encrypted                        text                 NULL
+--     config                                   jsonb                NULL DEFAULT '{}'::jsonb
+--     is_active                                boolean              NULL DEFAULT true
+--     last_event_at                            timestamp with time zone NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--     updated_at                               timestamp with time zone NULL DEFAULT now()
+--     created_by                               uuid                 NULL
+--     capabilities                             jsonb                NULL DEFAULT '{"has_direct_link": true, "requires_instance": false, "supports_user_mapping": false}'::jsonb
+--     instance_label                           text                 NULL
+--   Indexes:
+--     idx_whatsapp_platforms_provider_label
+--     whatsapp_platforms_pkey
+--   Triggers:
+--     set_timestamp_whatsapp_platforms (BEFORE UPDATE)
+--   RLS Policies:
+--     Authenticated users can view whatsapp_platforms (SELECT)
+
+-- TABLE: whatsapp_raw_events
+--   Columns:
+--     id                                       uuid                 NOT NULL DEFAULT gen_random_uuid()
+--     platform_id                              uuid                 NULL
+--     event_type                               text                 NULL
+--     origem                                   text                 NULL
+--     idempotency_key                          text                 NULL
+--     raw_payload                              jsonb                NOT NULL
+--     status                                   text                 NULL DEFAULT 'pending'::text
+--     processed_at                             timestamp with time zone NULL
+--     error_message                            text                 NULL
+--     contact_id                               uuid                 NULL
+--     card_id                                  uuid                 NULL
+--     created_at                               timestamp with time zone NULL DEFAULT now()
+--   Indexes:
+--     idx_whatsapp_raw_events_idempotency
+--     idx_whatsapp_raw_events_platform
+--     idx_whatsapp_raw_events_status
+--     whatsapp_raw_events_pkey
+--   Triggers:
+--     trg_auto_process_whatsapp_event (AFTER INSERT)
+--   RLS Policies:
+--     Authenticated users can view whatsapp_raw_events (SELECT)
+
+-- ============================================================
+-- VIEWS
+-- ============================================================
+-- VIEW: integration_conflicts_summary
+-- VIEW: v_contact_proposals
+-- VIEW: v_monde_sent_items
+-- VIEW: v_proposal_analytics
+-- VIEW: v_team_proposal_performance
+-- VIEW: view_agenda
+-- VIEW: view_archived_cards
+-- VIEW: view_cards_acoes
+-- VIEW: view_cards_contatos_summary
+-- VIEW: view_dashboard_funil
+-- VIEW: view_deleted_cards
+-- VIEW: view_deleted_contacts
+-- VIEW: view_integration_classification
+-- VIEW: view_integration_router_audit
+-- VIEW: view_integration_would_apply
+-- VIEW: view_profiles_complete
+-- VIEW: view_router_discovery_report
+
+-- ============================================================
+-- FUNCTIONS / RPCs
+-- ============================================================
+-- FUNCTION: _a_owner_ok(actual_id uuid, single_id uuid, arr_ids uuid[]) → boolean
+-- FUNCTION: _a_tag_ok(card_id uuid, tag_ids uuid[]) → boolean
+-- FUNCTION: _report_computed_measure_sql(p_source text, p_key text) → text
+-- FUNCTION: _report_resolve_field_sql(p_source text, p_field text) → text
+-- FUNCTION: _report_resolve_source(p_source text) → text
+-- FUNCTION: _report_validate_field(p_source text, p_field text) → boolean
+-- FUNCTION: aggregate_sub_card_values() → trigger
+-- FUNCTION: analytics_drill_down_cards(p_date_start timestamp with time zone DEFAULT '2020-01-01 00:00:00+00'::timestamp with time zone, p_date_end timestamp with time zone DEFAULT now(), p_product text DEFAULT NULL::text, p_mode text DEFAULT 'entries'::text, p_global_stage_id uuid DEFAULT NULL::uuid, p_global_owner_id uuid DEFAULT NULL::uuid, p_drill_stage_id uuid DEFAULT NULL::uuid, p_drill_owner_id uuid DEFAULT NULL::uuid, p_drill_loss_reason text DEFAULT NULL::text, p_drill_status text DEFAULT NULL::text, p_drill_phase text DEFAULT NULL::text, p_drill_period_start timestamp with time zone DEFAULT NULL::timestamp with time zone, p_drill_period_end timestamp with time zone DEFAULT NULL::timestamp with time zone, p_drill_source text DEFAULT 'default'::text, p_sort_by text DEFAULT 'created_at'::text, p_sort_dir text DEFAULT 'desc'::text, p_limit integer DEFAULT 50, p_offset integer DEFAULT 0, p_drill_destino text DEFAULT NULL::text, p_exclude_terminal boolean DEFAULT false, p_tag_ids uuid[] DEFAULT NULL::uuid[], p_owner_ids uuid[] DEFAULT NULL::uuid[]) → TABLE(id uuid, titulo text, produto text, status_comercial text, etapa_nome text, fase text, dono_atual_nome text, valor_display numeric, receita numeric, created_at timestamp with time zone, data_fechamento timestamp with time zone, pessoa_nome text, pessoa_telefone text, total_count bigint, stage_entered_at timestamp with time zone)
+-- FUNCTION: analytics_financial_breakdown(p_date_start date DEFAULT NULL::date, p_date_end date DEFAULT NULL::date, p_granularity text DEFAULT 'month'::text, p_product text DEFAULT NULL::text, p_mode text DEFAULT 'entries'::text, p_stage_id uuid DEFAULT NULL::uuid, p_owner_id uuid DEFAULT NULL::uuid, p_owner_ids uuid[] DEFAULT NULL::uuid[], p_tag_ids uuid[] DEFAULT NULL::uuid[]) → TABLE(period text, valor_final_sum numeric, receita_sum numeric, count_won bigint, ticket_medio numeric)
+-- FUNCTION: analytics_funnel_by_owner(p_date_start timestamp with time zone DEFAULT '2020-01-01 00:00:00+00'::timestamp with time zone, p_date_end timestamp with time zone DEFAULT now(), p_product text DEFAULT NULL::text, p_mode text DEFAULT 'entries'::text, p_stage_id uuid DEFAULT NULL::uuid, p_owner_id uuid DEFAULT NULL::uuid, p_owner_ids uuid[] DEFAULT NULL::uuid[], p_tag_ids uuid[] DEFAULT NULL::uuid[]) → TABLE(stage_id uuid, stage_nome text, fase text, ordem integer, owner_id uuid, owner_name text, card_count bigint, valor_total numeric, receita_total numeric)
+-- FUNCTION: analytics_funnel_conversion(p_date_start timestamp with time zone DEFAULT '2020-01-01 00:00:00+00'::timestamp with time zone, p_date_end timestamp with time zone DEFAULT now(), p_product text DEFAULT NULL::text, p_mode text DEFAULT 'entries'::text, p_stage_id uuid DEFAULT NULL::uuid, p_owner_id uuid DEFAULT NULL::uuid, p_owner_ids uuid[] DEFAULT NULL::uuid[], p_tag_ids uuid[] DEFAULT NULL::uuid[]) → TABLE(stage_id uuid, stage_nome text, phase_slug text, ordem integer, current_count bigint, total_valor numeric, avg_days_in_stage numeric, p75_days_in_stage numeric)
+-- FUNCTION: analytics_funnel_live(p_date_start timestamp with time zone DEFAULT '2020-01-01 00:00:00+00'::timestamp with time zone, p_date_end timestamp with time zone DEFAULT now(), p_product text DEFAULT NULL::text, p_mode text DEFAULT 'entries'::text, p_stage_id uuid DEFAULT NULL::uuid, p_owner_id uuid DEFAULT NULL::uuid, p_owner_ids uuid[] DEFAULT NULL::uuid[], p_tag_ids uuid[] DEFAULT NULL::uuid[]) → TABLE(stage_id uuid, stage_nome text, fase text, ordem integer, total_cards bigint, valor_total numeric, receita_total numeric)
+-- FUNCTION: analytics_loss_reasons(p_date_start timestamp with time zone DEFAULT '2020-01-01 00:00:00+00'::timestamp with time zone, p_date_end timestamp with time zone DEFAULT now(), p_product text DEFAULT NULL::text, p_mode text DEFAULT 'entries'::text, p_stage_id uuid DEFAULT NULL::uuid, p_owner_id uuid DEFAULT NULL::uuid, p_owner_ids uuid[] DEFAULT NULL::uuid[], p_tag_ids uuid[] DEFAULT NULL::uuid[]) → TABLE(motivo text, count bigint, percentage numeric)
+-- FUNCTION: analytics_operations_summary(p_date_start date DEFAULT NULL::date, p_date_end date DEFAULT NULL::date, p_product text DEFAULT NULL::text, p_mode text DEFAULT 'entries'::text, p_stage_id uuid DEFAULT NULL::uuid, p_owner_id uuid DEFAULT NULL::uuid, p_owner_ids uuid[] DEFAULT NULL::uuid[], p_tag_ids uuid[] DEFAULT NULL::uuid[]) → jsonb
+-- FUNCTION: analytics_overview_kpis(p_date_start timestamp with time zone DEFAULT '2020-01-01 00:00:00+00'::timestamp with time zone, p_date_end timestamp with time zone DEFAULT now(), p_product text DEFAULT NULL::text, p_mode text DEFAULT 'entries'::text, p_stage_id uuid DEFAULT NULL::uuid, p_owner_id uuid DEFAULT NULL::uuid, p_owner_ids uuid[] DEFAULT NULL::uuid[], p_tag_ids uuid[] DEFAULT NULL::uuid[]) → json
+-- FUNCTION: analytics_pipeline_current(p_product text DEFAULT NULL::text, p_owner_ids uuid[] DEFAULT NULL::uuid[], p_tag_ids uuid[] DEFAULT NULL::uuid[], p_date_ref text DEFAULT 'stage'::text, p_value_min numeric DEFAULT NULL::numeric, p_value_max numeric DEFAULT NULL::numeric) → jsonb
+-- FUNCTION: analytics_retention_cohort(p_date_start date DEFAULT NULL::date, p_date_end date DEFAULT NULL::date, p_product text DEFAULT NULL::text, p_tag_ids uuid[] DEFAULT NULL::uuid[]) → TABLE(cohort_month text, month_offset integer, total_contacts bigint, retained bigint, retention_rate numeric)
+-- FUNCTION: analytics_retention_kpis(p_date_start date DEFAULT NULL::date, p_date_end date DEFAULT NULL::date, p_product text DEFAULT NULL::text, p_tag_ids uuid[] DEFAULT NULL::uuid[]) → jsonb
+-- FUNCTION: analytics_revenue_by_product(p_date_start date DEFAULT NULL::date, p_date_end date DEFAULT NULL::date, p_mode text DEFAULT 'entries'::text, p_product text DEFAULT NULL::text, p_stage_id uuid DEFAULT NULL::uuid, p_owner_id uuid DEFAULT NULL::uuid, p_owner_ids uuid[] DEFAULT NULL::uuid[], p_tag_ids uuid[] DEFAULT NULL::uuid[]) → TABLE(produto text, count_won bigint, valor_total numeric, receita_total numeric)
+-- FUNCTION: analytics_revenue_timeseries(p_date_start timestamp with time zone DEFAULT '2020-01-01 00:00:00+00'::timestamp with time zone, p_date_end timestamp with time zone DEFAULT now(), p_granularity text DEFAULT 'month'::text, p_product text DEFAULT NULL::text, p_mode text DEFAULT 'entries'::text, p_stage_id uuid DEFAULT NULL::uuid, p_owner_id uuid DEFAULT NULL::uuid, p_owner_ids uuid[] DEFAULT NULL::uuid[], p_tag_ids uuid[] DEFAULT NULL::uuid[]) → TABLE(period text, period_start timestamp with time zone, total_valor numeric, total_receita numeric, count_won bigint)
+-- FUNCTION: analytics_sla_summary(p_date_start timestamp with time zone DEFAULT '2020-01-01 00:00:00+00'::timestamp with time zone, p_date_end timestamp with time zone DEFAULT now(), p_product text DEFAULT NULL::text, p_mode text DEFAULT 'entries'::text, p_stage_id uuid DEFAULT NULL::uuid, p_owner_id uuid DEFAULT NULL::uuid, p_owner_ids uuid[] DEFAULT NULL::uuid[], p_tag_ids uuid[] DEFAULT NULL::uuid[]) → TABLE(stage_nome text, sla_hours integer, total_cards bigint, compliant_cards bigint, violating_cards bigint, compliance_rate numeric, avg_hours_in_stage numeric)
+-- FUNCTION: analytics_sla_violations(p_date_start timestamp with time zone DEFAULT '2020-01-01 00:00:00+00'::timestamp with time zone, p_date_end timestamp with time zone DEFAULT now(), p_product text DEFAULT NULL::text, p_mode text DEFAULT 'entries'::text, p_limit integer DEFAULT 50, p_stage_id uuid DEFAULT NULL::uuid, p_owner_id uuid DEFAULT NULL::uuid, p_owner_ids uuid[] DEFAULT NULL::uuid[], p_tag_ids uuid[] DEFAULT NULL::uuid[]) → TABLE(card_id uuid, titulo text, stage_nome text, owner_nome text, dias_na_etapa numeric, sla_hours integer, sla_exceeded_hours numeric)
+-- FUNCTION: analytics_team_performance(p_date_start timestamp with time zone DEFAULT '2020-01-01 00:00:00+00'::timestamp with time zone, p_date_end timestamp with time zone DEFAULT now(), p_product text DEFAULT NULL::text, p_phase text DEFAULT NULL::text, p_mode text DEFAULT 'entries'::text, p_stage_id uuid DEFAULT NULL::uuid, p_owner_id uuid DEFAULT NULL::uuid, p_owner_ids uuid[] DEFAULT NULL::uuid[], p_tag_ids uuid[] DEFAULT NULL::uuid[]) → TABLE(user_id uuid, user_nome text, phase text, total_cards bigint, won_cards bigint, lost_cards bigint, open_cards bigint, conversion_rate numeric, total_receita numeric, ticket_medio numeric, ciclo_medio_dias numeric, active_cards bigint)
+-- FUNCTION: analytics_top_destinations(p_date_start date DEFAULT NULL::date, p_date_end date DEFAULT NULL::date, p_limit integer DEFAULT 10, p_mode text DEFAULT 'entries'::text, p_product text DEFAULT NULL::text, p_stage_id uuid DEFAULT NULL::uuid, p_owner_id uuid DEFAULT NULL::uuid, p_owner_ids uuid[] DEFAULT NULL::uuid[], p_tag_ids uuid[] DEFAULT NULL::uuid[]) → TABLE(destino text, total_cards bigint, receita_total numeric)
+-- FUNCTION: analytics_whatsapp_conversations(p_from date DEFAULT ((CURRENT_DATE - '30 days'::interval))::date, p_to date DEFAULT CURRENT_DATE, p_produto text DEFAULT NULL::text, p_owner_id uuid DEFAULT NULL::uuid, p_status text DEFAULT NULL::text, p_sort_by text DEFAULT 'last_message_at'::text, p_sort_dir text DEFAULT 'desc'::text, p_limit integer DEFAULT 25, p_offset integer DEFAULT 0, p_search text DEFAULT NULL::text, p_phase_slug text DEFAULT NULL::text, p_stage_id uuid DEFAULT NULL::uuid, p_instance text DEFAULT NULL::text, p_tag_ids uuid[] DEFAULT NULL::uuid[]) → jsonb
+-- FUNCTION: analytics_whatsapp_metrics(p_date_start date DEFAULT NULL::date, p_date_end date DEFAULT NULL::date, p_product text DEFAULT NULL::text, p_mode text DEFAULT 'entries'::text, p_stage_id uuid DEFAULT NULL::uuid, p_owner_id uuid DEFAULT NULL::uuid, p_owner_ids uuid[] DEFAULT NULL::uuid[]) → jsonb
+-- FUNCTION: analytics_whatsapp_speed(p_from date DEFAULT ((CURRENT_DATE - '30 days'::interval))::date, p_to date DEFAULT CURRENT_DATE, p_produto text DEFAULT NULL::text, p_owner_id uuid DEFAULT NULL::uuid, p_granularity text DEFAULT 'day'::text, p_tag_ids uuid[] DEFAULT NULL::uuid[]) → jsonb
+-- FUNCTION: analytics_whatsapp_v2(p_from date DEFAULT ((CURRENT_DATE - '30 days'::interval))::date, p_to date DEFAULT CURRENT_DATE, p_produto text DEFAULT NULL::text, p_owner_id uuid DEFAULT NULL::uuid, p_granularity text DEFAULT 'day'::text, p_tag_ids uuid[] DEFAULT NULL::uuid[]) → jsonb
+-- FUNCTION: apply_contact_quality_fixes(p_fixes jsonb) → TABLE(fixed_count integer, error_count integer, errors text[])
+-- FUNCTION: array_to_halfvec(real[], integer, boolean) → halfvec
+-- FUNCTION: array_to_halfvec(double precision[], integer, boolean) → halfvec
+-- FUNCTION: array_to_halfvec(integer[], integer, boolean) → halfvec
+-- FUNCTION: array_to_halfvec(numeric[], integer, boolean) → halfvec
+-- FUNCTION: array_to_sparsevec(real[], integer, boolean) → sparsevec
+-- FUNCTION: array_to_sparsevec(double precision[], integer, boolean) → sparsevec
+-- FUNCTION: array_to_sparsevec(numeric[], integer, boolean) → sparsevec
+-- FUNCTION: array_to_sparsevec(integer[], integer, boolean) → sparsevec
+-- FUNCTION: array_to_vector(numeric[], integer, boolean) → vector
+-- FUNCTION: array_to_vector(real[], integer, boolean) → vector
+-- FUNCTION: array_to_vector(double precision[], integer, boolean) → vector
+-- FUNCTION: array_to_vector(integer[], integer, boolean) → vector
+-- FUNCTION: audit_contact_quality(p_issue_types text[] DEFAULT NULL::text[], p_limit integer DEFAULT 500) → TABLE(contact_id uuid, contact_nome text, contact_sobrenome text, contact_email text, contact_cpf text, contact_data_nascimento date, issue_type text, issue_description text, confidence text, suggested_nome text, suggested_sobrenome text, suggested_data_nascimento date)
+-- FUNCTION: audit_contact_quality_counts() → TABLE(issue_type text, issue_count bigint)
+-- FUNCTION: auto_assign_card_owner() → trigger
+-- FUNCTION: auto_cancel_sub_cards_on_parent_lost() → trigger
+-- FUNCTION: auto_expire_proposals() → integer
+-- FUNCTION: auto_generate_proposal_token() → trigger
+-- FUNCTION: auto_start_cadence_for_new_card() → trigger
+-- FUNCTION: avg(vector) → vector
+-- FUNCTION: avg(halfvec) → halfvec
+-- FUNCTION: binary_quantize(vector) → bit
+-- FUNCTION: binary_quantize(halfvec) → bit
+-- FUNCTION: bulk_create_pos_venda_cards(p_trips jsonb, p_created_by uuid) → jsonb
+-- FUNCTION: bulk_import_financial_items(p_cards jsonb) → jsonb
+-- FUNCTION: calculate_business_due_date(p_from timestamp with time zone, p_delay_minutes integer, p_delay_type text DEFAULT 'business'::text, p_bh_start integer DEFAULT 9, p_bh_end integer DEFAULT 18, p_allowed_weekdays integer[] DEFAULT '{1,2,3,4,5}'::integer[]) → timestamp with time zone
+-- FUNCTION: calculate_flight_base_price(p_rich_content jsonb) → numeric
+-- FUNCTION: calculate_group_totals() → trigger
+-- FUNCTION: calculate_group_totals_from_contacts() → trigger
+-- FUNCTION: calculate_tipo_pessoa() → trigger
+-- FUNCTION: cancelar_sub_card(p_sub_card_id uuid, p_motivo text DEFAULT NULL::text) → jsonb
+-- FUNCTION: check_contact_duplicates(p_cpf text DEFAULT NULL::text, p_email text DEFAULT NULL::text, p_telefone text DEFAULT NULL::text, p_nome text DEFAULT NULL::text, p_sobrenome text DEFAULT NULL::text, p_exclude_id uuid DEFAULT NULL::uuid) → TABLE(match_type text, match_strength text, contact_id uuid, contact_nome text, contact_sobrenome text, contact_email text, contact_telefone text, contact_cpf text)
+-- FUNCTION: check_contato_required_fields() → trigger
+-- FUNCTION: check_expiring_tasks_push() → void
+-- FUNCTION: check_invite_whitelist() → trigger
+-- FUNCTION: check_outbound_trigger(p_integration_id uuid, p_pipeline_id uuid, p_stage_id uuid, p_owner_id uuid, p_status text, p_event_type text, p_field_name text DEFAULT NULL::text) → TABLE(allowed boolean, rule_id uuid, rule_name text, action_mode text, sync_field_mode text, sync_fields text[], action_type text, reason text)
+-- FUNCTION: check_overdue_tasks_push() → void
+-- FUNCTION: check_single_role_cards_contatos() → trigger
+-- FUNCTION: check_upcoming_meetings_push() → void
+-- FUNCTION: cleanup_orphaned_user_on_invite_delete() → trigger
+-- FUNCTION: cleanup_single_role_cards() → trigger
+-- FUNCTION: completar_sub_card(p_sub_card_id uuid) → jsonb
+-- FUNCTION: cosine_distance(halfvec, halfvec) → double precision
+-- FUNCTION: cosine_distance(sparsevec, sparsevec) → double precision
+-- FUNCTION: cosine_distance(vector, vector) → double precision
+-- FUNCTION: create_user_and_card(p_name text, p_phone text, p_pipeline_stage_id uuid DEFAULT '46c2cc2e-e9cb-4255-b889-3ee4d1248ba9'::uuid) → jsonb
+-- FUNCTION: criar_card_oportunidade_futura(p_future_opp_id uuid) → jsonb
+-- FUNCTION: criar_sub_card(p_parent_id uuid, p_titulo text, p_descricao text, p_mode text DEFAULT 'incremental'::text, p_merge_config jsonb DEFAULT NULL::jsonb, p_category text DEFAULT 'addition'::text, p_valor_estimado numeric DEFAULT 0) → jsonb
+-- FUNCTION: criar_sub_card_futuro(p_future_opp_id uuid) → jsonb
+-- FUNCTION: custom_access_token_hook(event jsonb) → jsonb
+-- FUNCTION: delete_user(user_id uuid) → void
+-- FUNCTION: describe_table(p_table text) → TABLE(column_name text, data_type text, is_nullable text)
+-- FUNCTION: enforce_card_value_rules() → trigger
+-- FUNCTION: exec_sql(query text) → jsonb
+-- FUNCTION: execute_automation_rules() → trigger
+-- FUNCTION: execute_cadence_entry_rule_immediate(p_card_id uuid, p_trigger_id uuid) → jsonb
+-- FUNCTION: execute_card_auto_creation() → trigger
+-- FUNCTION: f_unaccent(text) → text
+-- FUNCTION: find_contact_by_whatsapp(p_phone text, p_convo_id text) → uuid
+-- FUNCTION: find_jsonb_diffs(p_path text, p_old jsonb, p_new jsonb) → SETOF jsonb_diff_record
+-- FUNCTION: fix_orphan_conversations() → jsonb
+-- FUNCTION: fn_check_integration_health() → jsonb
+-- FUNCTION: generate_api_key(p_name text, p_permissions jsonb DEFAULT '{"read": true, "write": true}'::jsonb, p_rate_limit integer DEFAULT 5000, p_expires_at timestamp with time zone DEFAULT NULL::timestamp with time zone) → TABLE(api_key_id uuid, plain_text_key text)
+-- FUNCTION: generate_invite(p_email text, p_role text, p_team_id uuid, p_created_by uuid, p_produtos text[] DEFAULT NULL::text[]) → text
+-- FUNCTION: generate_proposal_public_token() → text
+-- FUNCTION: get_ai_extraction_config() → jsonb
+-- FUNCTION: get_ai_extraction_config_v2(p_stage_id uuid DEFAULT NULL::uuid) → jsonb
+-- FUNCTION: get_all_tables() → TABLE(table_name text)
+-- FUNCTION: get_all_views() → TABLE(view_name text)
+-- FUNCTION: get_card_ids_by_stage_entry(p_stage_id uuid, p_date_start timestamp with time zone, p_date_end timestamp with time zone, p_product text DEFAULT NULL::text) → TABLE(card_id uuid)
+-- FUNCTION: get_client_by_phone(p_phone_with_9 text, p_phone_without_9 text, p_conversation_id text DEFAULT ''::text) → jsonb
+-- FUNCTION: get_invite_details(token_input text) → json
+-- FUNCTION: get_monde_sales_by_card(p_card_id uuid) → TABLE(sale_id uuid, sale_date date, total_value numeric, status text, monde_sale_id text, items_count bigint, created_at timestamp with time zone)
+-- FUNCTION: get_outbound_external_field_id(p_integration_id uuid, p_internal_field text) → text
+-- FUNCTION: get_outbound_setting(p_key text) → text
+-- FUNCTION: get_outbound_trigger_event_stats(p_integration_id uuid) → TABLE(trigger_id uuid, status text, cnt bigint)
+-- FUNCTION: get_schema_summary() → TABLE(resource_type text, count bigint)
+-- FUNCTION: get_sub_cards(p_parent_id uuid) → jsonb
+-- FUNCTION: get_travel_history(contact_ids uuid[]) → TABLE(card_id uuid, titulo text, data_viagem date, status text, role text, valor numeric, moeda text, companions text[], relevant_contacts text[])
+-- FUNCTION: get_travel_history(contact_id_param uuid) → TABLE(card_id uuid, titulo text, data_viagem date, status text, role text, valor numeric, moeda text, companions text[])
+-- FUNCTION: get_trigger_event_stats(p_integration_id uuid) → TABLE(trigger_id uuid, status text, cnt bigint)
+-- FUNCTION: get_trigger_with_validation_config(p_integration_id uuid, p_pipeline_id text, p_stage_id text, p_owner_id text DEFAULT NULL::text) → TABLE(trigger_id uuid, target_stage_id uuid, target_pipeline_id uuid, bypass_validation boolean, validation_level text, quarantine_mode text, quarantine_stage_id uuid, action_type text)
+-- FUNCTION: get_user_role() → app_role
+-- FUNCTION: get_whatsapp_conversation_messages(p_contact_id uuid, p_limit integer DEFAULT 100) → jsonb
+-- FUNCTION: gin_extract_query_trgm(text, internal, smallint, internal, internal, internal, internal) → internal
+-- FUNCTION: gin_extract_value_trgm(text, internal) → internal
+-- FUNCTION: gin_trgm_consistent(internal, smallint, text, integer, internal, internal, internal, internal) → boolean
+-- FUNCTION: gin_trgm_triconsistent(internal, smallint, text, integer, internal, internal, internal) → "char"
+-- FUNCTION: gtrgm_compress(internal) → internal
+-- FUNCTION: gtrgm_consistent(internal, text, smallint, oid, internal) → boolean
+-- FUNCTION: gtrgm_decompress(internal) → internal
+-- FUNCTION: gtrgm_distance(internal, text, smallint, oid, internal) → double precision
+-- FUNCTION: gtrgm_in(cstring) → gtrgm
+-- FUNCTION: gtrgm_options(internal) → void
+-- FUNCTION: gtrgm_out(gtrgm) → cstring
+-- FUNCTION: gtrgm_penalty(internal, internal, internal) → internal
+-- FUNCTION: gtrgm_picksplit(internal, internal) → internal
+-- FUNCTION: gtrgm_same(gtrgm, gtrgm, internal) → internal
+-- FUNCTION: gtrgm_union(internal, internal) → gtrgm
+-- FUNCTION: halfvec(halfvec, integer, boolean) → halfvec
+-- FUNCTION: halfvec_accum(double precision[], halfvec) → double precision[]
+-- FUNCTION: halfvec_add(halfvec, halfvec) → halfvec
+-- FUNCTION: halfvec_avg(double precision[]) → halfvec
+-- FUNCTION: halfvec_cmp(halfvec, halfvec) → integer
+-- FUNCTION: halfvec_combine(double precision[], double precision[]) → double precision[]
+-- FUNCTION: halfvec_concat(halfvec, halfvec) → halfvec
+-- FUNCTION: halfvec_eq(halfvec, halfvec) → boolean
+-- FUNCTION: halfvec_ge(halfvec, halfvec) → boolean
+-- FUNCTION: halfvec_gt(halfvec, halfvec) → boolean
+-- FUNCTION: halfvec_in(cstring, oid, integer) → halfvec
+-- FUNCTION: halfvec_l2_squared_distance(halfvec, halfvec) → double precision
+-- FUNCTION: halfvec_le(halfvec, halfvec) → boolean
+-- FUNCTION: halfvec_lt(halfvec, halfvec) → boolean
+-- FUNCTION: halfvec_mul(halfvec, halfvec) → halfvec
+-- FUNCTION: halfvec_ne(halfvec, halfvec) → boolean
+-- FUNCTION: halfvec_negative_inner_product(halfvec, halfvec) → double precision
+-- FUNCTION: halfvec_out(halfvec) → cstring
+-- FUNCTION: halfvec_recv(internal, oid, integer) → halfvec
+-- FUNCTION: halfvec_send(halfvec) → bytea
+-- FUNCTION: halfvec_spherical_distance(halfvec, halfvec) → double precision
+-- FUNCTION: halfvec_sub(halfvec, halfvec) → halfvec
+-- FUNCTION: halfvec_to_float4(halfvec, integer, boolean) → real[]
+-- FUNCTION: halfvec_to_sparsevec(halfvec, integer, boolean) → sparsevec
+-- FUNCTION: halfvec_to_vector(halfvec, integer, boolean) → vector
+-- FUNCTION: halfvec_typmod_in(cstring[]) → integer
+-- FUNCTION: hamming_distance(bit, bit) → double precision
+-- FUNCTION: handle_card_auto_advance() → trigger
+-- FUNCTION: handle_card_owner_phase_guard() → trigger
+-- FUNCTION: handle_card_status_automation() → trigger
+-- FUNCTION: handle_new_user() → trigger
+-- FUNCTION: handle_outbound_webhook() → trigger
+-- FUNCTION: handle_proposal_status_change() → trigger
+-- FUNCTION: handle_updated_at() → trigger
+-- FUNCTION: has_role(role_name text) → boolean
+-- FUNCTION: hnsw_bit_support(internal) → internal
+-- FUNCTION: hnsw_halfvec_support(internal) → internal
+-- FUNCTION: hnsw_sparsevec_support(internal) → internal
+-- FUNCTION: hnswhandler(internal) → index_am_handler
+-- FUNCTION: increment_library_usage(library_id uuid) → void
+-- FUNCTION: inner_product(vector, vector) → double precision
+-- FUNCTION: inner_product(halfvec, halfvec) → double precision
+-- FUNCTION: inner_product(sparsevec, sparsevec) → double precision
+-- FUNCTION: is_admin() → boolean
+-- FUNCTION: is_admin_or_manager() → boolean
+-- FUNCTION: is_gestor() → boolean
+-- FUNCTION: is_manager_or_admin() → boolean
+-- FUNCTION: is_operational() → boolean
+-- FUNCTION: is_proposal_flight_sold(p_flight_id uuid) → boolean
+-- FUNCTION: is_proposal_item_sold(p_item_id uuid) → boolean
+-- FUNCTION: ivfflat_bit_support(internal) → internal
+-- FUNCTION: ivfflat_halfvec_support(internal) → internal
+-- FUNCTION: ivfflathandler(internal) → index_am_handler
+-- FUNCTION: jaccard_distance(bit, bit) → double precision
+-- FUNCTION: jsonb_get_path(data jsonb, path text) → text
+-- FUNCTION: julia_assign_tag(p_card_id uuid, p_tag_name text, p_tag_color text DEFAULT '#ef4444'::text) → jsonb
+-- FUNCTION: julia_check_calendar(p_owner_id uuid, p_date_from date DEFAULT CURRENT_DATE, p_date_to date DEFAULT (CURRENT_DATE + 5)) → jsonb
+-- FUNCTION: julia_request_handoff(p_card_id uuid, p_reason text DEFAULT 'outro'::text, p_context_summary text DEFAULT ''::text) → jsonb
+-- FUNCTION: l1_distance(sparsevec, sparsevec) → double precision
+-- FUNCTION: l1_distance(halfvec, halfvec) → double precision
+-- FUNCTION: l1_distance(vector, vector) → double precision
+-- FUNCTION: l2_distance(halfvec, halfvec) → double precision
+-- FUNCTION: l2_distance(sparsevec, sparsevec) → double precision
+-- FUNCTION: l2_distance(vector, vector) → double precision
+-- FUNCTION: l2_norm(sparsevec) → double precision
+-- FUNCTION: l2_norm(halfvec) → double precision
+-- FUNCTION: l2_normalize(sparsevec) → sparsevec
+-- FUNCTION: l2_normalize(halfvec) → halfvec
+-- FUNCTION: l2_normalize(vector) → vector
+-- FUNCTION: link_viajante_orphan_messages() → trigger
+-- FUNCTION: list_all_tables() → TABLE(table_name text, row_estimate bigint)
+-- FUNCTION: log_activity() → trigger
+-- FUNCTION: log_card_changes() → trigger
+-- FUNCTION: log_card_created() → trigger
+-- FUNCTION: log_card_deletion() → trigger
+-- FUNCTION: log_card_update_activity() → trigger
+-- FUNCTION: log_cards_contatos_activity() → trigger
+-- FUNCTION: log_changes() → trigger
+-- FUNCTION: log_contrato_activity() → trigger
+-- FUNCTION: log_mensagem_activity() → trigger
+-- FUNCTION: log_nota_activity() → trigger
+-- FUNCTION: log_obligation_activity() → trigger
+-- FUNCTION: log_outbound_card_event() → trigger
+-- FUNCTION: log_outbound_tarefa_event() → trigger
+-- FUNCTION: log_owner_change() → trigger
+-- FUNCTION: log_proposal_activity() → trigger
+-- FUNCTION: log_reuniao_activity() → trigger
+-- FUNCTION: log_stage_fields_changes() → trigger
+-- FUNCTION: log_tarefa_activity_v2() → trigger
+-- FUNCTION: marcar_ganho(p_card_id uuid, p_novo_dono_id uuid DEFAULT NULL::uuid, p_skip_pos_venda boolean DEFAULT false) → jsonb
+-- FUNCTION: marcar_perdido(p_card_id uuid, p_motivo_perda_id uuid DEFAULT NULL::uuid, p_motivo_perda_comentario text DEFAULT NULL::text) → void
+-- FUNCTION: mark_invite_used() → trigger
+-- FUNCTION: match_documents_v2(query_embedding vector, match_threshold double precision, match_count integer, filter jsonb) → TABLE(chunk_id uuid, document_id uuid, content text, similarity double precision, metadata jsonb, char_start integer, char_end integer)
+-- FUNCTION: merge_sub_card(p_sub_card_id uuid, p_options jsonb DEFAULT '{}'::jsonb) → jsonb
+-- FUNCTION: mover_card(p_card_id uuid, p_nova_etapa_id uuid, p_motivo_perda_id uuid DEFAULT NULL::uuid, p_motivo_perda_comentario text DEFAULT NULL::text) → void
+-- FUNCTION: normalize_card_origem() → trigger
+-- FUNCTION: normalize_contato_meio() → trigger
+-- FUNCTION: normalize_cpf(cpf_input text) → text
+-- FUNCTION: normalize_phone(phone_number text) → text
+-- FUNCTION: normalize_phone_brazil(phone_number text) → text
+-- FUNCTION: normalize_phone_robust(p_phone text) → text[]
+-- FUNCTION: notify_n8n_ai_extraction() → trigger
+-- FUNCTION: notify_push_lead_assigned() → trigger
+-- FUNCTION: notify_push_proposal_status() → trigger
+-- FUNCTION: notify_teams_on_card_assign() → trigger
+-- FUNCTION: populate_historico_fases() → trigger
+-- FUNCTION: process_all_pending_whatsapp_events() → jsonb
+-- FUNCTION: process_cadence_entry_on_card_create() → trigger
+-- FUNCTION: process_cadence_entry_on_stage_change() → trigger
+-- FUNCTION: process_pending_whatsapp_events() → jsonb
+-- FUNCTION: process_task_queue() → integer
+-- FUNCTION: process_whatsapp_raw_event(event_id uuid) → jsonb
+-- FUNCTION: process_whatsapp_raw_event_v2(event_id uuid) → jsonb
+-- FUNCTION: reabrir_card(p_card_id uuid) → void
+-- FUNCTION: recalcular_financeiro_manual(p_card_id uuid) → jsonb
+-- FUNCTION: recalcular_receita_card(p_card_id uuid) → jsonb
+-- FUNCTION: recalculate_contact_stats() → trigger
+-- FUNCTION: recalculate_contact_stats_for(p_contact_id uuid) → void
+-- FUNCTION: report_drill_down(p_config jsonb, p_drill_filters jsonb, p_date_start timestamp with time zone DEFAULT NULL::timestamp with time zone, p_date_end timestamp with time zone DEFAULT NULL::timestamp with time zone, p_product text DEFAULT NULL::text, p_owner_id uuid DEFAULT NULL::uuid) → jsonb
+-- FUNCTION: report_funnel_flow(p_date_start timestamp with time zone, p_date_end timestamp with time zone, p_product text DEFAULT NULL::text, p_owner_id uuid DEFAULT NULL::uuid) → jsonb
+-- FUNCTION: report_query_engine(p_config jsonb, p_date_start timestamp with time zone DEFAULT NULL::timestamp with time zone, p_date_end timestamp with time zone DEFAULT NULL::timestamp with time zone, p_product text DEFAULT NULL::text, p_owner_id uuid DEFAULT NULL::uuid) → jsonb
+-- FUNCTION: report_stage_cohort(p_stage_id uuid, p_date_start timestamp with time zone, p_date_end timestamp with time zone, p_product text DEFAULT NULL::text, p_owner_id uuid DEFAULT NULL::uuid) → jsonb
+-- FUNCTION: reprocess_orphan_whatsapp_for_phone(p_phone text) → jsonb
+-- FUNCTION: reprocess_pending_whatsapp_events(batch_size integer DEFAULT 100) → jsonb
+-- FUNCTION: reset_user_password(p_user_id uuid, p_new_password text) → void
+-- FUNCTION: revert_pos_venda_import_items(p_item_ids uuid[], p_reverted_by uuid) → jsonb
+-- FUNCTION: revoke_api_key(p_key_id uuid) → boolean
+-- FUNCTION: safe_log_trigger_error(p_function_name text, p_error_message text, p_context jsonb DEFAULT '{}'::jsonb) → void
+-- FUNCTION: sanitize_contact_names(p_nome text, p_sobrenome text) → TABLE(nome text, sobrenome text)
+-- FUNCTION: schedule_tasks_on_stage_change() → trigger
+-- FUNCTION: search_proposal_library(search_term text, category_filter text DEFAULT NULL::text, destination_filter text DEFAULT NULL::text, limit_count integer DEFAULT 20) → TABLE(id uuid, category text, name text, content jsonb, base_price numeric, currency text, tags text[], supplier text, destination text, created_by uuid, is_shared boolean, usage_count integer, created_at timestamp with time zone, similarity_score real, thumbnail_url text)
+-- FUNCTION: set_card_primary_contact(p_card_id uuid, p_contact_id uuid) → void
+-- FUNCTION: set_card_tags_updated_at() → trigger
+-- FUNCTION: set_limit(real) → real
+-- FUNCTION: set_sub_card_completed() → trigger
+-- FUNCTION: should_sync_field(p_integration_id uuid, p_internal_field text, p_current_phase_id uuid) → boolean
+-- FUNCTION: show_limit() → real
+-- FUNCTION: show_trgm(text) → text[]
+-- FUNCTION: similarity(text, text) → real
+-- FUNCTION: similarity_dist(text, text) → real
+-- FUNCTION: similarity_op(text, text) → boolean
+-- FUNCTION: smart_title_case(name text) → text
+-- FUNCTION: snapshot_briefing_inicial() → trigger
+-- FUNCTION: sparsevec(sparsevec, integer, boolean) → sparsevec
+-- FUNCTION: sparsevec_cmp(sparsevec, sparsevec) → integer
+-- FUNCTION: sparsevec_eq(sparsevec, sparsevec) → boolean
+-- FUNCTION: sparsevec_ge(sparsevec, sparsevec) → boolean
+-- FUNCTION: sparsevec_gt(sparsevec, sparsevec) → boolean
+-- FUNCTION: sparsevec_in(cstring, oid, integer) → sparsevec
+-- FUNCTION: sparsevec_l2_squared_distance(sparsevec, sparsevec) → double precision
+-- FUNCTION: sparsevec_le(sparsevec, sparsevec) → boolean
+-- FUNCTION: sparsevec_lt(sparsevec, sparsevec) → boolean
+-- FUNCTION: sparsevec_ne(sparsevec, sparsevec) → boolean
+-- FUNCTION: sparsevec_negative_inner_product(sparsevec, sparsevec) → double precision
+-- FUNCTION: sparsevec_out(sparsevec) → cstring
+-- FUNCTION: sparsevec_recv(internal, oid, integer) → sparsevec
+-- FUNCTION: sparsevec_send(sparsevec) → bytea
+-- FUNCTION: sparsevec_to_halfvec(sparsevec, integer, boolean) → halfvec
+-- FUNCTION: sparsevec_to_vector(sparsevec, integer, boolean) → vector
+-- FUNCTION: sparsevec_typmod_in(cstring[]) → integer
+-- FUNCTION: strict_word_similarity(text, text) → real
+-- FUNCTION: strict_word_similarity_commutator_op(text, text) → boolean
+-- FUNCTION: strict_word_similarity_dist_commutator_op(text, text) → real
+-- FUNCTION: strict_word_similarity_dist_op(text, text) → real
+-- FUNCTION: strict_word_similarity_op(text, text) → boolean
+-- FUNCTION: subvector(vector, integer, integer) → vector
+-- FUNCTION: subvector(halfvec, integer, integer) → halfvec
+-- FUNCTION: sum(halfvec) → halfvec
+-- FUNCTION: sum(vector) → vector
+-- FUNCTION: sync_card_dates_from_json() → trigger
+-- FUNCTION: sync_card_dates_to_json() → trigger
+-- FUNCTION: sync_flight_item_to_flights() → trigger
+-- FUNCTION: sync_meios_to_telefone() → trigger
+-- FUNCTION: sync_pipeline_stage_fase() → trigger
+-- FUNCTION: sync_proposal_revenue_to_card() → trigger
+-- FUNCTION: sync_role_from_team() → trigger
+-- FUNCTION: sync_telefone_to_meios() → trigger
+-- FUNCTION: sync_travel_normalized_columns() → trigger
+-- FUNCTION: sync_valor_proprio_on_parent_edit() → trigger
+-- FUNCTION: trigger_auto_process_whatsapp_event() → trigger
+-- FUNCTION: trigger_reprocess_whatsapp_on_contato_phone() → trigger
+-- FUNCTION: trigger_reprocess_whatsapp_on_new_phone() → trigger
+-- FUNCTION: trigger_workflow_engine_webhook() → trigger
+-- FUNCTION: unaccent(text) → text
+-- FUNCTION: unaccent(regdictionary, text) → text
+-- FUNCTION: unaccent_init(internal) → internal
+-- FUNCTION: unaccent_lexize(internal, internal, internal, internal) → internal
+-- FUNCTION: update_cadence_templates_updated_at() → trigger
+-- FUNCTION: update_card_from_ai_extraction(p_card_id uuid, p_produto_data jsonb, p_briefing_inicial jsonb) → jsonb
+-- FUNCTION: update_custom_reports_updated_at() → trigger
+-- FUNCTION: update_inbound_triggers_timestamp() → trigger
+-- FUNCTION: update_inventory_stock() → trigger
+-- FUNCTION: update_monde_sale_total() → trigger
+-- FUNCTION: update_monde_sales_updated_at() → trigger
+-- FUNCTION: update_notas_updated_at() → trigger
+-- FUNCTION: update_outbound_triggers_updated_at() → trigger
+-- FUNCTION: update_pipeline_card_settings_updated_at() → trigger
+-- FUNCTION: update_provider_catalog_updated_at() → trigger
+-- FUNCTION: update_sections_updated_at() → trigger
+-- FUNCTION: update_stage_entered_at() → trigger
+-- FUNCTION: update_travelers_count() → trigger
+-- FUNCTION: update_updated_at_column() → trigger
+-- FUNCTION: update_user_email(p_user_id uuid, p_new_email text) → void
+-- FUNCTION: upsert_contacts_from_import(p_contacts jsonb, p_created_by uuid DEFAULT NULL::uuid, p_origem_detalhe text DEFAULT NULL::text) → TABLE(inserted_count integer, updated_count integer, skipped_count integer, error_count integer, errors text[])
+-- FUNCTION: validate_api_key(p_key text) → TABLE(key_id uuid, key_name text, permissions jsonb, rate_limit integer, current_count integer, is_valid boolean, error_message text)
+-- FUNCTION: validate_card_data() → trigger
+-- FUNCTION: validate_cpf(cpf text) → boolean
+-- FUNCTION: validate_integration_gate(p_card_data jsonb, p_target_stage_id uuid, p_source text DEFAULT 'active_campaign'::text, p_validation_level text DEFAULT 'fields_only'::text) → TABLE(valid boolean, missing_requirements jsonb, can_bypass boolean)
+-- FUNCTION: validate_transition(p_card_id uuid, p_target_stage_id uuid) → boolean
+-- FUNCTION: vector(vector, integer, boolean) → vector
+-- FUNCTION: vector_accum(double precision[], vector) → double precision[]
+-- FUNCTION: vector_add(vector, vector) → vector
+-- FUNCTION: vector_avg(double precision[]) → vector
+-- FUNCTION: vector_cmp(vector, vector) → integer
+-- FUNCTION: vector_combine(double precision[], double precision[]) → double precision[]
+-- FUNCTION: vector_concat(vector, vector) → vector
+-- FUNCTION: vector_dims(halfvec) → integer
+-- FUNCTION: vector_dims(vector) → integer
+-- FUNCTION: vector_eq(vector, vector) → boolean
+-- FUNCTION: vector_ge(vector, vector) → boolean
+-- FUNCTION: vector_gt(vector, vector) → boolean
+-- FUNCTION: vector_in(cstring, oid, integer) → vector
+-- FUNCTION: vector_l2_squared_distance(vector, vector) → double precision
+-- FUNCTION: vector_le(vector, vector) → boolean
+-- FUNCTION: vector_lt(vector, vector) → boolean
+-- FUNCTION: vector_mul(vector, vector) → vector
+-- FUNCTION: vector_ne(vector, vector) → boolean
+-- FUNCTION: vector_negative_inner_product(vector, vector) → double precision
+-- FUNCTION: vector_norm(vector) → double precision
+-- FUNCTION: vector_out(vector) → cstring
+-- FUNCTION: vector_recv(internal, oid, integer) → vector
+-- FUNCTION: vector_send(vector) → bytea
+-- FUNCTION: vector_spherical_distance(vector, vector) → double precision
+-- FUNCTION: vector_sub(vector, vector) → vector
+-- FUNCTION: vector_to_float4(vector, integer, boolean) → real[]
+-- FUNCTION: vector_to_halfvec(vector, integer, boolean) → halfvec
+-- FUNCTION: vector_to_sparsevec(vector, integer, boolean) → sparsevec
+-- FUNCTION: vector_typmod_in(cstring[]) → integer
+-- FUNCTION: word_similarity(text, text) → real
+-- FUNCTION: word_similarity_commutator_op(text, text) → boolean
+-- FUNCTION: word_similarity_dist_commutator_op(text, text) → real
+-- FUNCTION: word_similarity_dist_op(text, text) → real
+-- FUNCTION: word_similarity_op(text, text) → boolean
+
+-- ============================================================
+-- SUMMARY
+-- ============================================================
+-- Tables:    130
+-- Views:     17
+-- Functions: 371
+-- Triggers:  144
+-- Indexes:   426
+-- Enums:     8
+-- Policies:  307
+-- Columns:   1895

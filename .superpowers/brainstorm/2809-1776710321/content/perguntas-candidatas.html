@@ -1,0 +1,183 @@
+<h2>Perguntas candidatas para o Analytics</h2>
+<p class="subtitle">Clique nas que realmente importam pra você. Pode marcar várias. Legenda de dados: <strong style="color:#16a34a">✅ já tem</strong> · <strong style="color:#d97706">⚠️ tem mas precisa RPC nova</strong> · <strong style="color:#dc2626">❌ precisa instrumentar antes</strong></p>
+
+<div class="section">
+  <div class="label">Pilar 1 — Aquisição & Conversão</div>
+  <div class="options" data-multiselect>
+    <div class="option" data-choice="aq1" onclick="toggleSelect(this)">
+      <div class="letter">A1</div>
+      <div class="content">
+        <h3>Conversão por fonte de lead</h3>
+        <p>Qual % de leads vira viagem fechada, por origem (Indicação / Carteira Própria / Marketing / Site / WhatsApp / Carteira WG / Sorrento). <strong style="color:#d97706">⚠️</strong></p>
+      </div>
+    </div>
+    <div class="option" data-choice="aq2" onclick="toggleSelect(this)">
+      <div class="letter">A2</div>
+      <div class="content">
+        <h3>Ranking de clientes que mais indicam</h3>
+        <p>Top 10 contatos que mais geraram cards via indicação, com quantos fecharam. <strong style="color:#16a34a">✅</strong></p>
+      </div>
+    </div>
+    <div class="option" data-choice="aq3" onclick="toggleSelect(this)">
+      <div class="letter">A3</div>
+      <div class="content">
+        <h3>Taxa de retorno (repeat buyer)</h3>
+        <p>% dos clientes que já fecharam uma viagem e voltam a comprar outra. Tempo médio entre a 1ª e a 2ª compra. <strong style="color:#16a34a">✅</strong></p>
+      </div>
+    </div>
+    <div class="option" data-choice="aq4" onclick="toggleSelect(this)">
+      <div class="letter">A4</div>
+      <div class="content">
+        <h3>Lead direto no Planner vs passou pelo SDR</h3>
+        <p>Comparar conversão, ticket e tempo de ciclo entre leads que entraram direto no Planner (sem SDR) e leads que vieram do SDR. <strong style="color:#d97706">⚠️</strong></p>
+      </div>
+    </div>
+    <div class="option" data-choice="aq5" onclick="toggleSelect(this)">
+      <div class="letter">A5</div>
+      <div class="content">
+        <h3>Coorte por mês de entrada</h3>
+        <p>Dos leads que entraram em Janeiro, quantos % fecharam em Jan/Fev/Mar/Abril? Mostra maturação real do funil. <strong style="color:#d97706">⚠️</strong></p>
+      </div>
+    </div>
+    <div class="option" data-choice="aq6" onclick="toggleSelect(this)">
+      <div class="letter">A6</div>
+      <div class="content">
+        <h3>Ticket médio por fonte</h3>
+        <p>Qual canal traz lead de maior valor? Indicação compra viagem mais cara que site? <strong style="color:#d97706">⚠️</strong></p>
+      </div>
+    </div>
+    <div class="option" data-choice="aq7" onclick="toggleSelect(this)">
+      <div class="letter">A7</div>
+      <div class="content">
+        <h3>Campanha de marketing (UTM)</h3>
+        <p>Qual campanha trouxe mais lead que converteu? ROI por campanha. <strong style="color:#d97706">⚠️</strong></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Pilar 2 — Vendas (valores, preço, versões, destinos)</div>
+  <div class="options" data-multiselect>
+    <div class="option" data-choice="vd1" onclick="toggleSelect(this)">
+      <div class="letter">V1</div>
+      <div class="content">
+        <h3>Faturamento vs Receita (comissão)</h3>
+        <p>Quanto vendemos em valor de viagem (faturamento) vs quanto a empresa recebeu (receita/comissão), por mês. <strong style="color:#16a34a">✅</strong></p>
+      </div>
+    </div>
+    <div class="option" data-choice="vd2" onclick="toggleSelect(this)">
+      <div class="letter">V2</div>
+      <div class="content">
+        <h3>Ticket médio por Planner / destino / mês</h3>
+        <p>Qual Planner está vendendo viagens maiores? Qual destino tem maior ticket? <strong style="color:#16a34a">✅</strong></p>
+      </div>
+    </div>
+    <div class="option" data-choice="vd3" onclick="toggleSelect(this)">
+      <div class="letter">V3</div>
+      <div class="content">
+        <h3>Top destinos vendidos</h3>
+        <p>Ranking de destinos por número de viagens e por receita, no período. <strong style="color:#16a34a">✅</strong></p>
+      </div>
+    </div>
+    <div class="option" data-choice="vd4" onclick="toggleSelect(this)">
+      <div class="letter">V4</div>
+      <div class="content">
+        <h3>Versões de proposta até aprovar</h3>
+        <p>Quantas versões em média o cliente pede até aprovar? Planners que aprovam na 1ª versão vs os que negociam muito. <strong style="color:#d97706">⚠️</strong> (novo modelo de trip_items já guarda histórico)</p>
+      </div>
+    </div>
+    <div class="option" data-choice="vd5" onclick="toggleSelect(this)">
+      <div class="letter">V5</div>
+      <div class="content">
+        <h3>Tempo da Proposta ao Ganho</h3>
+        <p>Quantos dias, em média, desde a 1ª proposta enviada até o cliente aprovar e fechar. Por Planner. <strong style="color:#16a34a">✅</strong></p>
+      </div>
+    </div>
+    <div class="option" data-choice="vd6" onclick="toggleSelect(this)">
+      <div class="letter">V6</div>
+      <div class="content">
+        <h3>Previsão de receita (forecast)</h3>
+        <p>Com base no pipeline aberto e taxa histórica de conversão por etapa, qual a receita esperada nos próximos 30/60/90 dias. <strong style="color:#d97706">⚠️</strong></p>
+      </div>
+    </div>
+    <div class="option" data-choice="vd7" onclick="toggleSelect(this)">
+      <div class="letter">V7</div>
+      <div class="content">
+        <h3>Motivos de perda</h3>
+        <p>Por que perdemos viagens? Preço, timing, concorrência? Por Planner e por destino. <strong style="color:#16a34a">✅</strong></p>
+      </div>
+    </div>
+    <div class="option" data-choice="vd8" onclick="toggleSelect(this)">
+      <div class="letter">V8</div>
+      <div class="content">
+        <h3>Sazonalidade (por data de viagem)</h3>
+        <p>Em que meses os clientes viajam? (diferente de quando fecharam) Ajuda a planejar carga operacional. <strong style="color:#16a34a">✅</strong></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Pilar 3 — Entrega & Pós-Venda</div>
+  <div class="options" data-multiselect>
+    <div class="option" data-choice="en1" onclick="toggleSelect(this)">
+      <div class="letter">E1</div>
+      <div class="content">
+        <h3>Viagens a acontecer nos próximos 7 / 14 / 30 dias</h3>
+        <p>Quantas viagens partem em breve, agrupadas por urgência. <strong style="color:#16a34a">✅</strong> (já tem no Operações)</p>
+      </div>
+    </div>
+    <div class="option" data-choice="en2" onclick="toggleSelect(this)">
+      <div class="letter">E2</div>
+      <div class="content">
+        <h3>Prontidão operacional por viagem</h3>
+        <p>Para cada viagem iminente: % de itens prontos (vouchers emitidos, app criado, check-in feito). Lista das viagens com atraso. <strong style="color:#d97706">⚠️</strong></p>
+      </div>
+    </div>
+    <div class="option" data-choice="en3" onclick="toggleSelect(this)">
+      <div class="letter">E3</div>
+      <div class="content">
+        <h3>Distribuição de viagens por estado</h3>
+        <p>Quantas viagens estão em "em_montagem", "aguardando_embarque", "em_andamento" hoje. Funil pós-venda. <strong style="color:#16a34a">✅</strong></p>
+      </div>
+    </div>
+    <div class="option" data-choice="en4" onclick="toggleSelect(this)">
+      <div class="letter">E4</div>
+      <div class="content">
+        <h3>Tarefas de Pós-Venda vencidas</h3>
+        <p>Tarefas pós-venda atrasadas, agrupadas por dono e por tipo (emitir voucher, criar app, etc.). <strong style="color:#16a34a">✅</strong></p>
+      </div>
+    </div>
+    <div class="option" data-choice="en5" onclick="toggleSelect(this)">
+      <div class="letter">E5</div>
+      <div class="content">
+        <h3>Tempo médio: Ganho → Pronto pra viajar</h3>
+        <p>Quantos dias, em média, desde o fechamento da venda até o card estar 100% operacional (todos vouchers emitidos, app criado). <strong style="color:#d97706">⚠️</strong></p>
+      </div>
+    </div>
+    <div class="option" data-choice="en6" onclick="toggleSelect(this)">
+      <div class="letter">E6</div>
+      <div class="content">
+        <h3>Viagens concluídas sem NPS</h3>
+        <p>Viagens que terminaram há mais de X dias e ainda não tem resposta de pesquisa. <strong style="color:#dc2626">❌</strong> (precisa criar infra NPS primeiro)</p>
+      </div>
+    </div>
+    <div class="option" data-choice="en7" onclick="toggleSelect(this)">
+      <div class="letter">E7</div>
+      <div class="content">
+        <h3>NPS médio / detrator-promotor</h3>
+        <p>Score NPS por Planner, por destino, por período. <strong style="color:#dc2626">❌</strong> (precisa criar infra NPS primeiro)</p>
+      </div>
+    </div>
+    <div class="option" data-choice="en8" onclick="toggleSelect(this)">
+      <div class="letter">E8</div>
+      <div class="content">
+        <h3>Capacidade operacional</h3>
+        <p>Quantas viagens cada Concierge de Pós tem em paralelo? Alguém sobrecarregado? <strong style="color:#16a34a">✅</strong></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:24px">Tela aberta em http://localhost:60073 — marque o que importa e responde no terminal.</p>

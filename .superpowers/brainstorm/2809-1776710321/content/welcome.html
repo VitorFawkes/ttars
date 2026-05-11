@@ -1,0 +1,34 @@
+<h2>Analytics do WelcomeCRM — Redesenho</h2>
+<p class="subtitle">Acompanhante visual pronto. Vou usar esta tela quando a pergunta envolver layout, comparação de gráficos ou disposição de filtros. Pro resto, seguimos no chat.</p>
+
+<div class="section">
+  <div class="label">O que já sei do Analytics de hoje</div>
+  <div class="mockup">
+    <div class="mockup-header">7 abas atuais</div>
+    <div class="mockup-body">
+      <div class="mock-nav">Saúde · Funil de Vendas · Equipe · Resumo · Pipeline ao vivo · Conversas · Operações</div>
+      <p style="margin-top:16px"><strong>Top bar:</strong> Período · Modo (Entradas / Coorte / Ganho) · Granularidade · Tags · Donos</p>
+      <p><strong>Modo "Ganho" já tem 3 variantes:</strong> Ganho SDR · Ganho Planner · Ganho Total</p>
+      <p><strong>Coorte já existe</strong> (escolhe uma etapa, acompanha quem entrou), mas a visão de retenção por coorte está escondida do menu</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Ciclo de vida do card no TRIPS</div>
+  <div class="mockup">
+    <div class="mockup-header">Pipeline de 3 fases</div>
+    <div class="mockup-body">
+      <p><strong>Pré-Venda (SDR):</strong> Novo Lead → Qualificação → Reunião Agendada</p>
+      <p><strong>Vendas (Planner):</strong> Proposta → Negociação → Fechamento</p>
+      <p><strong>Pós-Venda (Concierge):</strong> Onboarding → Acompanhamento → Concluído</p>
+      <p style="margin-top:12px"><strong>3 pontos de "ganho":</strong> ganho_sdr, ganho_planner, ganho_pos — cada um com timestamp</p>
+      <p><strong>Valor:</strong> valor_estimado → valor_final → receita (comissão)</p>
+      <p><strong>Datas relevantes:</strong> created_at, stage_entered_at, data_fechamento, data_viagem_inicio/fim</p>
+      <p><strong>Destinos:</strong> produto_data.destinos[] (JSON)</p>
+      <p><strong>3 donos por card:</strong> sdr_owner_id, vendas_owner_id, pos_owner_id + dono_atual_id</p>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:24px">Continue a conversa no terminal — primeira pergunta lá.</p>
