@@ -1,0 +1,28 @@
+-- =========================================================================
+-- Fix: signup falha "Database error saving new user" quando convite tem
+-- role='assistente' (e outras roles custom fora do enum legacy `app_role`).
+-- =========================================================================
+-- Reproduzido em 2026-05-11: Vitor gerou convite em Configurações do Trips
+-- com role 'assistente' (estela@welcometrips.com.br). Estela clicou no link
+-- e recebeu "Erro ao criar conta / Database error saving new user".
+--
+-- Causa raiz: o trigger handle_new_user faz
+--   v_role := COALESCE(v_invite_role, 'vendas')::app_role;
+-- O enum `app_role` foi criado no baseline com apenas
+--   ('admin', 'gestor', 'sdr', 'vendas', 'pos_venda', 'concierge', 'financeiro')
+-- e nunca recebeu 'assistente'. O cast lança invalid_text_representation,
+-- a trigger aborta e o INSERT em auth.users é revertido pelo Supabase.
+--
+-- Fix mínimo: adicionar 'assistente' ao enum.
+--
+-- Notas:
+-- - `app_role` é um enum legacy (CLAUDE.md §Arquitetura de Identidade).
+--   A fonte de verdade real é `profiles.role_id` → FK pra `roles`.
+-- - A long-term fix (tornar handle_new_user tolerante a roles desconhecidas
+--   e nunca mais bloquear signup por essa razão) fica como follow-up — exige
+--   recriar a função, que o hook warn-function-rebase.sh bloqueia até releitura
+--   cuidadosa das 7 migrations anteriores que já tocaram handle_new_user.
+-- - `IF NOT EXISTS` torna o statement idempotente.
+-- =========================================================================
+
+ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'assistente';
