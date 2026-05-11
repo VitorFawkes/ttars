@@ -26,6 +26,7 @@ import {
   isPhoneInWhitelist,
   loadConversationHistory,
   normalizePhone,
+  normalizeWhatsAppText,
   sendEchoMessage,
 } from "./_utils.ts";
 
@@ -102,7 +103,7 @@ Deno.serve(async (req) => {
     // ------------------------------------------------------------------
     const { data: lineRow, error: lineErr } = await supabase
       .from("whatsapp_linha_config")
-      .select("id, phone_number_id, phone_number_label, ativo, org_id, pipeline_id, stage_id, phase_id, criar_card, criar_contato, default_owner_id, produto")
+      .select("id, phone_number_id, phone_number_label, ativo, org_id, pipeline_id, stage_id, phase_id, criar_card, criar_contato, default_owner_id, produto, platform_id")
       .eq("phone_number_id", phone_number_id)
       .eq("ativo", true)
       .maybeSingle();
@@ -535,14 +536,52 @@ Deno.serve(async (req) => {
 
     // ------------------------------------------------------------------
     // 14. Enviar mensagens via Echo + insert assistant turn
+    //
+    // Para cada bloco: envia, registra em whatsapp_messages (com platform_id
+    // + external_id pra dedup com webhook do Echo), aguarda typing_delay e
+    // segue pro próximo. NÃO interrompe a sequência se um send falhar —
+    // continua tentando os blocos seguintes (padrão herdado do v1, que aprendeu
+    // isso a duras penas em 2026-05-06 quando a Patricia entregava só 1/3 da
+    // resposta sempre que o Echo dava timeout pontual).
     // ------------------------------------------------------------------
-    const sendResults: Array<{ ok: boolean; status: number; error?: string; body?: string }> = [];
-    if (!blocked && finalMessages.length > 0) {
-      // Re-quebra heurística pra garantir limites WhatsApp
-      const allMessagesText = finalMessages.join("\n\n");
-      const blocks = formatWhatsAppMessagesHeuristic(allMessagesText, 3, 1024);
+    const typingDelayMs = Math.round((agent.timings?.typing_delay_seconds ?? 1.5) * 1000);
+    const maxMessageBlocks = agent.timings?.max_message_blocks ?? 5;
+    const platformId = (lineRow as { platform_id?: string | null }).platform_id ?? null;
 
-      for (const text of blocks) {
+    const sendResults: Array<{ ok: boolean; status: number; error?: string; body?: string }> = [];
+    let blocks: string[] = [];
+
+    if (!blocked && finalMessages.length > 0) {
+      // Estratégia de quebra em bolhas WhatsApp:
+      // 1. LLM retornou N messages (N > 1) → respeita 1:1 cada elemento como
+      //    uma bolha. Trunca pelo maxMessageBlocks, NUNCA junta bolhas.
+      // 2. LLM retornou só 1 message com \n\n no meio → quebra por parágrafos.
+      // 3. Tudo numa linha só → uma bolha só.
+      const cleanedMessages = finalMessages
+        .map((m) => normalizeWhatsAppText(m))
+        .filter((m) => m.trim().length > 0);
+
+      if (cleanedMessages.length > 1) {
+        blocks = cleanedMessages
+          .slice(0, maxMessageBlocks)
+          .map((m) => (m.length > 1024 ? m.substring(0, 1023) + "…" : m));
+      } else if (cleanedMessages.length === 1) {
+        const paragraphs = cleanedMessages[0]
+          .split(/\n{2,}/)
+          .map((p) => p.trim())
+          .filter((p) => p.length > 0);
+        if (paragraphs.length > 1) {
+          blocks = paragraphs
+            .slice(0, maxMessageBlocks)
+            .map((p) => (p.length > 1024 ? p.substring(0, 1023) + "…" : p));
+        } else {
+          const onlyMsg = cleanedMessages[0];
+          blocks = [onlyMsg.length > 1024 ? onlyMsg.substring(0, 1023) + "…" : onlyMsg];
+        }
+      }
+
+      for (let i = 0; i < blocks.length; i++) {
+        const text = blocks[i];
         const sendResult = await sendEchoMessage(
           ECHO_API_URL,
           ECHO_API_KEY,
@@ -550,10 +589,49 @@ Deno.serve(async (req) => {
           contact_phone,
           text,
         );
-        sendResults.push({ ok: sendResult.ok, status: sendResult.status, error: sendResult.error, body: sendResult.body });
-        if (!sendResult.ok) {
-          console.error(`[v2] sendEcho falhou:`, sendResult);
-          break;
+
+        // Echo às vezes retorna status != 200 mas com wamid no body (msg enviada
+        // mesmo assim). Reaproveita o padrão flexível do v1.
+        let success = sendResult.ok;
+        let wamid: string | null = null;
+        try {
+          const parsed = sendResult.body ? JSON.parse(sendResult.body) : null;
+          wamid = parsed?.whatsapp_message_id || parsed?.id || null;
+          if (!success && wamid) success = true;
+        } catch (_) {}
+
+        sendResults.push({ ok: success, status: sendResult.status, error: sendResult.error, body: sendResult.body });
+        if (!success) {
+          console.error(`[v2] sendEcho falhou bloco ${i + 1}/${blocks.length}:`, sendResult);
+        }
+
+        // Persiste em whatsapp_messages (uma linha por bloco, igual v1).
+        // platform_id + external_id permite ON CONFLICT com o webhook do Echo
+        // sem criar duplicata.
+        try {
+          await supabase.from("whatsapp_messages").insert({
+            contact_id: contactId,
+            card_id: cardId || null,
+            body: text,
+            direction: "outbound",
+            is_from_me: true,
+            type: "text",
+            status: success ? "sent" : "failed",
+            sender_phone: contact_phone.replace(/\D/g, ""),
+            sent_by_user_name: agent.nome,
+            phone_number_label: lineRow.phone_number_label,
+            external_id: wamid,
+            platform_id: platformId,
+            phone_number_id: phone_number_id,
+            metadata: { source: "ai_agent_v2", agent_id: agent.id },
+          });
+        } catch (insErr) {
+          console.warn(`[v2] insert whatsapp_messages falhou:`, insErr);
+        }
+
+        // Delay entre mensagens (naturalidade, evita rate limit do Echo)
+        if (i < blocks.length - 1) {
+          await new Promise((r) => setTimeout(r, typingDelayMs));
         }
       }
 
@@ -570,6 +648,7 @@ Deno.serve(async (req) => {
           duration_ms: singleAgentResult.duration_ms,
           prompt_chars: singleAgentResult.prompt_system_chars + singleAgentResult.prompt_user_chars,
           validator: verdict,
+          send_results: sendResults,
         },
         detected_intent: singleAgentResult.output.current_moment_key,
       });

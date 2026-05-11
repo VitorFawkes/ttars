@@ -35,9 +35,9 @@ export const SINGLE_AGENT_OUTPUT_SCHEMA = {
         messages: {
           type: "array",
           description:
-            "Lista de 1 a 3 mensagens já quebradas pra WhatsApp. Cada uma <1024 chars. Vazio = silêncio (raro, só em loop_incompreensao).",
+            "Lista de 1 a 6 mensagens prontas pra WhatsApp, JÁ separadas em bolhas naturais (cada item do array é uma bolha de chat distinta). Cada uma <1024 chars. Quebre em bolhas curtas como um humano faria em conversa por texto — saudação numa bolha, contexto noutra, pergunta noutra. NUNCA use separadores como --- ou *** dentro do texto, eles aparecem como lixo no WhatsApp; se precisa separar, abra outro elemento do array. Vazio = silêncio (raro, só em loop_incompreensao).",
           minItems: 0,
-          maxItems: 3,
+          maxItems: 6,
           items: {
             type: "object",
             additionalProperties: false,
