@@ -28,6 +28,8 @@ const ORIGEM_LABELS: Record<string, string> = {
     indicacao: 'Indicação',
     carteira_propria: 'Carteira Própria',
     carteira_wg: 'Carteira WG',
+    sorrento: 'Sorrento',
+    weddings: 'Weddings',
     carteira: 'Carteira',
     manual: 'Manual',
     outro: 'Outro',
