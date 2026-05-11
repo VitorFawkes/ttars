@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 import { ArrowLeft, ArrowRight, Calendar, DollarSign, History, Edit2, Check, X, ChevronDown, AlertCircle, RefreshCw, Clock, Pencil, TrendingUp, Link, Search, UserPlus, Phone, Mail, Loader2, Trophy, XCircle, RotateCcw, Archive } from 'lucide-react'
 import { getOrigemLabel, getOrigemColor, ORIGEM_OPTIONS, needsOrigemDetalhe } from '../../lib/constants/origem'
+import { useLeadSources } from '../../hooks/useLeadSources'
 import { useNavigate } from 'react-router-dom'
 import { cn, buildContactSearchFilter } from '../../lib/utils'
 import type { Database } from '../../database.types'
@@ -53,6 +54,8 @@ import LossReasonModal, { type FutureOpportunityData } from './LossReasonModal'
 import WinOptionsModal from './WinOptionsModal'
 import AtivarPosVendaModal from './AtivarPosVendaModal'
 import { useArchiveCard } from '../../hooks/useArchiveCard'
+import { SdrQualificationSheet } from '../sdr-qualification/SdrQualificationSheet'
+import { Target, CheckCircle2 } from 'lucide-react'
 import FieldConfirmationModal from './FieldConfirmationModal'
 import AutoMergeOnMoveModal from './AutoMergeOnMoveModal'
 import { detectAutoMergePreflight, type AutoMergePreflightInfo } from '../../hooks/useAutoMergePreflight'
@@ -90,6 +93,7 @@ function OrigemBadgeEditable({ cardId, origem, origemLead, indicadoPorId }: { ca
     const [localOrigem, setLocalOrigem] = useState(origem)
     const [localDetalhe, setLocalDetalhe] = useState(origemLead || '')
     const [showContactSelector, setShowContactSelector] = useState(false)
+    const { data: leadSources } = useLeadSources()
 
     // Indicação contact search
     const [indicacaoSearch, setIndicacaoSearch] = useState('')
@@ -213,7 +217,7 @@ function OrigemBadgeEditable({ cardId, origem, origemLead, indicadoPorId }: { ca
                     <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-xl p-3 w-72 space-y-3">
                         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Origem do Lead</p>
                         <div className="flex flex-wrap gap-1.5">
-                            {ORIGEM_OPTIONS.map(opt => (
+                            {(leadSources && leadSources.length > 0 ? leadSources : ORIGEM_OPTIONS).map(opt => (
                                 <button
                                     key={opt.value}
                                     onClick={() => handleSelect(opt.value)}
@@ -396,6 +400,9 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
         && (governance?.data_overdue_severity ?? 'block_all') !== 'warn_only'
     const [isValidatingStage, setIsValidatingStage] = useState(false)
     const [qualityGateModalOpen, setQualityGateModalOpen] = useState(false)
+    const [qualificationSheetOpen, setQualificationSheetOpen] = useState(false)
+    const sdrScoreLatest = (card as unknown as { sdr_qualification_score_latest?: { score: number; qualificado: boolean; disqualified: boolean; finalized_at: string } | null }).sdr_qualification_score_latest ?? null
+    const isWedding = card.produto === 'WEDDING'
     const [showAlertModal, setShowAlertModal] = useState(false)
     const [stageChangeModalOpen, setStageChangeModalOpen] = useState(false)
     const [fieldConfirmationModalOpen, setFieldConfirmationModalOpen] = useState(false)
@@ -1334,6 +1341,27 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                         >
                             {card.produto}
                         </button>
+                        {isWedding && (
+                            <button
+                                onClick={() => setQualificationSheetOpen(true)}
+                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50 text-xs font-medium text-slate-700 transition-colors"
+                                title="Abrir ferramenta de pontuação SDR (mesma régua que a Estela)"
+                            >
+                                <Target className="h-3.5 w-3.5 text-indigo-600" />
+                                {sdrScoreLatest ? (
+                                    <span className="inline-flex items-center gap-1">
+                                        <span className="font-semibold">Score {sdrScoreLatest.score}</span>
+                                        {sdrScoreLatest.disqualified ? (
+                                            <span className="text-rose-600">✗</span>
+                                        ) : sdrScoreLatest.qualificado ? (
+                                            <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                                        ) : null}
+                                    </span>
+                                ) : (
+                                    <span>Qualificar lead</span>
+                                )}
+                            </button>
+                        )}
                     </div>
 
                     {/* Stage Selector — prominent ETAPA chip with indigo border */}
@@ -2131,6 +2159,19 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                     }
                 }}
             />
+            {isWedding && qualificationSheetOpen && (
+                <SdrQualificationSheet
+                    open={qualificationSheetOpen}
+                    onOpenChange={setQualificationSheetOpen}
+                    cardId={card.id ?? null}
+                    contatoId={card.pessoa_principal_id ?? null}
+                    onFinalized={() => {
+                        queryClient.invalidateQueries({ queryKey: ['card-detail', card.id] })
+                        queryClient.invalidateQueries({ queryKey: ['card', card.id] })
+                        queryClient.invalidateQueries({ queryKey: ['cards'] })
+                    }}
+                />
+            )}
         </>
     )
 }
