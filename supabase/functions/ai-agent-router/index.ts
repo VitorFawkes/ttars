@@ -65,6 +65,21 @@ function secondaryRoleLabel(business: BusinessConfig | null | undefined): string
   return "viajante";
 }
 
+/**
+ * Parseia JSON de uma resposta de LLM. Strip de cercas ```json e ```, trim,
+ * try-catch. Retorna fallback se falhar. Padrão extraído de runDataAgentLLM
+ * e runBackofficeAgent (12/05/2026) — antes era repetido inline.
+ */
+function parseJSONFromLLM<T>(raw: string, fallback: T): T {
+  try {
+    const clean = raw.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
+    if (!clean) return fallback;
+    return JSON.parse(clean) as T;
+  } catch (_err) {
+    return fallback;
+  }
+}
+
 function buildHandoffBlock(agent: AgentConfig): string {
   const signals = agent.handoff_signals?.filter(s => s.enabled) ?? [];
   if (signals.length === 0) return "";
@@ -133,6 +148,24 @@ interface AgentConfig {
   voice_config?: VoiceConfig | null;
   boundaries_config?: BoundariesConfig | null;
   listening_config?: ListeningConfig | null;
+}
+
+/**
+ * Veredicto do validator (refatoração 12/05/2026). Validator passou a ser JUIZ:
+ * lê resposta + contexto, retorna verdict + issues + regen_instruction. Quem
+ * reescreve é o persona (regen), nunca o validator. Resolve bug recorrente de
+ * "validator-editor" cortar conteúdo crítico (caso "mês e ano" 11/05).
+ */
+interface ValidatorIssue {
+  rule_id: string;
+  severity: 'minor' | 'major' | 'critical';
+  description: string;
+  fix_instruction: string;
+}
+interface ValidatorVerdict {
+  verdict: 'ok' | 'regen' | 'block';
+  issues: ValidatorIssue[];
+  regen_instruction?: string;
 }
 
 interface BusinessCustomBlock {
@@ -2882,7 +2915,22 @@ async function runPersonaAgent(
   qualificationSignals: Record<string, string> = {},
   presentations: AiAgentPresentation[] = [],
   conversationId?: string | null,
+  /**
+   * Quando definido, injeta instrução cirúrgica no userMessage antes de chamar
+   * persona. Usado pelo main handler quando validator retorna verdict='regen'
+   * — persona reescreve com instrução do validator no contexto.
+   */
+  regenInstruction?: string,
 ): Promise<{ response: string; inputTokens: number; outputTokens: number; was_literal: boolean }> {
+  // Se há regenInstruction, injeta no fim do userMessage. O prompt do sistema
+  // (persona) continua igual — o LLM vê a instrução crítica como parte do
+  // "turno" do lead. Padrão idêntico ao regen de literal_phrases no persona_v2.
+  if (regenInstruction && regenInstruction.trim().length > 0) {
+    userMessage = `${userMessage}
+
+[INSTRUÇÃO CRÍTICA DO SISTEMA — sua resposta anterior teve um problema detectado pelo juiz de qualidade. Reescreva atendendo ao seguinte:]
+${regenInstruction.trim()}`;
+  }
 
   // ═══════════════════════════════════════════════════════════════
   // Playbook v2 — guard com fail-safe. Se agente tem flag ativa,
@@ -3257,142 +3305,177 @@ SAIDA: APENAS texto WhatsApp pronto para enviar. Sem prefixos, sem aspas.`;
 // 10. Pipeline Step: Validator
 // ---------------------------------------------------------------------------
 
+/**
+ * runValidator (refatoração 12/05/2026): de EDITOR para JUIZ.
+ *
+ * Antes: validator era um LLM que recebia a resposta e a REESCREVIA quando
+ * detectava problema. Isso quebrava conteúdo crítico (caso "mês e ano" — bug
+ * 11/05) porque o validator não tem o contexto profundo do persona (anchor,
+ * must_collect, knowledge base) pra reescrever sem destruir tokens críticos.
+ *
+ * Agora: validator é JUIZ. Lê resposta + contexto, retorna JSON estruturado
+ * { verdict: 'ok' | 'regen' | 'block', issues, regen_instruction? }. Quem
+ * reescreve é o persona via regen com a instrução cirúrgica do validator.
+ *
+ * - verdict 'ok'    → main handler usa resposta original
+ * - verdict 'regen' → main handler chama persona regen com regen_instruction
+ * - verdict 'block' → main handler dispara fallback_message + handoff humano
+ *
+ * Mapeamento das validator_rules existentes:
+ * - action='block'   → severity 'critical' → verdict 'block'
+ * - action='correct' → severity 'major'    → verdict 'regen'
+ * - action='ignore'  → severity 'minor'    → log only, verdict mantém
+ */
 async function runValidator(
   agent: AgentConfig,
   response: string,
   ctx: ConversationContext,
   scenarios: SpecialScenario[],
   wasLiteral = false,
-): Promise<string> {
-  if (!agent.is_template_based) return response;
+  contextHints?: { currentMomentKey?: string | null; mustCollectByLabel?: Record<string, string[]> | null },
+): Promise<ValidatorVerdict> {
+  if (!agent.is_template_based) return { verdict: 'ok', issues: [] };
 
   const activeScenarioChecks = scenarios
     .map((s) => {
       const label = s.trigger_description?.trim() || s.scenario_name;
       const checks: string[] = [];
-      if (s.skip_fee_presentation) checks.push(`Se aplicar cenário "${s.scenario_name}" (${label}): NÃO pode ter menção a taxa/valor/fee`);
-      if (s.skip_meeting_scheduling) checks.push(`Se aplicar cenário "${s.scenario_name}" (${label}): NÃO pode agendar reunião`);
-      if (s.response_adjustment) checks.push(`Se aplicar cenário "${s.scenario_name}" (${label}): ${s.response_adjustment}`);
-      if (s.auto_assign_tag) checks.push(`Se aplicar cenário "${s.scenario_name}" (${label}): Deve ter chamado assign_tag("${s.auto_assign_tag}")`);
+      if (s.skip_fee_presentation) checks.push(`Cenário "${s.scenario_name}" (${label}): NÃO pode ter menção a taxa/valor/fee`);
+      if (s.skip_meeting_scheduling) checks.push(`Cenário "${s.scenario_name}" (${label}): NÃO pode agendar reunião`);
+      if (s.response_adjustment) checks.push(`Cenário "${s.scenario_name}" (${label}): ${s.response_adjustment}`);
+      if (s.auto_assign_tag) checks.push(`Cenário "${s.scenario_name}" (${label}): Deve ter chamado assign_tag("${s.auto_assign_tag}")`);
       return checks.join("\n");
     })
     .filter(Boolean)
     .join("\n");
 
-  // Resolver placeholders {agent_name}, {company_name}, {contact_name} em
-  // textos editáveis (prompts_extra.validator + validator_rules[].condition).
   const _resolverCtxVal = {
     agent_name: agent.nome,
     company_name: null,
     contact_name: ctx.contact_name_known ? ctx.contact_name : null,
   };
-  const customValidator = agent.prompts_extra?.validator
-    ? resolveAgentPlaceholders(agent.prompts_extra.validator, _resolverCtxVal)
-    : agent.prompts_extra?.validator;
   const enabledRules = (agent.validator_rules || []).filter(r => r.enabled);
-  const rulesBlock = enabledRules.length > 0
-    ? `\n## Regras habilitadas no agente\n${enabledRules.map((r, i) => `${i + 1}. ${resolveAgentPlaceholders(r.condition, _resolverCtxVal)} → ${r.action === 'block' ? 'BLOQUEAR' : r.action === 'correct' ? 'CORRIGIR' : 'IGNORAR'}`).join('\n')}\n`
+
+  const rulesListing = enabledRules.length > 0
+    ? enabledRules.map(r => {
+        const sev = r.action === 'block' ? 'critical' : r.action === 'correct' ? 'major' : 'minor';
+        const cond = resolveAgentPlaceholders(r.condition, _resolverCtxVal);
+        return `- id: "${r.id}" | severity: ${sev}\n  condição: ${cond}`;
+      }).join('\n')
+    : '(nenhuma regra customizada — use só rede de segurança padrão abaixo)';
+
+  // Contexto extra opcional pra dar ao juiz visibilidade do que o persona
+  // estava tentando coletar — instrução de regen pode preservar tokens críticos
+  // (ex: must_collect=["mês","ano"] vira "PRESERVE 'mês e ano' palavra por palavra").
+  const mustCollectBlock = contextHints?.mustCollectByLabel && Object.keys(contextHints.mustCollectByLabel).length > 0
+    ? `\n## Slots da fase atual (${contextHints.currentMomentKey ?? '?'}) — tokens que a pergunta DEVE cobrir\n${Object.entries(contextHints.mustCollectByLabel).map(([label, tokens]) => `- "${label}": deve cobrir ${tokens.map(t => `"${t}"`).join(' E ')}`).join('\n')}\n`
     : '';
 
-  // wasLiteral=true: texto veio determinístico do anchor literal (ou short_closing).
-  // Admin já curou palavra por palavra na UI. Validator vira só rede de segurança
-  // contra problemas GRAVES (menção a IA, fato inventado, ActiveCampaign), nunca
-  // mexe em estilo. Sem isso, gpt-4.1-mini @ temp 0.1 reescreve "Me fala seu nome,
-  // por favor?" → "Qual é o seu nome?" e infla "Tudo ótimo por aqui, obrigada!" →
-  // "Tudo ótimo por aqui também, obrigada por perguntar!" (incidente 2026-05-07).
-  if (wasLiteral) {
-    const literalValidatorPrompt = `Você é um validador de SEGURANÇA, não de estilo.
+  const literalGuidance = wasLiteral
+    ? `\n⚠️ MODO LITERAL: a resposta veio palavra-por-palavra do anchor escrito pelo admin. NÃO julgue estilo (perguntas duplas, eco social, uso de nome, repetição, tom, pontuação, emoji, ordem das frases) — o admin já curou tudo. Só verdict 'block' faz sentido em problemas GRAVES da rede de segurança padrão. Pra qualquer coisa não-grave, retorne verdict 'ok'.\n`
+    : '';
 
-⚠️ TEXTO É LITERAL — foi escrito palavra por palavra pelo admin via UI do CRM.
+  // SYSTEM PROMPT do juiz. Estruturado, com schema JSON explícito, e instrução
+  // cirúrgica de como construir regen_instruction quando aplicável.
+  const systemPrompt = `Você é um juiz de qualidade de mensagens WhatsApp para o agente IA "${agent.nome}". Não é editor — você NUNCA reescreve a mensagem. Você apenas LÊ, JULGA e, quando há problema, INSTRUI o agente persona a reescrever (regen).
 
-Você SÓ DEVE INTERVIR se detectar UM destes problemas GRAVES:
-1. Menção a IA, robô, modelo, prompt, sistema, agente, chatbot, bastidores → BLOQUEIA
-2. Fato inventado não presente no contexto (preço, prazo, feature inexistente) → BLOQUEIA
-3. Menção a "formulário", "ActiveCampaign", "cadastro", "dados do sistema" → BLOQUEIA
-4. Rejeição/desqualificação do lead na primeira mensagem → BLOQUEIA
+## Como decidir o verdict
 
-NÃO mexa em estilo (perguntas duplas, eco social, uso de nome, repetição, tom,
-pontuação, emoji, exclamação, ordem das frases) — o admin já considerou tudo
-isso ao escrever o texto literal.
+- **ok**: mensagem segue todas as regras enabled. Pode ter imperfeições mínimas (severity minor) — ainda assim ok.
+- **regen**: detectou problema de severity 'major'. Persona vai reescrever com a sua instrução cirúrgica.
+- **block**: detectou problema 'critical' (dano à marca/cliente). Cliente vai receber fallback humano.
 
-Se NENHUM dos 4 problemas graves foi detectado: retorne o TEXTO ORIGINAL EXATO,
-sem alterar NEM UMA letra. Não "melhore", não "ajuste", não "torne natural", não
-remova espaços, não normalize quebras de linha. Copie exatamente como recebeu.
+## Rede de segurança padrão (critical — sempre verifique)
 
-TEXTO A VALIDAR:
-"""
-${response}
-"""
+1. Menção a IA, robô, modelo, prompt, sistema, agente, chatbot, bastidores, automação, "fui programada", "minha base de dados" → critical
+2. Fato inventado: preço, prazo, feature, política, prêmio, número específico não declarado no contexto → critical
+3. Menção a "formulário", "ActiveCampaign", "cadastro", "CRM", "dados do sistema" → critical
+4. Rejeita/desqualifica o lead sem investigação suficiente (especialmente em primeiro contato) → critical
 
-SAÍDA: apenas o texto final (original EXATO, ou corrigido se algum dos 4 problemas
-graves foi detectado). Nada mais.`;
+## Regras customizadas do admin para este agente
 
-    const validatorModelLit = agent.pipeline_models?.validator?.model || "gpt-5.1";
-    const validatorTempLit = agent.pipeline_models?.validator?.temperature ?? 0.1;
-    const validatorMaxTokLit = agent.pipeline_models?.validator?.max_tokens ?? 1024;
+${rulesListing}
+${activeScenarioChecks ? `\n## Cenários especiais aplicáveis\n${activeScenarioChecks}\n` : ''}${mustCollectBlock}${literalGuidance}
+## Como construir regen_instruction (quando verdict='regen')
 
-    try {
-      const { response: validated } = await callLLM(
-        validatorModelLit, validatorTempLit, validatorMaxTokLit,
-        literalValidatorPrompt, response,
-      );
-      return validated.trim() || response;
-    } catch (err) {
-      console.error("Validator (literal) error:", err);
-      return response;
+A regen_instruction vai ser CONCATENADA na próxima chamada ao persona. Ela precisa ser cirúrgica:
+- Diga EXATAMENTE qual trecho remover/corrigir (cite o trecho problemático entre aspas).
+- Diga EXATAMENTE o que PRESERVAR palavra-por-palavra (se a fase tem slot must_collect, mencione os tokens).
+- Não fale do problema em abstrato. Fale em concreto.
+
+Exemplo (caso real de bug):
+- Resposta original: "Pra eu te orientar melhor, vocês já sabem o mês e ano do casamento?"
+- Problema detectado: justifica a pergunta com "Pra eu te orientar melhor" (regra "perguntas_desconexas")
+- regen_instruction CORRETA: "Sua resposta anterior começa com 'Pra eu te orientar melhor', que é uma justificativa proibida. Remova APENAS essa frase de abertura. PRESERVE palavra por palavra a pergunta 'Vocês já sabem o mês e ano do casamento?' — os tokens 'mês' e 'ano' são obrigatórios pra fase atual. Mantenha o restante do tom."
+
+## Schema de saída
+
+Retorne SOMENTE JSON válido, sem markdown, sem cercas ${'```'}, sem comentários. Exatamente este formato:
+
+{
+  "verdict": "ok" | "regen" | "block",
+  "issues": [
+    {
+      "rule_id": "string (id da regra ou 'default_critical_N' pra rede de segurança)",
+      "severity": "minor" | "major" | "critical",
+      "description": "string curta do que detectou",
+      "fix_instruction": "string cirúrgica de como reescrever"
     }
-  }
+  ],
+  "regen_instruction": "string completa (só se verdict='regen')"
+}
 
-  const validatorPrompt = customValidator && customValidator.trim().length > 80
-    ? customValidator
-        .replace('{{mensagem_proposta}}', response)
-        .replace('{{contato.nome}}', ctx.contact_name || '(sem nome)')
-        .replace('{{is_primeiro_contato}}', String(ctx.is_primeiro_contato))
-      + rulesBlock
-      + (activeScenarioChecks ? `\n## Cenários especiais deste agente\n${activeScenarioChecks}\n` : '')
-      + `\n\nSe TUDO OK: retorne o texto ORIGINAL sem alterações.\nSe precisa correção: retorne apenas o texto CORRIGIDO.\nSAÍDA: apenas o texto final. Nada mais.`
-    : `Voce e um validador de qualidade de mensagens WhatsApp. A maioria das mensagens esta OK — so intervenha quando algo realmente precisa de ajuste.
+Se verdict='ok': retorne { "verdict": "ok", "issues": [] }.
+Se verdict='block': retorne { "verdict": "block", "issues": [...] } sem regen_instruction.
+Múltiplos issues na mesma mensagem: liste todos; regen_instruction agrupa todas as correções em uma instrução só.`;
 
-Analise a resposta abaixo e verifique:
-
-1. Menciona IA, robo, modelo, prompt, sistema, agente, chatbot, bastidores? → BLOQUEIA
-2. Inventa fatos nao presentes no contexto (preços, prazos, features nao mencionadas)? → BLOQUEIA
-3. Tom frio, robotico ou agressivo? → CORRIJA para tom natural
-4. Repete introducao/apresentacao quando NAO e primeiro contato (is_primeiro_contato=${ctx.is_primeiro_contato})? → CORRIJA
-5. Menciona "formulario", "dados do sistema", "cadastro", "ActiveCampaign"? → BLOQUEIA
-6. Rejeita/desqualifica lead na primeira mensagem ou sem investigar? → BLOQUEIA (na duvida, avançar)
-7. Diz explicitamente "nao trabalhamos com X isolado" sem que o cliente tenha confirmado que quer só isso? → CORRIJA
-8. Justifica pergunta ("para te ajudar melhor...", "para eu entender...")? → CORRIJA removendo justificativa
-9. Empilha perguntas de temas DIFERENTES na mesma mensagem? → CORRIJA. Permitido: 2 perguntas COMPLEMENTARES sobre o MESMO tema (ex: "alguma região em mente? E qual cidade dentro dela?"). PROIBIDO: 2+ perguntas sobre temas distintos (data + destino, convidados + orçamento, nome + email são temas diferentes). Quando detectar, mantenha APENAS a pergunta mais importante do turno e remova as outras.
-10. Lead fez pergunta social na última mensagem ("e você?", "tudo bem?", "como vai?", "td bem?", "como você está?") e a resposta NÃO ecoa essa pergunta antes de continuar? → CORRIJA inserindo uma frase curta natural respondendo a pergunta social ANTES do conteúdo principal. Ex: lead diz "Bem e você?", a resposta DEVE começar com algo como "Tudo ótimo por aqui, obrigada!" antes de seguir o roteiro.
-11. Lead disse seu nome explicitamente ("Aqui é o Vitor", "Sou a Maria", "Meu nome é Ana") e a resposta NÃO usa o nome dele em nenhum lugar? → CORRIJA inserindo o nome do lead naturalmente ao menos uma vez (ex: "Prazer, Vitor.", "Legal te conhecer, Maria.") antes de seguir o conteúdo.
-${activeScenarioChecks ? `10. Cenarios especiais configurados:\n${activeScenarioChecks}` : ""}
-${rulesBlock}
-RESPOSTA a validar:
+  // USER MESSAGE: a resposta a ser julgada
+  const userMessage = `Resposta a julgar:
 """
 ${response}
 """
 
-Se TUDO OK: responda EXATAMENTE o texto original, sem alteracoes.
-Se PRECISA CORRECAO: responda o texto CORRIGIDO, pronto para enviar.
+is_primeiro_contato=${ctx.is_primeiro_contato}
+contact_name_known=${ctx.contact_name_known}${ctx.contact_name_known ? ` (nome=${ctx.contact_name})` : ''}
 
-SAIDA: APENAS o texto final (original ou corrigido). Nada mais.`;
+Última mensagem do lead (pra checar eco social, captura de nome, etc):
+"""
+${(ctx as unknown as { last_lead_message?: string | null }).last_lead_message ?? '(sem mensagem do lead neste turno)'}
+"""
+
+Retorne SOMENTE o JSON do veredicto.`;
 
   const validatorModel = agent.pipeline_models?.validator?.model || "gpt-5.1";
   const validatorTemp = agent.pipeline_models?.validator?.temperature ?? 0.1;
   const validatorMaxTok = agent.pipeline_models?.validator?.max_tokens ?? 1024;
 
   try {
-    const { response: validated } = await callLLM(
+    const { response: raw } = await callLLM(
       validatorModel, validatorTemp, validatorMaxTok,
-      validatorPrompt, response,
+      systemPrompt, userMessage,
     );
-    return validated.trim() || response;
+    const parsed = parseJSONFromLLM<Partial<ValidatorVerdict>>(raw, { verdict: 'ok', issues: [] });
+    // Sanity: garante shape mínimo
+    const verdict: ValidatorVerdict['verdict'] =
+      parsed.verdict === 'block' ? 'block'
+      : parsed.verdict === 'regen' ? 'regen'
+      : 'ok';
+    const issues = Array.isArray(parsed.issues) ? parsed.issues.filter(i => i && typeof i === 'object') as ValidatorIssue[] : [];
+    const regenInstruction = typeof parsed.regen_instruction === 'string' && parsed.regen_instruction.trim().length > 0
+      ? parsed.regen_instruction
+      : undefined;
+    // Coerência: se verdict='regen' mas falta instruction, downgrade pra ok+warning (não devia acontecer com prompt acima)
+    if (verdict === 'regen' && !regenInstruction) {
+      console.warn(`[runValidator] verdict='regen' sem regen_instruction — downgrade pra 'ok'. raw=${raw.slice(0, 200)}`);
+      return { verdict: 'ok', issues };
+    }
+    return { verdict, issues, regen_instruction: regenInstruction };
   } catch (err) {
-    console.error("Validator error:", err);
-    return response; // Fallback: envia sem validar
+    console.error("Validator error (fail-open):", err);
+    return { verdict: 'ok', issues: [] }; // Fallback: envia sem julgar
   }
 }
+
 
 // ---------------------------------------------------------------------------
 // 11. Pipeline Step: Formatter (split WhatsApp messages)
@@ -4260,28 +4343,78 @@ serve(async (req) => {
       totalInputTokens += personaResult.inputTokens;
       totalOutputTokens += personaResult.outputTokens;
 
-      // ── Step 4: Validator ──
-      // wasLiteral propagado do persona: quando true, validator usa prompt endurecido
-      // que SÓ corrige problemas graves (menção a IA, fato inventado, ActiveCampaign).
-      // Estilo (perguntas duplas, eco social, uso de nome) fica intocado — admin já
-      // curou na UI ao escrever o anchor literal.
-      const validatedResponse = await runValidator(
+      // ── Step 4: Validator (refatorado 12/05/2026 — agora é JUIZ, não EDITOR) ──
+      // Validator lê resposta + contexto, retorna verdict JSON:
+      //   - 'ok'    → segue com rawResponse intacta
+      //   - 'regen' → main chama persona DE NOVO com regen_instruction (max 1x)
+      //   - 'block' → cai no fallback_message + handoff humano
+      // wasLiteral propagado: em modo literal, juiz NÃO julga estilo (só rede de
+      // segurança grave), preservando o anchor palavra por palavra do admin.
+      let finalResponse = rawResponse;
+      const v1 = await runValidator(
         agent, rawResponse, ctx, agentConfig.scenarios,
         personaResult.was_literal,
       );
+      const validatorDebug: Record<string, unknown> = {
+        first_verdict: v1.verdict,
+        first_issues: v1.issues,
+      };
+      if (v1.verdict === 'block') {
+        validatorDebug.action = 'blocked_first_pass';
+        throw new Error(`validator_blocked: ${v1.issues.map(i => i.rule_id).join(',') || 'critical'}`);
+      }
+      if (v1.verdict === 'regen' && v1.regen_instruction) {
+        // Regen do persona com a instrução cirúrgica do juiz. Reusa runPersonaAgent
+        // — toda a infraestrutura (v2 path, tools, anchor, must_collect) fica ativa.
+        const regen = await runPersonaAgent(
+          supabase, agent, ctx, backoffice,
+          agentConfig.business, agentConfig.qualification, agentConfig.scenarios,
+          processedText, dataResult.qualificationSignals,
+          agentConfig.presentations,
+          conversationId,
+          v1.regen_instruction,
+        );
+        totalInputTokens += regen.inputTokens;
+        totalOutputTokens += regen.outputTokens;
+
+        // Re-roda o juiz no regen. Sem 2º regen — se ainda tem problema major+,
+        // bloqueia e escala humano. Decisão de produto (12/05/2026): preferir
+        // espera + humano a enviar resposta defeituosa pro casal.
+        const v2 = await runValidator(
+          agent, regen.response, ctx, agentConfig.scenarios,
+          regen.was_literal,
+        );
+        validatorDebug.regen_response_excerpt = regen.response.slice(0, 400);
+        validatorDebug.second_verdict = v2.verdict;
+        validatorDebug.second_issues = v2.issues;
+        if (v2.verdict === 'ok') {
+          finalResponse = regen.response;
+          validatorDebug.action = 'accepted_regen';
+        } else if (v2.verdict === 'block') {
+          validatorDebug.action = 'blocked_after_regen';
+          throw new Error(`validator_blocked_after_regen: ${v2.issues.map(i => i.rule_id).join(',') || 'critical'}`);
+        } else {
+          // verdict === 'regen' depois do regen → ainda tem problema major.
+          // Decisão: bloqueia (humano resolve) em vez de enviar resposta possivelmente defeituosa.
+          validatorDebug.action = 'blocked_regen_still_problematic';
+          throw new Error(`validator_regen_still_problematic: ${v2.issues.map(i => i.rule_id).join(',') || 'major'}`);
+        }
+      } else {
+        validatorDebug.action = 'ok_first_pass';
+      }
+      // Anota debug do validator pra persistir em ai_conversation_turns.reasoning
+      (ctx as Record<string, unknown>).v2_validator_debug = validatorDebug;
 
       // ── Step 5: Formatter ──
       // formatter NUNCA reescreve. Sempre heurístico (split por pontuação/linha em
-      // branco), independente de literal ou LLM upstream. Decisão de produto: só o
-      // validator pode mexer em palavras, e só em casos graves.
-      messages = await formatWhatsAppMessages(validatedResponse, maxBlocks, agent);
+      // branco), independente de literal ou LLM upstream.
+      messages = await formatWhatsAppMessages(finalResponse, maxBlocks, agent);
 
-      // G3 sanity check — se o formatter (ou qualquer LLM upstream) retornou output
-      // corrompido (tipo "ok=true", "null", "{}"), descartar e cair em fallback_message.
-      // Loga o raw pra facilitar root cause depois.
+      // G3 sanity check — se o formatter retornou output corrompido (tipo "ok=true",
+      // "null", "{}"), descartar e cair em fallback_message.
       if (looksLikeCorruptedOutput(messages)) {
         console.warn(
-          `[main] corrupted formatter output detected, using fallback. raw_formatter_output="${(messages || []).join("|").substring(0, 300)}", raw_persona_response="${(rawResponse || "").substring(0, 300)}", raw_validator_response="${(validatedResponse || "").substring(0, 300)}"`,
+          `[main] corrupted formatter output detected, using fallback. raw_formatter_output="${(messages || []).join("|").substring(0, 300)}", raw_persona_response="${(rawResponse || "").substring(0, 300)}", final_response="${(finalResponse || "").substring(0, 300)}"`,
         );
         throw new Error("corrupted_formatter_output");
       }
@@ -4340,6 +4473,14 @@ serve(async (req) => {
       turnInsert.qualification_score_at_turn = ctx.v2_qualification_score_at_turn ?? null;
       turnInsert.moment_detection_method = ctx.v2_moment_detection_method ?? null;
       turnInsert.moment_transition_reason = ctx.v2_moment_transition_reason ?? null;
+    }
+    // Observabilidade do validator (12/05/2026): grava verdict + issues + ação
+    // (ok/regen aceito/block) pra cada turn em ai_conversation_turns.reasoning.
+    // Permite Vitor revisar conversas pós-fato e ajustar persona/regras quando
+    // regen acontece muito. Não custa nada se OK no first pass.
+    const validatorDbg = (ctx as Record<string, unknown>).v2_validator_debug;
+    if (validatorDbg) {
+      turnInsert.reasoning = { validator: validatorDbg };
     }
     await supabase.from("ai_conversation_turns").insert(turnInsert);
 
