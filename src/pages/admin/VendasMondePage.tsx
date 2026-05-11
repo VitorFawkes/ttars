@@ -59,6 +59,8 @@ interface ImportLogRow {
     matched_cards: number
     unmatched_vendas: number
     products_imported: number
+    products_cancelled: number
+    products_reactivated: number
     status: 'completed' | 'partial' | 'failed'
     error_message: string | null
     created_by: string
@@ -165,6 +167,18 @@ function HistoryRow({ log }: { log: ImportLogRow }) {
                         <p className="text-sm font-semibold text-slate-900">{log.products_imported}</p>
                         <p className="text-[10px] text-slate-400 uppercase tracking-wide">Produtos</p>
                     </div>
+                    {(log.products_cancelled ?? 0) > 0 && (
+                        <div>
+                            <p className="text-sm font-semibold text-amber-700">{log.products_cancelled}</p>
+                            <p className="text-[10px] text-amber-600 uppercase tracking-wide">Cancelados</p>
+                        </div>
+                    )}
+                    {(log.products_reactivated ?? 0) > 0 && (
+                        <div>
+                            <p className="text-sm font-semibold text-emerald-700">{log.products_reactivated}</p>
+                            <p className="text-[10px] text-emerald-600 uppercase tracking-wide">Reativados</p>
+                        </div>
+                    )}
                     {log.unmatched_vendas > 0 && (
                         <div>
                             <p className="text-sm font-semibold text-amber-600">{log.unmatched_vendas}</p>
@@ -727,6 +741,8 @@ export default function VendasMondePage() {
                     matched_cards: cardsUpdated,
                     unmatched_vendas: unmatched.length,
                     products_imported: productsImported,
+                    products_cancelled: productsCancelled,
+                    products_reactivated: productsReactivated,
                     status: logStatus,
                     error_message: errors > 0 ? `${errors} card(s) com erro` : null,
                     created_by: profile?.id,
@@ -1131,6 +1147,20 @@ export default function VendasMondePage() {
                                     <p className="text-xs text-slate-500">Sem match</p>
                                 </div>
                             </div>
+                            {((lastImport.products_cancelled ?? 0) > 0 || (lastImport.products_reactivated ?? 0) > 0) && (
+                                <div className="flex items-center gap-3 mt-3 pt-3 border-t border-slate-100">
+                                    {(lastImport.products_cancelled ?? 0) > 0 && (
+                                        <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded-full">
+                                            ⊘ {lastImport.products_cancelled} produto{lastImport.products_cancelled !== 1 ? 's' : ''} cancelado{lastImport.products_cancelled !== 1 ? 's' : ''} no Monde
+                                        </span>
+                                    )}
+                                    {(lastImport.products_reactivated ?? 0) > 0 && (
+                                        <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">
+                                            ↺ {lastImport.products_reactivated} reativado{lastImport.products_reactivated !== 1 ? 's' : ''}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
                             {lastImport.profile_name && (
                                 <p className="text-xs text-slate-400 mt-3 flex items-center gap-1">
                                     <UserIcon className="h-3 w-3" /> por {lastImport.profile_name}

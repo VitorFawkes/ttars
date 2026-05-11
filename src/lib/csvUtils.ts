@@ -25,14 +25,14 @@ export function parseDateBR(value: unknown): string | null {
     }
     const s = String(value).trim()
     if (!s) return null
-    // dd/mm/yyyy or dd-mm-yyyy
-    const brMatch = s.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/)
+    // dd/mm/yyyy (com ou sem hora: "10/05/2026", "10/05/2026 14:30", "10-05-2026 14:30:00")
+    const brMatch = s.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})(?:[\sT]\d{1,2}:\d{2}(?::\d{2})?)?$/)
     if (brMatch) {
         const [, dd, mm, yyyy] = brMatch
         const d = new Date(`${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}T00:00:00`)
         return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
     }
-    // yyyy-mm-dd (ISO)
+    // yyyy-mm-dd (ISO, com ou sem tempo)
     const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
     if (isoMatch) {
         const d = new Date(isoMatch[0] + 'T00:00:00')
