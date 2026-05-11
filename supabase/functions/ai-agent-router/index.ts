@@ -3447,34 +3447,15 @@ Retorne SOMENTE o JSON do veredicto.`;
 
   const validatorModel = agent.pipeline_models?.validator?.model || "gpt-5.1";
   const validatorTemp = agent.pipeline_models?.validator?.temperature ?? 0.1;
+  const validatorMaxTok = agent.pipeline_models?.validator?.max_tokens ?? 1024;
 
   try {
-    // Chamada direta com response_format=json_object — mesmo padrão do
-    // subjective_evaluator.ts (commit 6c322ed2). Sem max_completion_tokens —
-    // cap fixo trunca JSON em casos extremos e quebra o parse. JSON mode
-    // garante output válido. Validator é guard-rail; tem que ser confiável.
-    const apiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: validatorModel,
-        temperature: validatorTemp,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
-        ],
-      }),
-    });
-    if (!res.ok) {
-      const errBody = await res.text();
-      throw new Error(`OpenAI ${res.status}: ${errBody.slice(0, 300)}`);
-    }
-    const data = await res.json();
-    const raw = data.choices?.[0]?.message?.content || "";
+    const { response: raw } = await callLLM(
+      validatorModel, validatorTemp, validatorMaxTok,
+      systemPrompt, userMessage,
+    );
     const parsed = parseJSONFromLLM<Partial<ValidatorVerdict>>(raw, { verdict: 'ok', issues: [] });
+    // Sanity: garante shape mínimo
     const verdict: ValidatorVerdict['verdict'] =
       parsed.verdict === 'block' ? 'block'
       : parsed.verdict === 'regen' ? 'regen'
@@ -3483,17 +3464,15 @@ Retorne SOMENTE o JSON do veredicto.`;
     const regenInstruction = typeof parsed.regen_instruction === 'string' && parsed.regen_instruction.trim().length > 0
       ? parsed.regen_instruction
       : undefined;
+    // Coerência: se verdict='regen' mas falta instruction, downgrade pra ok+warning (não devia acontecer com prompt acima)
     if (verdict === 'regen' && !regenInstruction) {
       console.warn(`[runValidator] verdict='regen' sem regen_instruction — downgrade pra 'ok'. raw=${raw.slice(0, 200)}`);
       return { verdict: 'ok', issues };
     }
-    console.log(`[runValidator] verdict=${verdict} issues=${issues.length} raw_excerpt=${raw.slice(0, 150).replace(/\n/g, ' ')}`);
     return { verdict, issues, regen_instruction: regenInstruction };
   } catch (err) {
-    // Fail-OPEN: validator é guard-rail, não pode bloquear conversas. Se falhar,
-    // segue a resposta original. Loga pra debug.
-    console.error("[runValidator] error (fail-open, returning ok):", err);
-    return { verdict: 'ok', issues: [] };
+    console.error("Validator error (fail-open):", err);
+    return { verdict: 'ok', issues: [] }; // Fallback: envia sem julgar
   }
 }
 
@@ -4497,6 +4476,8 @@ serve(async (req) => {
     }
     // Observabilidade do validator (12/05/2026): grava verdict + issues + ação
     // (ok/regen aceito/block) pra cada turn em ai_conversation_turns.reasoning.
+    // Permite Vitor revisar conversas pós-fato e ajustar persona/regras quando
+    // regen acontece muito. Não custa nada se OK no first pass.
     const validatorDbg = (ctx as Record<string, unknown>).v2_validator_debug;
     if (validatorDbg) {
       turnInsert.reasoning = { validator: validatorDbg };
