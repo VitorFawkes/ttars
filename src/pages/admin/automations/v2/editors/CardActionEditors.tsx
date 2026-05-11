@@ -16,7 +16,6 @@ import { useProductContext } from '@/hooks/useProductContext'
 import { useUsers } from '@/hooks/useUsers'
 import { useWorkflowStore } from '../store/useWorkflowStore'
 import { OUTCOME_LABELS } from '@/components/tasks/taskTypeConfig'
-import type { WorkflowNode, WorkflowEdge } from '../types'
 
 interface ConfigEditorProps {
     config: Record<string, unknown>
@@ -244,50 +243,27 @@ export const NotifyInternalEditor: React.FC<ConfigEditorProps> = ({ config, onCh
 
 // ─── complete_task ───────────────────────────────────────────────────────────
 //
-// Marca uma tarefa criada num passo anterior do mesmo fluxo como concluída.
-// O dropdown lista os nodes `action.create_task` que estão UPSTREAM (acessíveis
-// indo "pra trás" pelas edges) do node atual. Salva o id do node alvo em
-// `target_node_id`; o save em persistence.ts converte pra `n_<nodeId>` (step_key).
-function findUpstreamCreateTaskNodes(
-    currentNodeId: string,
-    nodes: WorkflowNode[],
-    edges: WorkflowEdge[],
-): WorkflowNode[] {
-    const incoming = new Map<string, string[]>()
-    for (const e of edges) {
-        const list = incoming.get(e.target) || []
-        list.push(e.source)
-        incoming.set(e.target, list)
-    }
-    const visited = new Set<string>()
-    const queue: string[] = [currentNodeId]
-    const result: WorkflowNode[] = []
-    while (queue.length) {
-        const id = queue.shift()!
-        if (visited.has(id)) continue
-        visited.add(id)
-        const node = nodes.find((n) => n.id === id)
-        if (node && id !== currentNodeId && node.type === 'action.create_task') {
-            result.push(node)
-        }
-        const parents = incoming.get(id) || []
-        for (const p of parents) if (!visited.has(p)) queue.push(p)
-    }
-    return result
-}
-
+// Marca uma tarefa criada em algum outro passo do mesmo fluxo como concluída.
+// O dropdown lista TODOS os nodes `action.create_task` do canvas (exceto o
+// próprio node). Não restringe a upstream porque com branches/ciclos a noção
+// de "antes/depois" pode ser ambígua durante a edição. Em runtime, o engine
+// só fecha a tarefa se ela tiver sido criada na mesma cadence_instance — se
+// não tiver, devolve `{ skipped: true, reason: 'target_task_not_found' }`.
+//
+// O id do node alvo vai em `target_node_id`; o save em persistence.ts
+// converte pra `n_<nodeId>` (step_key) que casa com o `cadence_step_key`
+// gravado em `metadata` pela criação da tarefa.
 export const CompleteTaskEditor: React.FC<ConfigEditorProps> = ({ config, onChange }) => {
     const selectedNodeId = useWorkflowStore((s) => s.selectedNodeId)
     const nodes = useWorkflowStore((s) => s.nodes)
-    const edges = useWorkflowStore((s) => s.edges)
     const set = (patch: Record<string, unknown>) => onChange({ ...config, ...patch })
 
-    const upstreamCreateTasks = selectedNodeId
-        ? findUpstreamCreateTaskNodes(selectedNodeId, nodes, edges)
-        : []
+    const createTaskNodes = nodes.filter(
+        (n) => n.type === 'action.create_task' && n.id !== selectedNodeId,
+    )
 
     const targetNodeId = (config.target_node_id as string) || ''
-    const selectedExistsUpstream = upstreamCreateTasks.some((n) => n.id === targetNodeId)
+    const selectedStillExists = createTaskNodes.some((n) => n.id === targetNodeId)
 
     return (
         <div className="space-y-3">
@@ -297,16 +273,16 @@ export const CompleteTaskEditor: React.FC<ConfigEditorProps> = ({ config, onChan
                     value={targetNodeId}
                     onChange={(v) => set({ target_node_id: v || null })}
                     options={[
-                        { value: '', label: upstreamCreateTasks.length === 0 ? 'Conecte um "Criar tarefa" antes' : 'Selecionar...' },
-                        ...upstreamCreateTasks.map((n) => ({
+                        { value: '', label: createTaskNodes.length === 0 ? 'Adicione um "Criar tarefa" no fluxo' : 'Selecionar...' },
+                        ...createTaskNodes.map((n) => ({
                             value: n.id,
                             label: n.data.label || ((n.data.config as Record<string, unknown>)?.titulo as string) || 'Criar tarefa',
                         })),
                     ]}
                 />
-                {!!targetNodeId && !selectedExistsUpstream && (
+                {!!targetNodeId && !selectedStillExists && (
                     <p className="text-[11px] text-amber-700">
-                        A tarefa selecionada não é mais alcançável a partir deste passo. Reconecte ou troque a referência.
+                        O passo referenciado foi removido. Escolha outra tarefa.
                     </p>
                 )}
             </div>
