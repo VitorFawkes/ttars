@@ -7,18 +7,18 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-11
 > **Trigger:** ALWAYS ON
-> **Stats:** 194 tabelas | 156 paginas | 271 hooks | 22 views | 734 components
-> **Stats:** 194 tabelas | 156 paginas | 271 hooks | 22 views | 734 components
-> **Stats:** 194 tabelas | 156 paginas | 271 hooks | 22 views | 734 components
-> **Stats:** 194 tabelas | 156 paginas | 271 hooks | 22 views | 734 components
-> **Stats:** 194 tabelas | 156 paginas | 271 hooks | 22 views | 734 components
-> **Stats:** 194 tabelas | 156 paginas | 271 hooks | 22 views | 734 components
-> **Stats:** 194 tabelas | 156 paginas | 271 hooks | 22 views | 734 components
-> **Stats:** 194 tabelas | 156 paginas | 271 hooks | 22 views | 734 components
-> **Stats:** 194 tabelas | 156 paginas | 271 hooks | 22 views | 734 components
-> **Stats:** 194 tabelas | 156 paginas | 271 hooks | 22 views | 734 components
-> **Stats:** 194 tabelas | 156 paginas | 271 hooks | 22 views | 734 components
-> **Stats:** 194 tabelas | 156 paginas | 271 hooks | 22 views | 734 components
+> **Stats:** 191 tabelas | 154 paginas | 268 hooks | 22 views | 731 components
+> **Stats:** 191 tabelas | 154 paginas | 268 hooks | 22 views | 731 components
+> **Stats:** 191 tabelas | 154 paginas | 268 hooks | 22 views | 731 components
+> **Stats:** 191 tabelas | 154 paginas | 268 hooks | 22 views | 731 components
+> **Stats:** 191 tabelas | 154 paginas | 268 hooks | 22 views | 731 components
+> **Stats:** 191 tabelas | 154 paginas | 268 hooks | 22 views | 731 components
+> **Stats:** 191 tabelas | 154 paginas | 268 hooks | 22 views | 731 components
+> **Stats:** 191 tabelas | 154 paginas | 268 hooks | 22 views | 731 components
+> **Stats:** 191 tabelas | 154 paginas | 268 hooks | 22 views | 731 components
+> **Stats:** 191 tabelas | 154 paginas | 268 hooks | 22 views | 731 components
+> **Stats:** 191 tabelas | 154 paginas | 268 hooks | 22 views | 731 components
+> **Stats:** 191 tabelas | 154 paginas | 268 hooks | 22 views | 731 components
 
 ---
 
@@ -180,7 +180,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **271 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **268 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -329,7 +329,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useEmpresaPessoas()` | `useEmpresaPessoas.ts` |
 | `useEmpresas()` | `useEmpresas.ts` |
 | `useEmpresas 2()` | `useEmpresas 2.ts` |
-| `useEstelaScoringRules()` | `useEstelaScoringRules.ts` |
 | `useFlightLookup()` | `useFlightLookup.ts` |
 | `useFotos()` | `useFotos.ts` |
 | `useFutureOpportunities()` | `useFutureOpportunities.ts` |
@@ -340,7 +339,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useInventoryStats()` | `useInventoryStats.ts` |
 | `useKeyboardShortcuts()` | `useKeyboardShortcuts.ts` |
 | `useLeadQuickUpdate()` | `useLeadQuickUpdate.ts` |
-| `useLeadSources()` | `useLeadSources.ts` |
 | `useLeadsColumns()` | `useLeadsColumns.ts` |
 | `useLeadsQuery()` | `useLeadsQuery.ts` |
 | `useMensagemTemplates()` | `useMensagemTemplates.ts` |
@@ -382,7 +380,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useSaudeSummary()` | `useSaudeSummary.ts` |
 | `useSaudeTarefasVencidas()` | `useSaudeTarefasVencidas.ts` |
 | `useScheduledJobs()` | `useScheduledJobs.ts` |
-| `useSdrQualification()` | `useSdrQualification.ts` |
 | `useSdrRpcs()` | `useSdrRpcs.ts` |
 | `useTaskOutcomes()` | `useTaskOutcomes.ts` |
 | `useTasksList()` | `useTasksList.ts` |
@@ -533,7 +530,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **156 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **154 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -593,7 +590,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `CategoryManagement` | `src/pages/admin/CategoryManagement.tsx` |
 | `DepartmentsManagement` | `src/pages/admin/DepartmentsManagement.tsx` |
 | `ImportacaoPosVendaPage` | `src/pages/admin/ImportacaoPosVendaPage.tsx` |
-| `LeadSourcesManagement` | `src/pages/admin/LeadSourcesManagement.tsx` |
 | `Lixeira` | `src/pages/admin/Lixeira.tsx` |
 | `LossReasonManagement` | `src/pages/admin/LossReasonManagement.tsx` |
 | `MensagemTemplatePage` | `src/pages/admin/MensagemTemplatePage.tsx` |
@@ -692,7 +688,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `ProposalView` | `src/pages/public/ProposalView.tsx` |
 | `TripPlanView` | `src/pages/public/TripPlanView.tsx` |
 | `TripPortalPublic` | `src/pages/public/TripPortalPublic.tsx` |
-| `PontuacoesPage` | `src/pages/sdr/PontuacoesPage.tsx` |
 
 ## 4. UI Component Library
 
