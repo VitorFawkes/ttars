@@ -31,6 +31,7 @@ import { detectMoment, type MomentDetectionContext } from "./moment_detector.ts"
 import { buildPromptV2 } from "./prompt_builder_v2.ts";
 import { evaluateSubjectiveRules } from "./subjective_evaluator.ts";
 import { detectFactsToOmit } from "./fact_omission_detector.ts";
+import type { SlotV2 } from "./slot_renderer.ts";
 
 // ---------------------------------------------------------------------------
 // Types (alinhados com index.ts — evitamos import circular definindo o mínimo)
@@ -49,6 +50,7 @@ interface AgentV2Config {
   boundaries_config: BoundariesConfig | null;
   listening_config: ListeningConfig | null;
   pipeline_models?: Record<string, { model?: string; temperature?: number; max_tokens?: number }> | null;
+  feature_flag_discovery_v2?: boolean | null;
   handoff_actions?: {
     book_meeting?: {
       enabled?: boolean;
@@ -137,6 +139,8 @@ export async function runPersonaAgent_v2(
      */
     forceToolName?: string,
   ) => Promise<{ response: string; inputTokens: number; outputTokens: number }>,
+  current_slot?: SlotV2 | null,
+  previous_attempt_failed?: string | null,
 ): Promise<PersonaV2Result> {
 
   // 0. Fechamento social curto: lead mandou só agradecimento ou despedida.
@@ -641,6 +645,10 @@ export async function runPersonaAgent_v2(
     userMessage,
     companyDescription: business?.methodology_text ?? business?.company_description,
     bookMeeting: bookMeetingForPrompt,
+    // Fase 4 (11/05/2026): discovery V2 schema + REGEN hint
+    feature_flag_discovery_v2: agent.feature_flag_discovery_v2 ?? false,
+    current_slot: current_slot ?? null,
+    previous_attempt_failed: previous_attempt_failed ?? null,
   });
 
   // 6. Modo TEXTO LITERAL: bypass total do LLM. Output determinístico do anchor.

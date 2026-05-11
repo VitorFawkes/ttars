@@ -2889,6 +2889,7 @@ async function runPersonaAgent(
   conversationId?: string | null,
   previous_attempt_failed?: string | null,
   temperature_override?: number,
+  current_slot?: SlotV2 | null,
 ): Promise<{ response: string; inputTokens: number; outputTokens: number; was_literal: boolean; raw_response?: string; prompt_system?: string; prompt_user?: string; duration_ms?: number }> {
 
   // ═══════════════════════════════════════════════════════════════
@@ -2923,6 +2924,7 @@ async function runPersonaAgent(
           pipeline_models: agent.pipeline_models ?? null,
           // deno-lint-ignore no-explicit-any
           handoff_actions: (agent as any).handoff_actions ?? null,
+          feature_flag_discovery_v2: agent.feature_flag_discovery_v2 ?? false,
         },
         {
           is_primeiro_contato: ctx.is_primeiro_contato,
@@ -2969,6 +2971,9 @@ async function runPersonaAgent(
             forceToolName,
           );
         },
+        // Fase 4 (11/05/2026): discovery V2 schema + REGEN hint
+        current_slot,
+        previous_attempt_failed,
       );
 
       // Anota metadata v2 no ctx pra o main handler persistir em ai_conversation_turns
@@ -4267,7 +4272,7 @@ serve(async (req) => {
     // Load current moment + discover slot selection (only if feature_flag_discovery_v2 enabled)
     let currentMoment: { moment_key: string; discovery_config?: Record<string, unknown> } | null = null;
     let currentSlot: SlotV2 | null = null;
-    if (agent.feature_flag_discovery_v2 === true) {
+    if (agent.feature_flag_discovery_v2) {
       try {
         const allMoments = await loadPlaybookMoments(supabase, agent.id);
         currentMoment = ctx.v2_current_moment_key
@@ -4312,6 +4317,9 @@ serve(async (req) => {
         processedText, dataResult.qualificationSignals,
         agentConfig.presentations,
         conversationId,
+        undefined, // previous_attempt_failed (none na 1ª passagem)
+        undefined, // temperature_override (usa default do agent)
+        currentSlot,
       );
       const personaResponse = personaResult.response;
       const personaRawResponse = personaResult.raw_response ?? personaResult.response;
@@ -4350,6 +4358,7 @@ serve(async (req) => {
             conversationId,
             hintBlock,
             0.1,
+            currentSlot,
           );
           retryPersonaResponse = retryResult.response;
           retryRawResponse = retryResult.raw_response ?? retryResult.response;
@@ -4467,7 +4476,9 @@ serve(async (req) => {
       const promptBuilderVersion = Deno.env.get("SUPABASE_FUNCTION_BUILD_COMMIT") || "unknown";
       const discoveryConfigHash = await hashDiscoveryConfig(currentMoment?.discovery_config ?? null);
 
-      await recordTurnLog(supabase, {
+      // Fire-and-forget: void promises pra não bloquear envio. recordTurnLog
+      // já captura erros internamente (try/catch + console.error).
+      void recordTurnLog(supabase, {
         turn_id: turnId,
         agent_id: agent.id,
         org_id: agent.org_id,
@@ -4489,7 +4500,7 @@ serve(async (req) => {
       });
 
       if (retryAttemptVerdict) {
-        await recordTurnLog(supabase, {
+        void recordTurnLog(supabase, {
           turn_id: turnId,
           agent_id: agent.id,
           org_id: agent.org_id,
