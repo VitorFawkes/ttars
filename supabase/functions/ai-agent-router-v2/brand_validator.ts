@@ -1,4 +1,4 @@
-// Brand Validator (gpt-5.5-mini, t=0.1) — pós single-agent.
+// Brand Validator (gpt-5.1, t=0.1) — pós single-agent.
 //
 // Lê só messages[] do output do agente principal e aplica as 11 validator_rules
 // (mesma estrutura da Estela, mas duplicadas pra Patricia via clone_agent).
@@ -38,7 +38,7 @@ export interface BrandValidatorInput {
   last_lead_message?: string;
 }
 
-const VALIDATOR_MODEL = "gpt-5.5-mini";
+const VALIDATOR_MODEL = "gpt-5.1";
 const VALIDATOR_TEMPERATURE = 0.1;
 const VALIDATOR_MAX_TOKENS = 1024;
 
@@ -107,7 +107,7 @@ Retorne JSON conforme schema.`;
     },
     body: JSON.stringify({
       model: VALIDATOR_MODEL,
-      // GPT-5.5-mini só suporta temperature=1 (default). Omitir respeita.
+      temperature: VALIDATOR_TEMPERATURE,
       max_completion_tokens: VALIDATOR_MAX_TOKENS,
       response_format: BRAND_VALIDATOR_SCHEMA,
       messages: [
