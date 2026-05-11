@@ -9,7 +9,7 @@
  *  invisíveis comuns em headers do Excel (BOM, zero-width, NBSP).
  *  Sem isso "Data Cancelamento" com BOM no início não bate com "data cancelamento". */
 export const norm = (s: string) => s.toLowerCase()
-    .replace(/[​-‍﻿ ]/g, ' ')
+    .replace(/[\u200b-\u200d\ufeff\u00a0]/g, ' ')
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[º°.]/g, '')
     .replace(/\s+/g, ' ')

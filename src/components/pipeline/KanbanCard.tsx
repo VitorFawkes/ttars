@@ -640,6 +640,28 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap }: Kanba
                     {card.parent_card_id && (card as any).card_type === 'group_child' && (
                         <GroupBadge card={card} />
                     )}
+
+                    {/* SDR qualification score badge (WEDDING) */}
+                    {card.produto === 'WEDDING' && (card as any).sdr_qualification_score_latest && (
+                        (() => {
+                            const sdr = (card as any).sdr_qualification_score_latest as { score: number; qualificado: boolean; disqualified: boolean }
+                            const color = sdr.disqualified
+                                ? 'bg-rose-100 text-rose-700 border-rose-200'
+                                : sdr.qualificado
+                                    ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                                    : 'bg-slate-100 text-slate-700 border-slate-200'
+                            return (
+                                <span
+                                    className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border', color)}
+                                    title={`Pontuação SDR: ${sdr.score} (${sdr.disqualified ? 'desqualificado' : sdr.qualificado ? 'qualificado' : 'abaixo do mínimo'})`}
+                                >
+                                    {sdr.score}
+                                    {sdr.qualificado && !sdr.disqualified && <span>✓</span>}
+                                    {sdr.disqualified && <span>✗</span>}
+                                </span>
+                            )
+                        })()
+                    )}
                 </div>
 
                 <div className="flex items-center gap-2 flex-shrink-0">
