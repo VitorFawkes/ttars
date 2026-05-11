@@ -305,6 +305,18 @@ export const CompleteTaskEditor: React.FC<ConfigEditorProps> = ({ config, onChan
                     Usado como o "como foi" da tarefa concluída. Útil para diferenciar quando a automação fecha (ex: "enviado") de quando uma pessoa fecha.
                 </p>
             </div>
+            <div className="space-y-2">
+                <Label className="text-xs">Anotação registrada na tarefa (opcional)</Label>
+                <Textarea
+                    value={(config.feedback as string) || ''}
+                    onChange={(e) => set({ feedback: e.target.value })}
+                    rows={3}
+                    placeholder="Ex: Mensagem de boas-vindas enviada via wt_primeiro_contato001."
+                />
+                <p className="text-[11px] text-slate-500">
+                    Texto livre que vai pro "feedback" da tarefa quando a automação fechar. Suporta {`{{contact.nome}}`} e {`{{card.titulo}}`}.
+                </p>
+            </div>
         </div>
     )
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Plus, CheckCircle2, Circle, Calendar, Phone, Users, FileCheck, MoreHorizontal, User, Trash2, Edit2, Check, RefreshCw, CalendarClock, XCircle, MessageSquare, Clock, AlertCircle, UserPlus, FileText, ExternalLink, Gift } from 'lucide-react'
+import { Plus, CheckCircle2, Circle, Calendar, Phone, Users, FileCheck, MoreHorizontal, User, Trash2, Edit2, Check, RefreshCw, CalendarClock, XCircle, MessageSquare, Clock, AlertCircle, UserPlus, FileText, ExternalLink, Gift, Zap } from 'lucide-react'
 import { BellConciergeIcon } from '../icons/BellConciergeIcon'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
@@ -21,7 +21,8 @@ import { Label } from '../ui/label'
 import { Textarea } from '../ui/textarea'
 import type { Database } from '../../database.types'
 import { cn } from '../../lib/utils'
-import { ORIGEM_CONFIG } from '../tasks/taskTypeConfig'
+
+const AUTOMATION_BADGE_CHIP = 'bg-cyan-50 border-cyan-200 text-cyan-700'
 
 type TaskOrigem = 'manual' | 'cadencia' | 'automacao' | 'integracao'
 
@@ -730,8 +731,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                         const changeCategory = (task.metadata as Record<string, unknown> | null)?.change_category as string | undefined
                         const taskOrigem = deriveTaskOrigem(task.metadata as Record<string, unknown> | null, task.external_source)
                         const taskOrigemNome = deriveTaskOrigemNome(task.metadata as Record<string, unknown> | null)
-                        const showOrigemBadge = taskOrigem === 'cadencia' || taskOrigem === 'automacao'
-                        const origemCfg = ORIGEM_CONFIG[taskOrigem]
+                        const isAutomated = taskOrigem === 'cadencia' || taskOrigem === 'automacao'
                         const conciergeItem = conciergeByTarefaId.get(task.id)
                         const conciergeTipo = conciergeItem ? TIPO_LABEL[conciergeItem.tipo_concierge] : null
                         // Item espelhado de sub-card no card principal: badge na linha indica origem.
@@ -794,12 +794,13 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                                                         do sub-card
                                                     </span>
                                                 )}
-                                                {showOrigemBadge && origemCfg && (
+                                                {isAutomated && (
                                                     <span
-                                                        className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${origemCfg.chip}`}
-                                                        title={taskOrigemNome ? `${origemCfg.label}: ${taskOrigemNome}` : origemCfg.label}
+                                                        className={`text-[10px] font-medium px-1.5 py-0.5 rounded border flex items-center gap-1 ${AUTOMATION_BADGE_CHIP}`}
+                                                        title={taskOrigemNome ? `Automação: ${taskOrigemNome}` : 'Automação'}
                                                     >
-                                                        {taskOrigemNome ? `${origemCfg.label}: ${taskOrigemNome}` : origemCfg.label}
+                                                        <Zap className="w-3 h-3" />
+                                                        {taskOrigemNome ? `Automação: ${taskOrigemNome}` : 'Automação'}
                                                     </span>
                                                 )}
                                                 <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border capitalize ${getTypeColor(task.tipo || '')} flex items-center gap-1`}>

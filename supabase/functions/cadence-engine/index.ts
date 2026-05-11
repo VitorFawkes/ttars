@@ -3139,20 +3139,39 @@ async function executeCompleteTaskAction(
     }
 
     const outcome: string = cfg.outcome || 'enviado';
+
+    // Interpola variáveis no feedback (mesmas suportadas em notify_internal e
+    // mensagens). Se o feedback não foi configurado, fica null e não sobrescreve.
+    let feedback: string | null = null;
+    const rawFeedback: string = cfg.feedback || '';
+    if (rawFeedback.trim()) {
+        const contato = await resolveCardContact(supabaseClient, cardId);
+        const { data: cardRow } = await supabaseClient
+            .from('cards').select('titulo').eq('id', cardId).single();
+        const firstName = (contato?.nome || '').split(' ')[0] || '';
+        feedback = rawFeedback
+            .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato?.nome || '')
+            .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
+            .replace(/\{\{\s*card\.titulo\s*\}\}/g, (cardRow?.titulo as string) || '');
+    }
+
+    const updatePayload: Record<string, unknown> = {
+        concluida: true,
+        concluida_em: new Date().toISOString(),
+        outcome,
+        status: 'concluida',
+    };
+    if (feedback !== null) updatePayload.feedback = feedback;
+
     const { error } = await supabaseClient
         .from('tarefas')
-        .update({
-            concluida: true,
-            concluida_em: new Date().toISOString(),
-            outcome,
-            status: 'concluida',
-        })
+        .update(updatePayload)
         .eq('id', task.id);
 
     if (error) {
         return { ok: false, error: error.message };
     }
-    return { ok: true, task_id: task.id, outcome };
+    return { ok: true, task_id: task.id, outcome, feedback };
 }
 
 // ----------------------------------------------------------------------------
