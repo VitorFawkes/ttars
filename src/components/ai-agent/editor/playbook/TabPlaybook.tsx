@@ -30,10 +30,10 @@ type SectionKey =
   | 'examples'
 
 const SECTION_DEF: Record<SectionKey, { title: string; subtitle: string; icon: typeof User }> = {
-  quem_ela_e:        { title: 'Quem ela é', subtitle: 'Identidade, voz e linhas vermelhas — tudo que define a personalidade', icon: UserCircle },
+  quem_ela_e:        { title: 'Quem ela é', subtitle: 'Identidade, estilo e linhas vermelhas — tudo que define a personalidade', icon: UserCircle },
   como_ela_conversa: { title: 'Como ela conversa', subtitle: 'Roteiro, sondagem, pontuação e conhecimento', icon: MessagesSquare },
   identity:          { title: 'Identidade', subtitle: 'Quem é a agente e qual a missão dela', icon: User },
-  voice:             { title: 'Voz', subtitle: 'Como ela soa: tom, frases típicas e proibidas', icon: Volume2 },
+  voice:             { title: 'Estilo', subtitle: 'Como ela fala: tom, formalidade, regras de estilo, frases típicas e proibidas', icon: Volume2 },
   moments:           { title: 'Momentos da conversa', subtitle: 'Fases do funil + jogadas situacionais (objeções, etc.)', icon: Clock },
   qualification:     { title: 'Critérios de qualificação', subtitle: 'O que torna um cliente bom — somam pontos ou desqualificam', icon: Target },
   boundaries:        { title: 'Linhas vermelhas gerais', subtitle: 'Coisas que a agente NUNCA faz, em qualquer momento', icon: Shield },

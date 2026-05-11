@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { Loader2, Save, Plus, X, Sparkles, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
@@ -35,6 +35,8 @@ const RULE_PRESETS: Array<{ category: string; label: string; rule: string }> = [
   // Pontuação
   { category: 'Pontuação', label: 'Sem travessões', rule: 'Nunca usa travessão (—) como separador. Usa vírgula, ponto ou reticências.' },
   { category: 'Pontuação', label: 'Sem "??" duplo', rule: 'Nunca termina mensagem com "??" duplo ou triplo.' },
+  // Conversa
+  { category: 'Conversa', label: 'Conecta resposta com contexto', rule: 'Quando o cliente acabou de dar uma info forte no último turno (data, destino, número de pessoas, orçamento, estilo), usa essa info como ponte natural na próxima mensagem — seja pergunta, comentário ou proposta. Ex (pergunta): cliente diz "janeiro de 2027" → "Pra esse janeiro de 2027 lá fora, vocês já viajaram pra fora da América do Sul?". Ex (proposta): cliente diz "100 convidados no Nordeste" → "Pra esse formato, vale a gente marcar uma conversa pra desenhar o desenho?". Não força conexão artificial — se a próxima fala é sobre tema diferente, fala solto.' },
 ]
 
 interface Props {
@@ -75,19 +77,32 @@ export function VoiceSection({ agentId, agentName, companyName }: Props) {
   const [newTypical, setNewTypical] = useState('')
   const [newForbidden, setNewForbidden] = useState('')
   const [dirty, setDirty] = useState(false)
+  const autoMigratedRef = useRef(false)
 
   // Hidrata estado local quando voice carrega/muda do servidor.
   // Migração automática: se rules está vazio mas emoji_policy/regionalisms
-  // estão setados, deriva rules a partir deles (uma vez, no momento da edição).
+  // estão setados, deriva rules a partir deles E persiste silenciosamente
+  // — admin não precisa clicar em Salvar pra migração acontecer.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (voice) {
       setToneTags(voice.tone_tags ?? [])
       setFormality(voice.formality ?? 3)
-      // Prioridade: rules → custom_rules (legado renomeado) → derivado de campos antigos
       const r = (voice.rules?.length ? voice.rules : voice.custom_rules) ?? []
-      if (r.length === 0 && (voice.emoji_policy || voice.regionalisms)) {
-        setRules(deriveLegacyRules(voice))
+      if (r.length === 0 && (voice.emoji_policy || voice.regionalisms) && !autoMigratedRef.current) {
+        autoMigratedRef.current = true
+        const derived = deriveLegacyRules(voice)
+        setRules(derived)
+        save.mutate({
+          tone_tags: voice.tone_tags ?? [],
+          formality: voice.formality ?? 3,
+          rules: derived,
+          typical_phrases: voice.typical_phrases ?? [],
+          forbidden_phrases: voice.forbidden_phrases ?? [],
+          emoji_policy: undefined,
+          regionalisms: undefined,
+          custom_rules: undefined,
+        })
       } else {
         setRules(r)
       }
@@ -95,7 +110,7 @@ export function VoiceSection({ agentId, agentName, companyName }: Props) {
       setForbidden(voice.forbidden_phrases ?? [])
       setDirty(false)
     }
-  }, [voice])
+  }, [voice, save])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const markDirty = () => setDirty(true)

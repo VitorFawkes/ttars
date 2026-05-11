@@ -39,7 +39,7 @@ export function QuemElaESection({ agentId, agentName, companyName }: Props) {
           <p className="text-xs text-slate-600 leading-relaxed">
             Antes esses 3 blocos viviam em seções separadas. Reunimos pra você ter uma visão única
             de quem é a agente e como ela soa, com regra simples:{' '}
-            <strong>identidade não muda quase nunca, voz raramente, linhas vermelhas mudam quando algo dá errado.</strong>
+            <strong>identidade não muda quase nunca, estilo raramente, linhas vermelhas mudam quando algo dá errado.</strong>
           </p>
         </div>
       </div>
@@ -52,12 +52,12 @@ export function QuemElaESection({ agentId, agentName, companyName }: Props) {
       />
       <IdentitySection agentId={agentId} agentName={agentName} companyName={companyName} />
 
-      {/* Bloco 2 — Voz */}
+      {/* Bloco 2 — Estilo */}
       <div className="pt-4 border-t border-slate-100">
         <BlockHeader
           Icon={Volume2}
-          title="Voz"
-          subtitle="Como ela soa: tom, formalidade, frases típicas e frases proibidas."
+          title="Estilo"
+          subtitle="Como ela fala: tom, formalidade, regras de estilo, frases típicas e proibidas."
         />
         <VoiceSection agentId={agentId} agentName={agentName} companyName={companyName} />
       </div>
