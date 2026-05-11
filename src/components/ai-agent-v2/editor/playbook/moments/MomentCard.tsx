@@ -67,6 +67,23 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
   const [deliveryMode, setDeliveryMode] = useState<PlaybookMoment['delivery_mode']>(moment.delivery_mode ?? 'all_at_once')
   const [intent, setIntent] = useState(moment.intent ?? '')
   const [anchor, setAnchor] = useState(moment.anchor_text ?? '')
+  // anchor_text_parts: blocos sequenciais (delivery_mode = wait_for_reply).
+  // Cada elemento é uma "rodada de envio". Backend respeita 1 bloco por turno.
+  // Inicialização: prioriza coluna nova; senão split do anchor_text por '---'.
+  const initialParts = (() => {
+    if (moment.anchor_text_parts && moment.anchor_text_parts.length > 0) {
+      return moment.anchor_text_parts
+    }
+    const raw = moment.anchor_text ?? ''
+    if (raw.match(/\n[ \t]*[-*_]{3,}[ \t]*\n/)) {
+      return raw
+        .split(/\n[ \t]*[-*_]{3,}[ \t]*\n/)
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0)
+    }
+    return raw ? [raw] : ['']
+  })()
+  const [parts, setParts] = useState<string[]>(initialParts)
   const [redLines, setRedLines] = useState<string[]>(moment.red_lines ?? [])
   const [mustCover, setMustCover] = useState<string[]>(moment.must_cover ?? [])
   const [literalPhrases, setLiteralPhrases] = useState<string[]>(moment.literal_phrases ?? [])
@@ -156,13 +173,17 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
       )
       if (!proceed) return
     }
-    // Avisa se anchor tem '---' mas modo de entrega não é wait_for_reply
-    if (anchor.includes('---') && deliveryMode !== 'wait_for_reply') {
-      const proceed = confirm(
-        `O texto contém "---" (separador de passos), mas o ritmo de envio não é "esperar lead responder". O separador vai sair literal na mensagem. Salvar mesmo assim?`,
-      )
-      if (!proceed) return
-    }
+    // Quando delivery_mode = wait_for_reply, os blocos estruturados (parts)
+    // são fonte de verdade. O anchor_text legado é regenerado juntando com
+    // '\n\n---\n\n' pra manter compat com backend antigo / Estela.
+    const usesParts = deliveryMode === 'wait_for_reply' && mode !== 'free'
+    const cleanedParts = usesParts
+      ? parts.map((p) => p.trim()).filter((p) => p.length > 0)
+      : null
+    const anchorOut = usesParts
+      ? (cleanedParts && cleanedParts.length > 0 ? cleanedParts.join('\n\n---\n\n') : '')
+      : anchor.trim()
+
     try {
       await upsert.mutateAsync({
         id: moment.id,
@@ -174,7 +195,8 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
         trigger_config: triggerConfig,
         message_mode: mode,
         intent: intent.trim() || null,
-        anchor_text: (mode === 'literal' || mode === 'faithful') ? anchor.trim() : (anchor.trim() || null),
+        anchor_text: (mode === 'literal' || mode === 'faithful') ? anchorOut : (anchorOut || null),
+        anchor_text_parts: cleanedParts && cleanedParts.length > 0 ? cleanedParts : null,
         red_lines: redLines,
         must_cover: mustCover,
         literal_phrases: literalPhrases,
@@ -341,34 +363,109 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
           <div>
             <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
               <label className="block text-xs font-medium text-slate-600">
-                {mode === 'free' ? 'Objetivo desta fase (a agente improvisa baseado nisso)' : 'Texto que a agente vai usar'}
-              </label>
-              <SuggestVariationsButton
-                text={anchor}
-                fieldType="anchor_text"
-                context={{ agent_nome: agentName, company_name: companyName, related_moment_label: label }}
-                onSelect={(t) => { setAnchor(t); markDirty() }}
-              />
-            </div>
-            <textarea
-              ref={anchorRef}
-              value={anchor}
-              onChange={(e) => { setAnchor(e.target.value); markDirty() }}
-              placeholder={
-                mode === 'free'
-                  ? 'Descreva o objetivo'
+                {mode === 'free'
+                  ? 'Objetivo desta fase (a agente improvisa baseado nisso)'
                   : deliveryMode === 'wait_for_reply'
-                    ? 'Mensagem 1\n\n---\n\nMensagem 2 (depois que o lead responder)\n\n---\n\nMensagem 3'
+                    ? 'Blocos sequenciais — a agente envia 1 bloco, espera o lead responder, envia o próximo'
+                    : 'Texto que a agente vai usar'}
+              </label>
+              {!(deliveryMode === 'wait_for_reply' && mode !== 'free') && (
+                <SuggestVariationsButton
+                  text={anchor}
+                  fieldType="anchor_text"
+                  context={{ agent_nome: agentName, company_name: companyName, related_moment_label: label }}
+                  onSelect={(t) => { setAnchor(t); markDirty() }}
+                />
+              )}
+            </div>
+
+            {deliveryMode === 'wait_for_reply' && mode !== 'free' ? (
+              <div className="space-y-2">
+                {parts.map((p, idx) => (
+                  <div key={idx} className="rounded-lg border border-indigo-100 bg-indigo-50/30 p-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[11px] font-medium text-indigo-700">
+                        Bloco {idx + 1} de {parts.length}
+                        <span className="ml-1 text-[10px] text-indigo-500 font-normal">
+                          {idx === 0 ? '(envia primeiro)' : `(envia depois que lead responder ao bloco ${idx})`}
+                        </span>
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={() => {
+                            const next = [...parts]
+                            ;[next[idx - 1], next[idx]] = [next[idx], next[idx - 1]]
+                            setParts(next); markDirty()
+                          }}
+                          className="text-[10px] text-slate-500 hover:text-indigo-600 disabled:opacity-30 disabled:cursor-not-allowed px-1"
+                          title="Subir"
+                        >▲</button>
+                        <button
+                          type="button"
+                          disabled={idx === parts.length - 1}
+                          onClick={() => {
+                            const next = [...parts]
+                            ;[next[idx], next[idx + 1]] = [next[idx + 1], next[idx]]
+                            setParts(next); markDirty()
+                          }}
+                          className="text-[10px] text-slate-500 hover:text-indigo-600 disabled:opacity-30 disabled:cursor-not-allowed px-1"
+                          title="Descer"
+                        >▼</button>
+                        <button
+                          type="button"
+                          disabled={parts.length === 1}
+                          onClick={() => {
+                            if (!confirm(`Remover o bloco ${idx + 1}?`)) return
+                            const next = parts.filter((_, i) => i !== idx)
+                            setParts(next.length > 0 ? next : ['']); markDirty()
+                          }}
+                          className="text-[10px] text-rose-500 hover:text-rose-700 disabled:opacity-30 disabled:cursor-not-allowed px-1"
+                          title="Remover"
+                        ><Trash2 className="w-3 h-3" /></button>
+                      </div>
+                    </div>
+                    <textarea
+                      value={p}
+                      onChange={(e) => {
+                        const next = [...parts]
+                        next[idx] = e.target.value
+                        setParts(next); markDirty()
+                      }}
+                      placeholder={idx === 0 ? 'Ex.: "Aqui é a {agent_name}, qual seu nome?"' : 'O que ela vai dizer depois que o lead responder'}
+                      className="w-full min-h-[72px] rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-sm leading-relaxed"
+                    />
+                  </div>
+                ))}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setParts([...parts, '']); markDirty() }}
+                  className="text-indigo-600 hover:bg-indigo-50"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar bloco
+                </Button>
+                <p className="text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded-md px-2.5 py-1.5 leading-relaxed">
+                  ✨ A agente envia o <strong>Bloco 1</strong> e espera a resposta do lead. Quando o lead responder,
+                  ela envia o <strong>Bloco 2</strong>, e assim por diante. Quando esgotar os blocos, ela avança
+                  pra próxima fase do funil.
+                </p>
+              </div>
+            ) : (
+              <textarea
+                ref={anchorRef}
+                value={anchor}
+                onChange={(e) => { setAnchor(e.target.value); markDirty() }}
+                placeholder={
+                  mode === 'free'
+                    ? 'Descreva o objetivo'
                     : 'Use {contact_name} para o nome do lead'
-              }
-              className="w-full min-h-[120px] rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            />
-            {deliveryMode === 'wait_for_reply' && mode !== 'free' && (
-              <p className="text-[11px] text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-md px-2.5 py-1.5 mt-1.5 leading-relaxed">
-                ✨ <span className="font-medium">Sequência de mensagens:</span> separe cada mensagem com uma linha contendo só <code className="font-mono px-1 bg-white border border-indigo-200 rounded">---</code>.
-                A agente manda a primeira, espera o lead responder, manda a próxima, e assim por diante. Quando acabarem os blocos, ela avança pra próxima fase do funil.
-              </p>
+                }
+                className="w-full min-h-[120px] rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              />
             )}
+
             {mode !== 'free' && (
               <div className="mt-1.5">
                 <div className="text-[11px] text-slate-500 mb-1">

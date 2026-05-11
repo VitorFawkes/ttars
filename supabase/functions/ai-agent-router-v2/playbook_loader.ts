@@ -59,6 +59,13 @@ export interface PlaybookMoment {
   /** Intenção da fase (POR QUÊ existe), separada do anchor_text (COMO falar). */
   intent?: string | null;
   anchor_text: string | null;
+  /**
+   * Blocos sequenciais de mensagem. Cada elemento é uma "rodada de envio".
+   * Quando delivery_mode = 'wait_for_reply' e tem 2+ elementos, agente envia
+   * parts[step], espera o lead responder, avança step. NULL = split runtime
+   * do anchor_text por linhas "---". Migration 20260512j adicionou a coluna.
+   */
+  anchor_text_parts?: string[] | null;
   red_lines: string[];
   /** Pontos que toda resposta nesta fase deve cobrir (oposto prescritivo de red_lines). */
   must_cover?: string[];
@@ -167,6 +174,29 @@ export interface ScoringRule {
 // ---------------------------------------------------------------------------
 // Loaders (paralelizáveis via Promise.all)
 // ---------------------------------------------------------------------------
+
+/**
+ * Resolve os blocos sequenciais de um momento.
+ *
+ * Prioridade:
+ *   1. anchor_text_parts (coluna nova) — array curado pelo admin na UI
+ *   2. Fallback: split do anchor_text por linhas contendo "---"/"***"/"___"
+ *   3. Fallback final: anchor_text inteiro como bloco único
+ *
+ * Retorna [] se nada estiver configurado.
+ */
+export function resolveMomentParts(m: PlaybookMoment): string[] {
+  if (m.anchor_text_parts && m.anchor_text_parts.length > 0) {
+    return m.anchor_text_parts.map((p) => p.trim()).filter((p) => p.length > 0);
+  }
+  if (!m.anchor_text) return [];
+  // Split por linhas com 3+ hífens/asteriscos/underscores
+  const parts = m.anchor_text
+    .split(/\n[ \t]*[-*_]{3,}[ \t]*\n/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+  return parts.length > 0 ? parts : [m.anchor_text.trim()];
+}
 
 export async function loadPlaybookMoments(
   supabase: SupabaseClient,

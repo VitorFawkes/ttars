@@ -19,6 +19,7 @@ import type {
   ScoringRule,
   VoiceConfig,
 } from "./playbook_loader.ts";
+import { resolveMomentParts } from "./playbook_loader.ts";
 import { resolvePlaceholdersDeep, type ResolverContext } from "./placeholder_resolver.ts";
 
 export interface BuildSinglePromptInput {
@@ -46,6 +47,13 @@ export interface BuildSinglePromptInput {
     historico_compacto: string;
     last_lead_message: string | null;
     last_moment_key: string | null;
+    /**
+     * Em moments com delivery_mode=wait_for_reply e anchor_text_parts com 2+
+     * elementos, este step indica qual parte enviar no turno atual. Quando o
+     * último moment terminou (lead respondeu à última parte), o router avança
+     * step+1 ANTES de chamar o LLM. Default 0 (primeiro bloco).
+     */
+    moment_step: number;
     turn_count: number;
     is_primeiro_contato: boolean;
     contact_name: string | null;
@@ -120,6 +128,9 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
   // -------- Conversation state --------------------------------------------
   const stateBlock = renderConversationState(conversationState);
 
+  // -------- Turn policy (regra do bloco ativo nesse turno) ----------------
+  const turnPolicyBlock = renderTurnPolicy(moments, conversationState);
+
   // -------- Tools available -----------------------------------------------
   const toolsBlock = renderTools(availableTools);
 
@@ -136,6 +147,7 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
     qualificationBlock,
     examplesBlock,
     stateBlock,
+    turnPolicyBlock,
     toolsBlock,
     schemaReminder,
   ]
@@ -347,7 +359,17 @@ function renderPlaybook(moments: PlaybookMoment[]): string {
     lines.push(`- **Tipo:** ${m.kind === "flow" ? "FLOW (fase do funil, sequencial)" : "PLAY (jogada situacional, interrompe pra atender e volta)"}`);
     if (m.intent) lines.push(`- **Intenção:** ${m.intent}`);
     lines.push(`- **Modo:** ${modeHint[m.message_mode] || m.message_mode}`);
-    if (m.anchor_text) {
+    const parts = resolveMomentParts(m);
+    const isSequencedWait = m.delivery_mode === "wait_for_reply" && parts.length > 1;
+    if (isSequencedWait) {
+      lines.push(`- **Sequência de blocos** (${parts.length} blocos, um por rodada de envio — espera resposta do lead entre cada):`);
+      parts.forEach((p, i) => {
+        lines.push(`  - **Bloco ${i + 1} de ${parts.length}:**`);
+        lines.push("    ```");
+        p.split("\n").forEach((line) => lines.push(`    ${line}`));
+        lines.push("    ```");
+      });
+    } else if (m.anchor_text) {
       lines.push(`- **Anchor text:**`);
       lines.push("  ```");
       m.anchor_text.split("\n").forEach((line) => lines.push(`  ${line}`));
@@ -526,6 +548,79 @@ ${formDataLines.length > 0 ? formDataLines.join("\n") : "(card sem campos preenc
 ## Histórico compacto da conversa
 ${state.historico_compacto || "(sem histórico — primeiro contato)"}
 </conversation_state>`;
+}
+
+/**
+ * Bloco que diz ao LLM qual é o "bloco ativo" deste turno e como se comportar
+ * frente aos blocos seguintes (caso o momento atual seja sequenciado wait_for_reply).
+ *
+ * O router pré-calcula `moment_step` antes de chamar o LLM:
+ *   - 0 = primeiro bloco do moment OU moment não-sequenciado
+ *   - N = está retornando ao mesmo moment depois do lead responder; envie o N-ésimo bloco
+ *
+ * O LLM continua livre para mudar de moment (escolher current_moment_key diferente
+ * do last_moment_key). Nesse caso o router reseta o step para 0 automaticamente.
+ */
+function renderTurnPolicy(
+  moments: PlaybookMoment[],
+  state: BuildSinglePromptInput["conversationState"],
+): string {
+  const lastKey = state.last_moment_key;
+  const step = state.moment_step ?? 0;
+
+  if (!lastKey) {
+    return `<turn_policy>
+🎯 ESTRATÉGIA DESTE TURNO
+
+Você está iniciando a conversa OU não havia momento anterior. Escolha o moment de FLOW apropriado (geralmente o primeiro: abertura). Use o Bloco 1 dele se houver sequência.
+</turn_policy>`;
+  }
+
+  const moment = moments.find((m) => m.moment_key === lastKey);
+  if (!moment) {
+    return `<turn_policy>
+🎯 ESTRATÉGIA DESTE TURNO
+
+Último moment registrado ("${lastKey}") não está mais disponível no playbook. Reescolha o moment correto pelo estado da conversa.
+</turn_policy>`;
+  }
+
+  const parts = resolveMomentParts(moment);
+  const isSequencedWait = moment.delivery_mode === "wait_for_reply" && parts.length > 1;
+
+  if (!isSequencedWait) {
+    return `<turn_policy>
+🎯 ESTRATÉGIA DESTE TURNO
+
+Último moment: \`${moment.moment_key}\` (${moment.delivery_mode || "all_at_once"})
+
+Esse moment NÃO tem blocos sequenciais. Você pode mudar de moment livremente se o estado pedir, ou continuar nele se a conversa ainda demanda. Decida pelo contexto.
+</turn_policy>`;
+  }
+
+  const inRange = step >= 0 && step < parts.length;
+  const activeIdx = inRange ? step : 0;
+  const isLast = activeIdx === parts.length - 1;
+
+  return `<turn_policy>
+🎯 ESTRATÉGIA DESTE TURNO
+
+Você está no moment \`${moment.moment_key}\` (${moment.moment_label}), **Bloco ${activeIdx + 1} de ${parts.length}**.
+
+Texto-base do bloco ativo (use como guia conforme o modo do moment — literal/faithful/free):
+\`\`\`
+${parts[activeIdx]}
+\`\`\`
+
+REGRAS DESTE TURNO:
+- Suas mensagens devem cobrir APENAS o conteúdo do Bloco ${activeIdx + 1}. NÃO antecipe o conteúdo dos próximos blocos.
+- Adapte o texto reagindo à última mensagem do lead, mas mantenha o conteúdo essencial desse bloco.
+- Marque \`current_moment_key\` = "${moment.moment_key}" para o router saber que você continuou no mesmo moment.
+${isLast
+  ? "- Este é o ÚLTIMO bloco da sequência. Depois que o lead responder, o próximo turno será de outro moment (escolhido pelo flow)."
+  : `- Depois que o lead responder, o router avança automaticamente para o Bloco ${activeIdx + 2}.`}
+- Se o estado da conversa pedir MUDANÇA DE MOMENT (lead pulou de assunto, objeção, etc), você PODE mudar — marque outro \`current_moment_key\` e o router reseta a contagem.
+</turn_policy>`;
 }
 
 function renderTools(tools: string[]): string {

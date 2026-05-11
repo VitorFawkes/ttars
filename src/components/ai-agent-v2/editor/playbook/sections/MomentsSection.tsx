@@ -53,6 +53,7 @@ export function MomentsSection({ agentId, agentName, companyName }: Props) {
         message_mode: 'free',
         intent: null,
         anchor_text: null,
+        anchor_text_parts: null,
         red_lines: [],
         must_cover: [],
         literal_phrases: [],

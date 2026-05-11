@@ -68,6 +68,13 @@ export interface PlaybookMoment {
    */
   intent: string | null
   anchor_text: string | null
+  /**
+   * Blocos sequenciais editados pelo admin na UI. Cada elemento é uma
+   * "rodada de envio" do mesmo moment quando delivery_mode = 'wait_for_reply'.
+   * Quando NULL/ausente, o backend faz fallback split do anchor_text por
+   * linhas '---' (legado). Migration 20260512j adicionou a coluna.
+   */
+  anchor_text_parts?: string[] | null
   red_lines: string[]
   /**
    * Lista de pontos que SEMPRE precisam estar contemplados em qualquer

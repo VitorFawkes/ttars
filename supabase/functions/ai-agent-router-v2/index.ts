@@ -397,6 +397,55 @@ Deno.serve(async (req) => {
     const scoringEnabled = scoringConfig?.enabled !== false;
 
     // ------------------------------------------------------------------
+    // 8b. Resolver bloco ativo do moment sequenciado (wait_for_reply)
+    //
+    // Quando o último moment é wait_for_reply e tem múltiplos blocos
+    // (anchor_text_parts), o router avança o cursor moment_step a cada
+    // resposta do lead. Isso garante que parts[N] sai num turno e
+    // parts[N+1] no próximo, sem perguntar pro LLM "qual parte é".
+    // ------------------------------------------------------------------
+    const previousVars = (convState?.extracted_variables as Record<string, unknown>) || {};
+    const lastMomentKey = (typeof previousVars.last_moment_key === "string" ? previousVars.last_moment_key : null);
+    const previousStep = Number(previousVars.moment_step ?? 0);
+
+    let effectiveStep = 0;
+    let effectiveMomentKey: string | null = lastMomentKey;
+
+    if (lastMomentKey) {
+      const { data: lastMomentRow } = await supabase
+        .from("ai_agent_moments")
+        .select("anchor_text, anchor_text_parts, delivery_mode")
+        .eq("agent_id", agent.id)
+        .eq("moment_key", lastMomentKey)
+        .maybeSingle();
+
+      if (lastMomentRow && lastMomentRow.delivery_mode === "wait_for_reply") {
+        // Conta blocos (parts > legado split por '---')
+        let partsCount = 0;
+        const parts = lastMomentRow.anchor_text_parts as string[] | null;
+        if (parts && parts.length > 0) {
+          partsCount = parts.filter((p) => p && p.trim().length > 0).length;
+        } else if (lastMomentRow.anchor_text) {
+          const legacy = (lastMomentRow.anchor_text as string)
+            .split(/\n[ \t]*[-*_]{3,}[ \t]*\n/)
+            .map((p) => p.trim())
+            .filter((p) => p.length > 0);
+          partsCount = legacy.length > 0 ? legacy.length : 1;
+        }
+
+        if (previousStep + 1 < partsCount) {
+          // Ainda há blocos no mesmo moment → avança cursor
+          effectiveStep = previousStep + 1;
+          effectiveMomentKey = lastMomentKey;
+        } else {
+          // Esgotou a sequência → libera LLM para escolher próximo moment
+          effectiveStep = 0;
+          effectiveMomentKey = null;
+        }
+      }
+    }
+
+    // ------------------------------------------------------------------
     // 9. Decidir tools disponíveis
     // ------------------------------------------------------------------
     const availableTools: string[] = [
@@ -437,7 +486,8 @@ Deno.serve(async (req) => {
       conversationState: {
         historico_compacto: historico,
         last_lead_message: processedText,
-        last_moment_key: null, // TODO: ler de ai_conversation_state.extracted_variables.last_moment_key
+        last_moment_key: effectiveMomentKey,
+        moment_step: effectiveStep,
         turn_count: turns.length,
         is_primeiro_contato: turns.length <= 1, // o turno que acabou de inserir já conta
         contact_name: contactName,
@@ -640,14 +690,23 @@ Deno.serve(async (req) => {
     }
 
     // ------------------------------------------------------------------
-    // 15. Atualizar ai_conversation_state (last_moment_key, summary)
+    // 15. Atualizar ai_conversation_state (last_moment_key, moment_step, summary)
+    //
+    // Se o LLM continuou no mesmo moment que o router havia preparado
+    // (effectiveMomentKey), persistimos o step efetivo. Se mudou de moment,
+    // reseta para 0 — próxima rodada começa do bloco 1 do novo moment.
     // ------------------------------------------------------------------
+    const finalMomentKey = singleAgentResult.output.current_moment_key;
+    const newStep = (finalMomentKey && finalMomentKey === effectiveMomentKey) ? effectiveStep : 0;
+
     await supabase
       .from("ai_conversation_state")
       .upsert({
         conversation_id: conversationId,
         extracted_variables: {
-          last_moment_key: singleAgentResult.output.current_moment_key,
+          ...previousVars,
+          last_moment_key: finalMomentKey,
+          moment_step: newStep,
           last_reasoning: singleAgentResult.output.internal_reasoning,
         },
         updated_at: new Date().toISOString(),

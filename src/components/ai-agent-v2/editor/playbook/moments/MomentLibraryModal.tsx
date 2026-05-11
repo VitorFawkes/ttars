@@ -31,6 +31,7 @@ export function MomentLibraryModal({ agentId, existingKeys, nextDisplayOrder, on
         message_mode: s.message_mode,
         intent: null,
         anchor_text: s.anchor_text ?? null,
+        anchor_text_parts: null,
         red_lines: s.red_lines ?? [],
         must_cover: [],
         literal_phrases: [],
