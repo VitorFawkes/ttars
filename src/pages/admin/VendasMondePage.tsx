@@ -595,7 +595,9 @@ export default function VendasMondePage() {
                         const data = evt.target?.result
                         const workbook = XLSX.read(data, { type: 'array', codepage: 65001 })
                         const sheet = workbook.Sheets[workbook.SheetNames[0]]
-                        const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet)
+                        // defval: null garante que TODAS as colunas apareçam em TODAS as linhas,
+                        // mesmo quando vazias. Sem isso, colunas vazias na 1ª linha somem.
+                        const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: null })
                         await processRows(jsonData, file.name)
                     } catch (err) {
                         console.error('Erro ao ler arquivo:', err)

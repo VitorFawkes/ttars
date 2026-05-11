@@ -3960,7 +3960,8 @@ export default function ImportacaoPosVendaPage() {
                 const ab = await file.arrayBuffer()
                 const workbook = XLSX.read(ab, { type: 'array', codepage: 65001 })
                 const sheet = workbook.Sheets[workbook.SheetNames[0]]
-                const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet)
+                // defval: null garante que TODAS as colunas apareçam em TODAS as linhas
+                const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: null })
                 if (jsonData.length === 0) {
                     toast.error('Arquivo vazio ou sem dados válidos')
                     setIsProcessing(false)
