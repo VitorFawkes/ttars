@@ -3030,25 +3030,7 @@ export default function ImportacaoPosVendaPage() {
                 }
             }
 
-            // Fallback: check historical numbers (ignora deletados)
-            if (!snapshot) {
-                for (const vn of trip.vendaNums.slice(0, 5)) {
-                    let query = supabase
-                        .from('cards')
-                        .select(CARD_AUDIT_SELECT)
-                        .contains('produto_data', { numeros_venda_monde_historico: [{ numero: vn }] })
-                        .is('deleted_at', null)
-                        .limit(5)
-                    if (activeOrgId) query = query.eq('org_id', activeOrgId)
-                    const { data: cards } = await query
-
-                    const picked = pickPreferringActive(cards || [])
-                    if (picked) {
-                        snapshot = picked
-                        break
-                    }
-                }
-            }
+            // Histórico (numeros_venda_monde_historico) é apenas informativo — não usar para matching.
 
             // Fallback: check by CPF + dates in pos-venda (ignora arquivados/deletados)
             if (!snapshot && trip.cpfNorm && trip.dataInicio) {
@@ -3566,36 +3548,9 @@ export default function ImportacaoPosVendaPage() {
                     }
                 }
 
-                // 2. Histórico (renumeração de venda) — só busca se não achou nada na atual, sem arquivados/deletados
-                if (candidates.length === 0 && trip.vendaNums.length > 0) {
-                    for (const vn of trip.vendaNums.slice(0, 5)) {
-                        let query = supabase
-                            .from('cards')
-                            .select(CARD_AUDIT_SELECT)
-                            .contains('produto_data', { numeros_venda_monde_historico: [{ numero: vn }] })
-                            .is('deleted_at', null)
-                            .limit(10)
-                        if (activeOrgId) query = query.eq('org_id', activeOrgId)
-                        const { data: cards } = await query
-                        for (const c of (cards || [])) {
-                            // Evita duplicar se já tinha vindo na busca atual
-                            if (candidates.some(x => x.id === c.id)) continue
-                            candidates.push({
-                                id: c.id,
-                                titulo: c.titulo as string,
-                                pipeline_stage_id: (c.pipeline_stage_id as string) || null,
-                                status_comercial: (c.status_comercial as string) ?? null,
-                                ganho_planner: (c.ganho_planner as boolean) ?? null,
-                                ganho_pos: (c.ganho_pos as boolean) ?? null,
-                                pos_owner_id: (c.pos_owner_id as string) ?? null,
-                                archived_at: (c.archived_at as string) ?? null,
-                                _matchType: 'venda_historico',
-                            })
-                        }
-                    }
-                }
+                // Histórico (numeros_venda_monde_historico) é apenas informativo — não usar para matching.
 
-                // 3. Fallback por CPF + datas (só se tem CPF na planilha e não achou pela venda).
+                // 2. Fallback por CPF + datas (só se tem CPF na planilha e não achou pela venda).
                 // Mesma lógica do fluxo detalhado.
                 if (candidates.length === 0 && trip.cpfNorm && trip.dataInicio) {
                     const { data: contatos } = await supabase

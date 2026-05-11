@@ -790,3 +790,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-11T13:45:53Z | supabase/migrations/20260511a_arquivar_financial_item.sql | applied_to_prod
 2026-05-11T13:55:07Z | supabase/migrations/20260511a_card_financial_items_data_cancelamento.sql | applied_to_prod
 2026-05-11T13:55:30Z | supabase/migrations/20260511b_bulk_import_financial_items_cancelamento.sql | applied_to_prod
+2026-05-11T16:11:50Z | supabase/migrations/20260511c_monde_historico_apenas_informativo.sql | applied_to_prod

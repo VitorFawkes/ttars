@@ -638,34 +638,9 @@ export default function VendasMondePage() {
                 }
             }
 
-            // 2. Fallback: buscar no histórico apenas os não-matcheados, em paralelo de 10
-            const unmatchedNums = uniqueVendaNums.filter(n => !matchedNums.has(n))
-            const fallbackChunks = chunked(unmatchedNums, 10)
-            for (const batch of fallbackChunks) {
-                const fallbackResults = await Promise.all(
-                    batch.map(num =>
-                        supabase
-                            .from('cards')
-                            .select('id, titulo')
-                            .contains('produto_data', { numeros_venda_monde_historico: [{ numero: num }] })
-                            .limit(1)
-                            .then(res => ({ num, card: res.data?.[0] }))
-                    )
-                )
-                for (const { num, card } of fallbackResults) {
-                    if (!card) continue
-                    const products = grouped.get(num)!
-                    matched.push({
-                        cardId: card.id,
-                        cardTitle: (card.titulo as string) || 'Card sem título',
-                        vendaNum: num,
-                        products,
-                        totalVenda: products.reduce((s, p) => s + p.valorTotal, 0),
-                        totalReceita: products.reduce((s, p) => s + p.receita, 0),
-                    })
-                    matchedNums.add(num)
-                }
-            }
+            // Histórico (numeros_venda_monde_historico) é apenas informativo:
+            // se o número não está em numero_venda_monde agora, o card não considera.
+            // Vendas sem match no número atual ficam pendentes.
 
             setMatchResult({ matched, unmatched: uniqueVendaNums.filter(n => !matchedNums.has(n)) })
         } catch (err) {
