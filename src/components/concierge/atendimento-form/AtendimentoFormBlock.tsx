@@ -78,8 +78,7 @@ export function AtendimentoFormBlock({
       <TipoCategoriaPicker
         tipo={value.tipo}
         categoria={value.categoria}
-        onTipoChange={(tipo) => update({ tipo })}
-        onCategoriaChange={(categoria) => update({ categoria })}
+        onChange={({ tipo, categoria }) => update({ tipo, categoria })}
         produtoSlug={produtoSlug}
       />
 
