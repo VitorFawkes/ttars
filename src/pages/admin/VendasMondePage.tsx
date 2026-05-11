@@ -18,7 +18,7 @@ import {
     parseDateBR, parseCSVNative, findColumn, chunked, formatBRL,
     VENDA_COLUMN_ALIASES, PRODUTO_ALIASES, VALOR_TOTAL_ALIASES, RECEITA_ALIASES,
     PASSAGEIRO_ALIASES, FORNECEDOR_ALIASES, REPRESENTANTE_ALIASES, DOCUMENTO_ALIASES,
-    DATA_INICIO_ALIASES, DATA_FIM_ALIASES,
+    DATA_INICIO_ALIASES, DATA_FIM_ALIASES, DATA_CANCELAMENTO_ALIASES,
 } from '@/lib/csvUtils'
 import { useMondePendingSales, useMondeMatchedSales, useExpirePendingSale, type MondePendingSale } from '@/hooks/useMondePendingSales'
 
@@ -35,6 +35,7 @@ interface CsvRow {
     documento: string
     dataInicio: string | null
     dataFim: string | null
+    dataCancelamento: string | null
 }
 
 interface MatchedCard {
@@ -232,6 +233,7 @@ function displayDateBR(iso: string | null) {
 function PreviewCardRow({ card }: { card: MatchedCard }) {
     const [expanded, setExpanded] = useState(false)
     const paxCount = new Set(card.products.flatMap(p => p.passageiros)).size
+    const cancelCount = card.products.filter(p => p.dataCancelamento).length
     const Chevron = expanded ? ChevronDown : ChevronRight
 
     return (
@@ -257,6 +259,11 @@ function PreviewCardRow({ card }: { card: MatchedCard }) {
                                 {paxCount}
                             </span>
                         )}
+                        {cancelCount > 0 && (
+                            <span className="text-xs font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full" title="Produtos cancelados no Monde">
+                                {cancelCount} cancelado{cancelCount > 1 ? 's' : ''}
+                            </span>
+                        )}
                     </div>
                 </div>
                 <div className="flex items-center gap-4 text-xs text-slate-500 ml-5">
@@ -273,9 +280,17 @@ function PreviewCardRow({ card }: { card: MatchedCard }) {
                                 <span className="text-[10px] text-slate-400 mt-0.5 shrink-0 w-4 text-right">{idx + 1}.</span>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-xs font-medium text-slate-700 truncate">{p.produto || 'Produto'}</span>
+                                        <span className={cn(
+                                            "text-xs font-medium truncate",
+                                            p.dataCancelamento ? "text-amber-700 line-through" : "text-slate-700"
+                                        )}>{p.produto || 'Produto'}</span>
                                         <span className="text-xs text-slate-500 shrink-0 ml-2">{formatBRL(p.valorTotal)}</span>
                                     </div>
+                                    {p.dataCancelamento && (
+                                        <div className="text-[10px] text-amber-700 font-medium mt-0.5">
+                                            ⊘ Cancelado em {displayDateBR(p.dataCancelamento)}
+                                        </div>
+                                    )}
                                     {/* Extra details */}
                                     <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 text-[10px] text-slate-400">
                                         {p.fornecedor && <span>{p.fornecedor}</span>}
@@ -459,7 +474,7 @@ export default function VendasMondePage() {
     const [matchResult, setMatchResult] = useState<MatchResult | null>(null)
     const [isMatching, setIsMatching] = useState(false)
     const [importProgress, setImportProgress] = useState({ current: 0, total: 0 })
-    const [importResult, setImportResult] = useState<{ cardsUpdated: number; productsImported: number; errors: number; matched: MatchedCard[] } | null>(null)
+    const [importResult, setImportResult] = useState<{ cardsUpdated: number; productsImported: number; productsCancelled: number; productsReactivated: number; errors: number; matched: MatchedCard[] } | null>(null)
 
     const isAdmin = profile?.is_admin === true
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -507,6 +522,7 @@ export default function VendasMondePage() {
         const documentoCol = findColumn(headers, DOCUMENTO_ALIASES)
         const dataInicioCol = findColumn(headers, DATA_INICIO_ALIASES)
         const dataFimCol = findColumn(headers, DATA_FIM_ALIASES)
+        const dataCancelamentoCol = findColumn(headers, DATA_CANCELAMENTO_ALIASES)
 
         if (!vendaCol) { toast.error('Coluna "Venda Nº" não encontrada'); return }
         if (!produtoCol) { toast.error('Coluna "Produto" não encontrada'); return }
@@ -527,6 +543,7 @@ export default function VendasMondePage() {
                 documento: documentoCol ? String(row[documentoCol] || '').trim() : '',
                 dataInicio: dataInicioCol ? parseDateBR(row[dataInicioCol]) : null,
                 dataFim: dataFimCol ? parseDateBR(row[dataFimCol]) : null,
+                dataCancelamento: dataCancelamentoCol ? parseDateBR(row[dataCancelamentoCol]) : null,
             }))
 
         if (rows.length === 0) { toast.error('Nenhuma linha válida encontrada'); return }
@@ -669,6 +686,8 @@ export default function VendasMondePage() {
 
         let cardsUpdated = 0
         let productsImported = 0
+        let productsCancelled = 0
+        let productsReactivated = 0
         let errors = 0
         const cardResults: Array<{ card: MatchedCard; status: 'success' | 'error'; error?: string }> = []
 
@@ -685,6 +704,7 @@ export default function VendasMondePage() {
                 documento: p.documento || null,
                 data_inicio: p.dataInicio || null,
                 data_fim: p.dataFim || null,
+                data_cancelamento: p.dataCancelamento || null,
                 passageiros: p.passageiros.length > 0 ? p.passageiros : [],
             })),
         }))
@@ -703,6 +723,8 @@ export default function VendasMondePage() {
             const result = data as any
             cardsUpdated = result?.cards_updated ?? matched.length
             productsImported = result?.products_imported ?? 0
+            productsCancelled = result?.products_cancelled ?? 0
+            productsReactivated = result?.products_reactivated ?? 0
 
             for (const card of matched) {
                 cardResults.push({ card, status: 'success' })
@@ -787,11 +809,15 @@ export default function VendasMondePage() {
 
         queryClient.invalidateQueries({ queryKey: ['monde-import-logs'] })
         queryClient.invalidateQueries({ queryKey: ['monde-pending-sales'] })
-        setImportResult({ cardsUpdated, productsImported, errors, matched })
+        setImportResult({ cardsUpdated, productsImported, productsCancelled, productsReactivated, errors, matched })
         setStep('done')
 
         if (errors === 0) {
-            toast.success(`${cardsUpdated} cards atualizados com ${productsImported} produtos`)
+            const extras: string[] = []
+            if (productsCancelled > 0) extras.push(`${productsCancelled} cancelado${productsCancelled > 1 ? 's' : ''}`)
+            if (productsReactivated > 0) extras.push(`${productsReactivated} reativado${productsReactivated > 1 ? 's' : ''}`)
+            const suffix = extras.length > 0 ? ` (${extras.join(', ')})` : ''
+            toast.success(`${cardsUpdated} cards atualizados com ${productsImported} produtos${suffix}`)
         } else {
             toast.warning(`${cardsUpdated} cards OK, ${errors} com erro`)
         }
@@ -1047,6 +1073,20 @@ export default function VendasMondePage() {
                                             <span className="text-red-600"> — {importResult.errors} com erro</span>
                                         )}
                                     </p>
+                                    {(importResult.productsCancelled > 0 || importResult.productsReactivated > 0) && (
+                                        <div className="flex items-center justify-center gap-4 mt-3 text-xs">
+                                            {importResult.productsCancelled > 0 && (
+                                                <span className="inline-flex items-center gap-1 font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded-full">
+                                                    ⊘ {importResult.productsCancelled} cancelado{importResult.productsCancelled !== 1 ? 's' : ''} no Monde
+                                                </span>
+                                            )}
+                                            {importResult.productsReactivated > 0 && (
+                                                <span className="inline-flex items-center gap-1 font-medium text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">
+                                                    ↺ {importResult.productsReactivated} reativado{importResult.productsReactivated !== 1 ? 's' : ''}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Updated cards list */}

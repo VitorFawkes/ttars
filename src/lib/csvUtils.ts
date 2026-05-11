@@ -141,3 +141,4 @@ export const REPRESENTANTE_ALIASES = ['representante', 'representative', 'agenci
 export const DOCUMENTO_ALIASES = ['documento', 'doc', 'confirmacao', 'localizador', 'numero confirmacao', 'n confirmacao']
 export const DATA_INICIO_ALIASES = ['data inicio', 'data de inicio', 'check in', 'checkin', 'inicio', 'dt inicio']
 export const DATA_FIM_ALIASES = ['data fim', 'data de fim', 'check out', 'checkout', 'fim', 'dt fim']
+export const DATA_CANCELAMENTO_ALIASES = ['data cancelamento', 'data de cancelamento', 'data cancel', 'cancelamento', 'data_cancelamento', 'cancelled at', 'cancelled_at']
