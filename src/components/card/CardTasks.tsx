@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Plus, CheckCircle2, Circle, Calendar, Phone, Users, FileCheck, MoreHorizontal, User, Trash2, Edit2, Check, RefreshCw, CalendarClock, XCircle, MessageSquare, Clock, AlertCircle, UserPlus, FileText, ExternalLink, Gift } from 'lucide-react'
+import { Plus, CheckCircle2, Circle, Calendar, Phone, Users, FileCheck, MoreHorizontal, User, Trash2, Edit2, Check, RefreshCw, CalendarClock, XCircle, MessageSquare, Clock, AlertCircle, UserPlus, FileText, ExternalLink, Gift, Zap } from 'lucide-react'
 import { BellConciergeIcon } from '../icons/BellConciergeIcon'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
@@ -21,6 +21,28 @@ import { Label } from '../ui/label'
 import { Textarea } from '../ui/textarea'
 import type { Database } from '../../database.types'
 import { cn } from '../../lib/utils'
+
+const AUTOMATION_BADGE_CHIP = 'bg-cyan-50 border-cyan-200 text-cyan-700'
+
+type TaskOrigem = 'manual' | 'cadencia' | 'automacao' | 'integracao'
+
+function deriveTaskOrigem(metadata: Record<string, unknown> | null, externalSource: string | null): TaskOrigem {
+    if (externalSource) return 'integracao'
+    if (metadata && typeof metadata === 'object') {
+        const origin = metadata.origin
+        if (origin === 'cadence' || origin === 'cadencia') return 'cadencia'
+        if (origin === 'automation' || origin === 'automacao' || origin === 'event_trigger') return 'automacao'
+        if (metadata.cadence_instance_id) return 'cadencia'
+        if (metadata.automation_rule_id || metadata.created_by_trigger || metadata.trigger_name) return 'automacao'
+    }
+    return 'manual'
+}
+
+function deriveTaskOrigemNome(metadata: Record<string, unknown> | null): string | null {
+    if (!metadata || typeof metadata !== 'object') return null
+    const name = metadata.cadence_template_name || metadata.cadencia_nome || metadata.template_name || metadata.trigger_name
+    return typeof name === 'string' ? name : null
+}
 
 type Tarefa = Database['public']['Tables']['tarefas']['Row']
 type TarefaUpdate = Database['public']['Tables']['tarefas']['Update']
@@ -707,6 +729,9 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
 
                         const isMudanca = task.tipo === 'solicitacao_mudanca'
                         const changeCategory = (task.metadata as Record<string, unknown> | null)?.change_category as string | undefined
+                        const taskOrigem = deriveTaskOrigem(task.metadata as Record<string, unknown> | null, task.external_source)
+                        const taskOrigemNome = deriveTaskOrigemNome(task.metadata as Record<string, unknown> | null)
+                        const isAutomated = taskOrigem === 'cadencia' || taskOrigem === 'automacao'
                         const conciergeItem = conciergeByTarefaId.get(task.id)
                         const conciergeTipo = conciergeItem ? TIPO_LABEL[conciergeItem.tipo_concierge] : null
                         // Item espelhado de sub-card no card principal: badge na linha indica origem.
@@ -769,6 +794,15 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                                                         do sub-card
                                                     </span>
                                                 )}
+                                                {isAutomated && (
+                                                    <span
+                                                        className={`text-[10px] font-medium px-1.5 py-0.5 rounded border flex items-center gap-1 ${AUTOMATION_BADGE_CHIP}`}
+                                                        title={taskOrigemNome ? `Automação: ${taskOrigemNome}` : 'Automação'}
+                                                    >
+                                                        <Zap className="w-3 h-3" />
+                                                        {taskOrigemNome ? `Automação: ${taskOrigemNome}` : 'Automação'}
+                                                    </span>
+                                                )}
                                                 <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border capitalize ${getTypeColor(task.tipo || '')} flex items-center gap-1`}>
                                                     {getTypeIcon(task.tipo || '')}
                                                     {getTypeLabel(task.tipo || '')}
@@ -789,13 +823,18 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                                                 </div>
                                             )}
 
-                                            {/* Responsible — always show */}
-                                            {responsibleName && (
+                                            {/* Responsible — always show (ou chip "Sistema" se a tarefa foi criada pela automacao sem dono humano) */}
+                                            {responsibleName ? (
                                                 <div className="flex items-center gap-1.5 text-xs text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded" title={`Responsável: ${responsibleName}`}>
                                                     <User className="w-3 h-3" />
                                                     <span className="truncate max-w-[100px]">{responsibleName}</span>
                                                 </div>
-                                            )}
+                                            ) : (task.metadata as Record<string, unknown> | null)?.assigned_to_system ? (
+                                                <div className={`flex items-center gap-1.5 text-xs px-1.5 py-0.5 rounded border ${AUTOMATION_BADGE_CHIP}`} title="Tarefa cuidada pela automação — sem responsável humano">
+                                                    <Zap className="w-3 h-3" />
+                                                    <span>Sistema</span>
+                                                </div>
+                                            ) : null}
 
                                             {/* Creator — show when different from responsible */}
                                             {showCreator && (

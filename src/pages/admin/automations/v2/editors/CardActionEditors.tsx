@@ -14,6 +14,8 @@ import { useCardTags } from '@/hooks/useCardTags'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { useProductContext } from '@/hooks/useProductContext'
 import { useUsers } from '@/hooks/useUsers'
+import { useWorkflowStore } from '../store/useWorkflowStore'
+import { OUTCOME_LABELS } from '@/components/tasks/taskTypeConfig'
 
 interface ConfigEditorProps {
     config: Record<string, unknown>
@@ -75,6 +77,17 @@ export const CreateTaskEditor: React.FC<ConfigEditorProps> = ({ config, onChange
                     />
                 </div>
             </div>
+            {((config.tipo as string) || 'contato') === 'contato' && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800 space-y-1">
+                    <div className="font-medium">Atenção: tarefa do tipo "Contato"</div>
+                    <p>
+                        Quando uma mensagem WhatsApp sai do card (manual ou por outro passo do fluxo), o sistema fecha automaticamente toda tarefa de contato pendente desse card. Se o seu fluxo tem "Enviar mensagem" depois, o "Concluir tarefa" pode virar redundante.
+                    </p>
+                    <p>
+                        Pra controlar a conclusão pelo fluxo, escolha outro tipo (ex: "Tarefa").
+                    </p>
+                </div>
+            )}
             <div className="space-y-2">
                 <Label className="text-xs">Título</Label>
                 <Input
@@ -99,8 +112,14 @@ export const CreateTaskEditor: React.FC<ConfigEditorProps> = ({ config, onChange
                     options={[
                         { value: 'card_owner', label: 'Responsável do card' },
                         { value: 'specific',   label: 'Pessoa específica' },
+                        { value: 'system',     label: 'Sistema (automação)' },
                     ]}
                 />
+                {config.assign_to === 'system' && (
+                    <p className="text-[11px] text-slate-500">
+                        A tarefa fica sem dono humano e aparece com chip "Sistema". Use quando a automação cuida do passo do começo ao fim e não precisa de ninguém olhando.
+                    </p>
+                )}
             </div>
             {config.assign_to === 'specific' && (
                 <div className="space-y-2">
@@ -234,6 +253,86 @@ export const NotifyInternalEditor: React.FC<ConfigEditorProps> = ({ config, onCh
                     rows={3}
                     placeholder="Conteúdo da notificação. Suporta {{contact.nome}}, {{card.titulo}}."
                 />
+            </div>
+        </div>
+    )
+}
+
+// ─── complete_task ───────────────────────────────────────────────────────────
+//
+// Marca uma tarefa criada em algum outro passo do mesmo fluxo como concluída.
+// O dropdown lista TODOS os nodes `action.create_task` do canvas (exceto o
+// próprio node). Não restringe a upstream porque com branches/ciclos a noção
+// de "antes/depois" pode ser ambígua durante a edição. Em runtime, o engine
+// só fecha a tarefa se ela tiver sido criada na mesma cadence_instance — se
+// não tiver, devolve `{ skipped: true, reason: 'target_task_not_found' }`.
+//
+// O id do node alvo vai em `target_node_id`; o save em persistence.ts
+// converte pra `n_<nodeId>` (step_key) que casa com o `cadence_step_key`
+// gravado em `metadata` pela criação da tarefa.
+export const CompleteTaskEditor: React.FC<ConfigEditorProps> = ({ config, onChange }) => {
+    const selectedNodeId = useWorkflowStore((s) => s.selectedNodeId)
+    const nodes = useWorkflowStore((s) => s.nodes)
+    const set = (patch: Record<string, unknown>) => onChange({ ...config, ...patch })
+
+    const createTaskNodes = nodes.filter(
+        (n) => n.type === 'action.create_task' && n.id !== selectedNodeId,
+    )
+
+    const targetNodeId = (config.target_node_id as string) || ''
+    const selectedStillExists = createTaskNodes.some((n) => n.id === targetNodeId)
+
+    return (
+        <div className="space-y-3">
+            <div className="space-y-2">
+                <Label className="text-xs">Tarefa a concluir</Label>
+                <CustomSelect
+                    value={targetNodeId}
+                    onChange={(v) => set({ target_node_id: v || null })}
+                    options={[
+                        { value: '', label: createTaskNodes.length === 0 ? 'Adicione um "Criar tarefa" no fluxo' : 'Selecionar...' },
+                        ...createTaskNodes.map((n) => {
+                            const cfg = (n.data.config as Record<string, unknown>) || {}
+                            const titulo = (cfg.titulo as string) || ''
+                            const tipo = (cfg.tipo as string) || ''
+                            const label = titulo
+                                ? (tipo ? `${titulo} (${tipo})` : titulo)
+                                : (n.data.label || 'Criar tarefa — sem título')
+                            return { value: n.id, label }
+                        }),
+                    ]}
+                />
+                {!!targetNodeId && !selectedStillExists && (
+                    <p className="text-[11px] text-amber-700">
+                        O passo referenciado foi removido. Escolha outra tarefa.
+                    </p>
+                )}
+            </div>
+            <div className="space-y-2">
+                <Label className="text-xs">Resultado registrado (opcional)</Label>
+                <CustomSelect
+                    value={(config.outcome as string) || ''}
+                    onChange={(v) => set({ outcome: v || null })}
+                    options={[
+                        { value: '', label: 'Sem resultado' },
+                        ...Object.entries(OUTCOME_LABELS).map(([value, label]) => ({ value, label })),
+                    ]}
+                />
+                <p className="text-[11px] text-slate-500">
+                    Usado como o "como foi" da tarefa concluída. Útil para diferenciar quando a automação fecha (ex: "enviado") de quando uma pessoa fecha.
+                </p>
+            </div>
+            <div className="space-y-2">
+                <Label className="text-xs">Anotação adicionada à descrição (opcional)</Label>
+                <Textarea
+                    value={(config.feedback as string) || ''}
+                    onChange={(e) => set({ feedback: e.target.value })}
+                    rows={3}
+                    placeholder="Ex: Mensagem enviada em {{now}}."
+                />
+                <p className="text-[11px] text-slate-500">
+                    Esse texto é anexado ao final da descrição da tarefa quando a automação fechar (separado por uma linha em branco). Suporta {`{{contact.nome}}`}, {`{{card.titulo}}`} e {`{{now}}`} (data/hora de Brasília na hora da conclusão).
+                </p>
             </div>
         </div>
     )

@@ -105,6 +105,12 @@ export function summarizeConfig(
             if (!titulo) return tipo ? `Tarefa: ${tipo}` : null
             return `${tipo ? tipo + ' — ' : ''}${truncate(titulo, 28)}`
         }
+        case 'action.complete_task': {
+            const targetId = config.target_node_id as string | undefined
+            const outcome = config.outcome as string | undefined
+            if (!targetId) return 'Concluir tarefa: (referência pendente)'
+            return outcome ? `Conclui — ${outcome}` : 'Conclui tarefa anterior'
+        }
         case 'action.change_stage':
             if (!config.target_stage_id) return null
             return `→ ${resolveOr(labels, 'stageById', config.target_stage_id as string, '(carregando)')}`

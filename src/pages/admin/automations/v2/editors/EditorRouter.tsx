@@ -19,7 +19,7 @@ import {
     WaitEditor, EndEditor, BranchEditor, StartCadenceEditor,
 } from './FlowEditors'
 import {
-    CreateTaskEditor, ChangeStageEditor, CardTagEditor,
+    CreateTaskEditor, CompleteTaskEditor, ChangeStageEditor, CardTagEditor,
     UpdateFieldEditor, NotifyInternalEditor, N8nWebhookEditor,
 } from './CardActionEditors'
 
@@ -71,6 +71,8 @@ export const EditorRouter: React.FC<EditorRouterProps> = ({ type, config, onChan
             return <MediaStepEditor config={config as never} onChange={onChange as never} product={product} />
         case 'action.create_task':
             return <CreateTaskEditor config={config} onChange={onChange} />
+        case 'action.complete_task':
+            return <CompleteTaskEditor config={config} onChange={onChange} />
         case 'action.change_stage':
             return <ChangeStageEditor config={config} onChange={onChange} />
         case 'action.add_tag':

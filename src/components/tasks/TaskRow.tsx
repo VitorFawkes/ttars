@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { Check, AlertCircle, Clock, Phone, Mail, MessageSquare, ChevronRight, Copy } from 'lucide-react'
+import { Check, AlertCircle, Clock, Phone, Mail, MessageSquare, ChevronRight, Copy, Zap } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { toast } from 'sonner'
@@ -10,12 +10,13 @@ import { TaskQuickActions } from './TaskQuickActions'
 import {
     getTaskTypeConfig,
     PRIORIDADE_CONFIG,
-    ORIGEM_CONFIG,
     OUTCOME_LABELS,
     OUTCOME_STYLES,
     formatCurrencyBRL,
     sanitizePhone,
 } from './taskTypeConfig'
+
+const AUTOMATION_BADGE_CHIP = 'bg-cyan-50 border-cyan-200 text-cyan-700'
 
 interface Props {
     task: TaskListItem
@@ -38,9 +39,8 @@ function TaskRowImpl({
     const Icon = config.icon
     const prioridadeCfg = task.prioridade ? PRIORIDADE_CONFIG[task.prioridade] : null
     // "integracao" é ubíqua (quase toda tarefa veio de sync) — não poluir a linha.
-    // Mostrar badge só para cadencia/automacao que são informativas.
-    const showOrigemBadge = task.origem === 'cadencia' || task.origem === 'automacao'
-    const origemCfg = ORIGEM_CONFIG[task.origem]
+    // Mostrar badge "Automação" pra cadencia+automacao (sao a mesma coisa pro user).
+    const isAutomated = task.origem === 'cadencia' || task.origem === 'automacao'
 
     // Deadline badge
     let deadlineBadge: { text: string; className: string; icon?: typeof Clock } | null = null
@@ -138,12 +138,13 @@ function TaskRowImpl({
                             {prioridadeCfg.label}
                         </span>
                     )}
-                    {showOrigemBadge && origemCfg && (
+                    {isAutomated && (
                         <span
-                            className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium border", origemCfg.chip)}
-                            title={task.cadencia_nome || origemCfg.label}
+                            className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium border inline-flex items-center gap-1", AUTOMATION_BADGE_CHIP)}
+                            title={task.cadencia_nome ? `Automação: ${task.cadencia_nome}` : 'Automação'}
                         >
-                            {task.cadencia_nome ? `${origemCfg.label}: ${task.cadencia_nome}` : origemCfg.label}
+                            <Zap className="h-3 w-3" />
+                            {task.cadencia_nome ? `Automação: ${task.cadencia_nome}` : 'Automação'}
                         </span>
                     )}
                 </div>
@@ -234,8 +235,8 @@ function TaskRowImpl({
                 )}
             </div>
 
-            {/* Responsável */}
-            {task.responsavel_nome && (
+            {/* Responsável (ou chip Sistema quando a tarefa nao tem dono humano) */}
+            {task.responsavel_nome ? (
                 <div className="flex flex-col items-end gap-0.5 flex-shrink-0 mt-0.5">
                     <div className="flex items-center gap-1.5">
                         <div className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold">
@@ -251,7 +252,14 @@ function TaskRowImpl({
                         </span>
                     )}
                 </div>
-            )}
+            ) : (task.metadata as Record<string, unknown> | null)?.assigned_to_system ? (
+                <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan-100 text-cyan-700">
+                        <Zap className="h-3 w-3" />
+                    </div>
+                    <span className="text-xs text-slate-600 hidden sm:inline">Sistema</span>
+                </div>
+            ) : null}
 
             {/* Outcome badge (completed) */}
             {task.concluida && (task.outcome || task.resultado) && (() => {

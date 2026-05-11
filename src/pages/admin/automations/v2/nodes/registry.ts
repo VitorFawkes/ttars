@@ -33,6 +33,8 @@ export const NODE_REGISTRY: NodeTypeMeta[] = [
     // ─── Ações no card ───────────────────────────────────────────────────────
     { type: 'action.create_task',     category: 'card', iconName: 'CheckSquare', isTrigger: false,
       label: 'Criar tarefa',          description: 'Cria uma tarefa para o responsável do card ou alguém específico' },
+    { type: 'action.complete_task',   category: 'card', iconName: 'CheckCircle2', isTrigger: false,
+      label: 'Concluir tarefa',       description: 'Marca como concluída a tarefa criada em um passo anterior do fluxo' },
     { type: 'action.change_stage',    category: 'card', iconName: 'ArrowRightCircle', isTrigger: false,
       label: 'Mover de etapa',        description: 'Move o card para outra etapa do pipeline' },
     { type: 'action.add_tag',         category: 'card', iconName: 'TagPlus', isTrigger: false,

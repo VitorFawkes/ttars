@@ -35,6 +35,7 @@ export async function simulateWorkflow(args: {
         else if (t === 'action.send_media') actionType = 'send_media'
         else if (t.startsWith('action.echo_')) actionType = 'echo_action'
         else if (t === 'action.create_task') actionType = 'create_task'
+        else if (t === 'action.complete_task') actionType = 'complete_task'
         else if (t === 'action.change_stage') actionType = 'change_stage'
         else if (t === 'action.add_tag') actionType = 'add_tag'
         else if (t === 'action.remove_tag') actionType = 'remove_tag'
@@ -96,6 +97,7 @@ export async function runWorkflowNow(args: {
     else if (t === 'action.send_media') actionType = 'send_media'
     else if (t.startsWith('action.echo_')) actionType = 'echo_action'
     else if (t === 'action.create_task') actionType = 'create_task'
+    else if (t === 'action.complete_task') return { success: false, error: 'Concluir tarefa precisa rodar dentro de um fluxo completo (não isoladamente). Use o gatilho real ou simule o fluxo inteiro.' }
     else if (t === 'action.change_stage') actionType = 'change_stage'
     else if (t === 'action.add_tag') actionType = 'add_tag'
     else if (t === 'action.remove_tag') actionType = 'remove_tag'

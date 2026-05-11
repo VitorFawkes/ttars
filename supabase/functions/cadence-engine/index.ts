@@ -48,6 +48,20 @@ function mapPrioridade(value: string | undefined): string {
     return map[value] || 'alta';
 }
 
+// Timestamp atual no fuso de Brasília no formato "DD/MM/YYYY HH:MM".
+// Usado pra interpolar {{now}} em textos renderizados pelas automações
+// (mensagens, notificações, feedback de tarefa, etc).
+function formatBrazilNow(): string {
+    return new Date().toLocaleString('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
+
 serve(async (req) => {
     if (req.method === "OPTIONS") {
         return new Response("ok", { headers: corsHeaders });
@@ -108,10 +122,12 @@ serve(async (req) => {
                 const contato = await resolveCardContact(supabaseClient, cardId)
 
                 const firstName = (contato?.nome || '').split(' ')[0] || ''
+                const nowBr = formatBrazilNow()
                 const renderVars = (s: string) => s
                     .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato?.nome || '')
                     .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
                     .replace(/\{\{\s*card\.titulo\s*\}\}/g, card.titulo || '')
+                    .replace(/\{\{\s*now\s*\}\}/g, nowBr)
 
                 const warnings: string[] = []
                 if (!contato?.id) warnings.push('Card não tem contato vinculado — automação vai ser pulada')
@@ -1042,10 +1058,12 @@ async function dispatchEchoMessage(args: DispatchArgs): Promise<DispatchResult> 
     const echoBase = echoApiUrl.replace(/\/send-message\/?$/, '').replace(/\/+$/, '');
 
     const firstName = (contato.nome || '').split(' ')[0] || '';
+    const nowBr = formatBrazilNow();
     const renderVars = (s: string) => s
         .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato.nome || '')
         .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
-        .replace(/\{\{\s*card\.titulo\s*\}\}/g, cardTitulo || '');
+        .replace(/\{\{\s*card\.titulo\s*\}\}/g, cardTitulo || '')
+        .replace(/\{\{\s*now\s*\}\}/g, nowBr);
 
     const normalizedPhone = (contato.telefone || '').replace(/\D/g, "");
 
@@ -1697,10 +1715,12 @@ async function executeNotifyInternalAction(
     // mensagens e mídia: contact.nome, contact.primeiro_nome, card.titulo)
     const contato = await resolveCardContact(supabaseClient, cardId);
     const firstName = (contato?.nome || '').split(' ')[0] || '';
+    const nowBr = formatBrazilNow();
     const renderVars = (s: string) => s
         .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato?.nome || '')
         .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
-        .replace(/\{\{\s*card\.titulo\s*\}\}/g, card.titulo || '');
+        .replace(/\{\{\s*card\.titulo\s*\}\}/g, card.titulo || '')
+        .replace(/\{\{\s*now\s*\}\}/g, nowBr);
     const title = renderVars(rawTitle).slice(0, 200);
     const body = renderVars(rawBody).slice(0, 500);
 
@@ -2006,10 +2026,12 @@ async function executeSendMediaAction(
     }
 
     const firstName = (contato.nome || '').split(' ')[0] || '';
+    const nowBr = formatBrazilNow();
     const renderVars = (s: string) => s
         .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato.nome || '')
         .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
-        .replace(/\{\{\s*card\.titulo\s*\}\}/g, card?.titulo || '');
+        .replace(/\{\{\s*card\.titulo\s*\}\}/g, card?.titulo || '')
+        .replace(/\{\{\s*now\s*\}\}/g, nowBr);
     const caption = cfg.caption ? renderVars(cfg.caption) : null;
 
     const result = await callEchoApi('POST', '/send-image', {
@@ -2333,9 +2355,13 @@ async function executeTaskStep(
     }
     // =========================================================================
 
-    // Determinar responsável
-    let assignToId = card.responsavel_id;
-    if (config.assign_to === 'specific' && config.assign_to_user_id) {
+    // Determinar responsável. `assign_to='system'` deixa sem dono humano —
+    // metadata.assigned_to_system flagged pra UI mostrar chip "Sistema".
+    let assignToId: string | null = card.responsavel_id;
+    const assignedToSystem = config.assign_to === 'system';
+    if (assignedToSystem) {
+        assignToId = null;
+    } else if (config.assign_to === 'specific' && config.assign_to_user_id) {
         assignToId = config.assign_to_user_id;
     }
 
@@ -2444,7 +2470,8 @@ async function executeTaskStep(
                 cadence_instance_id: instance.id,
                 cadence_step_id: step.id,
                 cadence_step_key: step.step_key,
-                created_at_stage_id: card.pipeline_stage_id
+                created_at_stage_id: card.pipeline_stage_id,
+                ...(assignedToSystem ? { assigned_to_system: true } : {}),
             }
         })
         .select()
@@ -2941,10 +2968,12 @@ async function executeMediaStep(
 
     // Render variáveis em caption
     const firstName = (contato.nome || '').split(' ')[0] || '';
+    const nowBr = formatBrazilNow();
     const renderVars = (s: string) => s
         .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato.nome || '')
         .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
-        .replace(/\{\{\s*card\.titulo\s*\}\}/g, card.titulo || '');
+        .replace(/\{\{\s*card\.titulo\s*\}\}/g, card.titulo || '')
+        .replace(/\{\{\s*now\s*\}\}/g, nowBr);
     const caption = config.caption ? renderVars(config.caption) : null;
 
     const result = await callEchoApi('POST', '/send-image', {
@@ -3130,6 +3159,84 @@ async function executeEchoActionStep(
 }
 
 // ----------------------------------------------------------------------------
+// executeCompleteTaskAction: conclui a tarefa criada num step anterior do
+// MESMO fluxo (cadence_instance). Usa `target_step_key` (gravado pelo editor
+// visual quando o user escolhe qual create_task referenciar) cruzado com
+// `cadence_instance_id` na metadata da tarefa pra evitar fechar tarefa de
+// outra execução. Outcome opcional (default: 'enviado').
+// ----------------------------------------------------------------------------
+async function executeCompleteTaskAction(
+    supabaseClient: SupabaseClient,
+    cardId: string,
+    trigger: any,
+    instance: any,
+) {
+    const cfg = trigger.action_config || {};
+    const targetStepKey: string | null = cfg.target_step_key || null;
+    if (!targetStepKey) {
+        return { skipped: true, reason: 'missing_target_step_key' };
+    }
+
+    const { data: task } = await supabaseClient
+        .from('tarefas')
+        .select('id, concluida, descricao')
+        .eq('card_id', cardId)
+        .is('deleted_at', null)
+        .contains('metadata', { cadence_instance_id: instance.id, cadence_step_key: targetStepKey })
+        .limit(1)
+        .maybeSingle();
+
+    if (!task) {
+        return { skipped: true, reason: 'target_task_not_found', target_step_key: targetStepKey };
+    }
+    if (task.concluida) {
+        return { skipped: true, reason: 'already_completed', task_id: task.id };
+    }
+
+    const outcome: string = cfg.outcome || 'enviado';
+
+    // Interpola variáveis na anotação (mesmas suportadas em notify_internal e
+    // mensagens). Se preenchida, a anotação é APENDADA à descrição existente
+    // da tarefa (separada por linha em branco) — assim aparece tudo junto no
+    // modal de edição da tarefa, sem precisar abrir um campo separado.
+    // {{now}} usa horário de Brasília.
+    let nextDescricao: string | null = null;
+    const rawNote: string = cfg.feedback || '';
+    if (rawNote.trim()) {
+        const contato = await resolveCardContact(supabaseClient, cardId);
+        const { data: cardRow } = await supabaseClient
+            .from('cards').select('titulo').eq('id', cardId).single();
+        const firstName = (contato?.nome || '').split(' ')[0] || '';
+        const nowBr = formatBrazilNow();
+        const renderedNote = rawNote
+            .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato?.nome || '')
+            .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
+            .replace(/\{\{\s*card\.titulo\s*\}\}/g, (cardRow?.titulo as string) || '')
+            .replace(/\{\{\s*now\s*\}\}/g, nowBr);
+        const currentDesc = ((task.descricao as string) || '').trim();
+        nextDescricao = currentDesc ? `${currentDesc}\n\n${renderedNote}` : renderedNote;
+    }
+
+    const updatePayload: Record<string, unknown> = {
+        concluida: true,
+        concluida_em: new Date().toISOString(),
+        outcome,
+        status: 'concluida',
+    };
+    if (nextDescricao !== null) updatePayload.descricao = nextDescricao;
+
+    const { error } = await supabaseClient
+        .from('tarefas')
+        .update(updatePayload)
+        .eq('id', task.id);
+
+    if (error) {
+        return { ok: false, error: error.message };
+    }
+    return { ok: true, task_id: task.id, outcome, descricao_updated: nextDescricao !== null };
+}
+
+// ----------------------------------------------------------------------------
 // executeCardActionStep: ações sobre o card encadeadas (change_stage,
 // add_tag, remove_tag, update_field, notify_internal, start_cadence,
 // trigger_n8n_webhook). Reusa os mesmos executors usados pelos triggers
@@ -3198,6 +3305,9 @@ async function executeCardActionStep(
             case 'trigger_n8n_webhook':
                 actionResult = await executeTriggerN8nWebhookAction(supabaseClient, card.id, virtualTrigger, orgId);
                 break;
+            case 'complete_task':
+                actionResult = await executeCompleteTaskAction(supabaseClient, card.id, virtualTrigger, instance);
+                break;
             default:
                 throw new Error(`card_action: sub-action desconhecida "${subAction}"`);
         }
@@ -3260,6 +3370,29 @@ async function handleStartCadence(supabaseClient: SupabaseClient, body: any) {
             error: "Cadence already active for this card/template",
             instance_id: existing.id
         }), { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // Limpar tarefas órfãs: instances já encerradas (cancelled/failed/completed)
+    // do mesmo card+template podem ter deixado tarefas pendentes que travam o
+    // anti-duplicata em executeTaskStep. Soft-delete antes de criar a nova
+    // instance pra garantir que a próxima execução não bata em "existing
+    // uncompleted task".
+    const { data: deadInstances } = await supabaseClient
+        .from("cadence_instances")
+        .select("id")
+        .eq("card_id", card_id)
+        .eq("template_id", template_id)
+        .in("status", ['cancelled', 'failed', 'completed']);
+    const deadInstanceIds = (deadInstances || []).map((r: { id: string }) => r.id);
+    if (deadInstanceIds.length > 0) {
+        for (const deadId of deadInstanceIds) {
+            await supabaseClient
+                .from("tarefas")
+                .update({ deleted_at: new Date().toISOString() })
+                .contains("metadata", { cadence_instance_id: deadId })
+                .eq("concluida", false)
+                .is("deleted_at", null);
+        }
     }
 
     // Detectar modo de execução
@@ -3393,9 +3526,26 @@ async function handleCancelCadence(supabaseClient: SupabaseClient, body: any) {
         .eq("instance_id", instance_id)
         .eq("status", "pending");
 
+    // Soft-delete tarefas pendentes criadas por esta instance. Sem isso, a regra
+    // anti-duplicata em executeTaskStep (linear: 1 tarefa pendente por tipo no
+    // card) trava qualquer nova execução do mesmo template no mesmo card até
+    // alguém limpar as tarefas órfãs manualmente.
+    const { data: cancelledTasks, error: cancelTasksErr } = await supabaseClient
+        .from("tarefas")
+        .update({ deleted_at: new Date().toISOString() })
+        .contains("metadata", { cadence_instance_id: instance_id })
+        .eq("concluida", false)
+        .is("deleted_at", null)
+        .select("id");
+
+    if (cancelTasksErr) {
+        console.error('[CadenceEngine] handleCancelCadence: erro ao cancelar tarefas pendentes', cancelTasksErr);
+    }
+
     return new Response(JSON.stringify({
         success: true,
-        message: "Cadence cancelled"
+        message: "Cadence cancelled",
+        cancelled_tasks_count: cancelledTasks?.length ?? 0,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
 

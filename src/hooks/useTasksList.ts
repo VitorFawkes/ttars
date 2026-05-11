@@ -102,11 +102,12 @@ function deriveOrigem(row: RawTaskRow): TaskOrigemFilter {
     if (row.external_source && row.external_id) return 'integracao'
     const meta = row.metadata
     if (meta && typeof meta === 'object') {
-        const origin = (meta as Record<string, unknown>).origin
+        const m = meta as Record<string, unknown>
+        const origin = m.origin
         if (origin === 'cadence' || origin === 'cadencia') return 'cadencia'
         if (origin === 'automation' || origin === 'automacao' || origin === 'event_trigger') return 'automacao'
-        if ((meta as Record<string, unknown>).cadence_instance_id) return 'cadencia'
-        if ((meta as Record<string, unknown>).automation_rule_id) return 'automacao'
+        if (m.cadence_instance_id) return 'cadencia'
+        if (m.automation_rule_id || m.created_by_trigger || m.trigger_name) return 'automacao'
     }
     return 'manual'
 }
@@ -115,7 +116,7 @@ function deriveCadenciaNome(row: RawTaskRow): string | null {
     const meta = row.metadata
     if (!meta || typeof meta !== 'object') return null
     const m = meta as Record<string, unknown>
-    const name = m.cadence_template_name || m.cadencia_nome || m.template_name
+    const name = m.cadence_template_name || m.cadencia_nome || m.template_name || m.trigger_name
     return typeof name === 'string' ? name : null
 }
 

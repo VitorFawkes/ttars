@@ -59,6 +59,9 @@ export function validateNode(type: WorkflowNodeType, config: Record<string, unkn
         case 'action.create_task':
             error = requireKey(config, 'titulo')
             break
+        case 'action.complete_task':
+            error = requireKey(config, 'target_node_id')
+            break
         case 'action.change_stage':
             error = requireKey(config, 'target_stage_id')
             break
