@@ -79,6 +79,7 @@ export function SdrQualificationSheet({ open, onOpenChange, contatoId, cardId, t
     const [investimentoText, setInvestimentoText] = useState('')
     const [dataMode, setDataMode] = useState<DataMode>('exata')
     const [showVincular, setShowVincular] = useState(false)
+    const [linkedCardId, setLinkedCardId] = useState<string | null>(cardId ?? null)
 
     const session = useSdrQualificationSession({
         contatoId: contatoId ?? null,
@@ -231,7 +232,7 @@ export function SdrQualificationSheet({ open, onOpenChange, contatoId, cardId, t
                                 qualificado={qualificado}
                                 disqualified={disqualified}
                                 saving={session.saving}
-                                cardId={session.qualificationId ? cardId : null}
+                                cardId={linkedCardId}
                                 onVincular={() => setShowVincular(true)}
                             />
 
@@ -550,6 +551,7 @@ export function SdrQualificationSheet({ open, onOpenChange, contatoId, cardId, t
                     onPick={async (selectedCardId) => {
                         try {
                             await vincular.mutateAsync({ qualificationId: session.qualificationId!, cardId: selectedCardId })
+                            setLinkedCardId(selectedCardId)
                             toast.success('Pontuação vinculada ao card')
                             setShowVincular(false)
                         } catch (err) {
