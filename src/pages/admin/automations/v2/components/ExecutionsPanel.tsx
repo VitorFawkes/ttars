@@ -9,7 +9,7 @@
  *   - Painel inferior: stream de eventos das últimas 2h (collapse)
  */
 import React, { useState, useMemo } from 'react'
-import { X, Activity, Loader2, ChevronRight, RotateCw, StopCircle } from 'lucide-react'
+import { X, Activity, Loader2, ChevronRight, RotateCw, StopCircle, ExternalLink } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
@@ -282,6 +282,17 @@ const InstanceRow: React.FC<InstanceRowProps> = ({ inst, templateId }) => {
 
             {/* Acoes — aparecem em hover ou quando a row esta destacada */}
             <div className={`mt-2 flex items-center gap-1 ${isHighlighted ? 'flex' : 'hidden group-hover:flex'}`}>
+                <a
+                    href={`/cards/${inst.card_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium bg-white border border-slate-300 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700"
+                    title="Abrir o card em uma nova aba"
+                >
+                    <ExternalLink className="w-3 h-3" />
+                    Ir para o card
+                </a>
                 {isActive && (
                     <button
                         type="button"
