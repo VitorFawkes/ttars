@@ -33,6 +33,7 @@ import type { WorkflowNodeType } from './types'
 import { loadWorkflow } from './lib/persistence'
 import { applyAutoLayout } from './lib/autoLayout'
 import { NodeRefLabelsProvider } from './store/NodeRefLabels'
+import { useInstanceTrail } from './hooks/useInstanceTrail'
 
 const WorkflowEditorPage: React.FC = () => {
     const { id } = useParams<{ id: string }>()
@@ -103,6 +104,10 @@ const WorkflowEditorLayout: React.FC<{ hasTrigger: boolean }> = ({ hasTrigger })
     const executionsPanelOpen = useWorkflowStore((s) => s.executionsPanelOpen)
     const setExecutionsPanelOpen = useWorkflowStore((s) => s.setExecutionsPanelOpen)
     const templateId = useWorkflowStore((s) => s.templateId)
+    const highlightedInstanceId = useWorkflowStore((s) => s.highlightedInstanceId)
+    // Hidrata o trail no store quando o user clica em uma instance.
+    // No-op quando highlightedInstanceId é null.
+    useInstanceTrail(highlightedInstanceId)
 
     return (
         <div className="h-full flex flex-col bg-slate-50/50">

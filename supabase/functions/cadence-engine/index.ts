@@ -2290,7 +2290,12 @@ async function executeTaskStep(
 
     // =========================================================================
     // REGRA ANTI-DUPLICATA:
-    //  - linear: não criar se já existe tarefa pendente do mesmo tipo no card
+    //  - linear: não criar se já existe tarefa pendente do mesmo tipo CRIADA
+    //    POR ESTA MESMA cadence_instance. Tarefas externas (manuais, de outra
+    //    automação, de trigger SQL antigo) NÃO travam o fluxo. Caso registrado:
+    //    Wendell travou no "Criar tarefa" porque havia uma "Ligação" manual
+    //    no card sem metadata; sem o filtro de instance, o engine pulava a
+    //    criação e ficava preso esperando uma tarefa externa concluir.
     //  - blocks: só pular se já existe tarefa pendente deste MESMO step
     //    (permite múltiplas tarefas do mesmo tipo no mesmo bloco)
     // =========================================================================
@@ -2309,11 +2314,12 @@ async function executeTaskStep(
     } else {
         const res = await supabaseClient
             .from("tarefas")
-            .select("id, titulo, tipo, concluida")
+            .select("id, titulo, tipo, concluida, metadata")
             .eq("card_id", card.id)
             .eq("tipo", taskTipo)
             .eq("concluida", false)
             .is("deleted_at", null)
+            .contains("metadata", { cadence_instance_id: instance.id })
             .limit(1);
         existingTasks = res.data || null;
     }

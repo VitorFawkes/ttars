@@ -52,6 +52,7 @@ import ExplorarPage from './pages/analytics-new/ExplorarPage'
 import CalendarPage from './pages/CalendarPage'
 import Tasks from './pages/Tasks'
 import ReactivationPage from './pages/ReactivationPage'
+import PontuacoesPage from './pages/sdr/PontuacoesPage'
 import ConciergeLayout from './pages/concierge/ConciergeLayout'
 import KanbanPage from './pages/concierge/KanbanPage'
 import PainelGestorPage from './pages/concierge/PainelGestorPage'
@@ -84,6 +85,7 @@ import HelpCenter from './pages/help/HelpCenter'
 import UserManagement from './pages/admin/UserManagement'
 import CategoryManagement from './pages/admin/CategoryManagement'
 import LossReasonManagement from './pages/admin/LossReasonManagement'
+import LeadSourcesManagement from './pages/admin/LeadSourcesManagement'
 import TagManagement from './pages/admin/TagManagement'
 import PhaseVisibilitySettings from './pages/admin/PhaseVisibilitySettings'
 import CRMHealth from './pages/admin/CRMHealth'
@@ -253,6 +255,7 @@ function App() {
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/proposals" element={<ProposalsPage />} />
                   <Route path="/reactivation" element={<ReactivationPage />} />
+                  <Route path="/sdr/pontuacoes" element={<PontuacoesPage />} />
                   <Route path="/concierge" element={<ConciergeLayout />}>
                     <Route index element={<KanbanPage />} />
                     <Route path="meu-dia" element={<Navigate to="/concierge" replace />} />
@@ -359,6 +362,7 @@ function App() {
                     <Route path="customization/alert-rules" element={<CardAlertRulesPage />} />
                     <Route path="customization/categories" element={<CategoryManagement />} />
                     <Route path="customization/loss-reasons" element={<LossReasonManagement />} />
+                    <Route path="customization/lead-sources" element={<LeadSourcesManagement />} />
                     <Route path="customization/tags" element={<TagManagement />} />
 
                     {/* Templates de Mensagem (consumidos por automações) */}

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 import { ArrowLeft, ArrowRight, Calendar, DollarSign, History, Edit2, Check, X, ChevronDown, AlertCircle, RefreshCw, Clock, Pencil, TrendingUp, Link, Search, UserPlus, Phone, Mail, Loader2, Trophy, XCircle, RotateCcw, Archive } from 'lucide-react'
 import { getOrigemLabel, getOrigemColor, ORIGEM_OPTIONS, needsOrigemDetalhe } from '../../lib/constants/origem'
+import { useLeadSources } from '../../hooks/useLeadSources'
 import { useNavigate } from 'react-router-dom'
 import { cn, buildContactSearchFilter } from '../../lib/utils'
 import type { Database } from '../../database.types'
@@ -53,6 +54,8 @@ import LossReasonModal, { type FutureOpportunityData } from './LossReasonModal'
 import WinOptionsModal from './WinOptionsModal'
 import AtivarPosVendaModal from './AtivarPosVendaModal'
 import { useArchiveCard } from '../../hooks/useArchiveCard'
+import { SdrQualificationSheet } from '../sdr-qualification/SdrQualificationSheet'
+import { Target, CheckCircle2 } from 'lucide-react'
 import FieldConfirmationModal from './FieldConfirmationModal'
 import AutoMergeOnMoveModal from './AutoMergeOnMoveModal'
 import { detectAutoMergePreflight, type AutoMergePreflightInfo } from '../../hooks/useAutoMergePreflight'
@@ -63,6 +66,7 @@ import { useFieldConfig } from '../../hooks/useFieldConfig'
 import { usePipelinePhases } from '../../hooks/usePipelinePhases'
 import { useCardAlerts } from '../../hooks/useCardAlerts'
 import { useProductPipelineId } from '../../hooks/useCurrentProductMeta'
+import { usePipelineGovernance, getDiasAtrasoDataPrevista } from '../../hooks/usePipelineGovernance'
 import { SystemPhase } from '@/types/pipeline'
 
 type CardBase = Database['public']['Tables']['cards']['Row']
@@ -89,6 +93,7 @@ function OrigemBadgeEditable({ cardId, origem, origemLead, indicadoPorId }: { ca
     const [localOrigem, setLocalOrigem] = useState(origem)
     const [localDetalhe, setLocalDetalhe] = useState(origemLead || '')
     const [showContactSelector, setShowContactSelector] = useState(false)
+    const { data: leadSources } = useLeadSources()
 
     // Indicação contact search
     const [indicacaoSearch, setIndicacaoSearch] = useState('')
@@ -212,7 +217,7 @@ function OrigemBadgeEditable({ cardId, origem, origemLead, indicadoPorId }: { ca
                     <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-xl p-3 w-72 space-y-3">
                         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Origem do Lead</p>
                         <div className="flex flex-wrap gap-1.5">
-                            {ORIGEM_OPTIONS.map(opt => (
+                            {(leadSources && leadSources.length > 0 ? leadSources : ORIGEM_OPTIONS).map((opt: { value: string; label: string; color: string }) => (
                                 <button
                                     key={opt.value}
                                     onClick={() => handleSelect(opt.value)}
@@ -384,8 +389,20 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
     const [showStageDropdown, setShowStageDropdown] = useState(false)
     const headerPipelineId = useProductPipelineId(card.produto)
     const { validateMove } = useQualityGate(headerPipelineId)
+    const { data: governance } = usePipelineGovernance(headerPipelineId)
+    const diasAtraso = useMemo(
+        () => getDiasAtrasoDataPrevista(card.produto_data),
+        [card.produto_data]
+    )
+    const isCardFinalized = card.status_comercial === 'ganho' || card.status_comercial === 'perdido'
+    const isDataPrevistaOverdue = diasAtraso !== null && !isCardFinalized
+    const stageMoveBlockedByOverdue = isDataPrevistaOverdue
+        && (governance?.data_overdue_severity ?? 'block_all') !== 'warn_only'
     const [isValidatingStage, setIsValidatingStage] = useState(false)
     const [qualityGateModalOpen, setQualityGateModalOpen] = useState(false)
+    const [qualificationSheetOpen, setQualificationSheetOpen] = useState(false)
+    const sdrScoreLatest = (card as unknown as { sdr_qualification_score_latest?: { score: number; qualificado: boolean; disqualified: boolean; finalized_at: string } | null }).sdr_qualification_score_latest ?? null
+    const isWedding = card.produto === 'WEDDING'
     const [showAlertModal, setShowAlertModal] = useState(false)
     const [stageChangeModalOpen, setStageChangeModalOpen] = useState(false)
     const [fieldConfirmationModalOpen, setFieldConfirmationModalOpen] = useState(false)
@@ -1324,15 +1341,52 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                         >
                             {card.produto}
                         </button>
+                        {isWedding && (
+                            <button
+                                onClick={() => setQualificationSheetOpen(true)}
+                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50 text-xs font-medium text-slate-700 transition-colors"
+                                title="Abrir ferramenta de pontuação SDR (mesma régua que a Estela)"
+                            >
+                                <Target className="h-3.5 w-3.5 text-indigo-600" />
+                                {sdrScoreLatest ? (
+                                    <span className="inline-flex items-center gap-1">
+                                        <span className="font-semibold">Score {sdrScoreLatest.score}</span>
+                                        {sdrScoreLatest.disqualified ? (
+                                            <span className="text-rose-600">✗</span>
+                                        ) : sdrScoreLatest.qualificado ? (
+                                            <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                                        ) : null}
+                                    </span>
+                                ) : (
+                                    <span>Qualificar lead</span>
+                                )}
+                            </button>
+                        )}
                     </div>
 
                     {/* Stage Selector — prominent ETAPA chip with indigo border */}
                     <div className="relative z-20 flex items-center gap-2">
                         <div className="relative">
                             <button
-                                onClick={() => setShowStageDropdown(!showStageDropdown)}
-                                className="group inline-flex items-center gap-2 pl-3 pr-2 py-1 rounded-full bg-white border-[1.5px] border-indigo-500 hover:bg-indigo-50 transition-colors"
-                                title="Mudar etapa do funil"
+                                onClick={() => {
+                                    if (stageMoveBlockedByOverdue) {
+                                        toast.error('Data Prevista de Fechamento está no passado', {
+                                            description: 'Atualize a data antes de mover o card de etapa.',
+                                        })
+                                        return
+                                    }
+                                    setShowStageDropdown(!showStageDropdown)
+                                }}
+                                disabled={stageMoveBlockedByOverdue}
+                                className={cn(
+                                    "group inline-flex items-center gap-2 pl-3 pr-2 py-1 rounded-full bg-white border-[1.5px] transition-colors",
+                                    stageMoveBlockedByOverdue
+                                        ? "border-red-300 opacity-60 cursor-not-allowed"
+                                        : "border-indigo-500 hover:bg-indigo-50"
+                                )}
+                                title={stageMoveBlockedByOverdue
+                                    ? "Atualize a Data Prevista de Fechamento antes de mudar de etapa"
+                                    : "Mudar etapa do funil"}
                             >
                                 <span className="text-[9px] font-extrabold text-indigo-700 tracking-[0.1em] leading-none">ETAPA</span>
                                 <span className="h-3.5 w-px bg-gray-200" />
@@ -1623,6 +1677,20 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
 
                             {/* Divider */}
                             <div className="h-3.5 w-px bg-gray-300" />
+
+                            {/* Badge: Data Prevista de Fechamento atrasada */}
+                            {isDataPrevistaOverdue && (
+                                <>
+                                    <div
+                                        className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 border border-red-200 text-red-700 text-[10px] font-semibold"
+                                        title="Data Prevista de Fechamento está no passado. Atualize para continuar."
+                                    >
+                                        <AlertCircle className="h-3 w-3" />
+                                        Atrasado {diasAtraso} {diasAtraso === 1 ? 'dia' : 'dias'}
+                                    </div>
+                                    <div className="h-3.5 w-px bg-gray-300" />
+                                </>
+                            )}
 
                             {/* Value - Always show when data exists */}
                             {(() => {
@@ -2091,6 +2159,19 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                     }
                 }}
             />
+            {isWedding && qualificationSheetOpen && (
+                <SdrQualificationSheet
+                    open={qualificationSheetOpen}
+                    onOpenChange={setQualificationSheetOpen}
+                    cardId={card.id ?? null}
+                    contatoId={card.pessoa_principal_id ?? null}
+                    onFinalized={() => {
+                        queryClient.invalidateQueries({ queryKey: ['card-detail', card.id] })
+                        queryClient.invalidateQueries({ queryKey: ['card', card.id] })
+                        queryClient.invalidateQueries({ queryKey: ['cards'] })
+                    }}
+                />
+            )}
         </>
     )
 }

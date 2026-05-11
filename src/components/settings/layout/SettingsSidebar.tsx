@@ -31,6 +31,7 @@ import {
     FileSpreadsheet,
     Upload,
     Sparkles,
+    Tag,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -163,6 +164,7 @@ export default function SettingsSidebar() {
                             <NavItem to="/settings/customization/alert-rules" icon={AlertTriangle} label="Alertas de Cards" />
                             <NavItem to="/settings/customization/categories" icon={Tags} label="Categorias" />
                             <NavItem to="/settings/customization/loss-reasons" icon={XCircle} label="Motivos de Perda" />
+                            <NavItem to="/settings/customization/lead-sources" icon={Tag} label="Fontes de Lead" />
                             <NavItem to="/settings/customization/tags" icon={Tags} label="Tags de Cards" />
                         </NavSection>
 

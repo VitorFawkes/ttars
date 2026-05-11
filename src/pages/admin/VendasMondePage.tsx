@@ -59,6 +59,8 @@ interface ImportLogRow {
     matched_cards: number
     unmatched_vendas: number
     products_imported: number
+    products_cancelled: number
+    products_reactivated: number
     status: 'completed' | 'partial' | 'failed'
     error_message: string | null
     created_by: string
@@ -165,6 +167,18 @@ function HistoryRow({ log }: { log: ImportLogRow }) {
                         <p className="text-sm font-semibold text-slate-900">{log.products_imported}</p>
                         <p className="text-[10px] text-slate-400 uppercase tracking-wide">Produtos</p>
                     </div>
+                    {(log.products_cancelled ?? 0) > 0 && (
+                        <div>
+                            <p className="text-sm font-semibold text-amber-700">{log.products_cancelled}</p>
+                            <p className="text-[10px] text-amber-600 uppercase tracking-wide">Cancelados</p>
+                        </div>
+                    )}
+                    {(log.products_reactivated ?? 0) > 0 && (
+                        <div>
+                            <p className="text-sm font-semibold text-emerald-700">{log.products_reactivated}</p>
+                            <p className="text-[10px] text-emerald-600 uppercase tracking-wide">Reativados</p>
+                        </div>
+                    )}
                     {log.unmatched_vendas > 0 && (
                         <div>
                             <p className="text-sm font-semibold text-amber-600">{log.unmatched_vendas}</p>
@@ -475,6 +489,7 @@ export default function VendasMondePage() {
     const [isMatching, setIsMatching] = useState(false)
     const [importProgress, setImportProgress] = useState({ current: 0, total: 0 })
     const [importResult, setImportResult] = useState<{ cardsUpdated: number; productsImported: number; productsCancelled: number; productsReactivated: number; errors: number; matched: MatchedCard[] } | null>(null)
+    const [cancelColumnInfo, setCancelColumnInfo] = useState<{ detectedName: string | null; rowsWithValue: number; sampleHeaders: string[] } | null>(null)
 
     const isAdmin = profile?.is_admin === true
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -550,6 +565,11 @@ export default function VendasMondePage() {
 
         setParsedRows(rows)
         setFileName(name)
+        setCancelColumnInfo({
+            detectedName: dataCancelamentoCol,
+            rowsWithValue: rows.filter(r => !!r.dataCancelamento).length,
+            sampleHeaders: headers,
+        })
         toast.success(`${rows.length} linhas carregadas`)
         await matchCards(rows)
     }, [])
@@ -575,7 +595,9 @@ export default function VendasMondePage() {
                         const data = evt.target?.result
                         const workbook = XLSX.read(data, { type: 'array', codepage: 65001 })
                         const sheet = workbook.Sheets[workbook.SheetNames[0]]
-                        const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet)
+                        // defval: null garante que TODAS as colunas apareçam em TODAS as linhas,
+                        // mesmo quando vazias. Sem isso, colunas vazias na 1ª linha somem.
+                        const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: null })
                         await processRows(jsonData, file.name)
                     } catch (err) {
                         console.error('Erro ao ler arquivo:', err)
@@ -727,6 +749,8 @@ export default function VendasMondePage() {
                     matched_cards: cardsUpdated,
                     unmatched_vendas: unmatched.length,
                     products_imported: productsImported,
+                    products_cancelled: productsCancelled,
+                    products_reactivated: productsReactivated,
                     status: logStatus,
                     error_message: errors > 0 ? `${errors} card(s) com erro` : null,
                     created_by: profile?.id,
@@ -805,6 +829,7 @@ export default function VendasMondePage() {
         setMatchResult(null)
         setImportResult(null)
         setImportProgress({ current: 0, total: 0 })
+        setCancelColumnInfo(null)
         if (fileInputRef.current) fileInputRef.current.value = ''
     }
 
@@ -913,6 +938,36 @@ export default function VendasMondePage() {
                                     </Button>
                                 </div>
 
+                                {/* Cancellation column status */}
+                                {cancelColumnInfo && (
+                                    <div className={cn(
+                                        "rounded-xl border px-4 py-2.5 text-xs",
+                                        cancelColumnInfo.detectedName === null
+                                            ? "bg-slate-50 border-slate-200 text-slate-600"
+                                            : cancelColumnInfo.rowsWithValue > 0
+                                                ? "bg-amber-50 border-amber-200 text-amber-800"
+                                                : "bg-emerald-50 border-emerald-200 text-emerald-800"
+                                    )}>
+                                        {cancelColumnInfo.detectedName === null ? (
+                                            <div className="flex flex-col gap-1">
+                                                <span className="font-medium">⊘ Coluna "Data Cancelamento" não foi encontrada no arquivo</span>
+                                                <span className="text-[11px] text-slate-500">
+                                                    Cabeçalhos detectados: {cancelColumnInfo.sampleHeaders.slice(0, 12).join(' · ')}
+                                                    {cancelColumnInfo.sampleHeaders.length > 12 && ` … (+${cancelColumnInfo.sampleHeaders.length - 12})`}
+                                                </span>
+                                            </div>
+                                        ) : cancelColumnInfo.rowsWithValue > 0 ? (
+                                            <span className="font-medium">
+                                                ⊘ Coluna "{cancelColumnInfo.detectedName}" detectada · {cancelColumnInfo.rowsWithValue} linha{cancelColumnInfo.rowsWithValue !== 1 ? 's' : ''} com cancelamento
+                                            </span>
+                                        ) : (
+                                            <span className="font-medium">
+                                                ✓ Coluna "{cancelColumnInfo.detectedName}" detectada · nenhum produto cancelado neste arquivo
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+
                                 {isMatching ? (
                                     <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-12 flex flex-col items-center">
                                         <Loader2 className="h-8 w-8 animate-spin text-amber-600 mb-3" />
@@ -950,6 +1005,62 @@ export default function VendasMondePage() {
                                                             {matchResult.unmatched.length}
                                                         </p>
                                                         <p className="text-xs text-slate-500 font-medium mt-0.5">Sem match</p>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })()}
+
+                                        {/* Cancelled products detail panel */}
+                                        {(() => {
+                                            type CancelEntry = { vendaNum: string; cardId: string | null; cardTitle: string; produto: string; dataCancelamento: string }
+                                            const cancelled: CancelEntry[] = []
+                                            for (const m of matchResult.matched) {
+                                                for (const p of m.products) {
+                                                    if (p.dataCancelamento) {
+                                                        cancelled.push({ vendaNum: m.vendaNum, cardId: m.cardId, cardTitle: m.cardTitle, produto: p.produto || 'Produto', dataCancelamento: p.dataCancelamento })
+                                                    }
+                                                }
+                                            }
+                                            const groupedUnmatched = new Map<string, CsvRow[]>()
+                                            for (const row of parsedRows) {
+                                                if (matchResult.unmatched.includes(row.vendaNum)) {
+                                                    const existing = groupedUnmatched.get(row.vendaNum) || []
+                                                    existing.push(row)
+                                                    groupedUnmatched.set(row.vendaNum, existing)
+                                                }
+                                            }
+                                            for (const [vendaNum, prods] of groupedUnmatched) {
+                                                for (const p of prods) {
+                                                    if (p.dataCancelamento) {
+                                                        cancelled.push({ vendaNum, cardId: null, cardTitle: '(sem card no CRM)', produto: p.produto || 'Produto', dataCancelamento: p.dataCancelamento })
+                                                    }
+                                                }
+                                            }
+                                            if (cancelled.length === 0) return null
+                                            return (
+                                                <div className="bg-white border border-amber-200 rounded-xl shadow-sm overflow-hidden">
+                                                    <div className="px-4 py-3 border-b border-amber-200 bg-amber-50/50">
+                                                        <h3 className="text-sm font-semibold text-amber-800 flex items-center gap-2">
+                                                            ⊘ Produtos cancelados detectados ({cancelled.length})
+                                                        </h3>
+                                                        <p className="text-xs text-amber-700 mt-0.5">Essas linhas vêm com "Data Cancelamento" preenchida — os produtos serão arquivados nos cards correspondentes</p>
+                                                    </div>
+                                                    <div className="divide-y divide-amber-100 max-h-[300px] overflow-y-auto">
+                                                        {cancelled.map((c, idx) => (
+                                                            <div key={idx} className="px-4 py-2.5 flex items-center gap-3 text-sm">
+                                                                <span className="text-xs font-mono text-amber-700 shrink-0">#{c.vendaNum}</span>
+                                                                {c.cardId ? (
+                                                                    <Link to={`/cards/${c.cardId}`} target="_blank" className="text-slate-900 hover:text-indigo-700 hover:underline truncate font-medium">
+                                                                        {c.cardTitle}
+                                                                    </Link>
+                                                                ) : (
+                                                                    <span className="text-slate-400 italic truncate">{c.cardTitle}</span>
+                                                                )}
+                                                                <span className="text-slate-400">·</span>
+                                                                <span className="text-slate-700 truncate flex-1">{c.produto}</span>
+                                                                <span className="text-xs font-medium text-amber-700 shrink-0">cancelado em {displayDateBR(c.dataCancelamento)}</span>
+                                                            </div>
+                                                        ))}
                                                     </div>
                                                 </div>
                                             )
@@ -1131,6 +1242,20 @@ export default function VendasMondePage() {
                                     <p className="text-xs text-slate-500">Sem match</p>
                                 </div>
                             </div>
+                            {((lastImport.products_cancelled ?? 0) > 0 || (lastImport.products_reactivated ?? 0) > 0) && (
+                                <div className="flex items-center gap-3 mt-3 pt-3 border-t border-slate-100">
+                                    {(lastImport.products_cancelled ?? 0) > 0 && (
+                                        <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded-full">
+                                            ⊘ {lastImport.products_cancelled} produto{lastImport.products_cancelled !== 1 ? 's' : ''} cancelado{lastImport.products_cancelled !== 1 ? 's' : ''} no Monde
+                                        </span>
+                                    )}
+                                    {(lastImport.products_reactivated ?? 0) > 0 && (
+                                        <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">
+                                            ↺ {lastImport.products_reactivated} reativado{lastImport.products_reactivated !== 1 ? 's' : ''}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
                             {lastImport.profile_name && (
                                 <p className="text-xs text-slate-400 mt-3 flex items-center gap-1">
                                     <UserIcon className="h-3 w-3" /> por {lastImport.profile_name}

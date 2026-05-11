@@ -5,11 +5,15 @@
 
 // ─── String helpers ──────────────────────────────────────────
 
-/** Normaliza removendo acentos, º, pontuação e espaços extras */
-export const norm = (s: string) => s.toLowerCase().trim()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+/** Normaliza removendo acentos, º, pontuação, espaços extras E caracteres
+ *  invisíveis comuns em headers do Excel (BOM, zero-width, NBSP).
+ *  Sem isso "Data Cancelamento" com BOM no início não bate com "data cancelamento". */
+export const norm = (s: string) => s.toLowerCase()
+    .replace(/[\u200b-\u200d\ufeff\u00a0]/g, ' ')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[º°.]/g, '')
     .replace(/\s+/g, ' ')
+    .trim()
 
 // ─── Date parsing ────────────────────────────────────────────
 
@@ -25,14 +29,14 @@ export function parseDateBR(value: unknown): string | null {
     }
     const s = String(value).trim()
     if (!s) return null
-    // dd/mm/yyyy or dd-mm-yyyy
-    const brMatch = s.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/)
+    // dd/mm/yyyy (com ou sem hora: "10/05/2026", "10/05/2026 14:30", "10-05-2026 14:30:00")
+    const brMatch = s.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})(?:[\sT]\d{1,2}:\d{2}(?::\d{2})?)?$/)
     if (brMatch) {
         const [, dd, mm, yyyy] = brMatch
         const d = new Date(`${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}T00:00:00`)
         return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
     }
-    // yyyy-mm-dd (ISO)
+    // yyyy-mm-dd (ISO, com ou sem tempo)
     const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
     if (isoMatch) {
         const d = new Date(isoMatch[0] + 'T00:00:00')
@@ -103,6 +107,17 @@ export function findColumn(headers: string[], aliases: string[]): string | null 
     // Partial match
     for (const alias of aliases) {
         const idx = normalized.findIndex(h => h.includes(alias))
+        if (idx >= 0) return headers[idx]
+    }
+    return null
+}
+
+/** Encontra coluna SÓ por match exato (sem partial). Use quando o alias é
+ *  genérico e pode dar falso positivo — ex: "data" bateria com "Data Venda". */
+export function findColumnExact(headers: string[], aliases: string[]): string | null {
+    const normalized = headers.map(h => norm(h))
+    for (const alias of aliases) {
+        const idx = normalized.findIndex(h => h === alias)
         if (idx >= 0) return headers[idx]
     }
     return null

@@ -122,7 +122,7 @@ export function CreateTaskModal({
                     tipo,
                     prioridade,
                     responsavel_id: responsavelId,
-                    data_vencimento: dataVencimento ? new Date(dataVencimento).toISOString() : null,
+                    data_vencimento: new Date(dataVencimento).toISOString(),
                     status: 'pendente',
                     concluida: false,
                     created_by: profile?.id,

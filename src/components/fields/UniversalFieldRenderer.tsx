@@ -644,14 +644,22 @@ export default function UniversalFieldRenderer({
                         <span className="text-xs font-medium text-gray-900">{field.label}</span>
                     </div>
                 )
-            case 'date':
+            case 'date': {
+                // Campos de "data futura" não devem aceitar passado.
+                // data_prevista_fechamento (TRIPS, fase Planner) é o primeiro.
+                const isFutureOnlyDate = field.key === 'data_prevista_fechamento'
+                const minDateAttr = isFutureOnlyDate
+                    ? new Date().toISOString().split('T')[0]
+                    : undefined
                 return (
                     <Input
                         type="date"
                         value={value || ''}
+                        min={minDateAttr}
                         onChange={(e) => onChange?.(e.target.value)}
                     />
                 )
+            }
             case 'datetime': {
                 // Handle various datetime string formats from integrations
                 // Convert "YYYY-MM-DD HH:MM:SS" to "YYYY-MM-DDTHH:MM" for input

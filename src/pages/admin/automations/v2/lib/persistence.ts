@@ -459,6 +459,10 @@ export async function loadWorkflow(templateId: string): Promise<LoadResult> {
                 // step_key do banco é técnico e não deve aparecer pro usuário.
                 label: (cfg?.titulo as string) || '',
                 config: cfg,
+                // step_key do banco — usado por useInstanceTrail pra mapear
+                // eventos de cadence_event_log (que registram step_key) de
+                // volta pro node.id da UI. Não renderiza em lugar nenhum.
+                __stepKey: s.step_key as string,
             },
         })
     })

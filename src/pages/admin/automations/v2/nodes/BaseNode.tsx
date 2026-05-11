@@ -15,6 +15,8 @@ import type { WorkflowNode, WorkflowNodeType, NodeCategory } from '../types'
 import { EchoBadge } from '@/components/automations/EchoBadge'
 import { summarizeConfig } from './summarize'
 import { useNodeRefLabels } from '../store/NodeRefLabels'
+import { useWorkflowStore } from '../store/useWorkflowStore'
+import { STATUS_META, formatRelative } from '../lib/instanceFormat'
 
 const CATEGORY_COLORS: Record<NodeCategory, { bg: string; border: string; ring: string; chip: string }> = {
     trigger:     { bg: 'bg-amber-50',   border: 'border-amber-300',   ring: 'ring-amber-400',   chip: 'bg-amber-100 text-amber-700' },
@@ -30,9 +32,12 @@ const resolveIcon = (name: string): LucideIcon => {
     return Icon || LucideIcons.Circle
 }
 
-const BaseNodeComponent: React.FC<NodeProps<WorkflowNode>> = ({ type, data, selected }) => {
+const BaseNodeComponent: React.FC<NodeProps<WorkflowNode>> = ({ id, type, data, selected }) => {
     const meta = NODE_BY_TYPE.get(type as WorkflowNodeType)
     const refLabels = useNodeRefLabels()
+    const trail = useWorkflowStore((s) => s.highlightedTrail)
+    const isCurrentInTrail = !!trail && trail.currentNodeId === id
+    const isCompletedInTrail = !!trail && trail.completedNodeIds.includes(id)
     if (!meta) {
         return (
             <div className="bg-red-50 border border-red-300 rounded-lg p-3 text-xs text-red-700 shadow-sm">
@@ -45,10 +50,19 @@ const BaseNodeComponent: React.FC<NodeProps<WorkflowNode>> = ({ type, data, sele
     const isEcho = meta.category === 'echo'
     const isInvalid = data.valid === false
 
+    const trailStatusMeta = trail ? STATUS_META[trail.status] : null
+    const showLivePulse = isCurrentInTrail && trail && ['active', 'waiting_task', 'paused'].includes(trail.status)
+
     return (
         <div
             className={`relative bg-white rounded-xl shadow-sm border-2 transition-all ${
-                selected ? `${colors.border} ring-2 ${colors.ring} ring-opacity-30` : 'border-slate-200 hover:border-slate-300'
+                selected
+                    ? `${colors.border} ring-2 ${colors.ring} ring-opacity-30`
+                    : isCurrentInTrail
+                        ? `border-cyan-500 ring-2 ring-cyan-400 ring-opacity-50 ${showLivePulse ? 'animate-pulse' : ''}`
+                        : isCompletedInTrail
+                            ? 'border-emerald-300 bg-emerald-50/30'
+                            : 'border-slate-200 hover:border-slate-300'
             } ${isInvalid ? 'border-red-300 ring-2 ring-red-200' : ''}`}
             style={{ width: 240 }}
         >
@@ -132,6 +146,29 @@ const BaseNodeComponent: React.FC<NodeProps<WorkflowNode>> = ({ type, data, sele
                         className="!w-3 !h-3 !bg-rose-500 !border-2 !border-white"
                     />
                 </>
+            )}
+
+            {/* Tooltip "card aqui" — só no node atual de uma instance destacada */}
+            {isCurrentInTrail && trail && (
+                <div
+                    className="absolute left-1/2 -translate-x-1/2 -bottom-2 translate-y-full z-10 pointer-events-none"
+                    style={{ marginTop: '8px' }}
+                >
+                    <div className="bg-slate-900 text-white text-[11px] rounded-md shadow-lg px-2.5 py-1.5 whitespace-nowrap">
+                        <div className="font-medium truncate max-w-[220px]">
+                            {trail.cardTitulo || 'Card sem título'}
+                        </div>
+                        <div className="text-slate-300 flex items-center gap-1.5">
+                            <span>{formatRelative(trail.currentStepEnteredAt || trail.startedAt)} aqui</span>
+                            {trailStatusMeta && (
+                                <>
+                                    <span className="text-slate-500">·</span>
+                                    <span>{trailStatusMeta.label}</span>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     )

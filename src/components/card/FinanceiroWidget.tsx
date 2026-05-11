@@ -119,6 +119,17 @@ export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCol
     const readyCount = items.filter(i => i.is_ready).length
     const obsCount = items.filter(i => i.observacoes).length
 
+    // Comparativo Previsto vs Fechado — só faz sentido quando o card já tem Orçamento
+    // Previsto (campo obrigatório a partir da etapa "Proposta Enviada" pra TRIPS).
+    // valor_estimado é sincronizado automaticamente de produto_data.orcamento via
+    // mutation em TripInformation.tsx.
+    const valorPrevisto = Number(card.valor_estimado) || 0
+    const showComparativo = valorPrevisto > 0
+    const delta = totalVenda - valorPrevisto
+    const percentAtingido = valorPrevisto > 0
+        ? Math.min((totalVenda / valorPrevisto) * 100, 100)
+        : 0
+
     return (
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
             {/* Header */}
@@ -153,6 +164,40 @@ export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCol
                     <SectionCollapseToggle isExpanded={isExpanded ?? true} onToggle={onToggleCollapse} />
                 )}
             </div>
+
+            {/* Comparativo Previsto vs Fechado */}
+            {showComparativo && (
+                <div className="px-4 py-3 border-b border-gray-100 bg-slate-50/50">
+                    <div className="grid grid-cols-3 gap-3 text-xs">
+                        <div>
+                            <div className="text-slate-500">Previsto</div>
+                            <div className="font-semibold text-slate-900 mt-0.5">{formatBRL(valorPrevisto)}</div>
+                        </div>
+                        <div>
+                            <div className="text-slate-500">Fechado</div>
+                            <div className="font-semibold text-slate-900 mt-0.5">{formatBRL(totalVenda)}</div>
+                        </div>
+                        <div>
+                            <div className="text-slate-500">{delta >= 0 ? 'Excedeu' : 'Falta'}</div>
+                            <div className={cn(
+                                "font-semibold mt-0.5",
+                                delta >= 0 ? "text-emerald-600" : "text-amber-600"
+                            )}>
+                                {formatBRL(Math.abs(delta))}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="mt-2 h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                        <div
+                            className={cn(
+                                "h-full transition-all",
+                                delta >= 0 ? "bg-emerald-500" : "bg-indigo-500"
+                            )}
+                            style={{ width: `${percentAtingido}%` }}
+                        />
+                    </div>
+                </div>
+            )}
 
             {/* Planner observations banner — visible to pós-venda */}
             {isPostSales && obsCount > 0 && (

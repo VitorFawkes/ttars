@@ -797,3 +797,14 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-11T16:40:51Z | supabase/migrations/20260511e_cadence_triggers_applicable_card_types.sql | applied_to_prod
 2026-05-11T16:41:16Z | supabase/migrations/20260511f_cadence_card_type_filter_queue_layer.sql | applied_to_prod
 2026-05-11T17:07:41Z | supabase/migrations/20260512a_card_created_backfill_applicable_stage.sql | applied_to_prod
+2026-05-11T16:46:39Z | supabase/migrations/20260511g_patricia_estela_rule_parity.sql | applied_to_prod
+2026-05-11T17:03:47Z | supabase/migrations/20260511e_monde_import_logs_cancelados_reativados.sql | applied_to_prod
+2026-05-11T18:12:35Z | supabase/migrations/20260512f_view_cards_acoes_sdr_score.sql | applied_to_prod
+2026-05-11T18:30:32Z | supabase/migrations/20260512g_add_origem_weddings.sql | applied_to_prod
+2026-05-11T18:35:21Z | supabase/migrations/20260512h_lead_sources_table.sql | applied_to_prod
+2026-05-11T18:40:14Z | supabase/migrations/20260511h_app_role_add_assistente.sql | applied_to_prod
+2026-05-11T18:41:24Z | supabase/migrations/20260511i_handle_new_user_tolerant_role_cast.sql | applied_to_prod
+2026-05-11T18:42:08Z | supabase/migrations/20260512d_fix_visibility_data_prevista.sql | applied_to_prod
+2026-05-11T18:44:33Z | supabase/migrations/20260512g_sdr_dados_lead_mapping.sql | applied_to_prod
+2026-05-11T18:44:35Z | supabase/migrations/20260512e_hide_data_prevista_pre_gatilho.sql | applied_to_prod
+2026-05-11T18:49:14Z | supabase/migrations/20260511j_estela_fix_viagem_internacional_slot.sql | applied_to_prod

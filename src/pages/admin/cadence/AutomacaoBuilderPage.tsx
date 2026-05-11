@@ -27,6 +27,8 @@ import { Switch } from '@/components/ui/switch';
 import { Select } from '@/components/ui/Select';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { CARD_TYPE_OPTIONS, EVENTS_SUPPORTING_CARD_TYPE_FILTER, type CardType } from '@/lib/automation-recipes';
 import { useUsers } from '@/hooks/useUsers';
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta';
 import { useConciergeUserIds } from '@/hooks/concierge/useConciergeUserIds';
@@ -56,6 +58,8 @@ interface AutomationForm {
     is_active: boolean;
     event_type: EventType;
     stage_ids: string[];
+    /** Tipos de card aos quais esta automação se aplica. Vazio = todos. */
+    card_types: CardType[];
     respect_business_hours: boolean;
     /** Para time_offset_from_date: fonte da data (card.data_viagem_inicio, viagem.embarque_inicio, etc) */
     time_source: string;
@@ -172,6 +176,7 @@ export default function AutomacaoBuilderPage() {
         is_active: false,
         event_type: (initialRecipe?.event_type as EventType) || 'stage_enter',
         stage_ids: [],
+        card_types: [],
         respect_business_hours: true,
         time_source: 'viagem.embarque_inicio',
         offset_days: -7,
@@ -249,6 +254,7 @@ export default function AutomacaoBuilderPage() {
                     is_active: !!tpl.is_active,
                     event_type: (triggerRow?.event_type as EventType) || 'stage_enter',
                     stage_ids: triggerRow?.applicable_stage_ids || [],
+                    card_types: Array.isArray(triggerRow?.applicable_card_types) ? triggerRow.applicable_card_types : [],
                     respect_business_hours: tpl.respect_business_hours ?? true,
                     time_source: triggerRow?.event_config?.source || 'viagem.embarque_inicio',
                     offset_days: triggerRow?.event_config?.offset_days ?? -7,
@@ -606,6 +612,7 @@ export default function AutomacaoBuilderPage() {
                 event_type: form.event_type,
                 applicable_stage_ids: form.event_type === 'stage_enter' ? form.stage_ids : null,
                 applicable_pipeline_ids: pipelineId ? [pipelineId] : null,
+                applicable_card_types: form.card_types.length > 0 ? form.card_types : null,
                 action_type: 'start_cadence',
                 target_template_id: templateId,
                 is_active: form.is_active,
@@ -820,7 +827,48 @@ export default function AutomacaoBuilderPage() {
                                     />
                                 </div>
                             )}
-                            {form.event_type === 'time_offset_from_date' && (
+                        </div>
+                        {EVENTS_SUPPORTING_CARD_TYPE_FILTER.has(form.event_type as never) && (
+                            <div className="pt-2">
+                                <Label className="text-xs">Aplicar a quais tipos de card?</Label>
+                                <div className="flex flex-wrap gap-2 mt-1">
+                                    {CARD_TYPE_OPTIONS.map((opt) => {
+                                        const active = form.card_types.includes(opt.value);
+                                        return (
+                                            <button
+                                                key={opt.value}
+                                                type="button"
+                                                onClick={() =>
+                                                    setForm({
+                                                        ...form,
+                                                        card_types: active
+                                                            ? form.card_types.filter((x) => x !== opt.value)
+                                                            : [...form.card_types, opt.value],
+                                                    })
+                                                }
+                                                className={cn(
+                                                    'px-3 py-1.5 text-xs rounded-md border transition-colors',
+                                                    active
+                                                        ? 'bg-indigo-600 text-white border-indigo-600'
+                                                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                                                )}
+                                                title={opt.description}
+                                            >
+                                                {opt.label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                <p className="text-xs text-slate-500 mt-1.5">
+                                    Deixe vazio para aplicar a qualquer tipo de card.
+                                    {form.card_types.includes('sub_card') && form.card_types.length === 1 && (
+                                        <> Sub-cards fundem no card pai ao sair da 1ª etapa de pós-venda; a janela de execução é curta.</>
+                                    )}
+                                </p>
+                            </div>
+                        )}
+                        {form.event_type === 'time_offset_from_date' && (
+                            <div className="grid grid-cols-2 gap-3">
                                 <>
                                     <div>
                                         <Label className="text-xs">Data de referência</Label>
@@ -867,8 +915,8 @@ export default function AutomacaoBuilderPage() {
                                         </p>
                                     </div>
                                 </>
-                            )}
-                        </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Blocks */}

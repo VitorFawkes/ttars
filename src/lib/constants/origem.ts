@@ -10,6 +10,7 @@ export const ORIGEM_OPTIONS = [
     { value: 'carteira_propria', label: 'Carteira Própria', icon: 'Wallet', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
     { value: 'carteira_wg', label: 'Carteira WG', icon: 'Briefcase', color: 'bg-amber-100 text-amber-700 border-amber-200' },
     { value: 'sorrento', label: 'Sorrento', icon: 'Building2', color: 'bg-rose-100 text-rose-700 border-rose-200' },
+    { value: 'weddings', label: 'Weddings', icon: 'Heart', color: 'bg-pink-100 text-pink-700 border-pink-200' },
 ] as const
 
 /** Legacy origins kept for display of existing records (not shown in selectors) */

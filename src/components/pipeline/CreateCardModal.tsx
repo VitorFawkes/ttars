@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
 import { Button } from '../ui/Button'
-import { Plus, User, X, Loader2, ChevronDown, ChevronRight, Check, Megaphone, Users, Wallet, Briefcase, Search, UserPlus, Phone, Mail, Sparkles, FileText, CheckCircle, AlertCircle, Mic, PenLine } from 'lucide-react'
+import { Plus, User, X, Loader2, ChevronDown, ChevronRight, Check, Users, Search, UserPlus, Phone, Mail, Sparkles, FileText, CheckCircle, AlertCircle, Mic, PenLine } from 'lucide-react'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { cn, buildContactSearchFilter } from '../../lib/utils'
@@ -19,6 +19,8 @@ import { useToast } from '../../contexts/ToastContext'
 import { processBriefingIA, type BriefingIAResult } from '../../hooks/useBriefingIA'
 import { processAIExtraction } from '../../hooks/useAIExtraction'
 import { ORIGEM_OPTIONS, needsOrigemDetalhe } from '../../lib/constants/origem'
+import { useLeadSources } from '../../hooks/useLeadSources'
+import { getOrigemIcon } from '../../lib/origem-icons'
 import { useProductContext } from '../../hooks/useProductContext'
 import { useProductBySlug } from '../../hooks/useCurrentProductMeta'
 import { useDuplicateCardDetection } from '../../hooks/useDuplicateCardDetection'
@@ -219,6 +221,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
     const [showObservacoes, setShowObservacoes] = useState(false)
     const [ignoreDuplicates, setIgnoreDuplicates] = useState(false)
     const { currentProduct } = useProductContext()
+    const { data: leadSources } = useLeadSources()
 
     // Scroll to top when modal opens or when returning from ContactSelector
     useEffect(() => {
@@ -926,12 +929,9 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                             </h3>
 
                             <div className="flex flex-wrap gap-2">
-                                {ORIGEM_OPTIONS.map(option => {
+                                {(leadSources && leadSources.length > 0 ? leadSources : ORIGEM_OPTIONS).map(option => {
                                     const isSelected = formData.origem === option.value
-                                    const IconMap: Record<string, React.ElementType> = {
-                                        Megaphone, Users, Wallet, Briefcase
-                                    }
-                                    const Icon = IconMap[option.icon]
+                                    const Icon = getOrigemIcon(option.icon)
                                     return (
                                         <button
                                             key={option.value}
@@ -950,7 +950,7 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
                                             )}
                                         >
                                             {isSelected && <Check className="h-3.5 w-3.5 text-indigo-600" />}
-                                            {Icon && <Icon className="h-3.5 w-3.5" />}
+                                            <Icon className="h-3.5 w-3.5" />
                                             <span className="text-sm font-medium">{option.label}</span>
                                         </button>
                                     )

@@ -7,6 +7,7 @@ type Contato = Database['public']['Tables']['contatos']['Row']
 import { getTipoPessoa } from '../../lib/contactUtils'
 import { Loader2, X, Link, Globe, UserPlus, Search } from 'lucide-react'
 import { ORIGEM_OPTIONS, needsOrigemDetalhe } from '../../lib/constants/origem'
+import { useLeadSources } from '../../hooks/useLeadSources'
 import { useDuplicateDetection } from '../../hooks/useDuplicateDetection'
 import DuplicateWarningPanel from '../contacts/DuplicateWarningPanel'
 import { parseSupabaseContactError } from '../../lib/supabaseErrorParser'
@@ -30,6 +31,7 @@ export default function ContactForm({ contact, onSave, onCancel, initialName = '
     const [saving, setSaving] = useState(false)
     const [potentialGuardians, setPotentialGuardians] = useState<Contato[]>([])
     const [dismissed, setDismissed] = useState(false)
+    const { data: leadSources } = useLeadSources()
     const mondeCheck = useMondeSearch()
     const mondeImport = useMondeImportPerson()
     const [mondeChecked, setMondeChecked] = useState(false)
@@ -327,7 +329,7 @@ export default function ContactForm({ contact, onSave, onCancel, initialName = '
                         Origem do Contato
                     </label>
                     <div className="flex flex-wrap gap-2">
-                        {ORIGEM_OPTIONS.map(opt => {
+                        {(leadSources && leadSources.length > 0 ? leadSources : ORIGEM_OPTIONS).map(opt => {
                             const selected = formData.origem === opt.value
                             return (
                                 <button
