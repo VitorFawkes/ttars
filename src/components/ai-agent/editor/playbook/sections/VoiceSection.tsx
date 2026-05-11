@@ -36,7 +36,7 @@ const RULE_PRESETS: Array<{ category: string; label: string; rule: string }> = [
   { category: 'Pontuação', label: 'Sem travessões', rule: 'Nunca usa travessão (—) como separador. Usa vírgula, ponto ou reticências.' },
   { category: 'Pontuação', label: 'Sem "??" duplo', rule: 'Nunca termina mensagem com "??" duplo ou triplo.' },
   // Conversa
-  { category: 'Conversa', label: 'Conecta resposta com contexto', rule: 'Quando o cliente acabou de dar uma info forte no último turno (data, destino, número de pessoas, orçamento, estilo), usa essa info como ponte natural na próxima mensagem — seja pergunta, comentário ou proposta. Ex (pergunta): cliente diz "janeiro de 2027" → "Pra esse janeiro de 2027 lá fora, vocês já viajaram pra fora da América do Sul?". Ex (proposta): cliente diz "100 convidados no Nordeste" → "Pra esse formato, vale a gente marcar uma conversa pra desenhar o desenho?". Não força conexão artificial — se a próxima fala é sobre tema diferente, fala solto.' },
+  { category: 'Conversa', label: 'Conecta resposta com contexto', rule: 'Conecta a próxima mensagem com a info que o cliente acabou de dar (data, destino, convidados, orçamento, estilo), usando como ponte natural — sem forçar conexão artificial.' },
 ]
 
 interface Props {
