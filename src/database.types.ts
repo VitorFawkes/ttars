@@ -559,9 +559,11 @@ export type Database = {
           id: string
           intent: string | null
           kind: string
+          literal_phrases: Json | null
           message_mode: string
           moment_key: string
           moment_label: string
+          must_cover: Json | null
           red_lines: string[]
           trigger_config: Json
           trigger_type: string
@@ -579,9 +581,11 @@ export type Database = {
           id?: string
           intent?: string | null
           kind?: string
+          literal_phrases?: Json | null
           message_mode?: string
           moment_key: string
           moment_label: string
+          must_cover?: Json | null
           red_lines?: string[]
           trigger_config?: Json
           trigger_type?: string
@@ -599,9 +603,11 @@ export type Database = {
           id?: string
           intent?: string | null
           kind?: string
+          literal_phrases?: Json | null
           message_mode?: string
           moment_key?: string
           moment_label?: string
+          must_cover?: Json | null
           red_lines?: string[]
           trigger_config?: Json
           trigger_type?: string
@@ -985,6 +991,7 @@ export type Database = {
           condition_value: Json
           created_at: string | null
           dimension: string
+          exclusion_group: string | null
           id: string
           label: string | null
           ordem: number | null
@@ -1000,6 +1007,7 @@ export type Database = {
           condition_value: Json
           created_at?: string | null
           dimension: string
+          exclusion_group?: string | null
           id?: string
           label?: string | null
           ordem?: number | null
@@ -1015,6 +1023,7 @@ export type Database = {
           condition_value?: Json
           created_at?: string | null
           dimension?: string
+          exclusion_group?: string | null
           id?: string
           label?: string | null
           ordem?: number | null
@@ -1060,8 +1069,10 @@ export type Database = {
           created_at: string
           crm_field_key: string | null
           detection_hint: string
+          detection_mode: string
           display_order: number
           enabled: boolean
+          evidence_keywords: string[]
           how_to_use: string | null
           id: string
           signal_key: string
@@ -1073,8 +1084,10 @@ export type Database = {
           created_at?: string
           crm_field_key?: string | null
           detection_hint: string
+          detection_mode?: string
           display_order?: number
           enabled?: boolean
+          evidence_keywords?: string[]
           how_to_use?: string | null
           id?: string
           signal_key: string
@@ -1086,8 +1099,10 @@ export type Database = {
           created_at?: string
           crm_field_key?: string | null
           detection_hint?: string
+          detection_mode?: string
           display_order?: number
           enabled?: boolean
+          evidence_keywords?: string[]
           how_to_use?: string | null
           id?: string
           signal_key?: string
@@ -1468,6 +1483,7 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           descricao: string | null
+          engine: string
           escalation_rules: Json | null
           execution_backend: string
           external_config: Json | null
@@ -1481,6 +1497,7 @@ export type Database = {
           intelligent_decisions: Json | null
           interaction_mode: string | null
           is_template_based: boolean | null
+          listening_config: Json
           max_tokens: number | null
           memory_config: Json | null
           modelo: string
@@ -1515,6 +1532,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           descricao?: string | null
+          engine?: string
           escalation_rules?: Json | null
           execution_backend?: string
           external_config?: Json | null
@@ -1528,6 +1546,7 @@ export type Database = {
           intelligent_decisions?: Json | null
           interaction_mode?: string | null
           is_template_based?: boolean | null
+          listening_config?: Json
           max_tokens?: number | null
           memory_config?: Json | null
           modelo?: string
@@ -1562,6 +1581,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           descricao?: string | null
+          engine?: string
           escalation_rules?: Json | null
           execution_backend?: string
           external_config?: Json | null
@@ -1575,6 +1595,7 @@ export type Database = {
           intelligent_decisions?: Json | null
           interaction_mode?: string | null
           is_template_based?: boolean | null
+          listening_config?: Json
           max_tokens?: number | null
           memory_config?: Json | null
           modelo?: string
@@ -3376,6 +3397,7 @@ export type Database = {
           action_config: Json | null
           action_type: string
           allowed_weekdays: number[] | null
+          applicable_card_types: string[] | null
           applicable_pipeline_ids: string[] | null
           applicable_stage_ids: string[] | null
           business_hours_end: number | null
@@ -3402,6 +3424,7 @@ export type Database = {
           action_config?: Json | null
           action_type: string
           allowed_weekdays?: number[] | null
+          applicable_card_types?: string[] | null
           applicable_pipeline_ids?: string[] | null
           applicable_stage_ids?: string[] | null
           business_hours_end?: number | null
@@ -3428,6 +3451,7 @@ export type Database = {
           action_config?: Json | null
           action_type?: string
           allowed_weekdays?: number[] | null
+          applicable_card_types?: string[] | null
           applicable_pipeline_ids?: string[] | null
           applicable_stage_ids?: string[] | null
           business_hours_end?: number | null
@@ -3652,15 +3676,19 @@ export type Database = {
         Row: {
           block_index: number
           branch_config: Json | null
+          card_action_config: Json | null
           categoria_concierge: string | null
           condicao_extra: Json | null
           created_at: string | null
           data_anchor: string | null
           day_offset: number | null
           due_offset: Json | null
+          echo_config: Json | null
           end_config: Json | null
           gera_atendimento_concierge: boolean | null
           id: string
+          media_config: Json | null
+          message_config: Json | null
           next_step_key: string | null
           org_id: string
           requires_previous_completed: boolean | null
@@ -3677,15 +3705,19 @@ export type Database = {
         Insert: {
           block_index?: number
           branch_config?: Json | null
+          card_action_config?: Json | null
           categoria_concierge?: string | null
           condicao_extra?: Json | null
           created_at?: string | null
           data_anchor?: string | null
           day_offset?: number | null
           due_offset?: Json | null
+          echo_config?: Json | null
           end_config?: Json | null
           gera_atendimento_concierge?: boolean | null
           id?: string
+          media_config?: Json | null
+          message_config?: Json | null
           next_step_key?: string | null
           org_id?: string
           requires_previous_completed?: boolean | null
@@ -3702,15 +3734,19 @@ export type Database = {
         Update: {
           block_index?: number
           branch_config?: Json | null
+          card_action_config?: Json | null
           categoria_concierge?: string | null
           condicao_extra?: Json | null
           created_at?: string | null
           data_anchor?: string | null
           day_offset?: number | null
           due_offset?: Json | null
+          echo_config?: Json | null
           end_config?: Json | null
           gera_atendimento_concierge?: boolean | null
           id?: string
+          media_config?: Json | null
+          message_config?: Json | null
           next_step_key?: string | null
           org_id?: string
           requires_previous_completed?: boolean | null
@@ -3752,6 +3788,7 @@ export type Database = {
           created_by: string | null
           day_pattern: Json | null
           description: string | null
+          editor_version: string
           execution_mode: string
           id: string
           is_active: boolean | null
@@ -3774,6 +3811,7 @@ export type Database = {
           created_by?: string | null
           day_pattern?: Json | null
           description?: string | null
+          editor_version?: string
           execution_mode?: string
           id?: string
           is_active?: boolean | null
@@ -3796,6 +3834,7 @@ export type Database = {
           created_by?: string | null
           day_pattern?: Json | null
           description?: string | null
+          editor_version?: string
           execution_mode?: string
           id?: string
           is_active?: boolean | null
@@ -4309,6 +4348,7 @@ export type Database = {
           archived_reason: string | null
           card_id: string
           created_at: string | null
+          data_cancelamento: string | null
           data_fim: string | null
           data_inicio: string | null
           description: string | null
@@ -4316,6 +4356,8 @@ export type Database = {
           fornecedor: string | null
           id: string
           is_ready: boolean | null
+          last_change_at: string | null
+          last_change_summary: string | null
           monde_venda_num: string | null
           notes: string | null
           observacoes: string | null
@@ -4331,6 +4373,7 @@ export type Database = {
           archived_reason?: string | null
           card_id: string
           created_at?: string | null
+          data_cancelamento?: string | null
           data_fim?: string | null
           data_inicio?: string | null
           description?: string | null
@@ -4338,6 +4381,8 @@ export type Database = {
           fornecedor?: string | null
           id?: string
           is_ready?: boolean | null
+          last_change_at?: string | null
+          last_change_summary?: string | null
           monde_venda_num?: string | null
           notes?: string | null
           observacoes?: string | null
@@ -4353,6 +4398,7 @@ export type Database = {
           archived_reason?: string | null
           card_id?: string
           created_at?: string | null
+          data_cancelamento?: string | null
           data_fim?: string | null
           data_inicio?: string | null
           description?: string | null
@@ -4360,6 +4406,8 @@ export type Database = {
           fornecedor?: string | null
           id?: string
           is_ready?: boolean | null
+          last_change_at?: string | null
+          last_change_summary?: string | null
           monde_venda_num?: string | null
           notes?: string | null
           observacoes?: string | null
@@ -5431,6 +5479,7 @@ export type Database = {
           receita: number | null
           receita_source: string | null
           sdr_owner_id: string | null
+          sdr_qualification_score_latest: Json | null
           skip_pos_venda: boolean
           stage_changed_at: string | null
           stage_entered_at: string | null
@@ -5447,6 +5496,7 @@ export type Database = {
           taxa_status: string | null
           taxa_valor: number | null
           titulo: string
+          titulo_locked_at: string | null
           updated_at: string | null
           updated_by: string | null
           utm_campaign: string | null
@@ -5535,6 +5585,7 @@ export type Database = {
           receita?: number | null
           receita_source?: string | null
           sdr_owner_id?: string | null
+          sdr_qualification_score_latest?: Json | null
           skip_pos_venda?: boolean
           stage_changed_at?: string | null
           stage_entered_at?: string | null
@@ -5551,6 +5602,7 @@ export type Database = {
           taxa_status?: string | null
           taxa_valor?: number | null
           titulo: string
+          titulo_locked_at?: string | null
           updated_at?: string | null
           updated_by?: string | null
           utm_campaign?: string | null
@@ -5639,6 +5691,7 @@ export type Database = {
           receita?: number | null
           receita_source?: string | null
           sdr_owner_id?: string | null
+          sdr_qualification_score_latest?: Json | null
           skip_pos_venda?: boolean
           stage_changed_at?: string | null
           stage_entered_at?: string | null
@@ -5655,6 +5708,7 @@ export type Database = {
           taxa_status?: string | null
           taxa_valor?: number | null
           titulo?: string
+          titulo_locked_at?: string | null
           updated_at?: string | null
           updated_by?: string | null
           utm_campaign?: string | null
@@ -9360,6 +9414,59 @@ export type Database = {
           },
         ]
       }
+      lead_sources: {
+        Row: {
+          ativa: boolean
+          color: string
+          created_at: string
+          icon: string
+          id: string
+          is_integration: boolean
+          is_system: boolean
+          label: string
+          ordem: number
+          org_id: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          ativa?: boolean
+          color?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          is_integration?: boolean
+          is_system?: boolean
+          label: string
+          ordem?: number
+          org_id?: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          ativa?: boolean
+          color?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          is_integration?: boolean
+          is_system?: boolean
+          label?: string
+          ordem?: number
+          org_id?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_sources_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mensagem_templates: {
         Row: {
           ativa: boolean | null
@@ -9650,7 +9757,9 @@ export type Database = {
           id: string
           matched_cards: number
           org_id: string
+          products_cancelled: number
           products_imported: number
+          products_reactivated: number
           status: string
           total_rows: number
           unmatched_vendas: number
@@ -9663,7 +9772,9 @@ export type Database = {
           id?: string
           matched_cards?: number
           org_id?: string
+          products_cancelled?: number
           products_imported?: number
+          products_reactivated?: number
           status?: string
           total_rows?: number
           unmatched_vendas?: number
@@ -9676,7 +9787,9 @@ export type Database = {
           id?: string
           matched_cards?: number
           org_id?: string
+          products_cancelled?: number
           products_imported?: number
+          products_reactivated?: number
           status?: string
           total_rows?: number
           unmatched_vendas?: number
@@ -10514,6 +10627,45 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "view_dashboard_funil"
             referencedColumns: ["stage_id"]
+          },
+        ]
+      }
+      pipeline_governance_settings: {
+        Row: {
+          created_at: string
+          data_overdue_severity: Database["public"]["Enums"]["governance_overdue_severity"]
+          org_id: string
+          pipeline_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data_overdue_severity?: Database["public"]["Enums"]["governance_overdue_severity"]
+          org_id: string
+          pipeline_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data_overdue_severity?: Database["public"]["Enums"]["governance_overdue_severity"]
+          org_id?: string
+          pipeline_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_governance_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pipeline_governance_settings_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: true
+            referencedRelation: "pipelines"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -13121,6 +13273,140 @@ export type Database = {
           },
         ]
       }
+      sdr_qualifications: {
+        Row: {
+          agent_id: string
+          card_id: string | null
+          contato_id: string | null
+          created_at: string
+          dados_lead: Json
+          finalized_at: string | null
+          id: string
+          notas: string | null
+          org_id: string
+          parent_qualification_id: string | null
+          rules_version: string | null
+          score_result: Json
+          scoring_inputs: Json
+          sdr_user_id: string
+          status: string
+          telefone_normalizado: string | null
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          agent_id: string
+          card_id?: string | null
+          contato_id?: string | null
+          created_at?: string
+          dados_lead?: Json
+          finalized_at?: string | null
+          id?: string
+          notas?: string | null
+          org_id?: string
+          parent_qualification_id?: string | null
+          rules_version?: string | null
+          score_result?: Json
+          scoring_inputs?: Json
+          sdr_user_id: string
+          status?: string
+          telefone_normalizado?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          agent_id?: string
+          card_id?: string | null
+          contato_id?: string | null
+          created_at?: string
+          dados_lead?: Json
+          finalized_at?: string | null
+          id?: string
+          notas?: string | null
+          org_id?: string
+          parent_qualification_id?: string | null
+          rules_version?: string | null
+          score_result?: Json
+          scoring_inputs?: Json
+          sdr_user_id?: string
+          status?: string
+          telefone_normalizado?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sdr_qualifications_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_qualifications_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_archived_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_qualifications_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_acoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_qualifications_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_contatos_summary"
+            referencedColumns: ["card_id"]
+          },
+          {
+            foreignKeyName: "sdr_qualifications_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_deleted_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_qualifications_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "contatos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_qualifications_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "v_contact_proposals"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "sdr_qualifications_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "view_deleted_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_qualifications_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_qualifications_parent_qualification_id_fkey"
+            columns: ["parent_qualification_id"]
+            isOneToOne: false
+            referencedRelation: "sdr_qualifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       section_field_config: {
         Row: {
           created_at: string | null
@@ -13857,7 +14143,7 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           data_conclusao: string | null
-          data_vencimento: string | null
+          data_vencimento: string
           deleted_at: string | null
           descricao: string | null
           external_id: string | null
@@ -13891,7 +14177,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           data_conclusao?: string | null
-          data_vencimento?: string | null
+          data_vencimento: string
           deleted_at?: string | null
           descricao?: string | null
           external_id?: string | null
@@ -13925,7 +14211,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           data_conclusao?: string | null
-          data_vencimento?: string | null
+          data_vencimento?: string
           deleted_at?: string | null
           descricao?: string | null
           external_id?: string | null
@@ -16460,6 +16746,7 @@ export type Database = {
           dias_pra_embarque: number | null
           dono_id: string | null
           hospedagem_ref: string | null
+          is_from_sub_card: boolean | null
           moeda: string | null
           notificou_cliente_em: string | null
           origem_descricao: string | null
@@ -16468,10 +16755,23 @@ export type Database = {
           outcome_por: string | null
           payload: Json | null
           pessoa_principal_id: string | null
+          pessoa_principal_nome: string | null
           pipeline_stage_id: string | null
           prioridade: string | null
           produto: Database["public"]["Enums"]["app_product"] | null
+          root_card_id: string | null
+          root_card_titulo: string | null
+          root_data_viagem_fim: string | null
+          root_data_viagem_inicio: string | null
+          root_is_critical: boolean | null
+          root_pessoa_principal_id: string | null
+          root_pessoa_principal_nome: string | null
+          root_pipeline_stage_id: string | null
+          root_produto: Database["public"]["Enums"]["app_product"] | null
+          root_valor_estimado: number | null
+          root_valor_final: number | null
           source: string | null
+          started_at: string | null
           status_apresentacao: string | null
           tarefa_criada_em: string | null
           tarefa_criada_por: string | null
@@ -16513,10 +16813,24 @@ export type Database = {
           },
           {
             foreignKeyName: "cards_etapa_funil_id_fkey"
+            columns: ["root_pipeline_stage_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cards_etapa_funil_id_fkey"
             columns: ["pipeline_stage_id"]
             isOneToOne: false
             referencedRelation: "pipeline_stages"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cards_etapa_funil_id_fkey"
+            columns: ["root_pipeline_stage_id"]
+            isOneToOne: false
+            referencedRelation: "view_dashboard_funil"
+            referencedColumns: ["stage_id"]
           },
           {
             foreignKeyName: "cards_etapa_funil_id_fkey"
@@ -16534,6 +16848,13 @@ export type Database = {
           },
           {
             foreignKeyName: "cards_pessoa_principal_id_fkey"
+            columns: ["root_pessoa_principal_id"]
+            isOneToOne: false
+            referencedRelation: "contatos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cards_pessoa_principal_id_fkey"
             columns: ["pessoa_principal_id"]
             isOneToOne: false
             referencedRelation: "v_contact_proposals"
@@ -16541,7 +16862,21 @@ export type Database = {
           },
           {
             foreignKeyName: "cards_pessoa_principal_id_fkey"
+            columns: ["root_pessoa_principal_id"]
+            isOneToOne: false
+            referencedRelation: "v_contact_proposals"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "cards_pessoa_principal_id_fkey"
             columns: ["pessoa_principal_id"]
+            isOneToOne: false
+            referencedRelation: "view_deleted_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cards_pessoa_principal_id_fkey"
+            columns: ["root_pessoa_principal_id"]
             isOneToOne: false
             referencedRelation: "view_deleted_contacts"
             referencedColumns: ["id"]
@@ -16803,6 +17138,7 @@ export type Database = {
           sdr_owner_email: string | null
           sdr_owner_id: string | null
           sdr_owner_nome: string | null
+          sdr_qualification_score_latest: Json | null
           skip_pos_venda: boolean | null
           status_comercial: string | null
           status_taxa: string | null
@@ -17233,7 +17569,12 @@ export type Database = {
         Returns: Json
       }
       agent_check_calendar: {
-        Args: { p_date_from?: string; p_date_to?: string; p_owner_id: string }
+        Args: {
+          p_date_from?: string
+          p_date_to?: string
+          p_org_id?: string
+          p_owner_id: string
+        }
         Returns: Json
       }
       agent_request_handoff: {
@@ -18724,6 +19065,7 @@ export type Database = {
         Args: { p_item_id: string; p_token: string }
         Returns: Json
       }
+      arquivar_financial_item: { Args: { p_item_id: string }; Returns: Json }
       ativar_pos_venda: {
         Args: { p_card_id: string; p_pos_owner_id: string }
         Returns: Json
@@ -18762,6 +19104,11 @@ export type Database = {
         Returns: Json
       }
       bulk_import_financial_items: { Args: { p_cards: Json }; Returns: Json }
+      bulk_soft_delete_tarefas: {
+        Args: { p_task_ids: string[] }
+        Returns: number
+      }
+      cadence_tarefas_duplicates_count: { Args: never; Returns: number }
       cadence_triggers_cross_org_count: { Args: never; Returns: number }
       calculate_agent_qualification_score: {
         Args: { p_agent_id: string; p_inputs: Json }
@@ -18788,6 +19135,7 @@ export type Database = {
         Args: { p_motivo?: string; p_sub_card_id: string }
         Returns: Json
       }
+      cards_hierarchy_violation_count: { Args: never; Returns: number }
       cards_sem_contato_whatsapp: {
         Args: { p_cutoff: string; p_limit?: number; p_produto: string }
         Returns: {
@@ -18846,6 +19194,14 @@ export type Database = {
         Returns: number
       }
       cleanup_net_http_response: { Args: never; Returns: undefined }
+      clone_agent: {
+        Args: {
+          p_new_engine?: string
+          p_new_name: string
+          p_source_agent_id: string
+        }
+        Returns: string
+      }
       comentar_item:
         | {
             Args: { p_item_id: string; p_texto: string; p_token: string }
@@ -18903,6 +19259,7 @@ export type Database = {
         Args: { p_sub_card_id: string }
         Returns: Json
       }
+      count_monde_zombie_items: { Args: never; Returns: number }
       create_user_and_card: {
         Args: { p_name: string; p_phone: string; p_pipeline_stage_id?: string }
         Returns: Json
@@ -18961,6 +19318,7 @@ export type Database = {
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
       delete_analytics_view: { Args: { p_id: string }; Returns: boolean }
       delete_user: { Args: { user_id: string }; Returns: undefined }
+      desativar_pos_venda: { Args: { p_card_id: string }; Returns: Json }
       describe_table: {
         Args: { p_table: string }
         Returns: {
@@ -18972,6 +19330,15 @@ export type Database = {
       dispatch_automacao_mensagem_processor: { Args: never; Returns: undefined }
       dispatch_automacao_trigger_temporal: { Args: never; Returns: undefined }
       dispatch_n8n_ai_extraction: { Args: never; Returns: undefined }
+      drain_ai_message_buffer: { Args: never; Returns: undefined }
+      duplicar_card_template: {
+        Args: {
+          p_dono_atual_id?: string
+          p_source_id: string
+          p_titulo_novo: string
+        }
+        Returns: Json
+      }
       emergency_stop_all_scheduled_jobs: { Args: never; Returns: number }
       enqueue_test_outbound: {
         Args: { p_agent_id: string; p_phone: string }
@@ -18999,6 +19366,31 @@ export type Database = {
       find_contact_by_whatsapp: {
         Args: { p_convo_id: string; p_phone: string }
         Returns: string
+      }
+      find_duplicate_tasks_tiered: {
+        Args: { p_scope?: string; p_user_id?: string }
+        Returns: {
+          card_id: string
+          card_produto: string
+          card_stage_nome: string
+          card_titulo: string
+          concluidas: boolean[]
+          contato_nome: string
+          created_ats: string[]
+          data_vencimentos: string[]
+          metadatas: Json[]
+          qtd: number
+          reason: string
+          responsavel_ids: string[]
+          similarity_score: number
+          statuses: string[]
+          task_ids: string[]
+          tier: string
+          tipo: string
+          titulo_exemplo: string
+          titulos: string[]
+          titulos_distintos: string[]
+        }[]
       }
       find_jsonb_diffs: {
         Args: { p_new: Json; p_old: Json; p_path: string }
@@ -19039,6 +19431,10 @@ export type Database = {
         Args: { p_sub_card_id: string }
         Returns: Json
       }
+      fn_auto_set_card_data_exata_da_viagem: {
+        Args: { p_card_id: string; p_end_date: string; p_start_date: string }
+        Returns: undefined
+      }
       fn_business_minutes_between: {
         Args: { p_a: string; p_b: string; p_org_id?: string }
         Returns: number
@@ -19062,6 +19458,7 @@ export type Database = {
       fn_roteamento_pos_venda_trips_diagnose: {
         Args: never
         Returns: {
+          c_bloqueado_em: string
           c_card_id: string
           c_detalhe: string
           c_motivo: string
@@ -19071,11 +19468,27 @@ export type Database = {
           c_viagem_inicio: string
         }[]
       }
+      format_titulo_card_whatsapp: {
+        Args: { p_nome: string; p_produto: string }
+        Returns: string
+      }
       fundir_cards: {
         Args: {
           p_card_destino: string
           p_card_origem: string
           p_motivo?: string
+        }
+        Returns: Json
+      }
+      fundir_cards_v2: {
+        Args: {
+          p_destino: string
+          p_migrate_tasks?: boolean
+          p_migrate_venda_monde?: boolean
+          p_motivo?: string
+          p_origens: string[]
+          p_task_ids?: string[]
+          p_venda_monde_numbers?: string[]
         }
         Returns: Json
       }
@@ -19816,6 +20229,10 @@ export type Database = {
         }
         Returns: Json
       }
+      resolve_whatsapp_target_for_card: {
+        Args: { p_card_id: string }
+        Returns: Json
+      }
       restart_pgnet_worker: { Args: never; Returns: undefined }
       revert_pos_venda_import_items: {
         Args: { p_item_ids: string[]; p_reverted_by: string }
@@ -19932,6 +20349,41 @@ export type Database = {
         Args: { p_job_name: string }
         Returns: boolean
       }
+      sdr_atualizar_pontuacao: {
+        Args: {
+          p_dados_lead?: Json
+          p_id: string
+          p_notas?: string
+          p_scoring_inputs?: Json
+        }
+        Returns: Json
+      }
+      sdr_compute_rules_version: {
+        Args: { p_agent_id: string }
+        Returns: string
+      }
+      sdr_descartar_pontuacao: { Args: { p_id: string }; Returns: Json }
+      sdr_finalizar_pontuacao: {
+        Args: { p_id: string; p_merge_strategy?: string; p_notas?: string }
+        Returns: Json
+      }
+      sdr_iniciar_pontuacao: {
+        Args: {
+          p_agent_id: string
+          p_card_id?: string
+          p_contato_id?: string
+          p_telefone?: string
+        }
+        Returns: Json
+      }
+      sdr_listar_pontuacoes: { Args: { p_filtros?: Json }; Returns: Json }
+      sdr_normalize_phone: { Args: { p_phone: string }; Returns: string }
+      sdr_obter_pontuacao: { Args: { p_id: string }; Returns: Json }
+      sdr_reabrir_pontuacao: { Args: { p_id: string }; Returns: Json }
+      sdr_vincular_a_card: {
+        Args: { p_card_id: string; p_qualification_id: string }
+        Returns: Json
+      }
       search_agent_knowledge_bases: {
         Args: {
           p_agent_id: string
@@ -20017,6 +20469,15 @@ export type Database = {
       show_trgm: { Args: { "": string }; Returns: string[] }
       smart_title_case: { Args: { name: string }; Returns: string }
       switch_organization: { Args: { p_org_id: string }; Returns: undefined }
+      transformar_em_sub_card: {
+        Args: {
+          p_card_id: string
+          p_category?: string
+          p_descricao?: string
+          p_parent_id: string
+        }
+        Returns: Json
+      }
       try_acquire_pipeline_lock: {
         Args: { p_contact_phone: string; p_ttl_seconds?: number }
         Returns: boolean
@@ -20105,6 +20566,8 @@ export type Database = {
         | "pos_venda"
         | "concierge"
         | "financeiro"
+        | "assistente"
+      governance_overdue_severity: "warn_only" | "block_move" | "block_all"
       proposal_item_type:
         | "hotel"
         | "flight"
@@ -20307,7 +20770,9 @@ export const Constants = {
         "pos_venda",
         "concierge",
         "financeiro",
+        "assistente",
       ],
+      governance_overdue_severity: ["warn_only", "block_move", "block_all"],
       proposal_item_type: [
         "hotel",
         "flight",
