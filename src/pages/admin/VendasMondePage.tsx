@@ -489,6 +489,7 @@ export default function VendasMondePage() {
     const [isMatching, setIsMatching] = useState(false)
     const [importProgress, setImportProgress] = useState({ current: 0, total: 0 })
     const [importResult, setImportResult] = useState<{ cardsUpdated: number; productsImported: number; productsCancelled: number; productsReactivated: number; errors: number; matched: MatchedCard[] } | null>(null)
+    const [cancelColumnInfo, setCancelColumnInfo] = useState<{ detectedName: string | null; rowsWithValue: number; sampleHeaders: string[] } | null>(null)
 
     const isAdmin = profile?.is_admin === true
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -564,6 +565,11 @@ export default function VendasMondePage() {
 
         setParsedRows(rows)
         setFileName(name)
+        setCancelColumnInfo({
+            detectedName: dataCancelamentoCol,
+            rowsWithValue: rows.filter(r => !!r.dataCancelamento).length,
+            sampleHeaders: headers,
+        })
         toast.success(`${rows.length} linhas carregadas`)
         await matchCards(rows)
     }, [])
@@ -821,6 +827,7 @@ export default function VendasMondePage() {
         setMatchResult(null)
         setImportResult(null)
         setImportProgress({ current: 0, total: 0 })
+        setCancelColumnInfo(null)
         if (fileInputRef.current) fileInputRef.current.value = ''
     }
 
@@ -928,6 +935,36 @@ export default function VendasMondePage() {
                                         Trocar arquivo
                                     </Button>
                                 </div>
+
+                                {/* Cancellation column status */}
+                                {cancelColumnInfo && (
+                                    <div className={cn(
+                                        "rounded-xl border px-4 py-2.5 text-xs",
+                                        cancelColumnInfo.detectedName === null
+                                            ? "bg-slate-50 border-slate-200 text-slate-600"
+                                            : cancelColumnInfo.rowsWithValue > 0
+                                                ? "bg-amber-50 border-amber-200 text-amber-800"
+                                                : "bg-emerald-50 border-emerald-200 text-emerald-800"
+                                    )}>
+                                        {cancelColumnInfo.detectedName === null ? (
+                                            <div className="flex flex-col gap-1">
+                                                <span className="font-medium">⊘ Coluna "Data Cancelamento" não foi encontrada no arquivo</span>
+                                                <span className="text-[11px] text-slate-500">
+                                                    Cabeçalhos detectados: {cancelColumnInfo.sampleHeaders.slice(0, 12).join(' · ')}
+                                                    {cancelColumnInfo.sampleHeaders.length > 12 && ` … (+${cancelColumnInfo.sampleHeaders.length - 12})`}
+                                                </span>
+                                            </div>
+                                        ) : cancelColumnInfo.rowsWithValue > 0 ? (
+                                            <span className="font-medium">
+                                                ⊘ Coluna "{cancelColumnInfo.detectedName}" detectada · {cancelColumnInfo.rowsWithValue} linha{cancelColumnInfo.rowsWithValue !== 1 ? 's' : ''} com cancelamento
+                                            </span>
+                                        ) : (
+                                            <span className="font-medium">
+                                                ✓ Coluna "{cancelColumnInfo.detectedName}" detectada · nenhum produto cancelado neste arquivo
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
 
                                 {isMatching ? (
                                     <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-12 flex flex-col items-center">
