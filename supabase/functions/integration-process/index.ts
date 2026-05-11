@@ -1741,12 +1741,22 @@ Deno.serve(async (req) => {
                             ? parsedCreateDate.toISOString()
                             : new Date().toISOString();
 
-                        // H3-fix: org_id obrigatório — webhook não tem JWT, requesting_org_id() retorna NULL
-                        const orgIdForCard = getIntegrationOrgId(event.integration_id);
-                        if (!orgIdForCard) {
-                            throw new Error(`Integration Config Error: integrations.org_id não configurado para ${event.integration_id} — card não pode ser criado sem org destino`);
+                        // org_id do card vem do PIPELINE (fonte da verdade) — nao da integracao.
+                        // integrations.org_id pode estar desalinhado quando uma integracao
+                        // (ex: AC) mapeia stages de multiplos workspaces. O pipeline_id ja
+                        // foi resolvido em resolveTopology() via integration_stage_map.
+                        // Trigger SQL (20260512f) tambem normaliza em qualquer INSERT/UPDATE,
+                        // mas setar aqui evita o RAISE NOTICE e mantem o erro claro se
+                        // o pipeline nao tiver org.
+                        const { data: pipelineRow, error: pipelineErr } = await supabase
+                            .from('pipelines')
+                            .select('org_id')
+                            .eq('id', cardPayload.pipeline_id)
+                            .single();
+                        if (pipelineErr || !pipelineRow?.org_id) {
+                            throw new Error(`Pipeline ${cardPayload.pipeline_id} sem org_id ao criar card via integration ${event.integration_id}: ${pipelineErr?.message ?? 'pipeline.org_id NULL'}`);
                         }
-                        cardPayload.org_id = orgIdForCard;
+                        cardPayload.org_id = pipelineRow.org_id;
 
                         const { error: iErr } = await supabase
                             .from('cards')

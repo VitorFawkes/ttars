@@ -811,3 +811,6 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-11T19:06:20Z | supabase/migrations/20260511h_view_cards_acoes_security_invoker.sql | applied_to_prod
 2026-05-11T19:11:41Z | supabase/migrations/20260512c_dispatchers_block_cross_workspace.sql | applied_to_prod
 2026-05-11T19:28:47Z | supabase/migrations/20260512i_drain_buffer_route_by_engine.sql | applied_to_prod
+2026-05-11T19:36:44Z | supabase/migrations/20260512d_dispatchers_strict_org_by_pipeline.sql | applied_to_prod
+2026-05-11T19:38:02Z | supabase/migrations/20260512f_cards_force_org_id_from_pipeline.sql | applied_to_prod
+2026-05-11T19:38:46Z | supabase/migrations/20260512e_backfill_cards_org_id_from_pipeline.sql | applied_to_prod
