@@ -104,6 +104,43 @@ export const INBOUND_MATCH_MODE_OPTIONS: Array<{ value: InboundMatchMode; label:
 ]
 
 /**
+ * Tipos de card que automações podem filtrar via `applicable_card_types`.
+ * Alinhado com cards.card_type CHECK constraint:
+ *   ('standard','sub_card','group_child','future_opportunity')
+ *
+ * Mantém em sincronia com cadence_event_triggers.applicable_card_types
+ * (migration 20260511e).
+ */
+export type CardType = 'standard' | 'sub_card' | 'group_child' | 'future_opportunity'
+
+export const CARD_TYPE_OPTIONS: Array<{ value: CardType; label: string; description?: string }> = [
+  { value: 'standard', label: 'Padrão', description: 'Card normal de venda' },
+  { value: 'sub_card', label: 'Sub-card', description: 'Pedido de mudança ou adição feito no pós-venda' },
+  { value: 'group_child', label: 'Filho de grupo', description: 'Card filho dentro de um agrupador (Weddings)' },
+  { value: 'future_opportunity', label: 'Oportunidade futura', description: 'Oportunidade ganha para o futuro (won_future)' },
+]
+
+export const CARD_TYPE_LABELS: Record<CardType, string> = Object.fromEntries(
+  CARD_TYPE_OPTIONS.map((o) => [o.value, o.label]),
+) as Record<CardType, string>
+
+/**
+ * Gatilhos onde o filtro de card_type faz sentido. Em gatilhos baseados em
+ * data (time_offset_from_date) ou em mensagem inbound, o filtro também é
+ * aplicado se preenchido — mas pode ser menos útil no dia-a-dia.
+ */
+export const EVENTS_SUPPORTING_CARD_TYPE_FILTER: Set<EventType> = new Set([
+  'card_created',
+  'stage_enter',
+  'macro_stage_enter',
+  'field_changed',
+  'tag_added',
+  'tag_removed',
+  'time_in_stage',
+  'time_offset_from_date',
+])
+
+/**
  * Whitelist de campos do card que podem disparar `field_changed`.
  * Mantém em sincronia com a whitelist do DB trigger
  * `process_cadence_entry_on_card_field_change`.

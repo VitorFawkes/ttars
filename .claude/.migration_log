@@ -794,3 +794,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-11T16:28:53Z | supabase/migrations/20260511d_fix_valor_final_pos_arquivamento.sql | applied_to_prod
 2026-05-11T16:37:35Z | supabase/migrations/20260511d_card_echo_titulo_padrao_trigger.sql | applied_to_prod
 2026-05-11T16:38:58Z | supabase/migrations/20260511e_card_titulo_lock_iar.sql | applied_to_prod
+2026-05-11T16:40:51Z | supabase/migrations/20260511e_cadence_triggers_applicable_card_types.sql | applied_to_prod
+2026-05-11T16:41:16Z | supabase/migrations/20260511f_cadence_card_type_filter_queue_layer.sql | applied_to_prod

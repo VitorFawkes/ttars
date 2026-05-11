@@ -609,6 +609,32 @@ async function processEntryQueue(supabaseClient: SupabaseClient) {
                 continue;
             }
 
+            // Re-validar applicable_card_types (defesa em profundidade: card_type
+            // pode mudar entre enqueue e execução — sub-card pode virar standard
+            // via converter_sub_card_em_principal, por exemplo).
+            const applicableCardTypes: string[] | null = trigger.applicable_card_types ?? null;
+            if (applicableCardTypes && applicableCardTypes.length > 0) {
+                const { data: cardRow } = await supabaseClient
+                    .from("cards")
+                    .select("card_type")
+                    .eq("id", item.card_id)
+                    .single();
+                const currentType = cardRow?.card_type ?? null;
+                if (!currentType || !applicableCardTypes.includes(currentType)) {
+                    console.log(`[CadenceEngine] Skipping entry item ${item.id}: card_type mismatch (current=${currentType}, allowed=${applicableCardTypes.join(',')})`);
+                    await supabaseClient
+                        .from("cadence_entry_queue")
+                        .update({
+                            status: "cancelled",
+                            processed_at: new Date().toISOString(),
+                            error_message: `card_type_filter_mismatch (card_type=${currentType ?? 'NULL'}, applicable=${applicableCardTypes.join(',')})`
+                        })
+                        .eq("id", item.id);
+                    results.push({ id: item.id, success: true, skipped: true, reason: "card_type_mismatch" });
+                    continue;
+                }
+            }
+
             let result;
             if (trigger.action_type === 'create_task') {
                 result = await executeCreateTaskAction(supabaseClient, item.card_id, trigger, item.org_id);

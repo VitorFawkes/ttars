@@ -28,7 +28,8 @@ import {
   RECIPES, RECIPE_CATEGORIES, isProactiveEvent,
   ACTION_TYPE_LABELS, EVENT_TYPE_LABELS, UPDATE_FIELD_OPTIONS, FIELD_CHANGED_OPTIONS,
   INBOUND_MATCH_MODE_OPTIONS, TIME_OFFSET_SOURCE_OPTIONS,
-  type ActionType, type EventType, type InboundMatchMode, type RecipePreset, type TimeOffsetSource,
+  CARD_TYPE_OPTIONS, CARD_TYPE_LABELS, EVENTS_SUPPORTING_CARD_TYPE_FILTER,
+  type ActionType, type CardType, type EventType, type InboundMatchMode, type RecipePreset, type TimeOffsetSource,
 } from '@/lib/automation-recipes'
 import { usePipelinePhases } from '@/hooks/usePipelinePhases'
 
@@ -39,6 +40,8 @@ interface FormState {
   event_type: EventType
   event_config: Record<string, unknown>
   stage_ids: string[]
+  /** Tipos de card aos quais a automação se aplica. Vazio = todos. */
+  card_types: CardType[]
   action_type: ActionType
   // send_message
   template_id: string | null
@@ -85,6 +88,7 @@ const DEFAULT_FORM: FormState = {
   event_type: 'card_created',
   event_config: {},
   stage_ids: [],
+  card_types: [],
   action_type: 'send_message',
   template_id: null,
   message_body: '',
@@ -1177,6 +1181,7 @@ function EventConfigEditor({
   const needsInboundPattern = form.event_type === 'inbound_message_pattern'
   const needsTimeOffset = form.event_type === 'time_offset_from_date'
   const needsTimeInStage = form.event_type === 'time_in_stage'
+  const supportsCardTypeFilter = EVENTS_SUPPORTING_CARD_TYPE_FILTER.has(form.event_type)
 
   const selectedField = needsField
     ? FIELD_CHANGED_OPTIONS.find((f) => f.key === (form.event_config.field as string))
@@ -1227,6 +1232,45 @@ function EventConfigEditor({
               )
             })}
           </div>
+        </div>
+      )}
+
+      {supportsCardTypeFilter && (
+        <div>
+          <Label>Aplicar a quais tipos de card?</Label>
+          <div className="flex flex-wrap gap-2">
+            {CARD_TYPE_OPTIONS.map((opt) => {
+              const active = form.card_types.includes(opt.value)
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() =>
+                    setForm({
+                      card_types: active
+                        ? form.card_types.filter((x) => x !== opt.value)
+                        : [...form.card_types, opt.value],
+                    })
+                  }
+                  className={cn(
+                    'px-3 py-1.5 text-sm rounded-md border',
+                    active
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white text-slate-600 border-slate-200'
+                  )}
+                  title={opt.description}
+                >
+                  {opt.label}
+                </button>
+              )
+            })}
+          </div>
+          <p className="text-xs text-slate-500 mt-1">
+            Deixe vazio para aplicar a qualquer tipo de card.
+            {form.card_types.includes('sub_card') && form.card_types.length === 1 && (
+              <> Sub-cards fundem no card pai ao sair da 1ª etapa de pós-venda, então a janela de execução é curta.</>
+            )}
+          </p>
         </div>
       )}
 
@@ -1532,6 +1576,7 @@ export default function AutomationBuilderPage() {
         event_type: data.event_type,
         event_config: evCfg,
         stage_ids: data.applicable_stage_ids || [],
+        card_types: Array.isArray(data.applicable_card_types) ? data.applicable_card_types : [],
         action_type: data.action_type,
         template_id: cfg.template_id || null,
         message_body: cfg.corpo || '',
@@ -1750,6 +1795,7 @@ export default function AutomationBuilderPage() {
         task_configs: taskConfigs,
         target_template_id: targetTemplateId,
         applicable_stage_ids: form.stage_ids.length > 0 ? form.stage_ids : null,
+        applicable_card_types: form.card_types.length > 0 ? form.card_types : null,
         delay_minutes: form.delay_minutes,
         delay_type: form.delay_type,
         is_active: form.is_active,
@@ -1837,6 +1883,11 @@ export default function AutomationBuilderPage() {
               <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Quando</p>
               <p className="text-slate-700">{eventLabel}</p>
               {stageNames && <p className="text-xs text-slate-500 mt-1">Etapas: {stageNames}</p>}
+              {form.card_types.length > 0 && (
+                <p className="text-xs text-slate-500 mt-1">
+                  Tipos de card: {form.card_types.map((t) => CARD_TYPE_LABELS[t]).join(', ')}
+                </p>
+              )}
               {typeof form.event_config.dias === 'number' && (
                 <p className="text-xs text-slate-500 mt-1">Dias: {form.event_config.dias as number}</p>
               )}
