@@ -106,6 +106,12 @@ export const BOUNDARIES_LIBRARY: BoundaryItem[] = [
     description: 'Não embute fato na pergunta ("avós moram lá?" presume avós). Pergunta aberto: "qual parte da família é de lá?". Deixa o lead contar.',
     category: 'comunicacao',
   },
+  {
+    id: 'never_validate_factual_answer',
+    label: 'Não bajular resposta factual',
+    description: 'Quando o lead responde uma pergunta direta (data, destino, número de convidados, orçamento), vai pra próxima pergunta sem abrir com "Bom saber que...", "Que bom saber que...", "Boa, então X já está definido", "Legal, vocês querem Y". Validação seca antes de pergunta soa bajulador.',
+    category: 'comunicacao',
+  },
   // Comportamento
   {
     id: 'never_ai_mention',

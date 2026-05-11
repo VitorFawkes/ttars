@@ -172,6 +172,8 @@ Deno.serve(async (req) => {
             date_from?: string;    // YYYY-MM-DD format
             date_to?: string;      // YYYY-MM-DD format
             date_field?: 'cdate' | 'mdate';  // cdate = created, mdate = modified (default)
+            dry_run?: boolean;     // if true, fetch only and return list, no inserts/processing
+            status_filter?: number[]; // optional AC status filter (e.g. [0] for open only)
         } = {};
         try {
             body = await req.json();
@@ -188,18 +190,21 @@ Deno.serve(async (req) => {
         const dateFrom = body.date_from;
         const dateTo = body.date_to;
         const dateField = body.date_field || 'mdate';
+        const dryRun = body.dry_run === true;
+        const statusFilter = Array.isArray(body.status_filter) ? body.status_filter : null;
 
-        // Get AC credentials
-        const { data: settings } = await supabase
-            .from('integration_settings')
-            .select('key, value')
-            .in('key', ['ACTIVECAMPAIGN_API_URL', 'ACTIVECAMPAIGN_API_KEY']);
+        // Get AC credentials. API_KEY may be encrypted (column value='[ENCRYPTED]'),
+        // so we resolve via get_outbound_setting RPC which decrypts when is_encrypted=true.
+        const [{ data: urlRpc }, { data: keyRpc }] = await Promise.all([
+            supabase.rpc('get_outbound_setting', { p_key: 'ACTIVECAMPAIGN_API_URL' }),
+            supabase.rpc('get_outbound_setting', { p_key: 'ACTIVECAMPAIGN_API_KEY' })
+        ]);
 
-        const AC_API_URL = settings?.find((s: { key: string; value: string }) => s.key === 'ACTIVECAMPAIGN_API_URL')?.value;
-        const AC_API_KEY = settings?.find((s: { key: string; value: string }) => s.key === 'ACTIVECAMPAIGN_API_KEY')?.value;
+        const AC_API_URL = urlRpc || undefined;
+        const AC_API_KEY = keyRpc || undefined;
 
-        if (!AC_API_URL || !AC_API_KEY) {
-            throw new Error('AC credentials not found in integration_settings');
+        if (!AC_API_URL || !AC_API_KEY || AC_API_KEY === '[ENCRYPTED]') {
+            throw new Error('AC credentials not resolvable (check get_outbound_setting RPC and integration_settings)');
         }
 
         // Get integration ID - use maybeSingle to avoid throwing
@@ -244,6 +249,43 @@ Deno.serve(async (req) => {
             });
         }
 
+        // Apply status filter if provided (e.g. status_filter=[0] keeps only open deals)
+        const filteredDeals = statusFilter
+            ? deals.filter(d => statusFilter.includes(Number(d.status)))
+            : deals;
+
+        // dry_run: return summary list without inserting events or processing
+        if (dryRun) {
+            const summary = filteredDeals.map(d => ({
+                id: d.id,
+                stage_id: d.stage,
+                status: d.status,
+                title: d.title,
+                owner: d.owner,
+                value_cents: d.value,
+                cdate: d.cdate,
+                mdate: d.mdate,
+                contact_id: d.contact?.id,
+                contact_email: d.contact?.email,
+                contact_phone: d.contact?.phone,
+                contact_name: d.contact?.firstName ? `${d.contact.firstName} ${d.contact.lastName || ''}`.trim() : null
+            }));
+            return new Response(JSON.stringify({
+                dry_run: true,
+                pipeline_id: pipelineId,
+                deals_fetched: deals.length,
+                deals_after_filter: filteredDeals.length,
+                status_filter: statusFilter,
+                deals: summary
+            }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: 200,
+            });
+        }
+
+        // Replace original deals reference with filtered list for downstream processing
+        const dealsToProcess = filteredDeals;
+
         // Process in batches of 50 to avoid large IN() query issues
         const BATCH_SIZE = 50;
         let totalInserted = 0;
@@ -251,8 +293,8 @@ Deno.serve(async (req) => {
         let lastError = null;
         const allInsertedIds: string[] = [];
 
-        for (let i = 0; i < deals.length; i += BATCH_SIZE) {
-            const batchDeals = deals.slice(i, i + BATCH_SIZE);
+        for (let i = 0; i < dealsToProcess.length; i += BATCH_SIZE) {
+            const batchDeals = dealsToProcess.slice(i, i + BATCH_SIZE);
 
             // Build idempotency keys for this batch
             // If force_update is true, append timestamp to make it unique

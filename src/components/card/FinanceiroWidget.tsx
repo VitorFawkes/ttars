@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { useProductRequirements } from '@/hooks/useProductRequirements'
 import { useAutoCalcTripDate } from '@/hooks/useAutoCalcTripDate'
 import { useFinancialItemPassengers } from '@/hooks/useFinancialItemPassengers'
+import { useDeleteFinancialItem } from '@/hooks/useDeleteFinancialItem'
 import type { FinancialItemPassenger } from '@/hooks/useFinancialItemPassengers'
 import type { Database } from '@/database.types'
 
@@ -80,6 +81,18 @@ export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCol
 
     // Auto-calcula Data Viagem c/ Welcome a partir das datas dos produtos
     useAutoCalcTripDate(cardId)
+
+    const deleteItem = useDeleteFinancialItem(cardId)
+
+    const handleDeleteItem = (item: FinancialItem) => {
+        const label = item.fornecedor || item.description || 'sem nome'
+        const isReadyWarning = item.is_ready
+            ? 'Esse produto está marcado como pronto. '
+            : ''
+        if (confirm(`${isReadyWarning}Apagar o produto "${label}"? Pode recuperar depois se precisar.`)) {
+            deleteItem.mutate(item.id)
+        }
+    }
 
     const { data: items = [], isLoading } = useQuery({
         queryKey: ['financial-items', cardId],
@@ -180,9 +193,9 @@ export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCol
                     <>
                         {items.map((item) => (
                             isPostSales ? (
-                                <ProductItemOperational key={item.id} item={item} cardId={cardId} />
+                                <ProductItemOperational key={item.id} item={item} cardId={cardId} onDelete={() => handleDeleteItem(item)} />
                             ) : (
-                                <ProductItemReadOnly key={item.id} item={item} cardId={cardId} phaseSlug={phaseSlug ?? undefined} />
+                                <ProductItemReadOnly key={item.id} item={item} cardId={cardId} phaseSlug={phaseSlug ?? undefined} onDelete={() => handleDeleteItem(item)} />
                             )
                         ))}
 
@@ -223,7 +236,7 @@ function formatDateBR(iso: string | null) {
     return `${d}/${m}/${y}`
 }
 
-function ProductItemReadOnly({ item, cardId, phaseSlug }: { item: FinancialItem; cardId: string; phaseSlug?: string }) {
+function ProductItemReadOnly({ item, cardId, phaseSlug, onDelete }: { item: FinancialItem; cardId: string; phaseSlug?: string; onDelete?: () => void }) {
     const sv = Number(item.sale_value) || 0
     const sc = Number(item.supplier_cost) || 0
     const itemReceita = sv - sc
@@ -234,16 +247,27 @@ function ProductItemReadOnly({ item, cardId, phaseSlug }: { item: FinancialItem;
     const isPlannerPhase = phaseSlug === 'planner'
 
     return (
-        <div className="px-4 py-2.5">
+        <div className="px-4 py-2.5 group">
             <div className="mb-1">
                 <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-900 truncate">
                         {item.fornecedor || item.description || 'Produto'}
                     </span>
-                    <span className="text-[10px] text-gray-400 shrink-0 flex items-center gap-0.5">
-                        <TrendingUp className="h-3 w-3" />
-                        {itemPct.toFixed(0)}%
-                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
+                            <TrendingUp className="h-3 w-3" />
+                            {itemPct.toFixed(0)}%
+                        </span>
+                        {onDelete && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onDelete() }}
+                                className="p-1 rounded text-gray-300 hover:bg-red-50 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Apagar produto"
+                            >
+                                <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                        )}
+                    </div>
                 </div>
                 {item.fornecedor && item.description && (
                     <span className="text-[11px] text-gray-400">{item.description}</span>
@@ -310,7 +334,7 @@ function ExtraFieldsRow({ item, className }: { item: FinancialItem; className?: 
 // Operational Item (Pós-Vendas)
 // ═══════════════════════════════════════════════════════════
 
-function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId: string }) {
+function ProductItemOperational({ item, cardId, onDelete }: { item: FinancialItem; cardId: string; onDelete?: () => void }) {
     const queryClient = useQueryClient()
     const [isOpen, setIsOpen] = useState(false)
     const [editingNotes, setEditingNotes] = useState(false)
@@ -366,7 +390,7 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
 
     return (
         <div className={cn(
-            "border-l-2 transition-colors",
+            "border-l-2 transition-colors group",
             hasChangeAlert ? "border-l-orange-500 bg-orange-50/40"
                 : item.is_ready ? "border-l-emerald-400 bg-emerald-50/30"
                 : "border-l-amber-400"
@@ -460,6 +484,15 @@ function ProductItemOperational({ item, cardId }: { item: FinancialItem; cardId:
                             <Users className="h-2.5 w-2.5" />
                             {paxProgress.completed}/{paxProgress.total}
                         </span>
+                    )}
+                    {onDelete && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onDelete() }}
+                            className="p-1 rounded text-gray-300 hover:bg-red-50 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                            title="Apagar produto"
+                        >
+                            <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                     )}
                 </div>
             </div>

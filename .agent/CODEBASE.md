@@ -5,20 +5,20 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-05-08
+> **Last Updated:** 2026-05-11
 > **Trigger:** ALWAYS ON
-> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
-> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
-> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
-> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
-> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
-> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
-> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
-> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
-> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
-> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
-> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
-> **Stats:** 191 tabelas | 154 paginas | 266 hooks | 22 views | 729 components
+> **Stats:** 191 tabelas | 154 paginas | 267 hooks | 22 views | 729 components
+> **Stats:** 191 tabelas | 154 paginas | 267 hooks | 22 views | 729 components
+> **Stats:** 191 tabelas | 154 paginas | 267 hooks | 22 views | 729 components
+> **Stats:** 191 tabelas | 154 paginas | 267 hooks | 22 views | 729 components
+> **Stats:** 191 tabelas | 154 paginas | 267 hooks | 22 views | 729 components
+> **Stats:** 191 tabelas | 154 paginas | 267 hooks | 22 views | 729 components
+> **Stats:** 191 tabelas | 154 paginas | 267 hooks | 22 views | 729 components
+> **Stats:** 191 tabelas | 154 paginas | 267 hooks | 22 views | 729 components
+> **Stats:** 191 tabelas | 154 paginas | 267 hooks | 22 views | 729 components
+> **Stats:** 191 tabelas | 154 paginas | 267 hooks | 22 views | 729 components
+> **Stats:** 191 tabelas | 154 paginas | 267 hooks | 22 views | 729 components
+> **Stats:** 191 tabelas | 154 paginas | 267 hooks | 22 views | 729 components
 
 ---
 
@@ -180,7 +180,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **266 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **267 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -222,6 +222,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAnalyticsDrillDown()` | `useAnalyticsDrillDown.ts` |
 | `useAnalyticsV2Permissions()` | `useAnalyticsV2Permissions.ts` |
 | `useAnalyticsV2Rpcs()` | `useAnalyticsV2Rpcs.ts` |
+| `useDeleteFinancialItem()` | `useDeleteFinancialItem.ts` |
 | `useFinancialData()` | `useFinancialData.ts` |
 | `useFinancialItemPassengers()` | `useFinancialItemPassengers.ts` |
 | `useFunnelByOwner()` | `useFunnelByOwner.ts` |

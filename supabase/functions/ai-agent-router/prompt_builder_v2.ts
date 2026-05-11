@@ -72,6 +72,7 @@ const BOUNDARIES_LIBRARY: Record<string, string> = {
   never_repeat_info: "Se o lead já mencionou algo (nome, prêmio, viagem anterior, dado da família, etc), NÃO conte de novo como novidade. Apenas dê continuidade ('legal!' / 'que bom') ou pule esse trecho do texto âncora se aplicável",
   never_repeat_words: "Mensagens seguidas devem variar palavras e expressões. Não começa duas com 'Que ótimo!', não usa a mesma palavra de impacto em mensagens consecutivas, não repete estruturas",
   never_ask_known_data: "Se já consta nos dados do card (form_data, ai_resumo, ai_contexto), NÃO pergunte de novo. Use o que está registrado. Pergunte só o que ainda não foi coletado",
+  never_validate_factual_answer: "Não 'valide' factualmente cada resposta do lead antes de fazer a próxima pergunta. PROIBIDO abrir resposta com 'Bom saber que...', 'Que bom saber que...', 'Boa, então X já está definido', 'Legal, vocês querem Y', 'Que ótimo que...' quando esse texto está apenas espelhando um FATO que o lead acabou de informar. Soa bajulador e falso — em classe AB queima credibilidade. Regra prática: SE a sua frase de abertura sumir e a pergunta continuar fazendo sentido, então a abertura era bajulação — corte. Reconhecer EMOÇÃO ou OBSERVAÇÃO espontânea do lead ('nossa, que legal!', 'minha amiga casou com vocês') continua OK — isso é escuta. Comentar FATO que o lead acabou de dar como resposta direta não é escuta, é eco bajulador.",
 };
 
 // ---------------------------------------------------------------------------
@@ -462,13 +463,9 @@ function deriveSlotQuestion(slot: any): string | null {
 /** Formata um slot do agent_check_calendar pra texto natural: "quarta 30/04 às 14h". */
 function formatSlotLabel(slot: { date: string; time: string; weekday: string }): string {
   const wd = WEEKDAY_PT[slot.weekday] ?? slot.weekday.toLowerCase();
-  const [yyyy, mm, dd] = slot.date.split('-');
-  // "14:00" → "14h", "14:30" → "14:30"
+  const [, mm, dd] = slot.date.split('-');
   const t = slot.time.endsWith(':00') ? `${slot.time.slice(0, -3)}h` : slot.time;
-  // Incluir ANO completo (08/05/2026 fix): sem ano, LLM inferia errado ao
-  // gerar data_vencimento ISO em create_task (escolhia 2025 em vez de 2026).
-  // Com ano explícito no contexto, gera data correta.
-  return `${wd} ${dd}/${mm}/${yyyy} às ${t}`;
+  return `${wd} ${dd}/${mm} às ${t}`;
 }
 
 /**
@@ -574,10 +571,8 @@ function buildSubstitutions(input: BuildPromptV2Input): Record<string, string> {
     const daySlots = byDate.get(date)!;
     if (daySlots.length === 0) continue;
     const wd = WEEKDAY_PT[daySlots[0].weekday] ?? daySlots[0].weekday.toLowerCase();
-    const [yyyy, mm, dd] = date.split('-');
-    // Inclui ANO no label (08/05 fix): sem ano LLM inferia errado em
-    // create_task.data_vencimento (escolhia 2025 em vez de 2026).
-    const dayLabel = `${wd} ${dd}/${mm}/${yyyy}`;
+    const [, mm, dd] = date.split('-');
+    const dayLabel = `${wd} ${dd}/${mm}`;
     const times = daySlots.map((s) => (s.time.endsWith(':00') ? `${s.time.slice(0, -3)}h` : s.time));
     let timeStr: string;
     if (times.length === 1) timeStr = `às ${times[0]}`;
@@ -1152,6 +1147,16 @@ function renderMeetingBookingBlock(input: BuildPromptV2Input): string {
 
   const lines: string[] = [];
   lines.push(`Agendamento automático ATIVO. Quando o lead estiver qualificado e pronto pra falar com ${responsavelLabel}, sua missão é fechar dia + horário e registrar a reunião.`);
+  lines.push('');
+
+  // Contexto temporal — referência interna pra LLM gerar data_vencimento ISO
+  // com ano corrente. NÃO repassa pro casal; serve só pra create_task não
+  // chutar 2025 quando o slot vem como "12/05" (sem ano explícito).
+  const nowSp = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  const yyyyNow = nowSp.getFullYear();
+  const mmNow = String(nowSp.getMonth() + 1).padStart(2, '0');
+  const ddNow = String(nowSp.getDate()).padStart(2, '0');
+  lines.push(`**Contexto temporal (uso interno, não mencione na conversa)**: hoje é ${ddNow}/${mmNow}/${yyyyNow}. Ao gerar data_vencimento ISO em create_task, sempre use o ano ${yyyyNow} (ou ${yyyyNow + 1} se o slot for em janeiro/fevereiro depois de novembro). Nunca infira ano sozinho.`);
   lines.push('');
 
   // ---- Disponibilidade pré-carregada ----

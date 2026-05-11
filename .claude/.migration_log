@@ -785,4 +785,6 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-08T22:16:36Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260508d_agent_name_placeholder.sql | applied_to_prod
 2026-05-08T22:17:54Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260508d_agent_name_placeholder.sql | applied_to_prod
 2026-05-08T22:18:34Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260508d_agent_name_placeholder.sql | applied_to_prod
+2026-05-09T15:30:29Z | supabase/migrations/20260509a_silent_signals_evidence.sql | applied_to_prod
 2026-05-11T12:58:54Z | supabase/migrations/20260511a_concierge_trigger_skip_rpc_origin.sql | applied_to_prod
+2026-05-11T13:45:53Z | supabase/migrations/20260511a_arquivar_financial_item.sql | applied_to_prod
