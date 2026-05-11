@@ -9,37 +9,28 @@
  *   - Painel inferior: stream de eventos das últimas 2h (collapse)
  */
 import React, { useState, useMemo } from 'react'
-import { X, Activity, CheckCircle, XCircle, AlertCircle, Clock, Loader2 } from 'lucide-react'
+import { X, Activity, Loader2, ChevronRight, RotateCw, StopCircle, ExternalLink } from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
+import { supabase } from '@/lib/supabase'
 import { useTemplateInstances } from '../hooks/useTemplateInstances'
+import { useWorkflowStore } from '../store/useWorkflowStore'
+import { STATUS_META, formatRelative } from '../lib/instanceFormat'
+
+const ACTIVE_STATUSES = new Set(['active', 'waiting_task', 'paused'])
 
 interface ExecutionsPanelProps {
     templateId: string | null
     onClose: () => void
 }
 
-const STATUS_META: Record<string, { label: string; color: string; icon: React.ComponentType<{ className?: string }> }> = {
-    active:        { label: 'Ativa',     color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: Activity },
-    waiting_task:  { label: 'Aguardando',color: 'bg-amber-100 text-amber-700 border-amber-200',       icon: Clock },
-    paused:        { label: 'Pausada',   color: 'bg-slate-100 text-slate-700 border-slate-200',       icon: Clock },
-    completed:     { label: 'Completa',  color: 'bg-blue-100 text-blue-700 border-blue-200',          icon: CheckCircle },
-    cancelled:     { label: 'Cancelada', color: 'bg-slate-100 text-slate-600 border-slate-200',       icon: XCircle },
-    failed:        { label: 'Falhou',    color: 'bg-rose-100 text-rose-700 border-rose-200',          icon: AlertCircle },
-}
-
-const formatRelative = (iso: string): string => {
-    const d = new Date(iso).getTime()
-    const diffMs = Date.now() - d
-    if (diffMs < 60_000) return 'agora'
-    if (diffMs < 3_600_000) return `${Math.floor(diffMs / 60_000)}min`
-    if (diffMs < 86_400_000) return `${Math.floor(diffMs / 3_600_000)}h`
-    return `${Math.floor(diffMs / 86_400_000)}d`
-}
-
 export const ExecutionsPanel: React.FC<ExecutionsPanelProps> = ({ templateId, onClose }) => {
     const [showEvents, setShowEvents] = useState(false)
     const { data, isLoading, isFetching } = useTemplateInstances(templateId, { refreshMs: 5000 })
+    const highlightedInstanceId = useWorkflowStore((s) => s.highlightedInstanceId)
+    const setHighlightedInstance = useWorkflowStore((s) => s.setHighlightedInstance)
 
     const counts = data?.counts || {}
     const runningCount = data?.runningCount ?? 0
@@ -75,6 +66,14 @@ export const ExecutionsPanel: React.FC<ExecutionsPanelProps> = ({ templateId, on
                     <div className="text-[11px] text-slate-500 mt-0.5">
                         Atualiza a cada 5 segundos
                     </div>
+                    {highlightedInstanceId && (
+                        <button
+                            onClick={() => setHighlightedInstance(null)}
+                            className="mt-1 text-[11px] text-cyan-700 hover:text-cyan-900 underline"
+                        >
+                            Limpar destaque do canvas
+                        </button>
+                    )}
                 </div>
                 <Button variant="ghost" size="sm" onClick={onClose} className="-mr-2">
                     <X className="w-4 h-4" />
@@ -122,7 +121,7 @@ export const ExecutionsPanel: React.FC<ExecutionsPanelProps> = ({ templateId, on
                             Rodando agora
                         </div>
                         {groupedInstances.running.map((inst) => (
-                            <InstanceRow key={inst.id} inst={inst} />
+                            <InstanceRow key={inst.id} inst={inst} templateId={templateId} />
                         ))}
                     </div>
                 )}
@@ -133,7 +132,7 @@ export const ExecutionsPanel: React.FC<ExecutionsPanelProps> = ({ templateId, on
                             Encerradas (50 mais recentes)
                         </div>
                         {groupedInstances.closed.map((inst) => (
-                            <InstanceRow key={inst.id} inst={inst} />
+                            <InstanceRow key={inst.id} inst={inst} templateId={templateId} />
                         ))}
                     </div>
                 )}
@@ -174,12 +173,81 @@ export const ExecutionsPanel: React.FC<ExecutionsPanelProps> = ({ templateId, on
     )
 }
 
-const InstanceRow: React.FC<{ inst: import('../hooks/useTemplateInstances').TemplateInstance }> = ({ inst }) => {
+interface InstanceRowProps {
+    inst: import('../hooks/useTemplateInstances').TemplateInstance
+    templateId: string | null
+}
+
+const InstanceRow: React.FC<InstanceRowProps> = ({ inst, templateId }) => {
     const meta = STATUS_META[inst.status] || { label: inst.status, color: 'bg-slate-100 text-slate-700 border-slate-200', icon: Activity }
     const Icon = meta.icon
     const elapsed = formatRelative(inst.started_at)
+    const highlightedInstanceId = useWorkflowStore((s) => s.highlightedInstanceId)
+    const setHighlightedInstance = useWorkflowStore((s) => s.setHighlightedInstance)
+    const isHighlighted = highlightedInstanceId === inst.id
+    const isActive = ACTIVE_STATUSES.has(inst.status)
+    const queryClient = useQueryClient()
+
+    const refetchAll = () => {
+        queryClient.invalidateQueries({ queryKey: ['template-instances'] })
+        queryClient.invalidateQueries({ queryKey: ['instance-trail', inst.id] })
+    }
+
+    const cancelMutation = useMutation({
+        mutationFn: async () => {
+            const { data, error } = await supabase.functions.invoke('cadence-engine', {
+                body: { action: 'cancel_cadence', instance_id: inst.id, reason: 'manual_panel' },
+            })
+            if (error) throw error
+            return data
+        },
+        onSuccess: () => {
+            toast.success('Execução encerrada')
+            refetchAll()
+        },
+        onError: (err: Error) => toast.error(`Falha ao encerrar: ${err.message}`),
+    })
+
+    const rerunMutation = useMutation({
+        mutationFn: async () => {
+            if (!templateId) throw new Error('Salve o workflow antes de reexecutar')
+            // Se ainda está rodando, cancela primeiro (engine soft-deleta tarefas pendentes).
+            if (isActive) {
+                const { error: cancelErr } = await supabase.functions.invoke('cadence-engine', {
+                    body: { action: 'cancel_cadence', instance_id: inst.id, reason: 'manual_rerun' },
+                })
+                if (cancelErr) throw cancelErr
+            }
+            const { data, error } = await supabase.functions.invoke('cadence-engine', {
+                body: { action: 'start_cadence', card_id: inst.card_id, template_id: templateId, force: true },
+            })
+            if (error) throw error
+            return data
+        },
+        onSuccess: () => {
+            toast.success('Execução reiniciada')
+            refetchAll()
+        },
+        onError: (err: Error) => toast.error(`Falha ao reexecutar: ${err.message}`),
+    })
+
+    const busy = cancelMutation.isPending || rerunMutation.isPending
+
     return (
-        <div className="px-4 py-2.5 border-b border-slate-100 hover:bg-slate-50 transition-colors">
+        <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setHighlightedInstance(isHighlighted ? null : inst.id)}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setHighlightedInstance(isHighlighted ? null : inst.id)
+                }
+            }}
+            className={`group w-full text-left px-4 py-2.5 border-b border-slate-100 transition-colors cursor-pointer ${
+                isHighlighted ? 'bg-cyan-50 hover:bg-cyan-100 ring-1 ring-inset ring-cyan-300' : 'hover:bg-slate-50'
+            }`}
+        >
             <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
@@ -199,12 +267,54 @@ const InstanceRow: React.FC<{ inst: import('../hooks/useTemplateInstances').Temp
                         <div className="text-[11px] text-rose-600 truncate">{inst.cancelled_reason}</div>
                     )}
                 </div>
-                {(inst.total_contacts_attempted ?? 0) > 0 && (
-                    <div className="flex-shrink-0 text-right text-[10px] text-slate-500">
-                        <div>{inst.successful_contacts}/{inst.total_contacts_attempted}</div>
-                        <div>contatos</div>
-                    </div>
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    {(inst.total_contacts_attempted ?? 0) > 0 && (
+                        <div className="text-right text-[10px] text-slate-500">
+                            <div>{inst.successful_contacts}/{inst.total_contacts_attempted}</div>
+                            <div>contatos</div>
+                        </div>
+                    )}
+                    {isHighlighted && (
+                        <ChevronRight className="w-3 h-3 text-cyan-700" />
+                    )}
+                </div>
+            </div>
+
+            {/* Acoes — aparecem em hover ou quando a row esta destacada */}
+            <div className={`mt-2 flex items-center gap-1 ${isHighlighted ? 'flex' : 'hidden group-hover:flex'}`}>
+                <a
+                    href={`/cards/${inst.card_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium bg-white border border-slate-300 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700"
+                    title="Abrir o card em uma nova aba"
+                >
+                    <ExternalLink className="w-3 h-3" />
+                    Ir para o card
+                </a>
+                {isActive && (
+                    <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); cancelMutation.mutate() }}
+                        disabled={busy}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium bg-white border border-slate-300 hover:bg-rose-50 hover:border-rose-300 hover:text-rose-700 disabled:opacity-50"
+                        title="Cancelar essa execução (soft-deleta tarefas pendentes dela)"
+                    >
+                        {cancelMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <StopCircle className="w-3 h-3" />}
+                        Encerrar
+                    </button>
                 )}
+                <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); rerunMutation.mutate() }}
+                    disabled={busy || !templateId}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium bg-white border border-slate-300 hover:bg-cyan-50 hover:border-cyan-300 hover:text-cyan-700 disabled:opacity-50"
+                    title={isActive ? 'Cancela essa execução e roda uma nova no mesmo card' : 'Roda uma nova execução no mesmo card'}
+                >
+                    {rerunMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCw className="w-3 h-3" />}
+                    Reexecutar
+                </button>
             </div>
         </div>
     )

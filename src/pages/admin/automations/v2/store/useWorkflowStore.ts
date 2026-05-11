@@ -18,6 +18,22 @@ import type { WorkflowNode, WorkflowEdge, WorkflowNodeType } from '../types'
 import { NODE_BY_TYPE } from '../nodes/registry'
 import { validateNode } from '../lib/validation'
 
+/**
+ * Trajeto derivado de uma cadence_instance — usado pra destacar no canvas
+ * onde o card está agora e por onde ele já passou. Hidratado pelo hook
+ * useInstanceTrail quando o user clica numa execução no ExecutionsPanel.
+ */
+export interface InstanceTrail {
+    instanceId: string
+    currentNodeId: string | null
+    completedNodeIds: string[]
+    cardTitulo: string | null
+    status: string
+    startedAt: string
+    /** Quando o card entrou no current_step. Fallback: startedAt. */
+    currentStepEnteredAt: string | null
+}
+
 interface WorkflowState {
     // Metadados do template
     templateId: string | null
@@ -59,6 +75,15 @@ interface WorkflowState {
     executionsPanelOpen: boolean
     toggleExecutionsPanel: () => void
     setExecutionsPanelOpen: (open: boolean) => void
+
+    /**
+     * Instance destacada pelo user no ExecutionsPanel. Quando preenchido,
+     * o hook useInstanceTrail consulta o banco e popula `highlightedTrail`.
+     */
+    highlightedInstanceId: string | null
+    highlightedTrail: InstanceTrail | null
+    setHighlightedInstance: (id: string | null) => void
+    setHighlightedTrail: (trail: InstanceTrail | null) => void
 
     /** Duplica nodes selecionados (com novos IDs, offset de posição, edges internas) */
     duplicateSelected: () => void
@@ -283,6 +308,15 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     toggleExecutionsPanel: () => set({ executionsPanelOpen: !get().executionsPanelOpen }),
     setExecutionsPanelOpen: (open) => set({ executionsPanelOpen: open }),
 
+    highlightedInstanceId: null,
+    highlightedTrail: null,
+    setHighlightedInstance: (id) => {
+        // Trocar de instance limpa o trail antigo; useInstanceTrail re-hidrata.
+        if (id === null) set({ highlightedInstanceId: null, highlightedTrail: null })
+        else set({ highlightedInstanceId: id, highlightedTrail: null })
+    },
+    setHighlightedTrail: (trail) => set({ highlightedTrail: trail }),
+
     duplicateSelected: () => {
         const state = get()
         const selectedNodes = state.nodes.filter((n) => n.selected)
@@ -386,6 +420,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
             nodes: [],
             edges: [],
             selectedNodeId: null,
+            highlightedInstanceId: null,
+            highlightedTrail: null,
         })
     },
 
