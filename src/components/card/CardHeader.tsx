@@ -217,7 +217,7 @@ function OrigemBadgeEditable({ cardId, origem, origemLead, indicadoPorId }: { ca
                     <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-xl p-3 w-72 space-y-3">
                         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Origem do Lead</p>
                         <div className="flex flex-wrap gap-1.5">
-                            {(leadSources && leadSources.length > 0 ? leadSources : ORIGEM_OPTIONS).map(opt => (
+                            {(leadSources && leadSources.length > 0 ? leadSources : ORIGEM_OPTIONS).map((opt: { value: string; label: string; color: string }) => (
                                 <button
                                     key={opt.value}
                                     onClick={() => handleSelect(opt.value)}
