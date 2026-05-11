@@ -47,7 +47,7 @@ async function fetchEstelaScoring(agentId: string): Promise<EstelaScoringData> {
             .select('enabled, threshold_qualify, max_sinal_bonus, fallback_action')
             .eq('agent_id', agentId)
             .maybeSingle(),
-        (supabase.rpc as unknown as (n: string, a?: unknown) => Promise<{ data: unknown; error: { message: string } | null }>)('sdr_compute_rules_version', { p_agent_id: agentId }) as Promise<{ data: unknown; error: { message: string } | null }>,
+        supabase.rpc('sdr_compute_rules_version', { p_agent_id: agentId }) as unknown as Promise<{ data: unknown; error: { message: string } | null }>,
     ])
 
     if (rulesRes.error) throw rulesRes.error
