@@ -83,6 +83,17 @@ export function ListeningSection({ agentId }: Props) {
   const addExample = () => {
     const txt = newExample.trim()
     if (!txt) return
+    // Heurística leve: exemplo válido deve ter pelo menos duas linhas OU
+    // conter marcadores tipo "cliente:" / "ela:" / "→". Sem isso, provavelmente
+    // é uma diretiva — avisa o admin onde levá-la em vez de adicionar errado.
+    const looksLikeExample =
+      /\n/.test(txt) ||
+      /\b(cliente|lead|ela|agente)\s*:/i.test(txt) ||
+      /→|->/.test(txt)
+    if (!looksLikeExample) {
+      toast.warning('Isso parece uma diretiva, não um exemplo. Diretivas vão em Estilo → Regras de tom.', { duration: 5000 })
+      return
+    }
     setConfig(prev => ({ ...prev, examples: [...prev.examples, txt] }))
     setNewExample('')
     setDirty(true)
@@ -165,12 +176,15 @@ export function ListeningSection({ agentId }: Props) {
 
       <div className="pt-4 border-t border-slate-100">
         <div className="text-sm font-medium text-slate-700 mb-1">
-          Exemplos personalizados de como você quer que ela responda
+          Exemplos de resposta (cliente → ela)
         </div>
-        <p className="text-xs text-slate-500 mb-3">
-          Opcional. Cole exemplos de respostas naturais pra orientar a IA — ela vai usar como
-          inspiração, sem copiar literalmente.
+        <p className="text-xs text-slate-500 mb-2">
+          Opcional. Cada exemplo precisa ter o que o <strong>cliente disse</strong> E como
+          ela <strong>respondeu</strong>. A IA usa como inspiração, sem copiar literalmente.
         </p>
+        <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5 mb-3">
+          Esse campo é só pra exemplos. Pra diretivas gerais (ex: "conecta resposta com contexto", "sempre usa primeiro nome"), vá em <strong>Estilo → Regras de tom</strong>.
+        </div>
 
         <ul className="space-y-2 mb-3">
           {config.examples.map((ex, idx) => (
@@ -195,9 +209,9 @@ export function ListeningSection({ agentId }: Props) {
           <textarea
             value={newExample}
             onChange={e => setNewExample(e.target.value)}
-            placeholder='Ex: Quando o cliente diz "que legal!", ela responde "Que bom que curtiu! ..."'
-            rows={2}
-            className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm resize-none"
+            placeholder={'Cliente: "que legal!"\nEla: "Que bom que curtiu! ..."'}
+            rows={3}
+            className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm resize-none font-mono text-[12px]"
           />
           <Button
             onClick={addExample}
