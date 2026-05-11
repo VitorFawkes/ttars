@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useAgentMoments, type PlaybookMoment, type DiscoveryConfig } from '@/hooks/v2/playbook/useAgentMoments'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
+import { useAgentEngine } from '@/hooks/v2/useAgentEngine'
 import { SuggestVariationsButton } from '../shared/SuggestVariationsButton'
 import { DiscoveryConfigEditor } from './DiscoveryConfigEditor'
 
@@ -56,6 +57,7 @@ const DELIVERY_OPTIONS: Array<{ value: PlaybookMoment['delivery_mode']; label: s
 
 export function MomentCard({ agentId, agentName, companyName, moment, dragHandleProps, defaultExpanded = false, hideToggle = false }: Props) {
   const { upsert, remove } = useAgentMoments(agentId)
+  const engineVersion = useAgentEngine(agentId)
   const meta = useCurrentProductMeta()
   const pipelineId: string | undefined = meta?.pipelineId ?? undefined
   const produtoSlug: string | undefined = meta?.slug ?? undefined
@@ -418,6 +420,7 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
                   onChange={(next) => { setDiscoveryConfig(next); markDirty() }}
                   pipelineId={pipelineId}
                   produtoSlug={produtoSlug}
+                  engineVersion={engineVersion}
                 />
               ) : (
                 <p className="text-[11px] text-slate-500">
