@@ -5,11 +5,15 @@
 
 // ─── String helpers ──────────────────────────────────────────
 
-/** Normaliza removendo acentos, º, pontuação e espaços extras */
-export const norm = (s: string) => s.toLowerCase().trim()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+/** Normaliza removendo acentos, º, pontuação, espaços extras E caracteres
+ *  invisíveis comuns em headers do Excel (BOM, zero-width, NBSP).
+ *  Sem isso "Data Cancelamento" com BOM no início não bate com "data cancelamento". */
+export const norm = (s: string) => s.toLowerCase()
+    .replace(/[​-‍﻿ ]/g, ' ')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[º°.]/g, '')
     .replace(/\s+/g, ' ')
+    .trim()
 
 // ─── Date parsing ────────────────────────────────────────────
 
@@ -103,6 +107,17 @@ export function findColumn(headers: string[], aliases: string[]): string | null 
     // Partial match
     for (const alias of aliases) {
         const idx = normalized.findIndex(h => h.includes(alias))
+        if (idx >= 0) return headers[idx]
+    }
+    return null
+}
+
+/** Encontra coluna SÓ por match exato (sem partial). Use quando o alias é
+ *  genérico e pode dar falso positivo — ex: "data" bateria com "Data Venda". */
+export function findColumnExact(headers: string[], aliases: string[]): string | null {
+    const normalized = headers.map(h => norm(h))
+    for (const alias of aliases) {
+        const idx = normalized.findIndex(h => h === alias)
         if (idx >= 0) return headers[idx]
     }
     return null

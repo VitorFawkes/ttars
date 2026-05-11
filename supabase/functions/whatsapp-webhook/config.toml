@@ -1,4 +1,0 @@
-# whatsapp-webhook: Recebe webhooks do Echo/WhatsApp
-# verify_jwt desabilitado porque Echo não envia JWT - é um webhook externo
-[auth]
-verify_jwt = false

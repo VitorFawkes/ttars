@@ -1,4 +1,0 @@
-# process-whatsapp-media: Chamada pelo n8n para transcrever/analisar mídias
-# verify_jwt desabilitado porque n8n chama via HTTP Request direto
-[auth]
-verify_jwt = false
