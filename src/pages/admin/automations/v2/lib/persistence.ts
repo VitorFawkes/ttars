@@ -46,6 +46,7 @@ const NODE_TO_STEP_TYPE: Partial<Record<ActionNodeType, string>> = {
     'action.echo_add_co_owner':    'echo_action',
     'action.echo_remove_co_owner': 'echo_action',
     // Card actions (sub-action dentro de card_action_config.action)
+    'action.complete_task':       'card_action',
     'action.change_stage':        'card_action',
     'action.add_tag':             'card_action',
     'action.remove_tag':          'card_action',
@@ -57,6 +58,7 @@ const NODE_TO_STEP_TYPE: Partial<Record<ActionNodeType, string>> = {
 
 /** Sub-action de cada node do tipo card_action. */
 const NODE_TO_CARD_SUB_ACTION: Partial<Record<ActionNodeType, string>> = {
+    'action.complete_task':       'complete_task',
     'action.change_stage':        'change_stage',
     'action.add_tag':             'add_tag',
     'action.remove_tag':          'remove_tag',
@@ -113,6 +115,7 @@ const STEP_TYPE_TO_NODE = (step: {
         case 'card_action': {
             const sub = step.card_action_config?.action
             switch (sub) {
+                case 'complete_task':       return 'action.complete_task'
                 case 'change_stage':        return 'action.change_stage'
                 case 'add_tag':             return 'action.add_tag'
                 case 'remove_tag':          return 'action.remove_tag'
@@ -282,6 +285,20 @@ export async function saveWorkflow(payload: SavePayload): Promise<SaveResult> {
             stepConfig.card_action_config = { ...cfg, action: cardSubAction }
         }
 
+        // complete_task: o usuário escolhe `target_node_id` na UI (id do node
+        // de create_task upstream). No banco precisa virar `target_step_key`
+        // no formato que o save usa pros outros steps (`n_<nodeId>`), pra que
+        // o engine encontre a tarefa pelo cadence_step_key gravado em metadata.
+        if (node.type === 'action.complete_task') {
+            const targetNodeId = (cfg as Record<string, unknown>).target_node_id as string | null | undefined
+            const targetStepKey = targetNodeId ? `n_${targetNodeId}` : null
+            stepConfig.card_action_config = {
+                ...cfg,
+                action: 'complete_task',
+                target_step_key: targetStepKey,
+            }
+        }
+
         // Branch precisa de branches[] no branch_config baseado nas edges
         if (node.type === 'action.branch') {
             const branches = out.map((e) => ({
@@ -445,6 +462,19 @@ export async function loadWorkflow(templateId: string): Promise<LoadResult> {
             },
         })
     })
+
+    // 2º pass: resolve referências entre steps pela map stepKey→nodeId.
+    // Hoje só complete_task tem isso (`target_step_key` apontando pra um
+    // create_task upstream). O editor precisa do `target_node_id` (id do node
+    // na UI), então fazemos a conversão depois que todos os steps viraram nodes.
+    for (const node of nodes) {
+        if (node.type !== 'action.complete_task') continue
+        const cfg = node.data.config as Record<string, unknown>
+        const targetStepKey = cfg?.target_step_key as string | null | undefined
+        if (!targetStepKey) continue
+        const resolved = stepKeyToNodeId.get(targetStepKey) ?? null
+        node.data.config = { ...cfg, target_node_id: resolved }
+    }
 
     // Edges
     const edges: Edge[] = []

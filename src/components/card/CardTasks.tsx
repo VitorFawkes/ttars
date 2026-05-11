@@ -21,6 +21,27 @@ import { Label } from '../ui/label'
 import { Textarea } from '../ui/textarea'
 import type { Database } from '../../database.types'
 import { cn } from '../../lib/utils'
+import { ORIGEM_CONFIG } from '../tasks/taskTypeConfig'
+
+type TaskOrigem = 'manual' | 'cadencia' | 'automacao' | 'integracao'
+
+function deriveTaskOrigem(metadata: Record<string, unknown> | null, externalSource: string | null): TaskOrigem {
+    if (externalSource) return 'integracao'
+    if (metadata && typeof metadata === 'object') {
+        const origin = metadata.origin
+        if (origin === 'cadence' || origin === 'cadencia') return 'cadencia'
+        if (origin === 'automation' || origin === 'automacao' || origin === 'event_trigger') return 'automacao'
+        if (metadata.cadence_instance_id) return 'cadencia'
+        if (metadata.automation_rule_id || metadata.created_by_trigger || metadata.trigger_name) return 'automacao'
+    }
+    return 'manual'
+}
+
+function deriveTaskOrigemNome(metadata: Record<string, unknown> | null): string | null {
+    if (!metadata || typeof metadata !== 'object') return null
+    const name = metadata.cadence_template_name || metadata.cadencia_nome || metadata.template_name || metadata.trigger_name
+    return typeof name === 'string' ? name : null
+}
 
 type Tarefa = Database['public']['Tables']['tarefas']['Row']
 type TarefaUpdate = Database['public']['Tables']['tarefas']['Update']
@@ -707,6 +728,10 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
 
                         const isMudanca = task.tipo === 'solicitacao_mudanca'
                         const changeCategory = (task.metadata as Record<string, unknown> | null)?.change_category as string | undefined
+                        const taskOrigem = deriveTaskOrigem(task.metadata as Record<string, unknown> | null, task.external_source)
+                        const taskOrigemNome = deriveTaskOrigemNome(task.metadata as Record<string, unknown> | null)
+                        const showOrigemBadge = taskOrigem === 'cadencia' || taskOrigem === 'automacao'
+                        const origemCfg = ORIGEM_CONFIG[taskOrigem]
                         const conciergeItem = conciergeByTarefaId.get(task.id)
                         const conciergeTipo = conciergeItem ? TIPO_LABEL[conciergeItem.tipo_concierge] : null
                         // Item espelhado de sub-card no card principal: badge na linha indica origem.
@@ -767,6 +792,14 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                                                     >
                                                         <RefreshCw className="w-3 h-3" />
                                                         do sub-card
+                                                    </span>
+                                                )}
+                                                {showOrigemBadge && origemCfg && (
+                                                    <span
+                                                        className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${origemCfg.chip}`}
+                                                        title={taskOrigemNome ? `${origemCfg.label}: ${taskOrigemNome}` : origemCfg.label}
+                                                    >
+                                                        {taskOrigemNome ? `${origemCfg.label}: ${taskOrigemNome}` : origemCfg.label}
                                                     </span>
                                                 )}
                                                 <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border capitalize ${getTypeColor(task.tipo || '')} flex items-center gap-1`}>

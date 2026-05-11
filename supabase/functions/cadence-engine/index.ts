@@ -3104,6 +3104,58 @@ async function executeEchoActionStep(
 }
 
 // ----------------------------------------------------------------------------
+// executeCompleteTaskAction: conclui a tarefa criada num step anterior do
+// MESMO fluxo (cadence_instance). Usa `target_step_key` (gravado pelo editor
+// visual quando o user escolhe qual create_task referenciar) cruzado com
+// `cadence_instance_id` na metadata da tarefa pra evitar fechar tarefa de
+// outra execução. Outcome opcional (default: 'enviado').
+// ----------------------------------------------------------------------------
+async function executeCompleteTaskAction(
+    supabaseClient: SupabaseClient,
+    cardId: string,
+    trigger: any,
+    instance: any,
+) {
+    const cfg = trigger.action_config || {};
+    const targetStepKey: string | null = cfg.target_step_key || null;
+    if (!targetStepKey) {
+        return { skipped: true, reason: 'missing_target_step_key' };
+    }
+
+    const { data: task } = await supabaseClient
+        .from('tarefas')
+        .select('id, concluida')
+        .eq('card_id', cardId)
+        .is('deleted_at', null)
+        .contains('metadata', { cadence_instance_id: instance.id, cadence_step_key: targetStepKey })
+        .limit(1)
+        .maybeSingle();
+
+    if (!task) {
+        return { skipped: true, reason: 'target_task_not_found', target_step_key: targetStepKey };
+    }
+    if (task.concluida) {
+        return { skipped: true, reason: 'already_completed', task_id: task.id };
+    }
+
+    const outcome: string = cfg.outcome || 'enviado';
+    const { error } = await supabaseClient
+        .from('tarefas')
+        .update({
+            concluida: true,
+            concluida_em: new Date().toISOString(),
+            outcome,
+            status: 'concluida',
+        })
+        .eq('id', task.id);
+
+    if (error) {
+        return { ok: false, error: error.message };
+    }
+    return { ok: true, task_id: task.id, outcome };
+}
+
+// ----------------------------------------------------------------------------
 // executeCardActionStep: ações sobre o card encadeadas (change_stage,
 // add_tag, remove_tag, update_field, notify_internal, start_cadence,
 // trigger_n8n_webhook). Reusa os mesmos executors usados pelos triggers
@@ -3171,6 +3223,9 @@ async function executeCardActionStep(
                 break;
             case 'trigger_n8n_webhook':
                 actionResult = await executeTriggerN8nWebhookAction(supabaseClient, card.id, virtualTrigger, orgId);
+                break;
+            case 'complete_task':
+                actionResult = await executeCompleteTaskAction(supabaseClient, card.id, virtualTrigger, instance);
                 break;
             default:
                 throw new Error(`card_action: sub-action desconhecida "${subAction}"`);

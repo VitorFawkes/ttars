@@ -14,6 +14,9 @@ import { useCardTags } from '@/hooks/useCardTags'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { useProductContext } from '@/hooks/useProductContext'
 import { useUsers } from '@/hooks/useUsers'
+import { useWorkflowStore } from '../store/useWorkflowStore'
+import { OUTCOME_LABELS } from '@/components/tasks/taskTypeConfig'
+import type { WorkflowNode, WorkflowEdge } from '../types'
 
 interface ConfigEditorProps {
     config: Record<string, unknown>
@@ -234,6 +237,92 @@ export const NotifyInternalEditor: React.FC<ConfigEditorProps> = ({ config, onCh
                     rows={3}
                     placeholder="Conteúdo da notificação. Suporta {{contact.nome}}, {{card.titulo}}."
                 />
+            </div>
+        </div>
+    )
+}
+
+// ─── complete_task ───────────────────────────────────────────────────────────
+//
+// Marca uma tarefa criada num passo anterior do mesmo fluxo como concluída.
+// O dropdown lista os nodes `action.create_task` que estão UPSTREAM (acessíveis
+// indo "pra trás" pelas edges) do node atual. Salva o id do node alvo em
+// `target_node_id`; o save em persistence.ts converte pra `n_<nodeId>` (step_key).
+function findUpstreamCreateTaskNodes(
+    currentNodeId: string,
+    nodes: WorkflowNode[],
+    edges: WorkflowEdge[],
+): WorkflowNode[] {
+    const incoming = new Map<string, string[]>()
+    for (const e of edges) {
+        const list = incoming.get(e.target) || []
+        list.push(e.source)
+        incoming.set(e.target, list)
+    }
+    const visited = new Set<string>()
+    const queue: string[] = [currentNodeId]
+    const result: WorkflowNode[] = []
+    while (queue.length) {
+        const id = queue.shift()!
+        if (visited.has(id)) continue
+        visited.add(id)
+        const node = nodes.find((n) => n.id === id)
+        if (node && id !== currentNodeId && node.type === 'action.create_task') {
+            result.push(node)
+        }
+        const parents = incoming.get(id) || []
+        for (const p of parents) if (!visited.has(p)) queue.push(p)
+    }
+    return result
+}
+
+export const CompleteTaskEditor: React.FC<ConfigEditorProps> = ({ config, onChange }) => {
+    const selectedNodeId = useWorkflowStore((s) => s.selectedNodeId)
+    const nodes = useWorkflowStore((s) => s.nodes)
+    const edges = useWorkflowStore((s) => s.edges)
+    const set = (patch: Record<string, unknown>) => onChange({ ...config, ...patch })
+
+    const upstreamCreateTasks = selectedNodeId
+        ? findUpstreamCreateTaskNodes(selectedNodeId, nodes, edges)
+        : []
+
+    const targetNodeId = (config.target_node_id as string) || ''
+    const selectedExistsUpstream = upstreamCreateTasks.some((n) => n.id === targetNodeId)
+
+    return (
+        <div className="space-y-3">
+            <div className="space-y-2">
+                <Label className="text-xs">Tarefa a concluir</Label>
+                <CustomSelect
+                    value={targetNodeId}
+                    onChange={(v) => set({ target_node_id: v || null })}
+                    options={[
+                        { value: '', label: upstreamCreateTasks.length === 0 ? 'Conecte um "Criar tarefa" antes' : 'Selecionar...' },
+                        ...upstreamCreateTasks.map((n) => ({
+                            value: n.id,
+                            label: n.data.label || ((n.data.config as Record<string, unknown>)?.titulo as string) || 'Criar tarefa',
+                        })),
+                    ]}
+                />
+                {!!targetNodeId && !selectedExistsUpstream && (
+                    <p className="text-[11px] text-amber-700">
+                        A tarefa selecionada não é mais alcançável a partir deste passo. Reconecte ou troque a referência.
+                    </p>
+                )}
+            </div>
+            <div className="space-y-2">
+                <Label className="text-xs">Resultado registrado (opcional)</Label>
+                <CustomSelect
+                    value={(config.outcome as string) || ''}
+                    onChange={(v) => set({ outcome: v || null })}
+                    options={[
+                        { value: '', label: 'Sem resultado' },
+                        ...Object.entries(OUTCOME_LABELS).map(([value, label]) => ({ value, label })),
+                    ]}
+                />
+                <p className="text-[11px] text-slate-500">
+                    Usado como o "como foi" da tarefa concluída. Útil para diferenciar quando a automação fecha (ex: "enviado") de quando uma pessoa fecha.
+                </p>
             </div>
         </div>
     )

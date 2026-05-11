@@ -36,6 +36,7 @@ export type TriggerNodeType =
 export type ActionNodeType =
     // card
     | 'action.create_task'
+    | 'action.complete_task'
     | 'action.change_stage'
     | 'action.add_tag'
     | 'action.remove_tag'
