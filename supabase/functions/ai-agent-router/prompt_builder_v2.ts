@@ -778,9 +778,11 @@ function renderOneMoment(
       lines.push(`      - ${ico}${slot.label}${prioLabel}`);
 
       // Fase 4 (11/05/2026): V2 discovery schema — se feature flag ativado E slot
-      // tem goal preenchido, usa renderSlotForPrompt() (schema estruturado novo).
-      // Senão, cai pro legacy (must_collect/coverage_notes/deriveSlotQuestion).
-      const useV2 = input?.feature_flag_discovery_v2 && (slot as SlotV2).goal;
+      // tem goal preenchido (não-vazio após trim), usa renderSlotForPrompt() (schema
+      // estruturado novo). Senão, cai pro legacy (must_collect/coverage_notes/deriveSlotQuestion).
+      const goalRaw = (slot as { goal?: unknown }).goal;
+      const goalStr = typeof goalRaw === 'string' ? goalRaw.trim() : '';
+      const useV2 = !!input?.feature_flag_discovery_v2 && goalStr.length > 0;
       if (useV2) {
         const v2Block = renderSlotForPrompt(slot as SlotV2);
         if (v2Block) {
