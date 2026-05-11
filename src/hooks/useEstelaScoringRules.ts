@@ -31,8 +31,9 @@ export type EstelaScoringData = {
 }
 
 // Cast pra contornar tipos defasados (database.types.ts não tem sdr_* nem exclusion_group ainda)
+// .bind(supabase) preserva `this` interno do client (senão dá "Cannot read properties of undefined (reading 'rest')").
 type RpcFn = (name: string, args?: unknown) => Promise<{ data: unknown; error: { message: string } | null }>
-const rpc = supabase.rpc as unknown as RpcFn
+const rpc = supabase.rpc.bind(supabase) as unknown as RpcFn
 
 async function fetchEstelaScoring(agentId: string): Promise<EstelaScoringData> {
     const [rulesRes, configRes, versionRes] = await Promise.all([

@@ -5,8 +5,10 @@ import { ESTELA_AGENT_ID } from './useEstelaScoringRules'
 
 // As RPCs sdr_* foram criadas em 20260512d/e mas o database.types.ts gerado
 // via Supabase CLI 2.74 ainda não reflete elas. Cast local pra contornar.
+// .bind(supabase) é OBRIGATÓRIO — sem ele, `this` interno do client se perde
+// e dá "Cannot read properties of undefined (reading 'rest')".
 type RpcFn = (name: string, args?: unknown) => Promise<{ data: unknown; error: { message: string } | null }>
-const rpc = supabase.rpc as unknown as RpcFn
+const rpc = supabase.rpc.bind(supabase) as unknown as RpcFn
 
 export type SdrScoreResult = {
     enabled: boolean
