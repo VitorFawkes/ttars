@@ -807,3 +807,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-11T18:44:33Z | supabase/migrations/20260512g_sdr_dados_lead_mapping.sql | applied_to_prod
 2026-05-11T18:44:35Z | supabase/migrations/20260512e_hide_data_prevista_pre_gatilho.sql | applied_to_prod
 2026-05-11T18:49:14Z | supabase/migrations/20260511j_estela_fix_viagem_internacional_slot.sql | applied_to_prod
+2026-05-11T19:06:20Z | supabase/migrations/20260511h_view_cards_acoes_security_invoker.sql | applied_to_prod

@@ -24,6 +24,7 @@ import { getProductLabels } from '../lib/productLabels'
 import { useSeenCards } from '../hooks/useSeenCards'
 import { useCardAlerts } from '../hooks/useCardAlerts'
 import { useRecordCardOpen } from '../hooks/useRecordCardOpen'
+import { useProductContext } from '../hooks/useProductContext'
 import { useProductPipelineId } from '../hooks/useCurrentProductMeta'
 import { usePipelineGovernance, getDiasAtrasoDataPrevista } from '../hooks/usePipelineGovernance'
 import OverdueDataPrevistaOverlay from '../components/card/OverdueDataPrevistaOverlay'
@@ -169,7 +170,10 @@ export default function CardDetail() {
         (card as any)?.card_type !== 'sub_card' &&
         !card?.is_group_parent
 
-    const labels = getProductLabels(card?.produto)
+    // Fallback para o produto do workspace ativo quando o card nao carrega,
+    // para nao mostrar "Viagem nao encontrada" num workspace de Casamentos.
+    const { currentProduct } = useProductContext()
+    const labels = getProductLabels(card?.produto || currentProduct)
 
     if (isLoading) return <div className="p-8 text-center">Carregando...</div>
     if (!card) return <div className="p-8 text-center">{labels.notFound}</div>
