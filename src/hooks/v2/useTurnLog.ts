@@ -34,19 +34,21 @@ export interface TurnLog {
  * Quando há REGEN, retorna 2 linhas (attempt_number=1 e 2). Quando o
  * validator publicou direto, retorna 1 linha.
  */
+// ai_agent_turn_logs foi criada em migration 20260512l mas database.types.ts
+// gerado via Supabase CLI ainda não a reflete. Cast inline pra contornar
+// (mesmo padrão de useSdrQualification.ts pra sdr_* RPCs).
 export function useTurnLog(turnId: string | null | undefined) {
   return useQuery({
     queryKey: ['ai-agent-turn-log', turnId],
     enabled: !!turnId,
     queryFn: async (): Promise<TurnLog[]> => {
       if (!turnId) return []
-      const { data, error } = await supabase
-        .from('ai_agent_turn_logs')
+      const { data, error } = await (supabase.from as never)('ai_agent_turn_logs')
         .select('*')
         .eq('turn_id', turnId)
         .order('attempt_number', { ascending: true })
       if (error) throw error
-      return (data ?? []) as TurnLog[]
+      return ((data ?? []) as unknown) as TurnLog[]
     },
   })
 }

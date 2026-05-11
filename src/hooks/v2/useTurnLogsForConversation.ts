@@ -12,14 +12,14 @@ export function useTurnLogsForConversation(conversationId: string | null | undef
     enabled: !!conversationId,
     queryFn: async (): Promise<Record<string, TurnLog[]>> => {
       if (!conversationId) return {}
-      const { data, error } = await supabase
-        .from('ai_agent_turn_logs')
+      // ai_agent_turn_logs ainda não está em database.types.ts — cast inline.
+      const { data, error } = await (supabase.from as never)('ai_agent_turn_logs')
         .select('*')
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: true })
       if (error) throw error
       const grouped: Record<string, TurnLog[]> = {}
-      for (const log of (data ?? []) as TurnLog[]) {
+      for (const log of ((data ?? []) as unknown) as TurnLog[]) {
         if (!grouped[log.turn_id]) grouped[log.turn_id] = []
         grouped[log.turn_id].push(log)
       }
