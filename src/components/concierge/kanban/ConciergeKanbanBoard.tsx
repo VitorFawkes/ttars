@@ -10,7 +10,6 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { ChevronLeft, ChevronRight, Loader2, Zap } from 'lucide-react'
-import { toast } from 'sonner'
 import { useHorizontalScroll } from '../../../hooks/useHorizontalScroll'
 import { useKanbanTarefas, ESTADO_FUNIL_COLUMNS, type EstadoFunil, type KanbanTarefaItem, type KanbanTarefasFilters } from '../../../hooks/concierge/useKanbanTarefas'
 import { useMoverEstadoFunil } from '../../../hooks/concierge/useMoverEstadoFunil'
@@ -84,11 +83,6 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
     const destino = event.over?.id as EstadoFunil | undefined
     if (!item || !destino) return
     if (item.estado_funil === destino) return
-
-    if (destino === 'aguardando_atendimento') {
-      toast.error('Não dá pra voltar para "Aguardando atendimento"')
-      return
-    }
 
     if (destino === 'encerrado') {
       setPendingEncerrar(item)

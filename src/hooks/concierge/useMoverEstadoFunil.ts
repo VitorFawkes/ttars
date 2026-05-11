@@ -25,39 +25,59 @@ export function useMoverEstadoFunil() {
 
   return useMutation<void, Error, MoverEstadoInput, OptimisticContext>({
     mutationFn: async ({ atendimento, destino, outcomeEncerramento, observacao }) => {
+      const tarefaId = atendimento.tarefa_id
+      const atendimentoId = atendimento.atendimento_id
+      const agora = new Date().toISOString()
+
       if (destino === 'aguardando_atendimento') {
-        throw new Error('Não dá pra voltar para "Aguardando atendimento"')
+        // Reset total: zera started_at + concluida (trigger limpa outcome) e notificou_cliente_em.
+        const { error: e1 } = await sbAny
+          .from('tarefas')
+          .update({ started_at: null, concluida: false })
+          .eq('id', tarefaId)
+        if (e1) throw e1
+        const { error: e2 } = await sbAny
+          .from('atendimentos_concierge')
+          .update({ notificou_cliente_em: null })
+          .eq('id', atendimentoId)
+        if (e2) throw e2
+        return
       }
 
       if (destino === 'em_contato') {
-        // Iniciar o atendimento: marca started_at na tarefa.
-        if (atendimento.outcome) {
-          throw new Error('Esta tarefa já foi fechada — abra o detalhe pra ajustar')
-        }
-        if (atendimento.started_at) return
-        const { error } = await sbAny
+        const startedAt = atendimento.started_at ?? agora
+        const { error: e1 } = await sbAny
           .from('tarefas')
-          .update({ started_at: new Date().toISOString() })
-          .eq('id', atendimento.tarefa_id)
-        if (error) throw error
+          .update({ started_at: startedAt, concluida: false })
+          .eq('id', tarefaId)
+        if (e1) throw e1
+        const { error: e2 } = await sbAny
+          .from('atendimentos_concierge')
+          .update({ notificou_cliente_em: null })
+          .eq('id', atendimentoId)
+        if (e2) throw e2
         return
       }
 
       if (destino === 'aguardando_retorno') {
-        if (atendimento.outcome) {
-          throw new Error('Esta tarefa já foi fechada — abra o detalhe pra ajustar')
-        }
-        if (atendimento.notificou_cliente_em) return
-        const { error } = await sbAny.rpc('rpc_notificar_cliente', {
-          p_atendimento_id: atendimento.atendimento_id,
-        })
-        if (error) throw error
+        const startedAt = atendimento.started_at ?? agora
+        const notificou = atendimento.notificou_cliente_em ?? agora
+        const { error: e1 } = await sbAny
+          .from('tarefas')
+          .update({ started_at: startedAt, concluida: false })
+          .eq('id', tarefaId)
+        if (e1) throw e1
+        const { error: e2 } = await sbAny
+          .from('atendimentos_concierge')
+          .update({ notificou_cliente_em: notificou })
+          .eq('id', atendimentoId)
+        if (e2) throw e2
         return
       }
 
       if (destino === 'feito') {
         const { error } = await sbAny.rpc('rpc_marcar_outcome', {
-          p_atendimento_id: atendimento.atendimento_id,
+          p_atendimento_id: atendimentoId,
           p_outcome: 'feito' satisfies OutcomeConcierge,
           p_valor_final: atendimento.valor ?? null,
           p_cobrado_de: atendimento.cobrado_de ?? null,
@@ -70,7 +90,7 @@ export function useMoverEstadoFunil() {
       if (destino === 'encerrado') {
         const outcome: OutcomeConcierge = outcomeEncerramento ?? 'cancelado'
         const { error } = await sbAny.rpc('rpc_marcar_outcome', {
-          p_atendimento_id: atendimento.atendimento_id,
+          p_atendimento_id: atendimentoId,
           p_outcome: outcome,
           p_valor_final: null,
           p_cobrado_de: null,
@@ -94,20 +114,47 @@ export function useMoverEstadoFunil() {
           return old.map(item => {
             if (item.atendimento_id !== atendimento.atendimento_id) return item
 
+            const agora = new Date().toISOString()
+
+            if (destino === 'aguardando_atendimento') {
+              const next = {
+                ...item,
+                started_at: null,
+                notificou_cliente_em: null,
+                outcome: null,
+                outcome_em: null,
+                outcome_por: null,
+              }
+              return { ...next, estado_funil: computeEstadoFunil(next) }
+            }
             if (destino === 'em_contato') {
-              const next = { ...item, started_at: new Date().toISOString() }
+              const next = {
+                ...item,
+                started_at: item.started_at ?? agora,
+                notificou_cliente_em: null,
+                outcome: null,
+                outcome_em: null,
+                outcome_por: null,
+              }
               return { ...next, estado_funil: computeEstadoFunil(next) }
             }
             if (destino === 'aguardando_retorno') {
-              const next = { ...item, notificou_cliente_em: new Date().toISOString() }
+              const next = {
+                ...item,
+                started_at: item.started_at ?? agora,
+                notificou_cliente_em: item.notificou_cliente_em ?? agora,
+                outcome: null,
+                outcome_em: null,
+                outcome_por: null,
+              }
               return { ...next, estado_funil: computeEstadoFunil(next) }
             }
             if (destino === 'feito') {
-              const next = { ...item, outcome: 'feito' as OutcomeConcierge, outcome_em: new Date().toISOString() }
+              const next = { ...item, outcome: 'feito' as OutcomeConcierge, outcome_em: agora }
               return { ...next, estado_funil: computeEstadoFunil(next) }
             }
             if (destino === 'encerrado') {
-              const next = { ...item, outcome: (outcomeEncerramento ?? 'cancelado') as OutcomeConcierge, outcome_em: new Date().toISOString() }
+              const next = { ...item, outcome: (outcomeEncerramento ?? 'cancelado') as OutcomeConcierge, outcome_em: agora }
               return { ...next, estado_funil: computeEstadoFunil(next) }
             }
             return item
@@ -130,7 +177,8 @@ export function useMoverEstadoFunil() {
     },
 
     onSuccess: (_data, vars) => {
-      if (vars.destino === 'em_contato')         toast.success('Atendimento iniciado')
+      if (vars.destino === 'aguardando_atendimento') toast.success('Devolvido pra fila de aguardando')
+      else if (vars.destino === 'em_contato')         toast.success('Atendimento iniciado')
       else if (vars.destino === 'aguardando_retorno') toast.success('Cliente notificado')
       else if (vars.destino === 'feito')         toast.success('Atendimento concluído')
       else if (vars.destino === 'encerrado')     toast.success('Atendimento encerrado')
