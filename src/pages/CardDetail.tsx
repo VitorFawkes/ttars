@@ -25,6 +25,9 @@ import { getProductLabels } from '../lib/productLabels'
 import { useSeenCards } from '../hooks/useSeenCards'
 import { useCardAlerts } from '../hooks/useCardAlerts'
 import { useRecordCardOpen } from '../hooks/useRecordCardOpen'
+import { useProductPipelineId } from '../hooks/useCurrentProductMeta'
+import { usePipelineGovernance, getDiasAtrasoDataPrevista } from '../hooks/usePipelineGovernance'
+import OverdueDataPrevistaOverlay from '../components/card/OverdueDataPrevistaOverlay'
 
 type Card = Database['public']['Tables']['cards']['Row']
 
@@ -127,6 +130,16 @@ export default function CardDetail() {
     const { alerts: cardAlerts, unreadCount: alertUnread, markAllAsRead: markAllAlertsRead } = useCardAlerts(card?.id)
     const showAlertOverlay = alertUnread > 0 && !alertOverlayDismissed
 
+    // Overlay de bloqueio "Data Prevista atrasada"
+    const cardPipelineId = useProductPipelineId(card?.produto)
+    const { data: governance } = usePipelineGovernance(cardPipelineId)
+    const diasAtrasoDataPrevista = card ? getDiasAtrasoDataPrevista(card.produto_data) : null
+    const isCardFinalizado = card?.status_comercial === 'ganho' || card?.status_comercial === 'perdido'
+    const showOverdueOverlay = !!card
+        && !isCardFinalizado
+        && diasAtrasoDataPrevista !== null
+        && (governance?.data_overdue_severity ?? 'block_all') === 'block_all'
+
     // Reset dismissed state when navigating to a different card
     useEffect(() => {
         setAlertOverlayDismissed(false)
@@ -187,6 +200,15 @@ export default function CardDetail() {
 
     return (
         <div className="h-full bg-gray-50 flex flex-col overflow-hidden relative">
+            {/* ═══ Overlay: Data Prevista de Fechamento atrasada (severidade=block_all) ═══ */}
+            {showOverdueOverlay && (
+                <OverdueDataPrevistaOverlay
+                    cardId={card.id!}
+                    produtoData={card.produto_data as Record<string, unknown> | null | undefined}
+                    diasAtraso={diasAtrasoDataPrevista!}
+                />
+            )}
+
             {/* ═══ Alert Takeover Overlay ═══ */}
             {showAlertOverlay && (
                 <div className="absolute inset-0 z-50 bg-amber-900/70 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-300">

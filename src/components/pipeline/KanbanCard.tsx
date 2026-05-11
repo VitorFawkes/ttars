@@ -17,6 +17,7 @@ import { isGanhoDireto, getPhaseOwnerName } from '../../lib/pipeline/phaseLabels
 import { calculateExpectedPosVendaStage, isStageMismatch } from '../../lib/pipeline/posVendaStageRule'
 import { useCardTeamCounts } from '../../hooks/useCardTeamCounts'
 import { TIPO_LABEL, type CardConciergeStats } from '../../hooks/concierge/types'
+import { getDiasAtrasoDataPrevista } from '../../hooks/usePipelineGovernance'
 
 type Card = Database['public']['Views']['view_cards_acoes']['Row']
 
@@ -116,6 +117,10 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap }: Kanba
     const conciergeStats = card.id ? conciergeStatsMap?.get(card.id) ?? null : null
 
     const isClosedCard = card.status_comercial === 'ganho' || card.status_comercial === 'perdido'
+
+    // Data Prevista de Fechamento atrasada (badge visual + borda no card)
+    const diasAtrasoDataPrevista = getDiasAtrasoDataPrevista(card.produto_data)
+    const isDataPrevistaOverdue = diasAtrasoDataPrevista !== null && !isClosedCard
 
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: card.id!,
@@ -600,6 +605,7 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap }: Kanba
                 isClosedCard ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
                 isDragging && "opacity-0",
                 conciergeStats?.vencidos && conciergeStats.vencidos > 0 && "border-l-4 border-l-red-300",
+                isDataPrevistaOverdue && "border-l-4 border-l-red-500 ring-1 ring-red-200",
                 card.status_comercial === 'ganho' && isGanhoDireto(card) && "border-amber-300 bg-amber-50/40 opacity-80",
                 card.status_comercial === 'ganho' && !(isGanhoDireto(card)) && "border-green-300 bg-green-50/40 opacity-80",
                 card.status_comercial === 'perdido' && "border-red-300 bg-red-50/40 opacity-80",
@@ -611,7 +617,13 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap }: Kanba
                             : "border-gray-200 hover:border-gray-300"
                 )
             )}
-            title={conciergeStats ? `${conciergeStats.ativos} atendimentos abertos · ${conciergeStats.vencidos} vencidos · R$ ${(conciergeStats.valor_vendido_extra / 100).toFixed(2)} vendido` : undefined}
+            title={
+                isDataPrevistaOverdue
+                    ? `Data Prevista de Fechamento atrasada (${diasAtrasoDataPrevista} ${diasAtrasoDataPrevista === 1 ? 'dia' : 'dias'})`
+                    : conciergeStats
+                        ? `${conciergeStats.ativos} atendimentos abertos · ${conciergeStats.vencidos} vencidos · R$ ${(conciergeStats.valor_vendido_extra / 100).toFixed(2)} vendido`
+                        : undefined
+            }
         >
             <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2 flex-wrap">

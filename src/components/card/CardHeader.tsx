@@ -63,6 +63,7 @@ import { useFieldConfig } from '../../hooks/useFieldConfig'
 import { usePipelinePhases } from '../../hooks/usePipelinePhases'
 import { useCardAlerts } from '../../hooks/useCardAlerts'
 import { useProductPipelineId } from '../../hooks/useCurrentProductMeta'
+import { usePipelineGovernance, getDiasAtrasoDataPrevista } from '../../hooks/usePipelineGovernance'
 import { SystemPhase } from '@/types/pipeline'
 
 type CardBase = Database['public']['Tables']['cards']['Row']
@@ -384,6 +385,15 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
     const [showStageDropdown, setShowStageDropdown] = useState(false)
     const headerPipelineId = useProductPipelineId(card.produto)
     const { validateMove } = useQualityGate(headerPipelineId)
+    const { data: governance } = usePipelineGovernance(headerPipelineId)
+    const diasAtraso = useMemo(
+        () => getDiasAtrasoDataPrevista(card.produto_data),
+        [card.produto_data]
+    )
+    const isCardFinalized = card.status_comercial === 'ganho' || card.status_comercial === 'perdido'
+    const isDataPrevistaOverdue = diasAtraso !== null && !isCardFinalized
+    const stageMoveBlockedByOverdue = isDataPrevistaOverdue
+        && (governance?.data_overdue_severity ?? 'block_all') !== 'warn_only'
     const [isValidatingStage, setIsValidatingStage] = useState(false)
     const [qualityGateModalOpen, setQualityGateModalOpen] = useState(false)
     const [showAlertModal, setShowAlertModal] = useState(false)
@@ -1330,9 +1340,25 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                     <div className="relative z-20 flex items-center gap-2">
                         <div className="relative">
                             <button
-                                onClick={() => setShowStageDropdown(!showStageDropdown)}
-                                className="group inline-flex items-center gap-2 pl-3 pr-2 py-1 rounded-full bg-white border-[1.5px] border-indigo-500 hover:bg-indigo-50 transition-colors"
-                                title="Mudar etapa do funil"
+                                onClick={() => {
+                                    if (stageMoveBlockedByOverdue) {
+                                        toast.error('Data Prevista de Fechamento está no passado', {
+                                            description: 'Atualize a data antes de mover o card de etapa.',
+                                        })
+                                        return
+                                    }
+                                    setShowStageDropdown(!showStageDropdown)
+                                }}
+                                disabled={stageMoveBlockedByOverdue}
+                                className={cn(
+                                    "group inline-flex items-center gap-2 pl-3 pr-2 py-1 rounded-full bg-white border-[1.5px] transition-colors",
+                                    stageMoveBlockedByOverdue
+                                        ? "border-red-300 opacity-60 cursor-not-allowed"
+                                        : "border-indigo-500 hover:bg-indigo-50"
+                                )}
+                                title={stageMoveBlockedByOverdue
+                                    ? "Atualize a Data Prevista de Fechamento antes de mudar de etapa"
+                                    : "Mudar etapa do funil"}
                             >
                                 <span className="text-[9px] font-extrabold text-indigo-700 tracking-[0.1em] leading-none">ETAPA</span>
                                 <span className="h-3.5 w-px bg-gray-200" />
@@ -1623,6 +1649,20 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
 
                             {/* Divider */}
                             <div className="h-3.5 w-px bg-gray-300" />
+
+                            {/* Badge: Data Prevista de Fechamento atrasada */}
+                            {isDataPrevistaOverdue && (
+                                <>
+                                    <div
+                                        className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 border border-red-200 text-red-700 text-[10px] font-semibold"
+                                        title="Data Prevista de Fechamento está no passado. Atualize para continuar."
+                                    >
+                                        <AlertCircle className="h-3 w-3" />
+                                        Atrasado {diasAtraso} {diasAtraso === 1 ? 'dia' : 'dias'}
+                                    </div>
+                                    <div className="h-3.5 w-px bg-gray-300" />
+                                </>
+                            )}
 
                             {/* Value - Always show when data exists */}
                             {(() => {

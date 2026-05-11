@@ -20,6 +20,7 @@ import { usePipelinePhases } from '../../../hooks/usePipelinePhases'
 import { useCurrentProductMeta } from '../../../hooks/useCurrentProductMeta'
 import { useProductContext } from '../../../hooks/useProductContext'
 import { useSections } from '../../../hooks/useSections'
+import PipelineOverdueGovernancePanel from './PipelineOverdueGovernancePanel'
 import { Button } from '../../ui/Button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -424,7 +425,9 @@ export default function GovernanceConsole() {
     }
 
     return (
-        <div className="flex h-[calc(100vh-12rem)] bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden relative">
+        <div className="flex flex-col gap-0">
+            <PipelineOverdueGovernancePanel pipelineId={pipelineId} />
+        <div className="flex h-[calc(100vh-16rem)] bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden relative">
             {/* LEFT: Stage Navigation */}
             <div className="w-1/3 min-w-[300px] border-r border-gray-200 overflow-y-auto bg-gray-50/50">
                 <div className="p-4 border-b border-gray-200 bg-white sticky top-0 z-10">
@@ -810,6 +813,7 @@ export default function GovernanceConsole() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+        </div>
         </div>
     )
 }
