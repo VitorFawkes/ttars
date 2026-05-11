@@ -77,6 +77,17 @@ export const CreateTaskEditor: React.FC<ConfigEditorProps> = ({ config, onChange
                     />
                 </div>
             </div>
+            {((config.tipo as string) || 'contato') === 'contato' && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800 space-y-1">
+                    <div className="font-medium">Atenção: tarefa do tipo "Contato"</div>
+                    <p>
+                        Quando uma mensagem WhatsApp sai do card (manual ou por outro passo do fluxo), o sistema fecha automaticamente toda tarefa de contato pendente desse card. Se o seu fluxo tem "Enviar mensagem" depois, o "Concluir tarefa" pode virar redundante.
+                    </p>
+                    <p>
+                        Pra controlar a conclusão pelo fluxo, escolha outro tipo (ex: "Tarefa").
+                    </p>
+                </div>
+            )}
             <div className="space-y-2">
                 <Label className="text-xs">Título</Label>
                 <Input
