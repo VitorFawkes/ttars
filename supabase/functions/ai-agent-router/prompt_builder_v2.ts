@@ -51,7 +51,6 @@ import type {
   ScoringRule,
 } from "./playbook_loader.ts";
 import { resolvePlaceholdersDeep, type ResolverContext } from "./placeholder_resolver.ts";
-import { renderSlotForPrompt, type SlotV2 } from "./slot_renderer.ts";
 
 // Catálogo de linhas vermelhas padrão (espelho do frontend — NUNCA mude aqui
 // sem espelhar em src/lib/playbook/boundariesLibrary.ts, senão quebra paridade).
@@ -149,23 +148,6 @@ export interface BuildPromptV2Input {
     /** Slots pré-buscados pra LLM propor sem precisar chamar check_calendar primeiro. */
     available_slots?: Array<{ date: string; time: string; weekday: string }>;
   } | null;
-  /**
-   * Feature flag — quando true, usa novo schema de discovery (goal, must_include,
-   * example_questions, literal_question). Slots sem goal preenchido caem pro legado.
-   * Default false — mantém comportamento V1 (Patricia/Luna).
-   */
-  feature_flag_discovery_v2?: boolean;
-  /**
-   * Slot selecionado pelo router pra este turno. Usado para logging em Task 9.
-   * Null quando não há slot ativo ou flag desativado.
-   */
-  current_slot?: SlotV2 | null;
-  /**
-   * Bloco XML construído por buildRegenHintBlock() em caso de retry.
-   * Contém <previous_attempt_failed> com regra, excerpt, instruction.
-   * Injetado ANTES de <turn> na montagem final. Null/vazio se 1ª tentativa.
-   */
-  previous_attempt_failed?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -202,7 +184,7 @@ export function buildPromptV2(input: BuildPromptV2Input): string {
   const header = renderHeader(input);
   const voice = renderVoiceBlock(input.voice);
   const listening = renderListeningBlock(input.listening ?? null, input.userMessage, input.ctx.is_primeiro_contato);
-  const anchors = renderAnchorsBlock(input.moments, input.currentMoment, subs, input.ctx.current_moment_step_index, input.feature_flag_discovery_v2);
+  const anchors = renderAnchorsBlock(input.moments, input.currentMoment, subs, input.ctx.current_moment_step_index);
   const boundaries = renderBoundariesBlock(input.boundaries);
   const qualification = renderQualificationBlock(input.scoringRules, input.scoreInfo);
   const signals = renderSilentSignalsBlock(input.silentSignals);
@@ -684,7 +666,6 @@ function renderOneMoment(
   currentMomentKey: string,
   subs: Record<string, string>,
   stepIndex?: number,
-  input?: { feature_flag_discovery_v2?: boolean },
 ): string[] {
   const lines: string[] = [];
   const marker = m.moment_key === currentMomentKey ? '★' : '•';
@@ -777,63 +758,52 @@ function renderOneMoment(
       const ico = slot.icon ? `${slot.icon} ` : '';
       lines.push(`      - ${ico}${slot.label}${prioLabel}`);
 
-      // Fase 4 (11/05/2026): V2 discovery schema — se feature flag ativado E slot
-      // tem goal preenchido, usa renderSlotForPrompt() (schema estruturado novo).
-      // Senão, cai pro legacy (must_collect/coverage_notes/deriveSlotQuestion).
-      const useV2 = input?.feature_flag_discovery_v2 && (slot as SlotV2).goal;
-      if (useV2) {
-        const v2Block = renderSlotForPrompt(slot as SlotV2);
-        if (v2Block) {
-          lines.push(`        ${v2Block.split('\n').join('\n        ')}`);
-        }
-      } else {
-        // Fase 2 (09/05/2026): must_collect estruturado é fonte primária. Lista
-        // atômica de dados obrigatórios — renderiza como exigência explícita E
-        // verificador determinístico (Fix E++) lê a MESMA lista pra checar
-        // item-por-item na resposta. Sem prose ambígua. Backward compat: se vazio,
-        // cai no coverage_notes legado (prose).
-        const mustCollect = ((slot as { must_collect?: string[] }).must_collect ?? []).filter(s => typeof s === 'string' && s.trim().length > 0);
-        const rejectIf = ((slot as { reject_if?: Array<{ pattern: string; hint?: string }> }).reject_if ?? []).filter(r => r && typeof r.pattern === 'string' && r.pattern.trim().length > 0);
-        const coverageNotes = (slot as { coverage_notes?: string | null }).coverage_notes;
+      // Fase 2 (09/05/2026): must_collect estruturado é fonte primária. Lista
+      // atômica de dados obrigatórios — renderiza como exigência explícita E
+      // verificador determinístico (Fix E++) lê a MESMA lista pra checar
+      // item-por-item na resposta. Sem prose ambígua. Backward compat: se vazio,
+      // cai no coverage_notes legado (prose).
+      const mustCollect = ((slot as { must_collect?: string[] }).must_collect ?? []).filter(s => typeof s === 'string' && s.trim().length > 0);
+      const rejectIf = ((slot as { reject_if?: Array<{ pattern: string; hint?: string }> }).reject_if ?? []).filter(r => r && typeof r.pattern === 'string' && r.pattern.trim().length > 0);
+      const coverageNotes = (slot as { coverage_notes?: string | null }).coverage_notes;
 
-        if (mustCollect.length > 0) {
-          lines.push(`        ESTA PERGUNTA PRECISA COLETAR todos estes dados (sem suavizar — se faltar um, sistema regera):`);
-          mustCollect.forEach(item => lines.push(`          • ${item.trim()}`));
-          if (rejectIf.length > 0) {
-            lines.push(`        Se o lead responder vagamente, peça especificidade:`);
-            rejectIf.forEach(r => {
-              const hint = r.hint && r.hint.trim().length > 0 ? ` → ${r.hint.trim()}` : ' → peça mais detalhe';
-              lines.push(`          • "${r.pattern.trim()}"${hint}`);
-            });
-          }
-        } else if (coverageNotes && typeof coverageNotes === 'string' && coverageNotes.trim().length > 0) {
-          // Fix A (08/05/2026): legado prose. Mantido como fallback até o admin
-          // migrar pro padrão must_collect estruturado. Tem ~80% de obediência —
-          // o estruturado tem ~100%.
-          lines.push(`        ESTA PERGUNTA PRECISA COLETAR: ${coverageNotes.trim()}. Não suavize requisitos do admin (se diz "X e Y", colete os dois).`);
+      if (mustCollect.length > 0) {
+        lines.push(`        ESTA PERGUNTA PRECISA COLETAR todos estes dados (sem suavizar — se faltar um, sistema regera):`);
+        mustCollect.forEach(item => lines.push(`          • ${item.trim()}`));
+        if (rejectIf.length > 0) {
+          lines.push(`        Se o lead responder vagamente, peça especificidade:`);
+          rejectIf.forEach(r => {
+            const hint = r.hint && r.hint.trim().length > 0 ? ` → ${r.hint.trim()}` : ' → peça mais detalhe';
+            lines.push(`          • "${r.pattern.trim()}"${hint}`);
+          });
         }
-        if (slot.questions && slot.questions.length > 0) {
-          lines.push(`        Perguntas sugeridas (use uma destas, na ordem que fizer sentido):`);
-          slot.questions.forEach(q => lines.push(`          • "${q.trim()}"`));
+      } else if (coverageNotes && typeof coverageNotes === 'string' && coverageNotes.trim().length > 0) {
+        // Fix A (08/05/2026): legado prose. Mantido como fallback até o admin
+        // migrar pro padrão must_collect estruturado. Tem ~80% de obediência —
+        // o estruturado tem ~100%.
+        lines.push(`        ESTA PERGUNTA PRECISA COLETAR: ${coverageNotes.trim()}. Não suavize requisitos do admin (se diz "X e Y", colete os dois).`);
+      }
+      if (slot.questions && slot.questions.length > 0) {
+        lines.push(`        Perguntas sugeridas (use uma destas, na ordem que fizer sentido):`);
+        slot.questions.forEach(q => lines.push(`          • "${q.trim()}"`));
+      } else {
+        // Fase 3 (08/05/2026) — Template-first quando admin não escreveu
+        // pergunta. Antes era "improvise respeitando o contexto" + regra
+        // textual "PRESERVE CONJUNÇÕES" — frágil, LLM suavizava "Mês E Ano"
+        // pra "mês ou ano". Agora deriva pergunta deterministicamente do
+        // coverage_notes ou label e instrui LLM a usar palavra-por-palavra
+        // (admin pode escrever rapport prefix curto antes — "Que bom! ").
+        // Resolve "mês ou ano" estruturalmente, não por regra.
+        const derived = deriveSlotQuestion(slot);
+        if (derived) {
+          lines.push(`        Pergunta gerada (use PALAVRA-POR-PALAVRA — você pode prefixar com rapport curto tipo "Legal!", "Entendi", "Que bom!" + nome do lead, mas NÃO altere a pergunta em si):`);
+          lines.push(`          • "${derived}"`);
         } else {
-          // Fase 3 (08/05/2026) — Template-first quando admin não escreveu
-          // pergunta. Antes era "improvise respeitando o contexto" + regra
-          // textual "PRESERVE CONJUNÇÕES" — frágil, LLM suavizava "Mês E Ano"
-          // pra "mês ou ano". Agora deriva pergunta deterministicamente do
-          // coverage_notes ou label e instrui LLM a usar palavra-por-palavra
-          // (admin pode escrever rapport prefix curto antes — "Que bom! ").
-          // Resolve "mês ou ano" estruturalmente, não por regra.
-          const derived = deriveSlotQuestion(slot);
-          if (derived) {
-            lines.push(`        Pergunta gerada (use PALAVRA-POR-PALAVRA — você pode prefixar com rapport curto tipo "Legal!", "Entendi", "Que bom!" + nome do lead, mas NÃO altere a pergunta em si):`);
-            lines.push(`          • "${derived}"`);
-          } else {
-            lines.push(`        Sem pergunta escrita — formule pergunta natural cobrindo EXATAMENTE o nome do slot e contexto.`);
-          }
+          lines.push(`        Sem pergunta escrita — formule pergunta natural cobrindo EXATAMENTE o nome do slot e contexto.`);
         }
-        if (slot.crm_field_key) {
-          lines.push(`        (registra em ${slot.crm_field_key})`);
-        }
+      }
+      if (slot.crm_field_key) {
+        lines.push(`        (registra em ${slot.crm_field_key})`);
       }
     }
   }
@@ -865,7 +835,6 @@ function renderAnchorsBlock(
   currentMoment: PlaybookMoment,
   subs: Record<string, string>,
   stepIndex?: number,
-  feature_flag_discovery_v2?: boolean,
 ): string {
   if (moments.length === 0) return '';
 
@@ -884,7 +853,7 @@ function renderAnchorsBlock(
     lines.push('Fases do funil (passe por elas em ordem; cada uma tem um gatilho que indica quando começa):');
     lines.push('');
     for (const m of flows) {
-      lines.push(...renderOneMoment(m, currentMoment.moment_key, subs, stepIndex, { feature_flag_discovery_v2 }));
+      lines.push(...renderOneMoment(m, currentMoment.moment_key, subs, stepIndex));
       lines.push('');
     }
     lines.push('</flow>');
@@ -896,7 +865,7 @@ function renderAnchorsBlock(
     lines.push('Jogadas situacionais (podem disparar em qualquer fase quando o gatilho aparece; depois volte pra fase atual):');
     lines.push('');
     for (const m of plays) {
-      lines.push(...renderOneMoment(m, currentMoment.moment_key, subs, stepIndex, { feature_flag_discovery_v2 }));
+      lines.push(...renderOneMoment(m, currentMoment.moment_key, subs, stepIndex));
       lines.push('');
     }
     lines.push('</plays>');
@@ -1361,16 +1330,7 @@ function renderTurnBlock(input: BuildPromptV2Input): string {
     for (const [k, v] of qualSignalEntries) knownLines.push(`  - ${k}: ${v}`);
   }
 
-  // Injetar bloco de falha anterior (retry pass) se disponível
-  const previousFailed = input.previous_attempt_failed && typeof input.previous_attempt_failed === 'string' && input.previous_attempt_failed.trim().length > 0
-    ? input.previous_attempt_failed.trim()
-    : '';
-
   const parts: string[] = [];
-  if (previousFailed) {
-    parts.push(previousFailed);
-    parts.push('');
-  }
   parts.push('<turn>');
   parts.push('<detected>');
   parts.push(detected);
