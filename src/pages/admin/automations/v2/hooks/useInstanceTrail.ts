@@ -129,16 +129,31 @@ export function useInstanceTrail(instanceId: string | null) {
             currentStepEnteredAt = ev.created_at
         }
 
-        // current node: prioriza a fila (cadence_queue pending/processing) porque
-        // o engine NÃO atualiza instance.current_step_id em todos os step types
-        // (wait/branch/end ficam "atrasados"). A fila sempre tem o próximo step
-        // agendado, então o item pending mais antigo é o foco atual.
-        // Fallback pro current_step_id da instance quando a fila está vazia
-        // (instance recém-iniciada ou step executando síncrono).
-        const nextQueued = queue.find((q) => q.status === 'pending' || q.status === 'processing')
-        const currentStepIdRaw = nextQueued?.step_id || instance.current_step_id
-        const currentNodeId = currentStepIdRaw ? `step_${currentStepIdRaw}` : null
-        if (nextQueued?.execute_at) currentStepEnteredAt = nextQueued.execute_at
+        // current node: a fila guarda o PRÓXIMO step a rodar. Distinguir:
+        //   1. Item pending com execute_at <= now (5s slack) → pronto pra
+        //      executar, ESSE é o current.
+        //   2. Item pending com execute_at no futuro → o card está aguardando
+        //      no wait/branch/etc que enfileirou esse item. Current = último
+        //      step que rodou (último step_key visto nos eventos).
+        //   3. Sem fila → usa current_step_id do banco (instance recém-criada
+        //      ou último step já executado).
+        const now = Date.now()
+        const slackMs = 5000
+        const pendingItems = queue.filter((q) => q.status === 'pending' || q.status === 'processing')
+        const readyToRun = pendingItems.find((q) => new Date(q.execute_at).getTime() <= now + slackMs)
+        const futureWaiting = !readyToRun && pendingItems.length > 0
+
+        let currentNodeId: string | null = null
+        if (readyToRun) {
+            currentNodeId = `step_${readyToRun.step_id}`
+            currentStepEnteredAt = readyToRun.execute_at
+        } else if (futureWaiting && orderedStepKeys.length > 0) {
+            const lastKey = orderedStepKeys[orderedStepKeys.length - 1]
+            currentNodeId = stepKeyToNodeId.get(lastKey) ?? null
+            // currentStepEnteredAt já é o created_at do último evento (loop acima).
+        } else if (instance.current_step_id) {
+            currentNodeId = `step_${instance.current_step_id}`
+        }
 
         // Completed = todos os steps que apareceram em eventos, exceto o current
         const completedNodeIds = orderedStepKeys
