@@ -62,14 +62,35 @@ export function useFieldConfig(pipelineId?: string) {
     })
 
     // Fetch Stage Configs (The Rules — per stage)
+    //
+    // BUG #1 — filtro por org_id obrigatório (CLAUDE.md §TOP 5 #1).
+    // BUG #2 — PostgREST corta em 1000 rows por default. stage_field_config
+    // tem ~1300 rows em produção. Sem filtro de org + paginação, configs ficam
+    // de fora e getFieldConfig cai no fallback `?? true` → UI mostra olho azul
+    // pra campos que estão FALSE no banco → toggle "não funciona".
     const { data: allStageConfigs, isLoading: loadingConfigs } = useQuery({
-        queryKey: ['stage-field-configs-all'],
+        queryKey: ['stage-field-configs-all', currentOrgId],
         queryFn: async () => {
-            const { data } = await supabase
-                .from('stage_field_config')
-                .select('*')
-            return data as StageFieldConfig[]
+            if (!currentOrgId) return [] as StageFieldConfig[]
+            const PAGE = 1000
+            const acc: StageFieldConfig[] = []
+            let from = 0
+            // safety cap: 50.000 rows (50 páginas) — evita loop infinito
+            for (let i = 0; i < 50; i++) {
+                const { data, error } = await supabase
+                    .from('stage_field_config')
+                    .select('*')
+                    .eq('org_id', currentOrgId)
+                    .range(from, from + PAGE - 1)
+                if (error) throw error
+                if (!data || data.length === 0) break
+                acc.push(...(data as StageFieldConfig[]))
+                if (data.length < PAGE) break
+                from += PAGE
+            }
+            return acc
         },
+        enabled: !!currentOrgId,
         staleTime: 1000 * 60 * 5 // 5 minutes
     })
 
