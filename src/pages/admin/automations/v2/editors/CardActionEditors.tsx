@@ -320,7 +320,7 @@ export const CompleteTaskEditor: React.FC<ConfigEditorProps> = ({ config, onChan
                     placeholder="Ex: Mensagem de boas-vindas enviada via wt_primeiro_contato001."
                 />
                 <p className="text-[11px] text-slate-500">
-                    Texto livre que vai pro "feedback" da tarefa quando a automação fechar. Suporta {`{{contact.nome}}`} e {`{{card.titulo}}`}.
+                    Texto livre que vai pro "feedback" da tarefa quando a automação fechar. Suporta {`{{contact.nome}}`}, {`{{card.titulo}}`} e {`{{now}}`} (data/hora de Brasília na hora da conclusão).
                 </p>
             </div>
         </div>

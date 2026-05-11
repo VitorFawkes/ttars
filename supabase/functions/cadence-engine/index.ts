@@ -48,6 +48,20 @@ function mapPrioridade(value: string | undefined): string {
     return map[value] || 'alta';
 }
 
+// Timestamp atual no fuso de Brasília no formato "DD/MM/YYYY HH:MM".
+// Usado pra interpolar {{now}} em textos renderizados pelas automações
+// (mensagens, notificações, feedback de tarefa, etc).
+function formatBrazilNow(): string {
+    return new Date().toLocaleString('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
+
 serve(async (req) => {
     if (req.method === "OPTIONS") {
         return new Response("ok", { headers: corsHeaders });
@@ -108,10 +122,12 @@ serve(async (req) => {
                 const contato = await resolveCardContact(supabaseClient, cardId)
 
                 const firstName = (contato?.nome || '').split(' ')[0] || ''
+                const nowBr = formatBrazilNow()
                 const renderVars = (s: string) => s
                     .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato?.nome || '')
                     .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
                     .replace(/\{\{\s*card\.titulo\s*\}\}/g, card.titulo || '')
+                    .replace(/\{\{\s*now\s*\}\}/g, nowBr)
 
                 const warnings: string[] = []
                 if (!contato?.id) warnings.push('Card não tem contato vinculado — automação vai ser pulada')
@@ -1016,10 +1032,12 @@ async function dispatchEchoMessage(args: DispatchArgs): Promise<DispatchResult> 
     const echoBase = echoApiUrl.replace(/\/send-message\/?$/, '').replace(/\/+$/, '');
 
     const firstName = (contato.nome || '').split(' ')[0] || '';
+    const nowBr = formatBrazilNow();
     const renderVars = (s: string) => s
         .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato.nome || '')
         .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
-        .replace(/\{\{\s*card\.titulo\s*\}\}/g, cardTitulo || '');
+        .replace(/\{\{\s*card\.titulo\s*\}\}/g, cardTitulo || '')
+        .replace(/\{\{\s*now\s*\}\}/g, nowBr);
 
     const normalizedPhone = (contato.telefone || '').replace(/\D/g, "");
 
@@ -1671,10 +1689,12 @@ async function executeNotifyInternalAction(
     // mensagens e mídia: contact.nome, contact.primeiro_nome, card.titulo)
     const contato = await resolveCardContact(supabaseClient, cardId);
     const firstName = (contato?.nome || '').split(' ')[0] || '';
+    const nowBr = formatBrazilNow();
     const renderVars = (s: string) => s
         .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato?.nome || '')
         .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
-        .replace(/\{\{\s*card\.titulo\s*\}\}/g, card.titulo || '');
+        .replace(/\{\{\s*card\.titulo\s*\}\}/g, card.titulo || '')
+        .replace(/\{\{\s*now\s*\}\}/g, nowBr);
     const title = renderVars(rawTitle).slice(0, 200);
     const body = renderVars(rawBody).slice(0, 500);
 
@@ -1980,10 +2000,12 @@ async function executeSendMediaAction(
     }
 
     const firstName = (contato.nome || '').split(' ')[0] || '';
+    const nowBr = formatBrazilNow();
     const renderVars = (s: string) => s
         .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato.nome || '')
         .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
-        .replace(/\{\{\s*card\.titulo\s*\}\}/g, card?.titulo || '');
+        .replace(/\{\{\s*card\.titulo\s*\}\}/g, card?.titulo || '')
+        .replace(/\{\{\s*now\s*\}\}/g, nowBr);
     const caption = cfg.caption ? renderVars(cfg.caption) : null;
 
     const result = await callEchoApi('POST', '/send-image', {
@@ -2920,10 +2942,12 @@ async function executeMediaStep(
 
     // Render variáveis em caption
     const firstName = (contato.nome || '').split(' ')[0] || '';
+    const nowBr = formatBrazilNow();
     const renderVars = (s: string) => s
         .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato.nome || '')
         .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
-        .replace(/\{\{\s*card\.titulo\s*\}\}/g, card.titulo || '');
+        .replace(/\{\{\s*card\.titulo\s*\}\}/g, card.titulo || '')
+        .replace(/\{\{\s*now\s*\}\}/g, nowBr);
     const caption = config.caption ? renderVars(config.caption) : null;
 
     const result = await callEchoApi('POST', '/send-image', {
@@ -3147,6 +3171,8 @@ async function executeCompleteTaskAction(
 
     // Interpola variáveis no feedback (mesmas suportadas em notify_internal e
     // mensagens). Se o feedback não foi configurado, fica null e não sobrescreve.
+    // {{now}} usa horário de Brasília — útil pra registrar "quando" sem depender
+    // do fuso do banco.
     let feedback: string | null = null;
     const rawFeedback: string = cfg.feedback || '';
     if (rawFeedback.trim()) {
@@ -3154,10 +3180,12 @@ async function executeCompleteTaskAction(
         const { data: cardRow } = await supabaseClient
             .from('cards').select('titulo').eq('id', cardId).single();
         const firstName = (contato?.nome || '').split(' ')[0] || '';
+        const nowBr = formatBrazilNow();
         feedback = rawFeedback
             .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato?.nome || '')
             .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
-            .replace(/\{\{\s*card\.titulo\s*\}\}/g, (cardRow?.titulo as string) || '');
+            .replace(/\{\{\s*card\.titulo\s*\}\}/g, (cardRow?.titulo as string) || '')
+            .replace(/\{\{\s*now\s*\}\}/g, nowBr);
     }
 
     const updatePayload: Record<string, unknown> = {
