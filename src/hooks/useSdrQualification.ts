@@ -4,11 +4,8 @@ import { supabase } from '../lib/supabase'
 import { ESTELA_AGENT_ID } from './useEstelaScoringRules'
 
 // As RPCs sdr_* foram criadas em 20260512d/e mas o database.types.ts gerado
-// via Supabase CLI 2.74 ainda não reflete elas. Cast local pra contornar.
-// .bind(supabase) é OBRIGATÓRIO — sem ele, `this` interno do client se perde
-// e dá "Cannot read properties of undefined (reading 'rest')".
-type RpcFn = (name: string, args?: unknown) => Promise<{ data: unknown; error: { message: string } | null }>
-const rpc = supabase.rpc.bind(supabase) as unknown as RpcFn
+// via Supabase CLI 2.74 ainda não reflete elas. Usamos `(supabase.rpc as unknown as (n: string, a?: unknown) => Promise<{ data: unknown; error: { message: string } | null }>)('nome', args)`
+// inline em cada chamada — preserva o `this` interno do client naturalmente.
 
 export type SdrScoreResult = {
     enabled: boolean
@@ -78,7 +75,7 @@ type IniciarResult = {
 export function useIniciarPontuacao() {
     return useMutation({
         mutationFn: async ({ contatoId, cardId, telefone, agentId = ESTELA_AGENT_ID }: IniciarParams) => {
-            const { data, error } = await rpc('sdr_iniciar_pontuacao', {
+            const { data, error } = await (supabase.rpc as unknown as (n: string, a?: unknown) => Promise<{ data: unknown; error: { message: string } | null }>)('sdr_iniciar_pontuacao', {
                 p_agent_id: agentId,
                 p_contato_id: contatoId ?? undefined,
                 p_card_id: cardId ?? undefined,
@@ -100,7 +97,7 @@ type AtualizarParams = {
 export function useAtualizarPontuacao() {
     return useMutation({
         mutationFn: async ({ id, dadosLead, scoringInputs, notas }: AtualizarParams) => {
-            const { data, error } = await rpc('sdr_atualizar_pontuacao', {
+            const { data, error } = await (supabase.rpc as unknown as (n: string, a?: unknown) => Promise<{ data: unknown; error: { message: string } | null }>)('sdr_atualizar_pontuacao', {
                 p_id: id,
                 p_dados_lead: (dadosLead ?? undefined) as never,
                 p_scoring_inputs: (scoringInputs ?? undefined) as never,
@@ -116,7 +113,7 @@ export function useFinalizarPontuacao() {
     const qc = useQueryClient()
     return useMutation({
         mutationFn: async (params: { id: string; notas?: string | null; mergeStrategy?: 'preserve' | 'overwrite' | 'update_if_newer' }) => {
-            const { data, error } = await rpc('sdr_finalizar_pontuacao', {
+            const { data, error } = await (supabase.rpc as unknown as (n: string, a?: unknown) => Promise<{ data: unknown; error: { message: string } | null }>)('sdr_finalizar_pontuacao', {
                 p_id: params.id,
                 p_notas: params.notas ?? undefined,
                 p_merge_strategy: params.mergeStrategy ?? 'preserve',
@@ -133,7 +130,7 @@ export function useFinalizarPontuacao() {
 export function useReabrirPontuacao() {
     return useMutation({
         mutationFn: async (id: string) => {
-            const { data, error } = await rpc('sdr_reabrir_pontuacao', { p_id: id })
+            const { data, error } = await (supabase.rpc as unknown as (n: string, a?: unknown) => Promise<{ data: unknown; error: { message: string } | null }>)('sdr_reabrir_pontuacao', { p_id: id })
             if (error) throw error
             return data as unknown as { id: string; version: number }
         },
@@ -144,7 +141,7 @@ export function useDescartarPontuacao() {
     const qc = useQueryClient()
     return useMutation({
         mutationFn: async (id: string) => {
-            const { error } = await rpc('sdr_descartar_pontuacao', { p_id: id })
+            const { error } = await (supabase.rpc as unknown as (n: string, a?: unknown) => Promise<{ data: unknown; error: { message: string } | null }>)('sdr_descartar_pontuacao', { p_id: id })
             if (error) throw error
             return id
         },
@@ -156,7 +153,7 @@ export function useVincularACard() {
     const qc = useQueryClient()
     return useMutation({
         mutationFn: async (params: { qualificationId: string; cardId: string }) => {
-            const { data, error } = await rpc('sdr_vincular_a_card', {
+            const { data, error } = await (supabase.rpc as unknown as (n: string, a?: unknown) => Promise<{ data: unknown; error: { message: string } | null }>)('sdr_vincular_a_card', {
                 p_qualification_id: params.qualificationId,
                 p_card_id: params.cardId,
             })
@@ -187,7 +184,7 @@ export function useObterPontuacao(id: string | null | undefined) {
         queryKey: ['sdr-qualification', id],
         queryFn: async () => {
             if (!id) return null
-            const { data, error } = await rpc('sdr_obter_pontuacao', { p_id: id })
+            const { data, error } = await (supabase.rpc as unknown as (n: string, a?: unknown) => Promise<{ data: unknown; error: { message: string } | null }>)('sdr_obter_pontuacao', { p_id: id })
             if (error) throw error
             return data as unknown as ObterResult
         },
@@ -235,7 +232,7 @@ export function useListarPontuacoes(filtros: ListaFiltros = {}) {
     return useQuery({
         queryKey: ['sdr-qualifications', filtros],
         queryFn: async () => {
-            const { data, error } = await rpc('sdr_listar_pontuacoes', {
+            const { data, error } = await (supabase.rpc as unknown as (n: string, a?: unknown) => Promise<{ data: unknown; error: { message: string } | null }>)('sdr_listar_pontuacoes', {
                 p_filtros: filtros as never,
             })
             if (error) throw error

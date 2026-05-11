@@ -30,10 +30,8 @@ export type EstelaScoringData = {
     rulesVersion: string
 }
 
-// Cast pra contornar tipos defasados (database.types.ts não tem sdr_* nem exclusion_group ainda)
-// .bind(supabase) preserva `this` interno do client (senão dá "Cannot read properties of undefined (reading 'rest')").
-type RpcFn = (name: string, args?: unknown) => Promise<{ data: unknown; error: { message: string } | null }>
-const rpc = supabase.rpc.bind(supabase) as unknown as RpcFn
+// Cast pra contornar tipos defasados — database.types.ts (CLI 2.74) ainda não tem
+// sdr_compute_rules_version nem exclusion_group. Chamada inline preserva `this` do client.
 
 async function fetchEstelaScoring(agentId: string): Promise<EstelaScoringData> {
     const [rulesRes, configRes, versionRes] = await Promise.all([
@@ -49,7 +47,7 @@ async function fetchEstelaScoring(agentId: string): Promise<EstelaScoringData> {
             .select('enabled, threshold_qualify, max_sinal_bonus, fallback_action')
             .eq('agent_id', agentId)
             .maybeSingle(),
-        rpc('sdr_compute_rules_version', { p_agent_id: agentId }),
+        (supabase.rpc as unknown as (n: string, a?: unknown) => Promise<{ data: unknown; error: { message: string } | null }>)('sdr_compute_rules_version', { p_agent_id: agentId }) as Promise<{ data: unknown; error: { message: string } | null }>,
     ])
 
     if (rulesRes.error) throw rulesRes.error
