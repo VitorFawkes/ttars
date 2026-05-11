@@ -3310,6 +3310,29 @@ async function handleStartCadence(supabaseClient: SupabaseClient, body: any) {
         }), { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // Limpar tarefas órfãs: instances já encerradas (cancelled/failed/completed)
+    // do mesmo card+template podem ter deixado tarefas pendentes que travam o
+    // anti-duplicata em executeTaskStep. Soft-delete antes de criar a nova
+    // instance pra garantir que a próxima execução não bata em "existing
+    // uncompleted task".
+    const { data: deadInstances } = await supabaseClient
+        .from("cadence_instances")
+        .select("id")
+        .eq("card_id", card_id)
+        .eq("template_id", template_id)
+        .in("status", ['cancelled', 'failed', 'completed']);
+    const deadInstanceIds = (deadInstances || []).map((r: { id: string }) => r.id);
+    if (deadInstanceIds.length > 0) {
+        for (const deadId of deadInstanceIds) {
+            await supabaseClient
+                .from("tarefas")
+                .update({ deleted_at: new Date().toISOString() })
+                .contains("metadata", { cadence_instance_id: deadId })
+                .eq("concluida", false)
+                .is("deleted_at", null);
+        }
+    }
+
     // Detectar modo de execução
     const { data: templateRow } = await supabaseClient
         .from("cadence_templates")
@@ -3441,9 +3464,26 @@ async function handleCancelCadence(supabaseClient: SupabaseClient, body: any) {
         .eq("instance_id", instance_id)
         .eq("status", "pending");
 
+    // Soft-delete tarefas pendentes criadas por esta instance. Sem isso, a regra
+    // anti-duplicata em executeTaskStep (linear: 1 tarefa pendente por tipo no
+    // card) trava qualquer nova execução do mesmo template no mesmo card até
+    // alguém limpar as tarefas órfãs manualmente.
+    const { data: cancelledTasks, error: cancelTasksErr } = await supabaseClient
+        .from("tarefas")
+        .update({ deleted_at: new Date().toISOString() })
+        .contains("metadata", { cadence_instance_id: instance_id })
+        .eq("concluida", false)
+        .is("deleted_at", null)
+        .select("id");
+
+    if (cancelTasksErr) {
+        console.error('[CadenceEngine] handleCancelCadence: erro ao cancelar tarefas pendentes', cancelTasksErr);
+    }
+
     return new Response(JSON.stringify({
         success: true,
-        message: "Cadence cancelled"
+        message: "Cadence cancelled",
+        cancelled_tasks_count: cancelledTasks?.length ?? 0,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
 
