@@ -274,10 +274,15 @@ export const CompleteTaskEditor: React.FC<ConfigEditorProps> = ({ config, onChan
                     onChange={(v) => set({ target_node_id: v || null })}
                     options={[
                         { value: '', label: createTaskNodes.length === 0 ? 'Adicione um "Criar tarefa" no fluxo' : 'Selecionar...' },
-                        ...createTaskNodes.map((n) => ({
-                            value: n.id,
-                            label: n.data.label || ((n.data.config as Record<string, unknown>)?.titulo as string) || 'Criar tarefa',
-                        })),
+                        ...createTaskNodes.map((n) => {
+                            const cfg = (n.data.config as Record<string, unknown>) || {}
+                            const titulo = (cfg.titulo as string) || ''
+                            const tipo = (cfg.tipo as string) || ''
+                            const label = titulo
+                                ? (tipo ? `${titulo} (${tipo})` : titulo)
+                                : (n.data.label || 'Criar tarefa — sem título')
+                            return { value: n.id, label }
+                        }),
                     ]}
                 />
                 {!!targetNodeId && !selectedStillExists && (
