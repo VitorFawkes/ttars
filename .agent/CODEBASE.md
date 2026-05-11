@@ -7,18 +7,18 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-11
 > **Trigger:** ALWAYS ON
-> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 734 components
-> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 734 components
-> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 734 components
-> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 734 components
-> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 734 components
-> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 734 components
-> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 734 components
-> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 734 components
-> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 734 components
-> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 734 components
-> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 734 components
-> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 734 components
+> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 735 components
+> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 735 components
+> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 735 components
+> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 735 components
+> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 735 components
+> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 735 components
+> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 735 components
+> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 735 components
+> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 735 components
+> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 735 components
+> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 735 components
+> **Stats:** 194 tabelas | 156 paginas | 273 hooks | 22 views | 735 components
 
 ---
 

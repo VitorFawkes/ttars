@@ -629,9 +629,19 @@ Deno.serve(async (req) => {
           console.warn(`[v2] insert whatsapp_messages falhou:`, insErr);
         }
 
-        // Delay entre mensagens (naturalidade, evita rate limit do Echo)
+        // Delay entre mensagens — proporcional ao tamanho da PRÓXIMA bolha pra
+        // simular tempo realista de digitação humano. Sem isso, todas as
+        // bolhas chegavam no mesmo segundo no WhatsApp e o lead percebia como
+        // rajada de mensagens automatizadas (feedback do Vitor 11/05).
+        //
+        // Modelo: ~30 chars/segundo (humano rápido em WhatsApp).
+        //   base = typing_delay_seconds da config (default 1.5s) — piso
+        //   teto  = 6s pra não travar conversa em bolhas muito longas
         if (i < blocks.length - 1) {
-          await new Promise((r) => setTimeout(r, typingDelayMs));
+          const nextLen = (blocks[i + 1] || "").length;
+          const proportionalMs = Math.round((nextLen / 30) * 1000);
+          const delayMs = Math.min(6000, Math.max(typingDelayMs, proportionalMs));
+          await new Promise((r) => setTimeout(r, delayMs));
         }
       }
 
