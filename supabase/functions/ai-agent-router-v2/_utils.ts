@@ -186,6 +186,9 @@ export async function sendEchoMessage(
 export function normalizeWhatsAppText(text: string): string {
   if (!text) return "";
   return text
+    // remove separadores markdown (---, ***, ___) em linha isolada — o LLM
+    // usa como divisor visual entre blocos, mas no WhatsApp vira texto literal.
+    .replace(/^[ \t]*[-*_]{3,}[ \t]*$/gm, "")
     // remove travessões e hífens longos como separadores
     .replace(/\s*[—–]\s*/g, ". ")
     // colapsa espaços múltiplos
