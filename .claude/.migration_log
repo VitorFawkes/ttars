@@ -796,6 +796,7 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-11T16:38:58Z | supabase/migrations/20260511e_card_titulo_lock_iar.sql | applied_to_prod
 2026-05-11T16:40:51Z | supabase/migrations/20260511e_cadence_triggers_applicable_card_types.sql | applied_to_prod
 2026-05-11T16:41:16Z | supabase/migrations/20260511f_cadence_card_type_filter_queue_layer.sql | applied_to_prod
+2026-05-11T17:07:41Z | supabase/migrations/20260512a_card_created_backfill_applicable_stage.sql | applied_to_prod
 2026-05-11T16:46:39Z | supabase/migrations/20260511g_patricia_estela_rule_parity.sql | applied_to_prod
 2026-05-11T17:03:47Z | supabase/migrations/20260511e_monde_import_logs_cancelados_reativados.sql | applied_to_prod
 2026-05-11T18:12:35Z | supabase/migrations/20260512f_view_cards_acoes_sdr_score.sql | applied_to_prod
