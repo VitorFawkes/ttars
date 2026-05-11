@@ -2,6 +2,7 @@ import { Outlet, Navigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useOrg } from '../../contexts/OrgContext'
 import Sidebar from './Sidebar'
+import { FloatingScoreButton } from '../sdr-qualification/FloatingScoreButton'
 import { ThemeBoundary } from "../ui/ThemeBoundary";
 import { useProposalNotifications } from '@/hooks/useProposalNotifications';
 import { useAssistNotifications } from '@/hooks/useAssistNotifications';
@@ -84,6 +85,7 @@ export default function Layout() {
             <FeedbackPopup />
             <NotificationCenter />
             <OnboardingWizard key={org?.id ?? 'no-org'} />
+            <FloatingScoreButton />
         </GlobalSearchProvider>
     );
 }
