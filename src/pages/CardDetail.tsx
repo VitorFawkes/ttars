@@ -17,7 +17,6 @@ import SubCardsList from '../components/card/SubCardsList'
 import CardTeamSection from '../components/card/CardTeamSection'
 import { SubCardParentBanner } from '../components/pipeline/SubCardBadge'
 import { useSubCards, useSubCardParent } from '../hooks/useSubCards'
-import { TagSelector } from '../components/card/TagSelector'
 import { ArrowLeft, Users, CalendarClock, Megaphone, X, Eye } from 'lucide-react'
 
 import type { Database } from '../database.types'
@@ -277,11 +276,6 @@ export default function CardDetail() {
             {/* Sticky Header */}
             <div className="sticky top-0 z-10 bg-white shadow-sm">
                 <CardHeader card={card} onScrollToAlerts={scrollToAlerts} />
-            </div>
-
-            {/* Tags Row */}
-            <div className="px-4 py-1">
-                <TagSelector cardId={card.id!} produto={card.produto} />
             </div>
 
             {/* 2-Column Layout: Work Area + Context/Accountability */}

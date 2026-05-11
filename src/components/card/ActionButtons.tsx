@@ -32,6 +32,7 @@ import AIConversationReviewModal from './AIConversationReviewModal'
 import MergeCardsModal from './MergeCardsModal'
 import TransformIntoSubCardModal from './TransformIntoSubCardModal'
 import DuplicateCardModal from './DuplicateCardModal'
+import { TagSelector } from './TagSelector'
 import { toast } from 'sonner'
 
 interface ActionButtonsProps {
@@ -468,7 +469,11 @@ export default function ActionButtons({ card, onAlertClick }: ActionButtonsProps
                             onClick={() => setMenuOpen(false)}
                             aria-hidden="true"
                         />
-                        <MegaMenu columns={visibleColumns} />
+                        <MegaMenu
+                            columns={visibleColumns}
+                            cardId={card.id}
+                            produto={card.produto ?? null}
+                        />
                     </>
                 )}
             </div>
@@ -608,7 +613,15 @@ export default function ActionButtons({ card, onAlertClick }: ActionButtonsProps
     )
 }
 
-function MegaMenu({ columns }: { columns: MenuColumn[] }) {
+function MegaMenu({
+    columns,
+    cardId,
+    produto,
+}: {
+    columns: MenuColumn[]
+    cardId: string
+    produto: string | null
+}) {
     const ref = useRef<HTMLDivElement>(null)
     const toneClasses: Record<MenuColumn['tone'], string> = {
         success: 'text-emerald-700',
@@ -619,44 +632,58 @@ function MegaMenu({ columns }: { columns: MenuColumn[] }) {
         <div
             ref={ref}
             role="menu"
-            className="absolute top-full right-0 mt-2 z-40 bg-white rounded-xl shadow-2xl border border-gray-200 p-3.5 grid gap-3.5 animate-in fade-in zoom-in-95 duration-100"
-            style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(220px, 1fr))` }}
+            className="absolute top-full right-0 mt-2 z-40 bg-white rounded-xl shadow-2xl border border-gray-200 p-3.5 animate-in fade-in zoom-in-95 duration-100 flex flex-col gap-3"
         >
-            {columns.map((col) => (
-                <div key={col.title} className="flex flex-col gap-0.5">
-                    <div className={cn(
-                        "text-[10px] font-extrabold uppercase tracking-[0.1em] pl-1.5 pb-1.5 mb-1 border-b border-gray-100",
-                        toneClasses[col.tone]
-                    )}>
-                        {col.title}
+            <div
+                className="grid gap-3.5"
+                style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(220px, 1fr))` }}
+            >
+                {columns.map((col) => (
+                    <div key={col.title} className="flex flex-col gap-0.5">
+                        <div className={cn(
+                            "text-[10px] font-extrabold uppercase tracking-[0.1em] pl-1.5 pb-1.5 mb-1 border-b border-gray-100",
+                            toneClasses[col.tone]
+                        )}>
+                            {col.title}
+                        </div>
+                        {col.items.map((item) => {
+                            const Icon = item.icon
+                            return (
+                                <button
+                                    key={item.key}
+                                    role="menuitem"
+                                    onClick={item.onClick}
+                                    disabled={item.disabled}
+                                    className={cn(
+                                        "flex items-start gap-2.5 px-2 py-1.5 rounded-md text-left transition-colors",
+                                        item.disabled
+                                            ? "opacity-50 cursor-not-allowed"
+                                            : item.danger
+                                                ? "hover:bg-red-50 text-red-700"
+                                                : "hover:bg-gray-50 text-gray-800"
+                                    )}
+                                >
+                                    <Icon className={cn("h-4 w-4 mt-0.5 shrink-0", item.danger ? "text-red-500" : "text-gray-500")} />
+                                    <div className="flex flex-col min-w-0">
+                                        <span className="text-xs font-semibold leading-tight">{item.label}</span>
+                                        <span className="text-[11px] text-gray-500 leading-tight mt-0.5">{item.desc}</span>
+                                    </div>
+                                </button>
+                            )
+                        })}
                     </div>
-                    {col.items.map((item) => {
-                        const Icon = item.icon
-                        return (
-                            <button
-                                key={item.key}
-                                role="menuitem"
-                                onClick={item.onClick}
-                                disabled={item.disabled}
-                                className={cn(
-                                    "flex items-start gap-2.5 px-2 py-1.5 rounded-md text-left transition-colors",
-                                    item.disabled
-                                        ? "opacity-50 cursor-not-allowed"
-                                        : item.danger
-                                            ? "hover:bg-red-50 text-red-700"
-                                            : "hover:bg-gray-50 text-gray-800"
-                                )}
-                            >
-                                <Icon className={cn("h-4 w-4 mt-0.5 shrink-0", item.danger ? "text-red-500" : "text-gray-500")} />
-                                <div className="flex flex-col min-w-0">
-                                    <span className="text-xs font-semibold leading-tight">{item.label}</span>
-                                    <span className="text-[11px] text-gray-500 leading-tight mt-0.5">{item.desc}</span>
-                                </div>
-                            </button>
-                        )
-                    })}
+                ))}
+            </div>
+
+            {/* Tags section — picker integrado ao menu de ações */}
+            <div className="border-t border-gray-100 pt-2.5">
+                <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-gray-700 pl-1.5 pb-1.5 mb-1.5">
+                    Tags
                 </div>
-            ))}
+                <div className="px-1.5">
+                    <TagSelector cardId={cardId} produto={produto} />
+                </div>
+            </div>
         </div>
     )
 }
