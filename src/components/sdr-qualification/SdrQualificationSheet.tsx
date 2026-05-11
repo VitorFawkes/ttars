@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, AlertTriangle, XCircle, Info, Loader2, Link2, Search } from 'lucide-react'
-import { Sheet, SheetContent } from '../ui/sheet'
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from '../ui/sheet'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { Textarea } from '../ui/textarea'
@@ -219,6 +219,8 @@ export function SdrQualificationSheet({ open, onOpenChange, contatoId, cardId, t
         <>
             <Sheet open={open} onOpenChange={handleClose}>
                 <SheetContent side="right" className="w-full sm:max-w-xl p-0 flex flex-col">
+                    <SheetTitle className="sr-only">Qualificar lead</SheetTitle>
+                    <SheetDescription className="sr-only">Pontuação em tempo real, mesmas regras que a Estela.</SheetDescription>
                     {rulesLoading || session.starting ? (
                         <div className="flex-1 flex items-center justify-center">
                             <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
@@ -685,8 +687,8 @@ function VincularCardModal({ open, onClose, onPick }: { open: boolean; onClose: 
         <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
             <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col">
                 <div className="px-6 pt-6 pb-4 border-b border-slate-200">
-                    <h2 className="text-lg font-semibold text-slate-900">Vincular a card existente</h2>
-                    <p className="text-sm text-slate-500 mt-1">Busque por nome do casal ou telefone.</p>
+                    <SheetTitle className="text-lg font-semibold text-slate-900">Vincular a card existente</SheetTitle>
+                    <SheetDescription className="text-sm text-slate-500 mt-1">Busque por nome do casal ou telefone.</SheetDescription>
                 </div>
                 <div className="px-6 pt-4 pb-2">
                     <div className="relative">
