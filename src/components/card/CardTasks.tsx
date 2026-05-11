@@ -823,13 +823,18 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                                                 </div>
                                             )}
 
-                                            {/* Responsible — always show */}
-                                            {responsibleName && (
+                                            {/* Responsible — always show (ou chip "Sistema" se a tarefa foi criada pela automacao sem dono humano) */}
+                                            {responsibleName ? (
                                                 <div className="flex items-center gap-1.5 text-xs text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded" title={`Responsável: ${responsibleName}`}>
                                                     <User className="w-3 h-3" />
                                                     <span className="truncate max-w-[100px]">{responsibleName}</span>
                                                 </div>
-                                            )}
+                                            ) : (task.metadata as Record<string, unknown> | null)?.assigned_to_system ? (
+                                                <div className={`flex items-center gap-1.5 text-xs px-1.5 py-0.5 rounded border ${AUTOMATION_BADGE_CHIP}`} title="Tarefa cuidada pela automação — sem responsável humano">
+                                                    <Zap className="w-3 h-3" />
+                                                    <span>Sistema</span>
+                                                </div>
+                                            ) : null}
 
                                             {/* Creator — show when different from responsible */}
                                             {showCreator && (

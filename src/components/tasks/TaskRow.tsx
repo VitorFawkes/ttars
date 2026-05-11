@@ -235,8 +235,8 @@ function TaskRowImpl({
                 )}
             </div>
 
-            {/* Responsável */}
-            {task.responsavel_nome && (
+            {/* Responsável (ou chip Sistema quando a tarefa nao tem dono humano) */}
+            {task.responsavel_nome ? (
                 <div className="flex flex-col items-end gap-0.5 flex-shrink-0 mt-0.5">
                     <div className="flex items-center gap-1.5">
                         <div className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold">
@@ -252,7 +252,14 @@ function TaskRowImpl({
                         </span>
                     )}
                 </div>
-            )}
+            ) : (task.metadata as Record<string, unknown> | null)?.assigned_to_system ? (
+                <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan-100 text-cyan-700">
+                        <Zap className="h-3 w-3" />
+                    </div>
+                    <span className="text-xs text-slate-600 hidden sm:inline">Sistema</span>
+                </div>
+            ) : null}
 
             {/* Outcome badge (completed) */}
             {task.concluida && (task.outcome || task.resultado) && (() => {

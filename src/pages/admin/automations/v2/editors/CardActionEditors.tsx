@@ -101,8 +101,14 @@ export const CreateTaskEditor: React.FC<ConfigEditorProps> = ({ config, onChange
                     options={[
                         { value: 'card_owner', label: 'Responsável do card' },
                         { value: 'specific',   label: 'Pessoa específica' },
+                        { value: 'system',     label: 'Sistema (automação)' },
                     ]}
                 />
+                {config.assign_to === 'system' && (
+                    <p className="text-[11px] text-slate-500">
+                        A tarefa fica sem dono humano e aparece com chip "Sistema". Use quando a automação cuida do passo do começo ao fim e não precisa de ninguém olhando.
+                    </p>
+                )}
             </div>
             {config.assign_to === 'specific' && (
                 <div className="space-y-2">

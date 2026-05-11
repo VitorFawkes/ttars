@@ -2307,9 +2307,13 @@ async function executeTaskStep(
     }
     // =========================================================================
 
-    // Determinar responsável
-    let assignToId = card.responsavel_id;
-    if (config.assign_to === 'specific' && config.assign_to_user_id) {
+    // Determinar responsável. `assign_to='system'` deixa sem dono humano —
+    // metadata.assigned_to_system flagged pra UI mostrar chip "Sistema".
+    let assignToId: string | null = card.responsavel_id;
+    const assignedToSystem = config.assign_to === 'system';
+    if (assignedToSystem) {
+        assignToId = null;
+    } else if (config.assign_to === 'specific' && config.assign_to_user_id) {
         assignToId = config.assign_to_user_id;
     }
 
@@ -2418,7 +2422,8 @@ async function executeTaskStep(
                 cadence_instance_id: instance.id,
                 cadence_step_id: step.id,
                 cadence_step_key: step.step_key,
-                created_at_stage_id: card.pipeline_stage_id
+                created_at_stage_id: card.pipeline_stage_id,
+                ...(assignedToSystem ? { assigned_to_system: true } : {}),
             }
         })
         .select()
