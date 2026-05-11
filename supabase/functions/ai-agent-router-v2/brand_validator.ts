@@ -61,16 +61,30 @@ export async function validateBrandCompliance(
   // em "Estela fala preço..." → vira "Patricia fala preço..." em runtime).
   const resolverCtx = { agent_name: input.agent_name };
   const rulesBlock = enabledRules
-    .map((r, i) => `${i + 1}. [${r.id}] (${r.action}) ${resolveAgentPlaceholders(r.condition, resolverCtx)}`)
-    .join("\n");
+    .map((r, i) => `${i + 1}. [${r.id}] (ação: ${r.action})\n   Violação ocorre quando: ${resolveAgentPlaceholders(r.condition, resolverCtx)}`)
+    .join("\n\n");
 
   const messagesBlock = input.messages
     .map((m, i) => `[Mensagem ${i + 1}]: ${m.content}`)
     .join("\n\n");
 
-  const systemPrompt = `Você é o **Validador de Marca da ${input.agent_name}**. Sua única função é verificar se as mensagens geradas pelo agente principal violam alguma das regras abaixo.
+  const systemPrompt = `Você é o **Validador de Marca da ${input.agent_name}**. Sua única função é checar se as mensagens geradas pelo agente principal cometem alguma das violações listadas abaixo.
 
-## REGRAS A VALIDAR
+## SEMÂNTICA DAS CONDIÇÕES (LEIA COM ATENÇÃO)
+
+Cada item abaixo descreve **o que constitui uma violação**. A condição NÃO é uma obrigação — ela descreve um comportamento INDESEJADO.
+
+- Se a condição é **VERDADEIRA** na mensagem analisada → houve **violação**, reporte em \`violations\` e use a ação indicada.
+- Se a condição é **FALSA** na mensagem analisada → **regra cumprida**, NÃO reporte nada.
+- A ausência do comportamento descrito é o estado normal e desejável. NUNCA reporte violação por "X não foi feito" quando a condição diz "X foi feito".
+
+Exemplo de leitura correta:
+> Regra "usa_emoji_primeiro_contato" — Violação ocorre quando: usa emoji na primeira mensagem.
+>
+> Mensagem do agente: "Olá, tudo bem?"  → SEM emoji → condição é FALSA → **regra cumprida**, nada a reportar.
+> Mensagem do agente: "Olá! 😊"  → COM emoji → condição é VERDADEIRA → violação, reporte.
+
+## CONDIÇÕES DE VIOLAÇÃO
 
 ${rulesBlock}
 
@@ -81,21 +95,24 @@ ${rulesBlock}
 
 ## SEU JOB
 
-1. Ler as mensagens geradas
-2. Identificar QUAIS regras foram violadas (se alguma)
-3. Decidir ação:
-   - **pass**: nenhuma regra violada → mensagens vão pro WhatsApp como estão
-   - **rewrite**: alguma regra de "correct" violada → você gera \`corrected_messages\` aplicando a correção mínima necessária. Mantenha o tom, conteúdo e estrutura. Mude só o que precisa pra cumprir a regra.
-   - **block**: alguma regra de "block" violada → o agente quebrou linha vermelha (ex: mencionou IA, inventou preço). Não envia nada. \`corrected_messages\` fica vazio.
+1. Para cada mensagem gerada, leia o conteúdo com atenção.
+2. Para cada condição acima, avalie: **a condição é verdadeira nesta mensagem?**
+   - Sim → violação real → adiciona ao \`violations\` com \`rule_id\` e \`reason\` específica do que aconteceu na mensagem.
+   - Não → regra cumprida, ignora.
+3. Decidir ação geral:
+   - **pass**: nenhuma violação real → mensagens vão pro WhatsApp como estão.
+   - **rewrite**: ao menos uma regra de ação "correct" foi de fato violada → gera \`corrected_messages\` aplicando a correção mínima. Preserva tom, conteúdo e estrutura.
+   - **block**: ao menos uma regra de ação "block" foi de fato violada → agente quebrou linha vermelha (ex: mencionou que é IA, inventou preço). \`corrected_messages\` fica vazio.
 
 ## REGRAS DE OURO
 
-- Conservador: se em dúvida, prefere **pass**. Não corrija o que não está claramente violando.
-- Se action=rewrite, **preserve a essência da mensagem**. Não reescreva tudo, só ajuste pontual.
-- Não invente regras novas. Use só as ${enabledRules.length} regras listadas acima.
+- **Conservador na inversão**: se a condição descreve um comportamento e a mensagem NÃO tem esse comportamento, **regra cumprida**. Nunca trate ausência como violação.
+- **Em dúvida sobre interpretação?** Prefira \`pass\`. Só reporte quando a condição é claramente verdadeira.
+- Se ação=rewrite, preserva a essência. Ajuste pontual, não reescreva tudo.
+- Não invente regras novas. Use só as ${enabledRules.length} condições listadas.
 - A primeira mensagem do agente PODE ter as DUAS perguntas de abertura juntas (regra perguntas_desconexas tem exceção — ver red_lines do momento abertura).
 
-Retorne JSON conforme schema.`;
+Retorne JSON conforme schema. Se nenhuma condição é verdadeira, retorne \`violations: []\` e \`action: "pass"\`.`;
 
   const userPrompt = `Mensagens geradas pelo agente:\n\n${messagesBlock}`;
 
