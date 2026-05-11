@@ -53,7 +53,8 @@ export function summarizeConfig(
     switch (type) {
         // ─── Triggers ────────────────────────────────────────────────────────
         case 'trigger.card_created': {
-            const id = config.initial_stage_id as string | undefined
+            const ids = Array.isArray(config.applicable_stage_ids) ? config.applicable_stage_ids as string[] : []
+            const id = ids[0] || (config.initial_stage_id as string | undefined)
             if (!id) return 'Qualquer card novo'
             return `Etapa: ${resolveOr(labels, 'stageById', id, '(carregando)')}`
         }

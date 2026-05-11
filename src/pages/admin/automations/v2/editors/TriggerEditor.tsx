@@ -57,7 +57,15 @@ export const TriggerEditor: React.FC<TriggerEditorProps> = ({ type, config, onCh
     const set = (patch: Record<string, unknown>) => onChange({ ...config, ...patch })
 
     switch (type) {
-        case 'trigger.card_created':
+        case 'trigger.card_created': {
+            // Save grava em applicable_stage_ids (array UUID[] — bate com a
+            // coluna do banco que o dispatcher SQL filtra). Aceita
+            // initial_stage_id como fallback no load pra retrocompat com
+            // automacoes antigas (campo legado, era ignorado pelo backend).
+            const stageIds = Array.isArray(config.applicable_stage_ids)
+                ? (config.applicable_stage_ids as string[])
+                : (config.initial_stage_id ? [config.initial_stage_id as string] : [])
+            const selected = stageIds[0] || ''
             return (
                 <div className="space-y-3">
                     <p className="text-sm text-slate-600">
@@ -67,8 +75,11 @@ export const TriggerEditor: React.FC<TriggerEditorProps> = ({ type, config, onCh
                     <div className="space-y-2">
                         <Label className="text-xs">Etapa inicial específica (opcional)</Label>
                         <CustomSelect
-                            value={(config.initial_stage_id as string) || ''}
-                            onChange={(v) => set({ initial_stage_id: v || null })}
+                            value={selected}
+                            onChange={(v) => set({
+                                applicable_stage_ids: v ? [v] : null,
+                                initial_stage_id: null,
+                            })}
                             options={[
                                 { value: '', label: 'Qualquer etapa' },
                                 ...stages.map((s) => ({ value: s.id, label: s.nome })),
@@ -77,6 +88,7 @@ export const TriggerEditor: React.FC<TriggerEditorProps> = ({ type, config, onCh
                     </div>
                 </div>
             )
+        }
 
         case 'trigger.stage_enter': {
             const selected: string[] = Array.isArray(config.applicable_stage_ids) ? (config.applicable_stage_ids as string[]) : []
