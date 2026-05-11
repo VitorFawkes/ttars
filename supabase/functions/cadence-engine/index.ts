@@ -3153,7 +3153,7 @@ async function executeCompleteTaskAction(
 
     const { data: task } = await supabaseClient
         .from('tarefas')
-        .select('id, concluida')
+        .select('id, concluida, descricao')
         .eq('card_id', cardId)
         .is('deleted_at', null)
         .contains('metadata', { cadence_instance_id: instance.id, cadence_step_key: targetStepKey })
@@ -3169,23 +3169,26 @@ async function executeCompleteTaskAction(
 
     const outcome: string = cfg.outcome || 'enviado';
 
-    // Interpola variáveis no feedback (mesmas suportadas em notify_internal e
-    // mensagens). Se o feedback não foi configurado, fica null e não sobrescreve.
-    // {{now}} usa horário de Brasília — útil pra registrar "quando" sem depender
-    // do fuso do banco.
-    let feedback: string | null = null;
-    const rawFeedback: string = cfg.feedback || '';
-    if (rawFeedback.trim()) {
+    // Interpola variáveis na anotação (mesmas suportadas em notify_internal e
+    // mensagens). Se preenchida, a anotação é APENDADA à descrição existente
+    // da tarefa (separada por linha em branco) — assim aparece tudo junto no
+    // modal de edição da tarefa, sem precisar abrir um campo separado.
+    // {{now}} usa horário de Brasília.
+    let nextDescricao: string | null = null;
+    const rawNote: string = cfg.feedback || '';
+    if (rawNote.trim()) {
         const contato = await resolveCardContact(supabaseClient, cardId);
         const { data: cardRow } = await supabaseClient
             .from('cards').select('titulo').eq('id', cardId).single();
         const firstName = (contato?.nome || '').split(' ')[0] || '';
         const nowBr = formatBrazilNow();
-        feedback = rawFeedback
+        const renderedNote = rawNote
             .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato?.nome || '')
             .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
             .replace(/\{\{\s*card\.titulo\s*\}\}/g, (cardRow?.titulo as string) || '')
             .replace(/\{\{\s*now\s*\}\}/g, nowBr);
+        const currentDesc = ((task.descricao as string) || '').trim();
+        nextDescricao = currentDesc ? `${currentDesc}\n\n${renderedNote}` : renderedNote;
     }
 
     const updatePayload: Record<string, unknown> = {
@@ -3194,7 +3197,7 @@ async function executeCompleteTaskAction(
         outcome,
         status: 'concluida',
     };
-    if (feedback !== null) updatePayload.feedback = feedback;
+    if (nextDescricao !== null) updatePayload.descricao = nextDescricao;
 
     const { error } = await supabaseClient
         .from('tarefas')
@@ -3204,7 +3207,7 @@ async function executeCompleteTaskAction(
     if (error) {
         return { ok: false, error: error.message };
     }
-    return { ok: true, task_id: task.id, outcome, feedback };
+    return { ok: true, task_id: task.id, outcome, descricao_updated: nextDescricao !== null };
 }
 
 // ----------------------------------------------------------------------------

@@ -323,15 +323,15 @@ export const CompleteTaskEditor: React.FC<ConfigEditorProps> = ({ config, onChan
                 </p>
             </div>
             <div className="space-y-2">
-                <Label className="text-xs">Anotação registrada na tarefa (opcional)</Label>
+                <Label className="text-xs">Anotação adicionada à descrição (opcional)</Label>
                 <Textarea
                     value={(config.feedback as string) || ''}
                     onChange={(e) => set({ feedback: e.target.value })}
                     rows={3}
-                    placeholder="Ex: Mensagem de boas-vindas enviada via wt_primeiro_contato001."
+                    placeholder="Ex: Mensagem enviada em {{now}}."
                 />
                 <p className="text-[11px] text-slate-500">
-                    Texto livre que vai pro "feedback" da tarefa quando a automação fechar. Suporta {`{{contact.nome}}`}, {`{{card.titulo}}`} e {`{{now}}`} (data/hora de Brasília na hora da conclusão).
+                    Esse texto é anexado ao final da descrição da tarefa quando a automação fechar (separado por uma linha em branco). Suporta {`{{contact.nome}}`}, {`{{card.titulo}}`} e {`{{now}}`} (data/hora de Brasília na hora da conclusão).
                 </p>
             </div>
         </div>
