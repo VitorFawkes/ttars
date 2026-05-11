@@ -25,6 +25,9 @@ import {
   type ListeningConfig,
 } from "./playbook_loader.ts";
 import { resolveAgentPlaceholders } from "./placeholder_resolver.ts";
+import { runValidatorMinimal, buildRegenHintBlock, type ValidatorVerdict } from "./validator_minimal.ts";
+import { recordTurnLog, hashDiscoveryConfig, type TurnLogPayload } from "./turn_logger.ts";
+import type { SlotV2 } from "./slot_renderer.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -133,6 +136,8 @@ interface AgentConfig {
   voice_config?: VoiceConfig | null;
   boundaries_config?: BoundariesConfig | null;
   listening_config?: ListeningConfig | null;
+  // ---- Estela (Task 9 — validator minimal + REGEN protocol) ----
+  feature_flag_discovery_v2?: boolean | null;
 }
 
 interface BusinessCustomBlock {
@@ -2882,7 +2887,10 @@ async function runPersonaAgent(
   qualificationSignals: Record<string, string> = {},
   presentations: AiAgentPresentation[] = [],
   conversationId?: string | null,
-): Promise<{ response: string; inputTokens: number; outputTokens: number; was_literal: boolean }> {
+  previous_attempt_failed?: string | null,
+  temperature_override?: number,
+  current_slot?: SlotV2 | null,
+): Promise<{ response: string; inputTokens: number; outputTokens: number; was_literal: boolean; raw_response?: string; prompt_system?: string; prompt_user?: string; duration_ms?: number }> {
 
   // ═══════════════════════════════════════════════════════════════
   // Playbook v2 — guard com fail-safe. Se agente tem flag ativa,
@@ -2916,6 +2924,7 @@ async function runPersonaAgent(
           pipeline_models: agent.pipeline_models ?? null,
           // deno-lint-ignore no-explicit-any
           handoff_actions: (agent as any).handoff_actions ?? null,
+          feature_flag_discovery_v2: agent.feature_flag_discovery_v2 ?? false,
         },
         {
           is_primeiro_contato: ctx.is_primeiro_contato,
@@ -2962,6 +2971,9 @@ async function runPersonaAgent(
             forceToolName,
           );
         },
+        // Fase 4 (11/05/2026): discovery V2 schema + REGEN hint
+        current_slot,
+        previous_attempt_failed,
       );
 
       // Anota metadata v2 no ctx pra o main handler persistir em ai_conversation_turns
@@ -3010,11 +3022,20 @@ async function runPersonaAgent(
         };
       });
 
+    const callStart = Date.now();
     const result = await callLLM(
       agent.modelo, agent.temperature, agent.max_tokens,
       enrichedPrompt, userMessage, history,
     );
-    return { ...result, was_literal: false };
+    const callDuration = Date.now() - callStart;
+    return {
+      ...result,
+      was_literal: false,
+      duration_ms: callDuration,
+      raw_response: result.response,
+      prompt_system: enrichedPrompt,
+      prompt_user: userMessage,
+    };
   }
 
   // Template-based: montar prompt completo + tool calling
@@ -3240,9 +3261,10 @@ SAIDA: APENAS texto WhatsApp pronto para enviar. Sem prefixos, sem aspas.`;
   // do persona — útil quando admin quer modelo mais inteligente só pra resposta
   // ao cliente sem afetar context/data agents (que rodam em modelos baratos).
   const personaModel = agent.pipeline_models?.main?.model || agent.modelo;
-  const personaTemp = agent.pipeline_models?.main?.temperature ?? agent.temperature;
+  const personaTemp = temperature_override ?? (agent.pipeline_models?.main?.temperature ?? agent.temperature);
   const personaMaxTok = agent.pipeline_models?.main?.max_tokens ?? agent.max_tokens;
   const tools = await loadAgentTools(supabase, agent.id);
+  const callStart = Date.now();
   const result = await callLLMWithTools(
     supabase,
     personaModel, personaTemp, personaMaxTok,
@@ -3250,7 +3272,15 @@ SAIDA: APENAS texto WhatsApp pronto para enviar. Sem prefixos, sem aspas.`;
     tools,
     ctx, agent, business,
   );
-  return { ...result, was_literal: false };
+  const callDuration = Date.now() - callStart;
+  return {
+    ...result,
+    was_literal: false,
+    duration_ms: callDuration,
+    raw_response: result.response,
+    prompt_system: personaPrompt,
+    prompt_user: userMessage,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -4236,6 +4266,38 @@ serve(async (req) => {
     let pipelineFellBack = false;
     let pipelineErrorDetails: string | null = null;
 
+    // Pre-generate turnId for FK constraint (ai_agent_turn_logs.turn_id → ai_conversation_turns.id)
+    const turnId = crypto.randomUUID();
+
+    // Load current moment + discover slot selection (only if feature_flag_discovery_v2 enabled)
+    let currentMoment: { moment_key: string; discovery_config?: Record<string, unknown> } | null = null;
+    let currentSlot: SlotV2 | null = null;
+    if (agent.feature_flag_discovery_v2) {
+      try {
+        const allMoments = await loadPlaybookMoments(supabase, agent.id);
+        currentMoment = ctx.v2_current_moment_key
+          ? (allMoments.find((m) => m.moment_key === ctx.v2_current_moment_key) ?? null)
+          : null;
+        if (currentMoment) {
+          const slots = (currentMoment.discovery_config?.slots ?? []) as SlotV2[];
+          const formData = (ctx.form_data ?? {}) as Record<string, unknown>;
+          const unfilledSlots = slots.filter((s) => {
+            if (!s.crm_field_key) return true;
+            const v = formData[s.crm_field_key];
+            return v === null || v === undefined || v === "";
+          });
+          const priorityOrder: Record<string, number> = { critical: 0, preferred: 1, nice_to_have: 2 };
+          unfilledSlots.sort((a, b) =>
+            (priorityOrder[a.priority ?? "preferred"] ?? 1) -
+            (priorityOrder[b.priority ?? "preferred"] ?? 1)
+          );
+          currentSlot = unfilledSlots[0] ?? null;
+        }
+      } catch (slotErr) {
+        console.warn("[slot_selection] error loading moments or slots:", slotErr);
+      }
+    }
+
     try {
       // ── Step 1: Backoffice Agent ──
       const backoffice = await runBackofficeAgent(supabase, agent, ctx, agentConfig.business);
@@ -4255,20 +4317,83 @@ serve(async (req) => {
         processedText, dataResult.qualificationSignals,
         agentConfig.presentations,
         conversationId,
+        undefined, // previous_attempt_failed (none na 1ª passagem)
+        undefined, // temperature_override (usa default do agent)
+        currentSlot,
       );
-      const rawResponse = personaResult.response;
+      const personaResponse = personaResult.response;
+      const personaRawResponse = personaResult.raw_response ?? personaResult.response;
+      const personaSystemPrompt = personaResult.prompt_system ?? "";
+      const personaUserPrompt = personaResult.prompt_user ?? "";
+      const personaDurationMs = personaResult.duration_ms ?? 0;
       totalInputTokens += personaResult.inputTokens;
       totalOutputTokens += personaResult.outputTokens;
 
-      // ── Step 4: Validator ──
-      // wasLiteral propagado do persona: quando true, validator usa prompt endurecido
-      // que SÓ corrige problemas graves (menção a IA, fato inventado, ActiveCampaign).
-      // Estilo (perguntas duplas, eco social, uso de nome) fica intocado — admin já
-      // curou na UI ao escrever o anchor literal.
-      const validatedResponse = await runValidator(
-        agent, rawResponse, ctx, agentConfig.scenarios,
-        personaResult.was_literal,
-      );
+      // ── Step 4: Validator (novo protocolo Discovery v2 ou legacy) ──
+      let validatedResponse: string;
+      let firstAttemptVerdict: ValidatorVerdict | null = null;
+      let retryAttemptVerdict: ValidatorVerdict | null = null;
+      let retryPersonaResponse: string | null = null;
+      let retryRawResponse: string | null = null;
+      let retryDurationMs: number | null = null;
+
+      if (agent.feature_flag_discovery_v2) {
+        // NEW PATH — validator minimal + REGEN protocol
+        firstAttemptVerdict = runValidatorMinimal({
+          response: personaResponse,
+          turn_count: ctx.turn_count,
+        });
+
+        if (firstAttemptVerdict.decision === "PUBLICAR") {
+          validatedResponse = personaResponse;
+        } else {
+          // REGEN — second pass with hint block
+          const hintBlock = buildRegenHintBlock(firstAttemptVerdict);
+          const retryStart = Date.now();
+          const retryResult = await runPersonaAgent(
+            supabase, agent, ctx, backoffice,
+            agentConfig.business, agentConfig.qualification, agentConfig.scenarios,
+            processedText, dataResult.qualificationSignals,
+            agentConfig.presentations,
+            conversationId,
+            hintBlock,
+            0.1,
+            currentSlot,
+          );
+          retryPersonaResponse = retryResult.response;
+          retryRawResponse = retryResult.raw_response ?? retryResult.response;
+          retryDurationMs = Date.now() - retryStart;
+
+          retryAttemptVerdict = runValidatorMinimal({
+            response: retryPersonaResponse,
+            turn_count: ctx.turn_count,
+          });
+
+          if (retryAttemptVerdict.decision === "PUBLICAR") {
+            validatedResponse = retryPersonaResponse;
+          } else {
+            // ESCALAR — second pass also failed
+            retryAttemptVerdict = {
+              decision: "ESCALAR",
+              red_lines_hit: retryAttemptVerdict.red_lines_hit,
+              reason: "2ª passagem também violou",
+            };
+            // Mark conversation needs_human
+            await supabase
+              .from("ai_conversations")
+              .update({ needs_human: true })
+              .eq("id", conversationId);
+            // Use fallback_message
+            validatedResponse = agent.fallback_message ?? "Deixa eu verificar uma coisa aqui e já volto.";
+          }
+        }
+      } else {
+        // LEGACY PATH — exactly what today's code does
+        validatedResponse = await runValidator(
+          agent, personaResponse, ctx, agentConfig.scenarios,
+          personaResult.was_literal,
+        );
+      }
 
       // ── Step 5: Formatter ──
       // formatter NUNCA reescreve. Sempre heurístico (split por pontuação/linha em
@@ -4281,7 +4406,7 @@ serve(async (req) => {
       // Loga o raw pra facilitar root cause depois.
       if (looksLikeCorruptedOutput(messages)) {
         console.warn(
-          `[main] corrupted formatter output detected, using fallback. raw_formatter_output="${(messages || []).join("|").substring(0, 300)}", raw_persona_response="${(rawResponse || "").substring(0, 300)}", raw_validator_response="${(validatedResponse || "").substring(0, 300)}"`,
+          `[main] corrupted formatter output detected, using fallback. raw_formatter_output="${(messages || []).join("|").substring(0, 300)}", raw_persona_response="${(personaRawResponse || "").substring(0, 300)}", raw_validator_response="${(validatedResponse || "").substring(0, 300)}"`,
         );
         throw new Error("corrupted_formatter_output");
       }
@@ -4323,8 +4448,10 @@ serve(async (req) => {
 
     // Salvar resposta como turn (G5: popular skills_used + is_fallback)
     // Marco 2b: popular 5 colunas v2 quando agent.playbook_enabled e persona_v2 rodou.
+    // Task 9: usar turnId pre-gerado para FK com ai_agent_turn_logs
     const fullResponse = messages.join("\n\n");
     const turnInsert: Record<string, unknown> = {
+      id: turnId,
       conversation_id: conversationId,
       role: "assistant",
       content: fullResponse,
@@ -4342,6 +4469,59 @@ serve(async (req) => {
       turnInsert.moment_transition_reason = ctx.v2_moment_transition_reason ?? null;
     }
     await supabase.from("ai_conversation_turns").insert(turnInsert);
+
+    // Task 9: Log turn execution for Discovery v2 (validator minimal + REGEN protocol)
+    // Fire-and-forget: erros NÃO bloqueiam envio ao WhatsApp
+    if (agent.feature_flag_discovery_v2 && firstAttemptVerdict) {
+      const promptBuilderVersion = Deno.env.get("SUPABASE_FUNCTION_BUILD_COMMIT") || "unknown";
+      const discoveryConfigHash = await hashDiscoveryConfig(currentMoment?.discovery_config ?? null);
+
+      // Fire-and-forget: void promises pra não bloquear envio. recordTurnLog
+      // já captura erros internamente (try/catch + console.error).
+      void recordTurnLog(supabase, {
+        turn_id: turnId,
+        agent_id: agent.id,
+        org_id: agent.org_id,
+        conversation_id: conversationId,
+        attempt_number: 1,
+        prompt_system: personaSystemPrompt,
+        prompt_user: personaUserPrompt,
+        raw_response: personaRawResponse,
+        final_messages: firstAttemptVerdict.decision === "PUBLICAR" ? messages : null,
+        model_used: agent.modelo ?? "unknown",
+        temperature_used: agent.temperature ?? 0.7,
+        max_tokens_used: agent.max_tokens ?? 1024,
+        tool_calls: ctx.skills_used_this_turn ?? [],
+        validator_verdict: firstAttemptVerdict,
+        slot_in_focus: currentSlot?.key ?? null,
+        duration_ms: personaDurationMs ?? 0,
+        prompt_builder_version: promptBuilderVersion,
+        discovery_config_hash: discoveryConfigHash,
+      });
+
+      if (retryAttemptVerdict) {
+        void recordTurnLog(supabase, {
+          turn_id: turnId,
+          agent_id: agent.id,
+          org_id: agent.org_id,
+          conversation_id: conversationId,
+          attempt_number: 2,
+          prompt_system: personaSystemPrompt,
+          prompt_user: personaUserPrompt,
+          raw_response: retryRawResponse ?? "",
+          final_messages: retryAttemptVerdict.decision === "PUBLICAR" ? messages : null,
+          model_used: agent.modelo ?? "unknown",
+          temperature_used: 0.1,
+          max_tokens_used: agent.max_tokens ?? 1024,
+          tool_calls: [],
+          validator_verdict: retryAttemptVerdict,
+          slot_in_focus: currentSlot?.key ?? null,
+          duration_ms: retryDurationMs ?? 0,
+          prompt_builder_version: promptBuilderVersion,
+          discovery_config_hash: discoveryConfigHash,
+        });
+      }
+    }
 
     // Persiste last_moment_key em ai_conversation_state pro próximo turno.
     // Só faz sentido quando persona_v2 rodou com sucesso.
