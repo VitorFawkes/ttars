@@ -3362,6 +3362,39 @@ async function handleStartCadence(supabaseClient: SupabaseClient, body: any) {
         }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // Isolamento estrito por org: template e pipeline do card precisam pertencer
+    // à mesma org. Fecha o caminho de disparo manual (ex: "Disparar agora" do
+    // editor) que não passa pelos dispatchers SQL.
+    const { data: cardOrgRow, error: cardOrgErr } = await supabaseClient
+        .from('cards')
+        .select('pipeline_stage:pipeline_stages!inner(pipeline:pipelines!inner(id, org_id))')
+        .eq('id', card_id)
+        .maybeSingle();
+    if (cardOrgErr || !cardOrgRow) {
+        return new Response(JSON.stringify({
+            error: "Card not found", details: cardOrgErr?.message ?? null,
+        }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    // Supabase REST devolve relações `!inner` como objeto único (não array).
+    const pipelineOrgId = (cardOrgRow as any).pipeline_stage?.pipeline?.org_id as string | undefined;
+    const { data: templateOrgRow, error: templateOrgErr } = await supabaseClient
+        .from('cadence_templates')
+        .select('org_id')
+        .eq('id', template_id)
+        .maybeSingle();
+    if (templateOrgErr || !templateOrgRow) {
+        return new Response(JSON.stringify({
+            error: "Template not found", details: templateOrgErr?.message ?? null,
+        }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    if (pipelineOrgId && templateOrgRow.org_id && pipelineOrgId !== templateOrgRow.org_id) {
+        return new Response(JSON.stringify({
+            error: "Cross-workspace disparo bloqueado: card e template pertencem a orgs diferentes",
+            card_pipeline_org_id: pipelineOrgId,
+            template_org_id: templateOrgRow.org_id,
+        }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     // Verificar se já existe cadência ativa
     const { data: existing } = await supabaseClient
         .from("cadence_instances")
