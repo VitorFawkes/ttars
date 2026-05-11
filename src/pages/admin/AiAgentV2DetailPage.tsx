@@ -107,6 +107,18 @@ export default function AiAgentDetailPage() {
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
 
+  // Redirect simétrico: se alguém abre um agente V1 (multi_agent_pipeline ou
+  // engine null/outro) pela rota /ai-agents-v2/{id}, manda pra rota correta.
+  // Cada engine tem sua própria UI; abrir no editor errado mostra componentes
+  // que não suportam aquela engine.
+  useEffect(() => {
+    if (!existingAgent) return
+    const engine = (existingAgent as { engine?: string }).engine
+    if (engine !== 'single_agent_v2') {
+      navigate(`/settings/ai-agents/${existingAgent.id}`, { replace: true })
+    }
+  }, [existingAgent, navigate])
+
   useEffect(() => {
     if (!existingAgent) return
     const a = existingAgent
