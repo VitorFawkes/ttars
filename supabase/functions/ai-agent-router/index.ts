@@ -2552,6 +2552,22 @@ async function runDataAgentLLM(
   const customData = agent.prompts_extra?.data_update
     ? resolveAgentPlaceholders(agent.prompts_extra.data_update, _resolverCtxData)
     : agent.prompts_extra?.data_update;
+  const tituloAllowed = !isTraveler && allowedCardFields.includes("titulo");
+  const tituloGuidance = tituloAllowed
+    ? `
+## Titulo do card (campo "titulo")
+- Titulo atual: "${ctx.card_titulo || "(vazio)"}"
+- Padrao TRIPS:   "Nome / Destino / Periodo"
+- Padrao WEDDING: "Casamento Nome / Destino / Periodo"
+- Cards via WhatsApp nascem com placeholders: "Nome / SEM DESTINO / SEM DATA".
+- Quando o cliente confirmar o destino, substitua "SEM DESTINO" pelo destino real (ex: "Italia", "Cancun", "Egito").
+- Quando o cliente confirmar o periodo, substitua "SEM DATA" por mes/ano (ex: "Mar 2027", "Dez 2026").
+- Mantenha o nome do contato no inicio. Nao mude o nome a menos que o cliente confirme uma forma diferente.
+- Apos os dois placeholders sumirem, o sistema bloqueia automaticamente novas edicoes. Use com cuidado.
+- Se o titulo ATUAL NAO contem "SEM DESTINO" nem "SEM DATA", NAO inclua "titulo" no card_patch.
+`
+    : "";
+
   const dataBlock = `
 
 ## Dados deste turno (injetados pelo runtime)
@@ -2567,7 +2583,7 @@ ${stagesOpts || "(nenhum stage configurado)"}
 - Campos PROTEGIDOS (não tocar): ${protectedFields.join(", ")}
 - Campos permitidos no card: ${allowedCardFields.join(", ")}
 - Campos permitidos no contato: ${allowedContactFields.join(", ")}
-- Histórico:
+${tituloGuidance}- Histórico:
 ${ctx.historico_compacto}
 
 Responda OBRIGATORIAMENTE em JSON: { "card_patch": {...}, "contact_patch": {...}, "qualification_signals": {...}, "reasoning": "..." }`;
