@@ -9,37 +9,23 @@
  *   - Painel inferior: stream de eventos das últimas 2h (collapse)
  */
 import React, { useState, useMemo } from 'react'
-import { X, Activity, CheckCircle, XCircle, AlertCircle, Clock, Loader2 } from 'lucide-react'
+import { X, Activity, Loader2, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { useTemplateInstances } from '../hooks/useTemplateInstances'
+import { useWorkflowStore } from '../store/useWorkflowStore'
+import { STATUS_META, formatRelative } from '../lib/instanceFormat'
 
 interface ExecutionsPanelProps {
     templateId: string | null
     onClose: () => void
 }
 
-const STATUS_META: Record<string, { label: string; color: string; icon: React.ComponentType<{ className?: string }> }> = {
-    active:        { label: 'Ativa',     color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: Activity },
-    waiting_task:  { label: 'Aguardando',color: 'bg-amber-100 text-amber-700 border-amber-200',       icon: Clock },
-    paused:        { label: 'Pausada',   color: 'bg-slate-100 text-slate-700 border-slate-200',       icon: Clock },
-    completed:     { label: 'Completa',  color: 'bg-blue-100 text-blue-700 border-blue-200',          icon: CheckCircle },
-    cancelled:     { label: 'Cancelada', color: 'bg-slate-100 text-slate-600 border-slate-200',       icon: XCircle },
-    failed:        { label: 'Falhou',    color: 'bg-rose-100 text-rose-700 border-rose-200',          icon: AlertCircle },
-}
-
-const formatRelative = (iso: string): string => {
-    const d = new Date(iso).getTime()
-    const diffMs = Date.now() - d
-    if (diffMs < 60_000) return 'agora'
-    if (diffMs < 3_600_000) return `${Math.floor(diffMs / 60_000)}min`
-    if (diffMs < 86_400_000) return `${Math.floor(diffMs / 3_600_000)}h`
-    return `${Math.floor(diffMs / 86_400_000)}d`
-}
-
 export const ExecutionsPanel: React.FC<ExecutionsPanelProps> = ({ templateId, onClose }) => {
     const [showEvents, setShowEvents] = useState(false)
     const { data, isLoading, isFetching } = useTemplateInstances(templateId, { refreshMs: 5000 })
+    const highlightedInstanceId = useWorkflowStore((s) => s.highlightedInstanceId)
+    const setHighlightedInstance = useWorkflowStore((s) => s.setHighlightedInstance)
 
     const counts = data?.counts || {}
     const runningCount = data?.runningCount ?? 0
@@ -75,6 +61,14 @@ export const ExecutionsPanel: React.FC<ExecutionsPanelProps> = ({ templateId, on
                     <div className="text-[11px] text-slate-500 mt-0.5">
                         Atualiza a cada 5 segundos
                     </div>
+                    {highlightedInstanceId && (
+                        <button
+                            onClick={() => setHighlightedInstance(null)}
+                            className="mt-1 text-[11px] text-cyan-700 hover:text-cyan-900 underline"
+                        >
+                            Limpar destaque do canvas
+                        </button>
+                    )}
                 </div>
                 <Button variant="ghost" size="sm" onClick={onClose} className="-mr-2">
                     <X className="w-4 h-4" />
@@ -178,8 +172,18 @@ const InstanceRow: React.FC<{ inst: import('../hooks/useTemplateInstances').Temp
     const meta = STATUS_META[inst.status] || { label: inst.status, color: 'bg-slate-100 text-slate-700 border-slate-200', icon: Activity }
     const Icon = meta.icon
     const elapsed = formatRelative(inst.started_at)
+    const highlightedInstanceId = useWorkflowStore((s) => s.highlightedInstanceId)
+    const setHighlightedInstance = useWorkflowStore((s) => s.setHighlightedInstance)
+    const isHighlighted = highlightedInstanceId === inst.id
+
     return (
-        <div className="px-4 py-2.5 border-b border-slate-100 hover:bg-slate-50 transition-colors">
+        <button
+            type="button"
+            onClick={() => setHighlightedInstance(isHighlighted ? null : inst.id)}
+            className={`w-full text-left px-4 py-2.5 border-b border-slate-100 transition-colors ${
+                isHighlighted ? 'bg-cyan-50 hover:bg-cyan-100 ring-1 ring-inset ring-cyan-300' : 'hover:bg-slate-50'
+            }`}
+        >
             <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
@@ -199,14 +203,19 @@ const InstanceRow: React.FC<{ inst: import('../hooks/useTemplateInstances').Temp
                         <div className="text-[11px] text-rose-600 truncate">{inst.cancelled_reason}</div>
                     )}
                 </div>
-                {(inst.total_contacts_attempted ?? 0) > 0 && (
-                    <div className="flex-shrink-0 text-right text-[10px] text-slate-500">
-                        <div>{inst.successful_contacts}/{inst.total_contacts_attempted}</div>
-                        <div>contatos</div>
-                    </div>
-                )}
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    {(inst.total_contacts_attempted ?? 0) > 0 && (
+                        <div className="text-right text-[10px] text-slate-500">
+                            <div>{inst.successful_contacts}/{inst.total_contacts_attempted}</div>
+                            <div>contatos</div>
+                        </div>
+                    )}
+                    {isHighlighted && (
+                        <ChevronRight className="w-3 h-3 text-cyan-700" />
+                    )}
+                </div>
             </div>
-        </div>
+        </button>
     )
 }
 
