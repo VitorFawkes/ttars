@@ -13,7 +13,9 @@ export function useTurnLogsForConversation(conversationId: string | null | undef
     queryFn: async (): Promise<Record<string, TurnLog[]>> => {
       if (!conversationId) return {}
       // ai_agent_turn_logs ainda não está em database.types.ts — cast inline.
-      const { data, error } = await (supabase.from as never)('ai_agent_turn_logs')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from('ai_agent_turn_logs')
         .select('*')
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: true })

@@ -43,7 +43,9 @@ export function useTurnLog(turnId: string | null | undefined) {
     enabled: !!turnId,
     queryFn: async (): Promise<TurnLog[]> => {
       if (!turnId) return []
-      const { data, error } = await (supabase.from as never)('ai_agent_turn_logs')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from('ai_agent_turn_logs')
         .select('*')
         .eq('turn_id', turnId)
         .order('attempt_number', { ascending: true })
