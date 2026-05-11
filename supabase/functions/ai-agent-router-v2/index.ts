@@ -7,7 +7,9 @@
 //   - Apenas mensagens TEXT (sem multimodal nesta versão)
 //   - Pipeline: build context → single agent → tools → brand validator → send
 //   - Sem outbound trigger (Marco 2 se Patricia ganhar)
-//   - Sem debounce loop interno (whatsapp-webhook + ai_message_buffer fazem isso)
+//   - Debounce próprio (cópia da lógica do v1, sem importar código). Lê
+//     ai_message_buffer, aguarda janela, claim atômico, junta msgs com "\n".
+//   - Lock de pipeline (ai_pipeline_locks, RPC genérica compartilhada).
 //
 // Latência alvo: <4s p95. Custo alvo: ~30-40% do v1.
 
@@ -70,6 +72,8 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "contact_phone and phone_number_id required" }, 400);
   }
 
+  const isDrain = (body as { _drain?: boolean })._drain === true;
+
   // Patricia v1 só aceita TEXT
   if (body.message_type && body.message_type !== "text") {
     console.log(`[v2] message_type=${body.message_type} ignorado (MVP só processa text)`);
@@ -80,13 +84,17 @@ Deno.serve(async (req) => {
     });
   }
 
-  if (!message_text || message_text.trim().length === 0) {
+  // Drain pode vir com message_text vazio — o buffer vai prover o texto.
+  if (!isDrain && (!message_text || message_text.trim().length === 0)) {
     return jsonResponse({ ok: true, skipped: true, reason: "message_text vazio" });
   }
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
   });
+
+  let lockAcquired = false;
+  let normalizedForBuffer = "";
 
   try {
     // ------------------------------------------------------------------
@@ -113,7 +121,7 @@ Deno.serve(async (req) => {
           test_mode_phone_whitelist, validator_rules, pipeline_models,
           identity_config, voice_config, boundaries_config, listening_config,
           handoff_actions, handoff_signals, intelligent_decisions, context_fields_config,
-          engine
+          engine, timings
         )
       `)
       .eq("phone_line_id", lineRow.id)
@@ -150,6 +158,137 @@ Deno.serve(async (req) => {
     if (!isPhoneInWhitelist(contact_phone, agent.test_mode_phone_whitelist)) {
       console.log(`[v2] phone ${contact_phone} fora de test_mode_phone_whitelist, ignorando`);
       return jsonResponse({ ok: true, skipped: true, reason: "not in test whitelist" });
+    }
+
+    // ------------------------------------------------------------------
+    // 1b. Debounce + claim atômico do ai_message_buffer
+    //
+    // Lógica replicada do router v1 (sem import, engines isoladas por desenho).
+    // Janela vem de agent.timings.debounce_seconds (default 20s).
+    // Quando a mensagem mais antiga do buffer ainda está dentro da janela,
+    // agenda um self-call em waitMs com _drain=true. Quando vence, claim
+    // atômico via UPDATE..RETURNING junta tudo num único turno.
+    // ------------------------------------------------------------------
+    normalizedForBuffer = normalizePhone(contact_phone);
+    const debounceSeconds = agent.timings?.debounce_seconds ?? 20;
+    const debounceMs = debounceSeconds * 1000;
+
+    const { data: buffered } = await supabase
+      .from("ai_message_buffer")
+      .select("id, message_text, message_type, media_url, created_at")
+      .eq("contact_phone", normalizedForBuffer)
+      .is("processed_at", null)
+      .order("created_at", { ascending: true });
+
+    // Bail: drain chegou após outro drain já ter capturado tudo.
+    if (isDrain && (!buffered || buffered.length === 0)) {
+      console.log(`[v2 debounce] drain reached buffer check with empty buffer — superseded`);
+      return jsonResponse({ handled: false, reason: "drain_superseded_v2" });
+    }
+
+    let processedText = message_text;
+    let claimedRows: Array<{ id: string; message_text: string; message_type: string; media_url: string | null; created_at: string }> | null = null;
+
+    if (buffered && buffered.length > 0) {
+      const oldest = buffered[0];
+      const ageOldestMs = Date.now() - new Date(oldest.created_at).getTime();
+
+      if (ageOldestMs < debounceMs) {
+        // Ainda esperando — agenda self-call. Idempotente: query filtra
+        // processed_at IS NULL, double-drain bate em buffer vazio.
+        console.log(`[v2 debounce] ${buffered.length} msgs buffered, oldest ${Math.round(ageOldestMs / 1000)}s ago — waiting (window=${debounceSeconds}s)`);
+        const waitMs = debounceMs - ageOldestMs + 500;
+        // deno-lint-ignore no-explicit-any
+        const runtime = (globalThis as any).EdgeRuntime;
+        const schedule = async () => {
+          await new Promise((r) => setTimeout(r, waitMs));
+          try {
+            await fetch(`${SUPABASE_URL}/functions/v1/ai-agent-router-v2`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
+              body: JSON.stringify({
+                phone_number_id, contact_phone, message_text: "", _drain: true,
+              }),
+            });
+          } catch (err) {
+            console.error("[v2 debounce drain]", err);
+          }
+        };
+        if (runtime?.waitUntil) runtime.waitUntil(schedule()); else schedule();
+        return jsonResponse({ handled: true, debounced: true, buffered_count: buffered.length, drain_scheduled: true });
+      }
+
+      // Janela expirou — claim atômico via UPDATE..RETURNING.
+      const { data: claimedData } = await supabase
+        .from("ai_message_buffer")
+        .update({ processed_at: new Date().toISOString() })
+        .eq("contact_phone", normalizedForBuffer)
+        .is("processed_at", null)
+        .select("id, message_text, message_type, media_url, created_at");
+      claimedRows = claimedData;
+
+      if (!claimedRows || claimedRows.length === 0) {
+        console.log(`[v2 debounce] claim returned 0 rows — another drain won, bailing`);
+        return jsonResponse({ handled: true, debounced: true, drain_superseded: true });
+      }
+
+      claimedRows.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      // MVP da Patricia é text-only: ignora msgs de áudio/imagem do buffer.
+      const combined = claimedRows
+        .filter((b) => (b.message_type || "text") === "text")
+        .map((b) => b.message_text)
+        .filter(Boolean)
+        .join("\n");
+      if (combined) {
+        processedText = combined;
+        console.log(`[v2 debounce] Claimed ${claimedRows.length} message(s) atomically (${combined.length} chars)`);
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // 1c. Lock de pipeline (RPC genérica, compartilhada com v1).
+    //
+    // Previne 2 pipelines rodando em paralelo pro mesmo lead. Se já existe
+    // lock ativo, reverte o claim cirurgicamente, agenda re-drain em 30s
+    // e retorna sem rodar single_agent.
+    // ------------------------------------------------------------------
+    {
+      const { data: lockResult } = await supabase.rpc("try_acquire_pipeline_lock", {
+        p_contact_phone: normalizedForBuffer,
+        p_ttl_seconds: 90,
+      });
+      lockAcquired = Boolean(lockResult);
+    }
+
+    if (!lockAcquired) {
+      console.log(`[v2 pipeline_lock] ${normalizedForBuffer} já tem pipeline ativo — re-drain em 30s`);
+      // Reverte só os IDs que ESTA chamada acabou de claimar.
+      try {
+        const claimedIds = (claimedRows ?? []).map((c) => c.id);
+        if (claimedIds.length > 0) {
+          await supabase.from("ai_message_buffer")
+            .update({ processed_at: null })
+            .in("id", claimedIds);
+        }
+      } catch (err) {
+        console.warn("[v2 pipeline_lock] revert claim failed:", err);
+      }
+      // deno-lint-ignore no-explicit-any
+      const runtime = (globalThis as any).EdgeRuntime;
+      const reSchedule = async () => {
+        await new Promise((r) => setTimeout(r, 30_000));
+        try {
+          await fetch(`${SUPABASE_URL}/functions/v1/ai-agent-router-v2`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
+            body: JSON.stringify({ phone_number_id, contact_phone, message_text: "", _drain: true }),
+          });
+        } catch (err) {
+          console.error("[v2 pipeline_lock] re-drain", err);
+        }
+      };
+      if (runtime?.waitUntil) runtime.waitUntil(reSchedule()); else reSchedule();
+      return jsonResponse({ handled: true, reason: "pipeline_locked_v2", re_drain_scheduled: true });
     }
 
     // ------------------------------------------------------------------
@@ -204,7 +343,7 @@ Deno.serve(async (req) => {
     await supabase.from("ai_conversation_turns").insert({
       conversation_id: conversationId,
       role: "user",
-      content: message_text,
+      content: processedText,
     });
 
     // ------------------------------------------------------------------
@@ -296,7 +435,7 @@ Deno.serve(async (req) => {
       } : null,
       conversationState: {
         historico_compacto: historico,
-        last_lead_message: message_text,
+        last_lead_message: processedText,
         last_moment_key: null, // TODO: ler de ai_conversation_state.extracted_variables.last_moment_key
         turn_count: turns.length,
         is_primeiro_contato: turns.length <= 1, // o turno que acabou de inserir já conta
@@ -373,7 +512,7 @@ Deno.serve(async (req) => {
         rules: validatorRules,
         agent_name: agent.nome,
         is_first_contact: turns.length <= 1,
-        last_lead_message: message_text,
+        last_lead_message: processedText,
       },
       OPENAI_API_KEY,
     );
@@ -483,6 +622,14 @@ Deno.serve(async (req) => {
     const errStack = (e as Error).stack;
     console.error(`[v2] handler ERROR:`, errMsg, errStack);
     return jsonResponse({ error: errMsg, total_duration_ms: Date.now() - startedAt }, 500);
+  } finally {
+    if (lockAcquired && normalizedForBuffer) {
+      try {
+        await supabase.rpc("release_pipeline_lock", { p_contact_phone: normalizedForBuffer });
+      } catch (err) {
+        console.warn("[v2] release_pipeline_lock failed:", err);
+      }
+    }
   }
 });
 

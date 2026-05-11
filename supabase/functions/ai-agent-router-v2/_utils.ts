@@ -38,6 +38,7 @@ export interface AgentRow {
   intelligent_decisions: Record<string, unknown> | null;
   context_fields_config: Record<string, unknown> | null;
   engine: string;
+  timings: { debounce_seconds?: number; typing_delay_seconds?: number; max_message_blocks?: number } | null;
 }
 
 export interface BusinessConfigRow {
