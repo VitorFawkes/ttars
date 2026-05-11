@@ -107,6 +107,17 @@ export default function AiAgentDetailPage() {
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
 
+  // Redireciona pra editor V2 quando o agente é single_agent_v2 (Patricia).
+  // A rota antiga renderiza componentes de ai-agent/ (sem suporte a blocos
+  // sequenciais editáveis); a rota V2 renderiza ai-agent-v2/ com UI nova.
+  useEffect(() => {
+    if (!existingAgent) return
+    const engine = (existingAgent as { engine?: string }).engine
+    if (engine === 'single_agent_v2') {
+      navigate(`/settings/ai-agents-v2/${existingAgent.id}`, { replace: true })
+    }
+  }, [existingAgent, navigate])
+
   useEffect(() => {
     if (!existingAgent) return
     const a = existingAgent
