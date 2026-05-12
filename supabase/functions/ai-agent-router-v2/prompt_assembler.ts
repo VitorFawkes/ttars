@@ -840,7 +840,8 @@ Retorne JSON ESTRITO conforme schema:
 
 REGRAS:
 - \`messages\`: 1-3 mensagens, cada uma <1024 chars, sem travessões.
-- \`card_patch\` / \`contact_patch\`: vazios ({}) se nada mudar.
+- \`card_patch\`: SEMPRE inclua os campos do CRM que o lead acabou de revelar nesta rodada (chaves \`ww_*\`, \`crm_field_key\` dos slots de descoberta). Ex: se o lead disse "Argentina" pra pergunta de viagem internacional, inclua \`{"ww_sdr_perfil_viagem_internacional": "Argentina"}\` (ou \`true\` se aceitável boolean). Se o lead disse "não temos ajuda da família", inclua \`{"ww_sdr_ajuda_familia": false}\`. Esquecer de salvar quebra a qualificação determinística do router.
+- \`contact_patch\`: vazio ({}) se nada mudar; só nome, email, data_nascimento.
 - \`current_moment_key\`: slug do momento detectado, ou null.
 - \`tool_calls\`: vazio ([]) na maioria dos turnos.
 - \`internal_reasoning\`: 1-3 frases pra log/auditoria. Não vai pro WhatsApp.

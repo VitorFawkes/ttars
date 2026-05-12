@@ -480,6 +480,52 @@ Deno.serve(async (req) => {
     };
 
     // ------------------------------------------------------------------
+    // 8c.fallback. Extração heurística de opcionais (executa ANTES do trigger
+    // determinístico, pra que ele veja os opcionais salvos no MESMO turn em
+    // que o lead respondeu).
+    //
+    // Por que existe: o LLM single_agent às vezes "esquece" de incluir no
+    // card_patch a resposta que o lead deu a perguntas binárias de slot
+    // (ex: "Sim, só nosso" → ww_sdr_ajuda_familia=false). Sem esse fallback,
+    // a sondagem fica em loop sem conseguir qualificar. Regex preserva a
+    // inteligência da Patricia (não substitui), só fecha a lacuna.
+    // ------------------------------------------------------------------
+    {
+      const lastAssistantContent = (turns.length >= 2 && turns[turns.length - 2]?.role === "assistant")
+        ? (turns[turns.length - 2].content || "")
+        : "";
+      const leadAnswer = (processedText || "").toLowerCase();
+
+      // AJUDA FAMÍLIA — pergunta inclui família/ajuda/apoio/pais/sozinhos/conta própria/só de vocês
+      if (trackedData["ww_sdr_ajuda_familia"] == null) {
+        const askedAjuda = /fam[ií]lia|ajuda|apoio|pais|sogros|sozinh|conta pr[óo]pria|s[óo] nosso|s[óo] de voc[êe]s|de voc[êe]s dois|or[çc]amento de voc[êe]s|s[óo] vc/i.test(lastAssistantContent);
+        if (askedAjuda) {
+          if (/\b(n[ãa]o|nenhuma|s[óo] nosso|s[óo] a gente|sozinhos|conta pr[óo]pria|s[óo] de n[óo]s|s[óo] do casal|s[óo] meu|s[óo] nossa|por conta)\b/i.test(leadAnswer)) {
+            trackedData["ww_sdr_ajuda_familia"] = false;
+            console.log(`[v2 fallback] ww_sdr_ajuda_familia=false detectado em "${leadAnswer.substring(0, 60)}"`);
+          } else if (/\b(sim|ajuda|ajudam|contribuem|pais|m[ãa]e|pai|sogros|fam[ií]lia ajuda)\b/i.test(leadAnswer)) {
+            trackedData["ww_sdr_ajuda_familia"] = true;
+            console.log(`[v2 fallback] ww_sdr_ajuda_familia=true detectado em "${leadAnswer.substring(0, 60)}"`);
+          }
+        }
+      }
+
+      // VIAGEM INTERNACIONAL — pergunta inclui viagem/viajar/internacional/fora do brasil/exterior
+      if (trackedData["ww_sdr_perfil_viagem_internacional"] == null) {
+        const askedViagem = /viagem|viaja|internacional|fora do brasil|exterior|outro pa[ií]s/i.test(lastAssistantContent);
+        if (askedViagem) {
+          if (/\b(n[ãa]o|nunca|nenhuma)\b/i.test(leadAnswer) && leadAnswer.length < 50) {
+            trackedData["ww_sdr_perfil_viagem_internacional"] = false;
+            console.log(`[v2 fallback] ww_sdr_perfil_viagem_internacional=false`);
+          } else if (leadAnswer.length > 0 && leadAnswer.length < 200) {
+            trackedData["ww_sdr_perfil_viagem_internacional"] = processedText;
+            console.log(`[v2 fallback] ww_sdr_perfil_viagem_internacional="${processedText.substring(0, 60)}"`);
+          }
+        }
+      }
+    }
+
+    // ------------------------------------------------------------------
     // 8d. Trigger determinístico de desfecho + score
     //
     // Quando os 4 críticos (data, destino, convidados, orçamento) estão
@@ -683,6 +729,9 @@ Deno.serve(async (req) => {
         if (!TOP_LEVEL_COLS.has(k)) updatedTrackedData[k] = v;
       }
     }
+
+    // (Fallback de opcionais foi movido pra 8c, ANTES do trigger 8d, pra
+    // permitir qualificação no mesmo turno em que o lead responde.)
 
     if (cardId && Object.keys(cardPatch).length > 0) {
       // Decompose: campos top-level vs produto_data nested
