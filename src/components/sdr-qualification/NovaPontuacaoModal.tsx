@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Heart, Phone } from 'lucide-react'
+import { User, Phone, Heart } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog'
 import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
@@ -7,7 +7,7 @@ import { Button } from '../ui/Button'
 type Props = {
     open: boolean
     onClose: () => void
-    onStart: (dados: { nomeCasal: string; telefone: string }) => void
+    onStart: (dados: { nomeContato: string; nomeCasal: string; telefone: string }) => void
 }
 
 /**
@@ -15,12 +15,18 @@ type Props = {
  * Tudo opcional — pode começar com nada e atrelar depois.
  */
 export function NovaPontuacaoModal({ open, onClose, onStart }: Props) {
+    const [nomeContato, setNomeContato] = useState('')
     const [nomeCasal, setNomeCasal] = useState('')
     const [telefone, setTelefone] = useState('')
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault()
-        onStart({ nomeCasal: nomeCasal.trim(), telefone: telefone.trim() })
+        onStart({
+            nomeContato: nomeContato.trim(),
+            nomeCasal: nomeCasal.trim(),
+            telefone: telefone.trim(),
+        })
+        setNomeContato('')
         setNomeCasal('')
         setTelefone('')
     }
@@ -39,13 +45,13 @@ export function NovaPontuacaoModal({ open, onClose, onStart }: Props) {
                 <form onSubmit={handleSubmit} className="space-y-4 py-2">
                     <div>
                         <label className="text-xs font-medium text-slate-600 flex items-center gap-1.5 mb-1">
-                            <Heart className="w-3.5 h-3.5 text-rose-400" /> Nome do casal (opcional)
+                            <User className="w-3.5 h-3.5 text-slate-400" /> Nome da pessoa que está falando
                         </label>
                         <Input
                             autoFocus
-                            value={nomeCasal}
-                            onChange={(e) => setNomeCasal(e.target.value)}
-                            placeholder="João e Maria"
+                            value={nomeContato}
+                            onChange={(e) => setNomeContato(e.target.value)}
+                            placeholder="João"
                         />
                     </div>
                     <div>
@@ -61,6 +67,16 @@ export function NovaPontuacaoModal({ open, onClose, onStart }: Props) {
                         <p className="text-[11px] text-slate-400 mt-1">
                             Com telefone, o card é vinculado sozinho assim que for criado.
                         </p>
+                    </div>
+                    <div>
+                        <label className="text-xs font-medium text-slate-600 flex items-center gap-1.5 mb-1">
+                            <Heart className="w-3.5 h-3.5 text-rose-400" /> Nome do casal (opcional)
+                        </label>
+                        <Input
+                            value={nomeCasal}
+                            onChange={(e) => setNomeCasal(e.target.value)}
+                            placeholder="João e Maria"
+                        />
                     </div>
 
                     <DialogFooter className="pt-2">

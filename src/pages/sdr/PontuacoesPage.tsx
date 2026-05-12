@@ -31,6 +31,7 @@ type Pontuacao = {
     status: string
     version: number
     dados_lead: {
+        nome_contato?: string
         nome_casal?: string
         telefone?: string
         data_casamento?: string
@@ -69,7 +70,7 @@ export default function PontuacoesPage() {
         if (!search.trim()) return all
         const q = search.toLowerCase()
         return all.filter((p) => {
-            const nome = (p.dados_lead?.nome_casal ?? '').toLowerCase()
+            const nome = ((p.dados_lead?.nome_contato ?? '') + ' ' + (p.dados_lead?.nome_casal ?? '')).toLowerCase()
             const card = (p.card_titulo ?? '').toLowerCase()
             const sdr = (p.sdr_nome ?? '').toLowerCase()
             const tel = (p.telefone ?? '').toLowerCase()
@@ -245,6 +246,7 @@ export default function PontuacoesPage() {
                     setSessao({
                         telefone: dados.telefone || null,
                         initialDados: {
+                            ...(dados.nomeContato ? { nome_contato: dados.nomeContato } : {}),
                             ...(dados.nomeCasal ? { nome_casal: dados.nomeCasal } : {}),
                             ...(dados.telefone ? { telefone: dados.telefone } : {}),
                         },
@@ -325,12 +327,16 @@ function Tabela({
                     const disq = p.score_result?.disqualified ?? false
                     const isDraft = p.status === 'rascunho'
                     const dataExibicao = p.finalized_at ?? p.created_at
-                    const nome = p.dados_lead?.nome_casal || p.card_titulo || '(sem nome)'
+                    const nomePrincipal = p.dados_lead?.nome_contato || p.dados_lead?.nome_casal || p.card_titulo || '(sem nome)'
+                    const subtitulo = p.dados_lead?.nome_contato && p.dados_lead?.nome_casal
+                        ? `Casal: ${p.dados_lead.nome_casal}`
+                        : null
                     return (
                         <tr key={p.id} className="hover:bg-slate-50">
                             <td className="p-3">
-                                <div className="font-medium text-slate-900">{nome}</div>
+                                <div className="font-medium text-slate-900">{nomePrincipal}</div>
                                 <div className="text-xs text-slate-500">
+                                    {subtitulo && <span>{subtitulo} · </span>}
                                     {p.telefone ? formatPhoneBR(p.telefone) : ''}
                                     {p.dados_lead?.investimento_total && p.dados_lead?.num_convidados && (
                                         <span className="ml-2">
@@ -421,7 +427,12 @@ type CardSugestao = {
 
 function VincularCardSheet({ pontuacao, onClose }: { pontuacao: Pontuacao; onClose: () => void }) {
     const vincular = useVincularACard()
-    const [query, setQuery] = useState(pontuacao.telefone || pontuacao.dados_lead?.nome_casal || '')
+    const [query, setQuery] = useState(
+        pontuacao.telefone ||
+        pontuacao.dados_lead?.nome_contato ||
+        pontuacao.dados_lead?.nome_casal ||
+        ''
+    )
     const [results, setResults] = useState<CardSugestao[]>([])
     const [loading, setLoading] = useState(false)
 

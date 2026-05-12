@@ -27,6 +27,9 @@ export type SdrScoreResult = {
 }
 
 export type DadosLead = {
+    /** Nome da pessoa que está do outro lado do telefone (principal). */
+    nome_contato?: string
+    /** Nome do casal completo, ex: "João e Maria" (opcional, complementar). */
     nome_casal?: string
     nome_parceiro?: string
     telefone?: string

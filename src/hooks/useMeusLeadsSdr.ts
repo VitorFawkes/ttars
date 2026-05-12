@@ -8,6 +8,7 @@ export type MeuRascunho = {
     card_id: string | null
     telefone_normalizado: string | null
     dados_lead: {
+        nome_contato?: string
         nome_casal?: string
         telefone?: string
         data_casamento?: string

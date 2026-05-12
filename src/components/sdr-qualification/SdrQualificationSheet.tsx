@@ -253,11 +253,11 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                                 <section className="bg-slate-50 -mx-6 px-6 py-4 border-y border-slate-200">
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
-                                            <Label className="text-xs text-slate-600">Nome do casal</Label>
+                                            <Label className="text-xs text-slate-600">Nome da pessoa que está falando</Label>
                                             <Input
-                                                value={session.dadosLead.nome_casal ?? ''}
-                                                onChange={(e) => handleDadoChange('nome_casal', e.target.value)}
-                                                placeholder="João e Maria"
+                                                value={session.dadosLead.nome_contato ?? ''}
+                                                onChange={(e) => handleDadoChange('nome_contato', e.target.value)}
+                                                placeholder="João"
                                             />
                                         </div>
                                         <div>
@@ -266,6 +266,14 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                                                 value={session.dadosLead.telefone ?? telefone ?? ''}
                                                 onChange={(e) => handleDadoChange('telefone', e.target.value)}
                                                 placeholder="(11) 99999-9999"
+                                            />
+                                        </div>
+                                        <div className="col-span-2">
+                                            <Label className="text-xs text-slate-600">Nome do casal (opcional)</Label>
+                                            <Input
+                                                value={session.dadosLead.nome_casal ?? ''}
+                                                onChange={(e) => handleDadoChange('nome_casal', e.target.value)}
+                                                placeholder="João e Maria"
                                             />
                                         </div>
                                         <div className="col-span-2">
