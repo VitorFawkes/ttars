@@ -681,7 +681,46 @@ Deno.serve(async (req) => {
                     const acTaskId = payload['task[id]'] || payload['deal_task[id]'];
                     const acDealId = payload['deal[id]'] || payload['deal_id'];
                     const acTitle = payload['task[title]'] || payload['deal_task[title]'] || 'Tarefa AC';
-                    const acDueDate = payload['task[duedate]'] || payload['deal_task[duedate]'];
+                    // AC manda duas versoes: 'task[duedate]' (naive, sem timezone)
+                    // e 'task[duedate_iso]' (ISO 8601 com offset -05:00, fuso do AC).
+                    // Preferimos o ISO — tratar a versao naive como UTC perde 5h.
+                    let acDueDate: string | null = payload['task[duedate_iso]']
+                        || payload['deal_task[duedate_iso]']
+                        || payload['task[duedate]']
+                        || payload['deal_task[duedate]']
+                        || null;
+
+                    // Para reunioes, o task[duedate] e auto-gerado por automacao AC
+                    // (ex: "agora + 15min"). O horario real que o usuario marcou
+                    // mora em campo CUSTOM do deal, com nome tipo "Data e horario do
+                    // agendamento da 1a. Reuniao SDR TRIPS". Varremos deal[fields][N]
+                    // procurando por chave com data+(reuni|agendament) e valor nao
+                    // vazio — se achar, usa esse no lugar do task[duedate].
+                    const acTaskTypeIdEarly = parseInt(payload['task[dealTasktype]'] || payload['task[type_id]'] || payload['deal_task[dealTasktype]'] || '0', 10);
+                    if (acTaskTypeIdEarly === 4) {
+                        const dealFields = new Map<string, { key?: string; value?: string }>();
+                        for (const [k, v] of Object.entries(payload)) {
+                            const m = k.match(/^deal\[fields\]\[(\d+)\]\[(key|value)\]$/);
+                            if (m) {
+                                const idx = m[1], attr = m[2];
+                                if (!dealFields.has(idx)) dealFields.set(idx, {});
+                                (dealFields.get(idx) as Record<string, unknown>)[attr] = v as string;
+                            }
+                        }
+                        for (const f of dealFields.values()) {
+                            const name = (f.key || '').toLowerCase();
+                            const val = (f.value || '').toString().trim();
+                            if (!val) continue;
+                            const looksLikeMeeting = name.includes('data') && (name.includes('reuni') || name.includes('agendament'));
+                            if (looksLikeMeeting) {
+                                // AC pode mandar 'YYYY-MM-DD HH:MM:SS' (naive UTC) ou ISO.
+                                // PostgreSQL parseia ambos como TIMESTAMPTZ — passamos
+                                // direto sem normalizar.
+                                acDueDate = val;
+                                break;
+                            }
+                        }
+                    }
                     const acNote = payload['task[note]'] || payload['deal_task[note]'];
                     const acTaskType = parseInt(payload['task[dealTasktype]'] || payload['task[type_id]'] || payload['deal_task[dealTasktype]'] || '3', 10);
                     const acStatus = payload['task[status]'] || payload['deal_task[status]'];
@@ -753,6 +792,34 @@ Deno.serve(async (req) => {
                             .eq('external_source', 'active_campaign')
                             .maybeSingle();
 
+                        // Dedup pra reunioes: AC tem automacoes que criam 2 tasks
+                        // identicas (mesmo deal, mesmo titulo, mesma data, AC IDs
+                        // diferentes ~0.5s apart). Se nao for um update de tarefa
+                        // existente E ja tem uma tarefa identica recente pro mesmo
+                        // card no mesmo horario, pula a criacao.
+                        if (!existingTarefa
+                            && (crmTipo === 'reuniao' || crmTipo === 'reuniao_video' || crmTipo === 'reuniao_presencial' || crmTipo === 'reuniao_telefone')
+                            && acDueDate) {
+                            const { data: dupTarefa } = await supabase
+                                .from('tarefas')
+                                .select('id, external_id')
+                                .eq('card_id', taskCard.id)
+                                .eq('tipo', crmTipo)
+                                .eq('data_vencimento', new Date(acDueDate as string).toISOString())
+                                .eq('external_source', 'active_campaign')
+                                .is('deleted_at', null)
+                                .neq('external_id', String(acTaskId))
+                                .order('created_at', { ascending: true })
+                                .limit(1)
+                                .maybeSingle();
+                            if (dupTarefa) {
+                                console.log(`[ac-dedup] Skipping duplicate ${crmTipo} for card ${taskCard.id} at ${acDueDate}: kept ${dupTarefa.external_id}, dropped ${acTaskId}`);
+                                stats.ignored = (stats.ignored || 0) + 1;
+                                await updateEventStatus(event.id, 'ignored', `Duplicate ${crmTipo} for card at ${acDueDate}, kept AC ${dupTarefa.external_id}`);
+                                continue;
+                            }
+                        }
+
                         const tarefaPayload: Record<string, any> = {
                             card_id: taskCard.id,
                             titulo: acTitle,
@@ -766,6 +833,11 @@ Deno.serve(async (req) => {
                         };
                         if (isComplete) tarefaPayload.concluida_em = new Date().toISOString();
                         if (responsavelId) tarefaPayload.responsavel_id = responsavelId;
+                        // Reunioes vindas do AC nao trazem duracao no payload — populamos
+                        // o default de 15 min em metadata pra UI mostrar corretamente.
+                        if (crmTipo === 'reuniao' || crmTipo === 'reuniao_video' || crmTipo === 'reuniao_presencial' || crmTipo === 'reuniao_telefone') {
+                            tarefaPayload.metadata = { duration_minutes: 15 };
+                        }
 
                         if (existingTarefa) {
                             // UPDATE with loop prevention
@@ -1047,11 +1119,13 @@ Deno.serve(async (req) => {
                     : parseFloat(String(formattedValue).replace(/,/g, ''));
                 const status = mapStatus(payload.status || payload['deal[status]']);
 
-                const contactEmail = payload.contact_email || payload['deal[contact_email]'] || payload.email;
-                // Build contact name from first_name + last_name - keep separate
+                // AC webhook envia tanto 'contact[email]' (formato bracket) quanto
+                // 'contact_email'/'deal[contact_email]' (formato snake) dependendo do
+                // tipo de hook. Inclui ambas as variantes — sem isso, contatos criados
+                // via deal_add ficam sem email/phone/id mesmo quando o AC enviou.
+                const contactEmail = payload['contact[email]'] || payload.contact_email || payload['deal[contact_email]'] || payload.email;
                 const acFirstName = payload['contact[first_name]'] || payload.contact_first_name || payload['deal[contact_firstname]'] || '';
                 const acLastName = payload['contact[last_name]'] || payload.contact_last_name || payload['deal[contact_lastname]'] || '';
-                // Se last_name vazio mas first_name tem múltiplas palavras, splittar
                 let contactNome = acFirstName.trim() || payload.contact_name || payload['deal[contact_name]'] || 'Sem Nome';
                 let contactSobrenome = acLastName.trim() || null;
                 if (!contactSobrenome && contactNome !== 'Sem Nome' && contactNome.includes(' ')) {
@@ -1059,8 +1133,8 @@ Deno.serve(async (req) => {
                     contactNome = parts[0];
                     contactSobrenome = parts.slice(1).join(' ');
                 }
-                const contactPhone = payload.contact_phone || payload['deal[contact_phone]'] || payload.phone;
-                const acContactId = payload['deal[contactid]'] || payload.contactid || payload.contact_id;
+                const contactPhone = payload['contact[phone]'] || payload.contact_phone || payload['deal[contact_phone]'] || payload.phone;
+                const acContactId = payload['contact[id]'] || payload['deal[contactid]'] || payload.contactid || payload.contact_id;
 
                 if (!isShadowMode) {
                     // UPSERT CONTACT (3-tier dedup: external_id → email → telefone)

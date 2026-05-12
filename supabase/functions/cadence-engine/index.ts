@@ -3367,7 +3367,10 @@ async function handleStartCadence(supabaseClient: SupabaseClient, body: any) {
     // editor) que não passa pelos dispatchers SQL.
     const { data: cardOrgRow, error: cardOrgErr } = await supabaseClient
         .from('cards')
-        .select('pipeline_stage:pipeline_stages!inner(pipeline:pipelines!inner(id, org_id))')
+        // FK explicito porque pipelines tem 2 FKs pra pipeline_stages
+        // (pipeline_stages_pipeline_id_fkey + sub_card_default_stage_id) e
+        // o embed implicito quebra com PGRST201.
+        .select('pipeline_stage:pipeline_stages!inner(pipeline:pipelines!pipeline_stages_pipeline_id_fkey!inner(id, org_id))')
         .eq('id', card_id)
         .maybeSingle();
     if (cardOrgErr || !cardOrgRow) {

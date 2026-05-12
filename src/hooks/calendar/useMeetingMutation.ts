@@ -95,7 +95,7 @@ export function useMeetingMutation() {
                 participantes_externos: data.participantes_externos || null,
                 status: data.status || 'agendada',
                 concluida: false,
-                metadata: { duration_minutes: data.duration_minutes || 30, ...(data.meeting_link ? { meeting_link: data.meeting_link } : {}) },
+                metadata: { duration_minutes: data.duration_minutes || 15, ...(data.meeting_link ? { meeting_link: data.meeting_link } : {}) },
                 created_by: user?.id || null,
             }
 
@@ -227,7 +227,7 @@ export function useMeetingMutation() {
                     participantes_externos: data.participantes_externos || null,
                     status: 'agendada',
                     concluida: false,
-                    metadata: { duration_minutes: data.duration_minutes || 30, ...(data.meeting_link ? { meeting_link: data.meeting_link } : {}) },
+                    metadata: { duration_minutes: data.duration_minutes || 15, ...(data.meeting_link ? { meeting_link: data.meeting_link } : {}) },
                     created_by: user?.id || null,
                     rescheduled_from_id: data.id,
                 } as TarefaInsert)

@@ -331,14 +331,35 @@ export async function saveWorkflow(payload: SavePayload): Promise<SaveResult> {
     // 5) Upsert cadence_event_triggers (o gatilho aponta pra start_cadence neste template)
     const triggerEventType = NODE_TO_EVENT_TYPE[triggerNode.type as TriggerNodeType]
     const triggerCfg = (triggerNode.data.config as Record<string, unknown>) || {}
+
+    // Auto-migra config legado: editor antigo (pré-PR#26) gravava o filtro
+    // de etapa em event_config.initial_stage_id (string) em vez de
+    // applicable_stage_ids (UUID[]). Se o user abrir um template legado e
+    // salvar sem mexer no select, o config em memória ainda tem o campo
+    // legado e o save reverte a coluna pra null — bug recorrente.
+    // Aqui normalizamos sempre antes de gravar: applicable_stage_ids vira
+    // a fonte da verdade e initial_stage_id sai do event_config.
+    let applicableStageIds: string[] | null = Array.isArray(triggerCfg.applicable_stage_ids)
+        ? (triggerCfg.applicable_stage_ids as string[])
+        : null
+    const legacyInitialStageId = triggerCfg.initial_stage_id
+    if ((!applicableStageIds || applicableStageIds.length === 0)
+        && typeof legacyInitialStageId === 'string'
+        && legacyInitialStageId) {
+        applicableStageIds = [legacyInitialStageId]
+    }
+    const cleanEventConfig: Record<string, unknown> = { ...triggerCfg }
+    delete cleanEventConfig.initial_stage_id
+    delete cleanEventConfig.applicable_stage_ids
+
     const triggerPayload = {
         name: `${payload.name} — gatilho`,
         event_type: triggerEventType,
-        event_config: triggerCfg,
+        event_config: cleanEventConfig,
         action_type: 'start_cadence',
         action_config: { target_template_id: templateId },
         target_template_id: templateId,
-        applicable_stage_ids: Array.isArray(triggerCfg.applicable_stage_ids) ? triggerCfg.applicable_stage_ids : null,
+        applicable_stage_ids: applicableStageIds,
         is_active: payload.isActive,
         delay_minutes: 0,
     }

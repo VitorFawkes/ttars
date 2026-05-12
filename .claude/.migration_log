@@ -815,6 +815,8 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-11T19:38:02Z | supabase/migrations/20260512f_cards_force_org_id_from_pipeline.sql | applied_to_prod
 2026-05-11T19:38:46Z | supabase/migrations/20260512e_backfill_cards_org_id_from_pipeline.sql | applied_to_prod
 2026-05-11T23:24:21Z | supabase/migrations/20260512h_sdr_qualifications_anchor_optional_in_draft.sql | applied_to_prod
+2026-05-12T14:06:12Z | /home/pandassauro/ttars/supabase/migrations/20260512_card_to_reuniao_agendada_on_meeting.sql | applied_to_prod
+2026-05-12T14:29:42Z | supabase/migrations/20260512m_card_created_self_heal_stage_filter.sql | applied_to_prod
 2026-05-12T14:32:37Z | supabase/migrations/20260512o_overdue_trigger_allow_section_won.sql | applied_to_prod
 2026-05-12T14:40:06Z | supabase/migrations/20260512p_search_contatos_fuzzy.sql | applied_to_prod
 2026-05-12T14:40:50Z | supabase/migrations/20260512p_search_contatos_fuzzy.sql | applied_to_prod
@@ -824,3 +826,11 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-12T14:49:53Z | supabase/migrations/20260512p_search_contatos_fuzzy.sql | applied_to_prod
 2026-05-12T14:58:56Z | supabase/migrations/20260512q_handle_new_user_admin_flag_and_sibling_memberships.sql | applied_to_prod
 2026-05-12T15:16:43Z | supabase/migrations/20260512r_platform_set_admin_workspaces.sql | applied_to_prod
+2026-05-12T15:37:36Z | supabase/migrations/20260512n_sync_telefone_meios_org_id_and_per_org_unique.sql | applied_to_prod
+2026-05-12T15:58:02Z | supabase/migrations/20260512o_ac_meeting_to_reuniao_and_move_card.sql | applied_to_prod
+2026-05-12T16:00:13Z | supabase/migrations/20260512p_ac_meeting_backfill_retry.sql | applied_to_prod
+2026-05-12T16:01:55Z | supabase/migrations/20260512q_debug_minimal.sql | applied_to_prod
+2026-05-12T16:03:01Z | supabase/migrations/20260512r_mappings_only.sql | applied_to_prod
+2026-05-12T16:04:06Z | supabase/migrations/20260512s_ac_meeting_complete_fix.sql | applied_to_prod
+2026-05-12T16:04:50Z | supabase/migrations/20260512s_ac_meeting_complete_fix.sql | applied_to_prod
+2026-05-12T16:12:46Z | supabase/migrations/20260512t_meeting_duration_default_backfill.sql | applied_to_prod
