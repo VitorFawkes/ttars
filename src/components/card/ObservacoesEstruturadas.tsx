@@ -179,6 +179,7 @@ export default function ObservacoesEstruturadas({ card, isExpanded: _isExpanded,
                 value={value}
                 mode="edit"
                 onChange={(val) => handleChange(field.key, val)}
+                resizePersistKey={`obs-critica:${card.id}`}
             />
         )
     }
@@ -197,8 +198,7 @@ export default function ObservacoesEstruturadas({ card, isExpanded: _isExpanded,
                         key={field.key}
                         className={cn(
                             "space-y-1",
-                            isFullWidth ? "col-span-1 md:col-span-2" : "col-span-1",
-                            field.type === 'textarea' && "[&_textarea]:min-h-[280px]"
+                            isFullWidth ? "col-span-1 md:col-span-2" : "col-span-1"
                         )}
                     >
                         <label className="flex items-center gap-1.5 mb-0.5 text-[11px] font-semibold text-gray-700 uppercase tracking-wide">

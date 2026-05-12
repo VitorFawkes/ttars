@@ -199,6 +199,8 @@ interface UniversalFieldRendererProps {
     cardId?: string // ID do card para controle de lock
     showLockButton?: boolean // Mostrar botão de bloqueio de atualização automática
     extraData?: Record<string, any> // Dados extras do card (ex: produto_data completo)
+    /** When set, textarea fields persist their user-resized height under this key. */
+    resizePersistKey?: string
 }
 
 // --- HELPER FUNCTIONS ---
@@ -356,7 +358,8 @@ export default function UniversalFieldRenderer({
     onEdit,
     cardId,
     showLockButton = false,
-    extraData
+    extraData,
+    resizePersistKey
 }: UniversalFieldRendererProps) {
     // Hook para verificar se o campo está bloqueado
     // O hook é seguro para chamar mesmo sem cardId (retorna valores padrão)
@@ -410,6 +413,7 @@ export default function UniversalFieldRenderer({
                         onChange={(e) => onChange?.(e.target.value)}
                         className="min-h-[60px] bg-white border border-gray-200 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 transition-colors"
                         placeholder={field.label || ''}
+                        persistKey={resizePersistKey ? `${resizePersistKey}:${field.key}` : undefined}
                     />
                 )
             case 'select':
