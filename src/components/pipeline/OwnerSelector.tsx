@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { ChevronDown, User, Zap, Users, Search, X } from 'lucide-react'
@@ -65,6 +66,27 @@ export default function OwnerSelector({
     const [isOpen, setIsOpen] = useState(false)
     const [searchTerm, setSearchTerm] = useState('')
     const searchInputRef = useRef<HTMLInputElement>(null)
+    const triggerRef = useRef<HTMLButtonElement>(null)
+    const [popoverPos, setPopoverPos] = useState<{ top: number; left: number; width: number } | null>(null)
+
+    // Computa posição do popover via portal — escapa de stacking contexts
+    // (CardHeader sticky z-10 prendia o popover atrás dos widgets do CardDetail).
+    useLayoutEffect(() => {
+        if (!isOpen || !triggerRef.current) return
+        const update = () => {
+            const r = triggerRef.current?.getBoundingClientRect()
+            if (!r) return
+            const w = compact ? 320 : Math.max(r.width, 320)
+            setPopoverPos({ top: r.bottom + 4, left: r.left, width: w })
+        }
+        update()
+        window.addEventListener('resize', update)
+        window.addEventListener('scroll', update, true)
+        return () => {
+            window.removeEventListener('resize', update)
+            window.removeEventListener('scroll', update, true)
+        }
+    }, [isOpen, compact])
 
     // Derive autoMode from value and showNoSdrOption instead of syncing via effect
     const autoMode = !value && !showNoSdrOption
@@ -217,26 +239,19 @@ export default function OwnerSelector({
         })
     }, [allUsers, product, phaseSlug, roleId, teamId])
 
-    // Busca por nome relaxa o filtro de fase — time é sugestão default,
-    // mas o usuário pode atribuir alguém de outra fase. Role/team/product seguem valendo.
+    // Filtro de fase é ESTRITO, inclusive na busca por nome: seletor de Planner só
+    // mostra Planner, SDR só SDR, Pós só Pós. A separação é intencional pra evitar
+    // atribuir SDR como Planner por descuido. Bypass de admin global continua valendo
+    // (já aplicado em `users` acima).
     const norm = (s: string | null | undefined) =>
         (s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     const filteredUsers = useMemo(() => {
         if (!searchTerm) return users
         const term = norm(searchTerm)
-        return allUsers.filter(user => {
-            const isAdminUser = user.is_admin === true
-            if (product && !isAdminUser && user.produtos && user.produtos.length > 0 && !user.produtos.includes(product)) {
-                return false
-            }
-            if (roleId && user.role_id !== roleId) return false
-            if (teamId) {
-                const belongs = (user.teamIds && user.teamIds.includes(teamId)) || user.team_id === teamId
-                if (!belongs) return false
-            }
-            return norm(user.nome).includes(term) || norm(user.email).includes(term)
-        })
-    }, [users, allUsers, searchTerm, product, roleId, teamId])
+        return users.filter(user =>
+            norm(user.nome).includes(term) || norm(user.email).includes(term)
+        )
+    }, [users, searchTerm])
 
     // Fetch cards count per user for workload indicator
     const { data: workload = {} } = useQuery({
@@ -299,6 +314,7 @@ export default function OwnerSelector({
     return (
         <div className={cn('relative', className)}>
             <button
+                ref={triggerRef}
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
                 className={cn(
@@ -370,13 +386,16 @@ export default function OwnerSelector({
                 )} />
             </button>
 
-            {isOpen && (
+            {isOpen && popoverPos && createPortal(
                 <>
                     <div
-                        className="fixed inset-0 z-10"
+                        className="fixed inset-0 z-[9998]"
                         onClick={() => setIsOpen(false)}
                     />
-                    <div className={cn("absolute top-full left-0 mt-1 z-20 bg-white border border-slate-200 rounded-lg shadow-lg max-h-72 flex flex-col", compact ? "min-w-[280px] right-auto" : "right-0")}>
+                    <div
+                        className="fixed z-[9999] bg-white border border-slate-200 rounded-lg shadow-lg max-h-72 flex flex-col"
+                        style={{ top: popoverPos.top, left: popoverPos.left, width: popoverPos.width }}
+                    >
                         {/* Search input */}
                         <div className="p-2 border-b border-slate-100 flex-shrink-0">
                             <div className="relative">
@@ -502,7 +521,8 @@ export default function OwnerSelector({
                             )}
                         </div>
                     </div>
-                </>
+                </>,
+                document.body
             )}
         </div>
     )
