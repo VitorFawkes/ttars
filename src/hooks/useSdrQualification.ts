@@ -242,10 +242,13 @@ export function useListarPontuacoes(filtros: ListaFiltros = {}) {
 }
 
 /**
- * Orquestra o ciclo completo no Sheet: cria rascunho na abertura, debounce
- * em updates (300ms), expõe estado consolidado.
+ * Orquestra o ciclo completo no Sheet: cria rascunho na abertura OU retoma
+ * um rascunho existente (quando initial.qualificationId é passado).
+ * Debounce em updates (300ms).
  */
-export function useSdrQualificationSession(initial: IniciarParams) {
+type SessionInitial = IniciarParams & { qualificationId?: string | null }
+
+export function useSdrQualificationSession(initial: SessionInitial) {
     const [qualificationId, setQualificationId] = useState<string | null>(null)
     const [scoreResult, setScoreResult] = useState<SdrScoreResult | null>(null)
     const [scoringInputs, setScoringInputs] = useState<Record<string, boolean>>({})
@@ -253,6 +256,8 @@ export function useSdrQualificationSession(initial: IniciarParams) {
     const [notas, setNotas] = useState('')
     const [dirty, setDirty] = useState(false)
     const [saving, setSaving] = useState(false)
+    const [loading, setLoading] = useState(false)
+    const [estelaScoreRecente, setEstelaScoreRecente] = useState<IniciarResult['estela_score_recente']>(null)
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const initialKeyRef = useRef<string>('')
 
@@ -273,11 +278,34 @@ export function useSdrQualificationSession(initial: IniciarParams) {
         setDadosLead({})
         setNotas('')
         setDirty(false)
-        iniciar.mutate(initial, {
-            onSuccess: (res) => {
-                setQualificationId(res.id)
-            },
-        })
+        setEstelaScoreRecente(null)
+
+        if (initial.qualificationId) {
+            // Retomar rascunho existente
+            setLoading(true)
+            ;(async () => {
+                const { data, error } = await (supabase.rpc as unknown as (n: string, a?: unknown) => Promise<{ data: unknown; error: { message: string } | null }>)('sdr_obter_pontuacao', { p_id: initial.qualificationId })
+                setLoading(false)
+                if (error || !data) return
+                const result = data as { pontuacao: SdrQualification }
+                const p = result.pontuacao
+                setQualificationId(p.id)
+                setDadosLead(p.dados_lead || {})
+                setScoringInputs(p.scoring_inputs || {})
+                setNotas(p.notas || '')
+                if (p.score_result && typeof (p.score_result as SdrScoreResult).score === 'number') {
+                    setScoreResult(p.score_result as SdrScoreResult)
+                }
+            })()
+        } else {
+            // Criar novo rascunho
+            iniciar.mutate(initial, {
+                onSuccess: (res) => {
+                    setQualificationId(res.id)
+                    setEstelaScoreRecente(res.estela_score_recente)
+                },
+            })
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [initialKey])
 
@@ -350,9 +378,9 @@ export function useSdrQualificationSession(initial: IniciarParams) {
         notas,
         dirty,
         saving,
-        starting: iniciar.isPending,
+        starting: iniciar.isPending || loading,
         startError: iniciar.error,
-        estelaScoreRecente: iniciar.data?.estela_score_recente ?? null,
+        estelaScoreRecente,
         setInputs,
         setDados,
         setNotas: setNotasAndSave,

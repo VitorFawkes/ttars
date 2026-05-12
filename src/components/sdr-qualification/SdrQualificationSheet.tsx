@@ -24,6 +24,7 @@ import { toast } from 'sonner'
 type Props = {
     open: boolean
     onOpenChange: (open: boolean) => void
+    qualificationId?: string | null
     contatoId?: string | null
     cardId?: string | null
     telefone?: string | null
@@ -69,7 +70,7 @@ function detectDataMode(value: string | null | undefined): DataMode {
     return 'indefinido'
 }
 
-export function SdrQualificationSheet({ open, onOpenChange, contatoId, cardId, telefone, initialDados, onFinalized }: Props) {
+export function SdrQualificationSheet({ open, onOpenChange, qualificationId, contatoId, cardId, telefone, initialDados, onFinalized }: Props) {
     const { data: scoringData, isLoading: rulesLoading } = useEstelaScoringRules()
     const finalizar = useFinalizarPontuacao()
     const descartar = useDescartarPontuacao()
@@ -82,6 +83,7 @@ export function SdrQualificationSheet({ open, onOpenChange, contatoId, cardId, t
     const [linkedCardId, setLinkedCardId] = useState<string | null>(cardId ?? null)
 
     const session = useSdrQualificationSession({
+        qualificationId: qualificationId ?? null,
         contatoId: contatoId ?? null,
         cardId: cardId ?? null,
         telefone: telefone ?? null,
@@ -95,6 +97,14 @@ export function SdrQualificationSheet({ open, onOpenChange, contatoId, cardId, t
             }
             if (initialDados.data_casamento) {
                 setDataMode(detectDataMode(initialDados.data_casamento))
+            }
+        } else if (session.qualificationId && session.dadosLead) {
+            // Quando retoma rascunho, popula state local visual (mascara R$, modo data)
+            if (session.dadosLead.investimento_total) {
+                setInvestimentoText(formatBRL(session.dadosLead.investimento_total))
+            }
+            if (session.dadosLead.data_casamento) {
+                setDataMode(detectDataMode(session.dadosLead.data_casamento))
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -9,6 +9,7 @@ import { timeAgo } from '../../utils/timeAgo'
 import { formatPhoneBR } from '../../utils/normalizePhone'
 
 type SessaoSheet = {
+    qualificationId?: string | null
     cardId?: string | null
     contatoId?: string | null
     telefone?: string | null
@@ -37,6 +38,7 @@ export function FloatingScoreButton() {
                 onClose={() => setPaneOpen(false)}
                 onSelectRascunho={(r) => {
                     setSessao({
+                        qualificationId: r.id,
                         cardId: r.card_id,
                         contatoId: r.contato_id,
                         telefone: r.telefone_normalizado,
@@ -59,6 +61,7 @@ export function FloatingScoreButton() {
                     onOpenChange={(next) => {
                         if (!next) setSessao(null)
                     }}
+                    qualificationId={sessao.qualificationId ?? null}
                     cardId={sessao.cardId ?? null}
                     contatoId={sessao.contatoId ?? null}
                     telefone={sessao.telefone ?? null}

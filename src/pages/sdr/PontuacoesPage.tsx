@@ -155,9 +155,7 @@ export default function PontuacoesPage() {
                 <SdrQualificationSheet
                     open
                     onOpenChange={(next) => !next && setOpenQualId(null)}
-                    cardId={null}
-                    contatoId={null}
-                    telefone={null}
+                    qualificationId={openQualId}
                 />
             )}
 
