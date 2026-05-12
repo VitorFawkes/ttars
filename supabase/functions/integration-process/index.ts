@@ -1047,11 +1047,13 @@ Deno.serve(async (req) => {
                     : parseFloat(String(formattedValue).replace(/,/g, ''));
                 const status = mapStatus(payload.status || payload['deal[status]']);
 
-                const contactEmail = payload.contact_email || payload['deal[contact_email]'] || payload.email;
-                // Build contact name from first_name + last_name - keep separate
+                // AC webhook envia tanto 'contact[email]' (formato bracket) quanto
+                // 'contact_email'/'deal[contact_email]' (formato snake) dependendo do
+                // tipo de hook. Inclui ambas as variantes — sem isso, contatos criados
+                // via deal_add ficam sem email/phone/id mesmo quando o AC enviou.
+                const contactEmail = payload['contact[email]'] || payload.contact_email || payload['deal[contact_email]'] || payload.email;
                 const acFirstName = payload['contact[first_name]'] || payload.contact_first_name || payload['deal[contact_firstname]'] || '';
                 const acLastName = payload['contact[last_name]'] || payload.contact_last_name || payload['deal[contact_lastname]'] || '';
-                // Se last_name vazio mas first_name tem múltiplas palavras, splittar
                 let contactNome = acFirstName.trim() || payload.contact_name || payload['deal[contact_name]'] || 'Sem Nome';
                 let contactSobrenome = acLastName.trim() || null;
                 if (!contactSobrenome && contactNome !== 'Sem Nome' && contactNome.includes(' ')) {
@@ -1059,8 +1061,8 @@ Deno.serve(async (req) => {
                     contactNome = parts[0];
                     contactSobrenome = parts.slice(1).join(' ');
                 }
-                const contactPhone = payload.contact_phone || payload['deal[contact_phone]'] || payload.phone;
-                const acContactId = payload['deal[contactid]'] || payload.contactid || payload.contact_id;
+                const contactPhone = payload['contact[phone]'] || payload.contact_phone || payload['deal[contact_phone]'] || payload.phone;
+                const acContactId = payload['contact[id]'] || payload['deal[contactid]'] || payload.contactid || payload.contact_id;
 
                 if (!isShadowMode) {
                     // UPSERT CONTACT (3-tier dedup: external_id → email → telefone)
