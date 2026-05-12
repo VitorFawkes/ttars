@@ -291,6 +291,31 @@ if [ "$STAGING_MODE" = "false" ]; then
     FAILED=$((FAILED + 1))
   fi
 
+  # ── Triggers card_created com filtro de etapa em campo legado ──
+  # Editor V2 antigo gravava filtro em event_config.initial_stage_id em vez
+  # da coluna applicable_stage_ids — dispatcher SQL ignorava o filtro e a
+  # automacao disparava pra todos os cards novos. Migration 20260512m
+  # backfilla e instala trigger BEFORE INSERT/UPDATE pra auto-migrar.
+  # Esperado: 0. Se subir, regressao no save do editor (persistence.ts) ou
+  # bypass do trigger SQL.
+  TOTAL=$((TOTAL + 1))
+  LEGACY_TRIGGER=$(curl -s \
+    -X POST \
+    "${URL}/rest/v1/rpc/cadence_triggers_legacy_card_created_count" \
+    -H "apikey: ${ANON}" \
+    -H "Authorization: Bearer ${KEY}" \
+    -H "Content-Type: application/json" \
+    -d '{}' \
+    --max-time 10)
+
+  if [ -z "$LEGACY_TRIGGER" ] || ! echo "$LEGACY_TRIGGER" | grep -qE '^[0-9]+$'; then
+    echo "  FAIL: cadence_triggers_legacy_card_created_count → resposta inesperada: $LEGACY_TRIGGER" >&2
+    FAILED=$((FAILED + 1))
+  elif [ "$LEGACY_TRIGGER" != "0" ]; then
+    echo "  FAIL: $LEGACY_TRIGGER triggers card_created com filtro de etapa em campo legado — auto-heal SQL deveria ter migrado" >&2
+    FAILED=$((FAILED + 1))
+  fi
+
   # ── Itens Monde "zumbi": agregado pré-04-01 coexistindo com granular pós-04-01 da mesma venda ──
   # Esperado: 0 após cleanup retroativo (20260507e). Se subir, importador parou de
   # aplicar a regra "último arquivo vence" — ver migration 20260506f e callers em

@@ -56,6 +56,23 @@ export const TriggerEditor: React.FC<TriggerEditorProps> = ({ type, config, onCh
 
     const set = (patch: Record<string, unknown>) => onChange({ ...config, ...patch })
 
+    // Auto-heal de config legado de card_created: editor antigo (pré-PR#26)
+    // gravava o filtro em event_config.initial_stage_id e deixava
+    // applicable_stage_ids vazio. Se um template assim é aberto sem que o user
+    // toque no select, o save reverte a coluna pra null e o bug volta. Aqui
+    // migramos o config em memória logo no load — depois disso qualquer save
+    // grava o formato canônico.
+    const legacyInitial = config.initial_stage_id
+    const hasApplicable = Array.isArray(config.applicable_stage_ids)
+        && (config.applicable_stage_ids as unknown[]).length > 0
+    React.useEffect(() => {
+        if (type !== 'trigger.card_created') return
+        if (hasApplicable) return
+        if (typeof legacyInitial !== 'string' || !legacyInitial) return
+        onChange({ ...config, applicable_stage_ids: [legacyInitial], initial_stage_id: null })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [type, hasApplicable, legacyInitial])
+
     switch (type) {
         case 'trigger.card_created': {
             // Save grava em applicable_stage_ids (array UUID[] — bate com a
