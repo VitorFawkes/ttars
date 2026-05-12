@@ -58,15 +58,19 @@ SECURITY INVOKER
 SET search_path = public
 AS $$
 DECLARE
-  v_norm  text;
-  v_phone text;
+  v_norm    text;
+  v_phone   text;
+  v_words   text[];
 BEGIN
   IF p_term IS NULL OR length(trim(p_term)) < 2 THEN
     RETURN;
   END IF;
 
-  v_norm  := public.contatos_search_norm(trim(p_term));
+  -- Normaliza: unaccent + lower + colapsa espaços múltiplos
+  v_norm  := regexp_replace(public.contatos_search_norm(trim(p_term)), '\s+', ' ', 'g');
   v_phone := regexp_replace(p_term, '\D', '', 'g');
+  -- Palavras individuais do termo (sem vazias). Permite "Silva Maria" achar "Maria Silva".
+  v_words := array_remove(string_to_array(v_norm, ' '), '');
 
   RETURN QUERY
   -- candidates: tudo que passa nos filtros (substring ou trigram).
@@ -90,34 +94,49 @@ BEGIN
     FROM public.contatos c
     WHERE c.deleted_at IS NULL
       AND (
-            -- Substring exato (com unaccent) em nome/sobrenome
-            public.contatos_search_norm(c.nome)      ILIKE '%' || v_norm || '%'
-         OR public.contatos_search_norm(c.sobrenome) ILIKE '%' || v_norm || '%'
-            -- Email (sem unaccent)
-         OR lower(COALESCE(c.email, '')) ILIKE '%' || lower(p_term) || '%'
-            -- Telefone normalizado (só se o termo parece telefone)
-         OR (length(v_phone) >= 4 AND c.telefone_normalizado ILIKE '%' || v_phone || '%')
+            -- Substring (via position — imune a wildcards LIKE %/_)
+            position(v_norm in public.contatos_search_norm(c.nome)) > 0
+         OR position(v_norm in public.contatos_search_norm(c.sobrenome)) > 0
+            -- Email (case-insensitive, sem unaccent)
+         OR position(lower(p_term) in lower(COALESCE(c.email, ''))) > 0
+            -- Telefone normalizado (v_phone só contém dígitos)
+         OR (length(v_phone) >= 4 AND position(v_phone in COALESCE(c.telefone_normalizado, '')) > 0)
             -- CPF normalizado (placeholder da página Pessoas inclui CPF)
-         OR (length(v_phone) >= 4 AND c.cpf_normalizado ILIKE '%' || v_phone || '%')
+         OR (length(v_phone) >= 4 AND position(v_phone in COALESCE(c.cpf_normalizado, '')) > 0)
             -- Fuzzy trigram (tolera letra dobrada, troca, omissão)
          OR (length(v_norm) >= 4 AND public.contatos_search_norm(c.nome)      % v_norm)
          OR (length(v_norm) >= 4 AND public.contatos_search_norm(c.sobrenome) % v_norm)
+            -- Multi-word: todas as palavras do termo aparecem no full_norm
+            -- (cobre "Silva Maria" → "Maria Silva")
+         OR (
+              cardinality(v_words) >= 2
+              AND NOT EXISTS (
+                SELECT 1 FROM unnest(v_words) AS w
+                WHERE position(w in public.contatos_search_norm(c.nome || ' ' || COALESCE(c.sobrenome, ''))) = 0
+              )
+            )
             -- Telefone secundário via contato_meios
          OR (length(v_phone) >= 4 AND EXISTS (
               SELECT 1
               FROM public.contato_meios cm
               WHERE cm.contato_id = c.id
-                AND cm.valor_normalizado ILIKE '%' || v_phone || '%'
+                AND position(v_phone in COALESCE(cm.valor_normalizado, '')) > 0
             ))
       )
   ),
   scored AS (
     SELECT b.*,
       (
-          -- Bônus de match exato (vence fuzzy sempre)
+          -- Bônus de match exato (vence fuzzy sempre). starts_with/position são imunes a wildcards.
           CASE
-            WHEN b.full_norm LIKE v_norm || '%'        THEN 3.0
-            WHEN b.full_norm LIKE '%' || v_norm || '%' THEN 2.0
+            WHEN starts_with(b.full_norm, v_norm)        THEN 3.0
+            WHEN position(v_norm in b.full_norm) > 0     THEN 2.0
+            -- Multi-word match: todas as palavras estão presentes (cobre ordem invertida)
+            WHEN cardinality(v_words) >= 2
+                 AND NOT EXISTS (
+                   SELECT 1 FROM unnest(v_words) AS w
+                   WHERE position(w in b.full_norm) = 0
+                 )                                       THEN 1.5
             ELSE 0
           END
           -- Similaridade trigram (0..1) como tie-break e captura de fuzzy
