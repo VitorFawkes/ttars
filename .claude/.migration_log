@@ -822,3 +822,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-12T14:42:29Z | supabase/migrations/20260512p_search_contatos_fuzzy.sql | applied_to_prod
 2026-05-12T14:44:03Z | supabase/migrations/20260512p_search_contatos_fuzzy.sql | applied_to_prod
 2026-05-12T14:49:53Z | supabase/migrations/20260512p_search_contatos_fuzzy.sql | applied_to_prod
+2026-05-12T14:58:56Z | supabase/migrations/20260512q_handle_new_user_admin_flag_and_sibling_memberships.sql | applied_to_prod
+2026-05-12T15:16:43Z | supabase/migrations/20260512r_platform_set_admin_workspaces.sql | applied_to_prod

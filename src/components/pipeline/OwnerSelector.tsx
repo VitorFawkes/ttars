@@ -183,15 +183,26 @@ export default function OwnerSelector({
         })
     }, [allUsers, product, phaseSlug, roleId, teamId])
 
-    // Apply search filter
+    // Busca por nome relaxa o filtro de fase — time é sugestão default,
+    // mas o usuário pode atribuir alguém de outra fase. Role/team/product seguem valendo.
+    const norm = (s: string | null | undefined) =>
+        (s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     const filteredUsers = useMemo(() => {
         if (!searchTerm) return users
-        const term = searchTerm.toLowerCase()
-        return users.filter(user =>
-            user.nome?.toLowerCase().includes(term) ||
-            user.email?.toLowerCase().includes(term)
-        )
-    }, [users, searchTerm])
+        const term = norm(searchTerm)
+        return allUsers.filter(user => {
+            const isAdminUser = user.is_admin === true
+            if (product && !isAdminUser && user.produtos && user.produtos.length > 0 && !user.produtos.includes(product)) {
+                return false
+            }
+            if (roleId && user.role_id !== roleId) return false
+            if (teamId) {
+                const belongs = (user.teamIds && user.teamIds.includes(teamId)) || user.team_id === teamId
+                if (!belongs) return false
+            }
+            return norm(user.nome).includes(term) || norm(user.email).includes(term)
+        })
+    }, [users, allUsers, searchTerm, product, roleId, teamId])
 
     // Fetch cards count per user for workload indicator
     const { data: workload = {} } = useQuery({
