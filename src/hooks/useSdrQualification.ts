@@ -171,9 +171,9 @@ export function useDesvincularDeCard() {
     const qc = useQueryClient()
     return useMutation({
         mutationFn: async (qualificationId: string) => {
-            const { data, error } = await supabase.rpc('sdr_desvincular_de_card', {
+            const { data, error } = await supabase.rpc('sdr_desvincular_de_card' as never, ({
                 p_qualification_id: qualificationId,
-            })
+            }) as never)
             if (error) throw error
             return data as unknown as { id: string; card_id: string | null; changed: boolean }
         },

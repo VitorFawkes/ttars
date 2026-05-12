@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useAgentMoments, type PlaybookMoment, type DiscoveryConfig } from '@/hooks/playbook/useAgentMoments'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
+import { useAgentDiscoveryFlag } from '@/hooks/v2/useAgentDiscoveryFlag'
 import { SuggestVariationsButton } from '../shared/SuggestVariationsButton'
 import { DiscoveryConfigEditor } from './DiscoveryConfigEditor'
 import { detectLeaks, type LeakWarning } from '@/lib/playbook/leakDetector'
@@ -57,6 +58,10 @@ const DELIVERY_OPTIONS: Array<{ value: PlaybookMoment['delivery_mode']; label: s
 
 export function MomentCard({ agentId, agentName, companyName, moment, dragHandleProps, defaultExpanded = false, hideToggle = false }: Props) {
   const { upsert, remove } = useAgentMoments(agentId)
+  // UI segue o que o backend usa: se feature_flag_discovery_v2 está ON,
+  // mostra SÓ Schema V2 (esconde coverage_notes/perguntas escritas legadas).
+  // Se OFF, mostra UI completa legada + V2 colapsável (preview/migração).
+  const useV2Schema = useAgentDiscoveryFlag(agentId)
   const meta = useCurrentProductMeta()
   const pipelineId: string | undefined = meta?.pipelineId ?? undefined
   const produtoSlug: string | undefined = meta?.slug ?? undefined
@@ -420,6 +425,7 @@ export function MomentCard({ agentId, agentName, companyName, moment, dragHandle
                   onChange={(next) => { setDiscoveryConfig(next); markDirty() }}
                   pipelineId={pipelineId}
                   produtoSlug={produtoSlug}
+                  useV2Schema={useV2Schema}
                 />
               ) : (
                 <p className="text-[11px] text-slate-500">

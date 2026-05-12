@@ -47,6 +47,14 @@ interface Props {
   /** Pipeline do produto pra alimentar o SingleFieldPicker (campos do CRM). */
   pipelineId?: string
   produtoSlug?: string
+  /**
+   * Quando true (Estela com engine=multi_agent_pipeline), esconde os campos
+   * legados (must_collect/coverage_notes/perguntas escritas) e mostra SÓ
+   * o Schema V2 (goal/must_include/example_questions/literal_question) com
+   * a seção sempre expandida. Quando false, mostra UI completa legada +
+   * seção V2 colapsável (compat pra outros agentes V1).
+   */
+  useV2Schema?: boolean
 }
 
 /**
@@ -58,7 +66,7 @@ interface Props {
  *   - Asterisco vermelho = obrigatório pra qualificar.
  *   - Microcopy explica o que vira o quê pro agente.
  */
-export function DiscoveryConfigEditor({ value, onChange, pipelineId, produtoSlug }: Props) {
+export function DiscoveryConfigEditor({ value, onChange, pipelineId, produtoSlug, useV2Schema = false }: Props) {
   const slots = value?.slots ?? []
 
   const updateSlot = (idx: number, next: Partial<DiscoverySlot>) => {
@@ -118,6 +126,7 @@ export function DiscoveryConfigEditor({ value, onChange, pipelineId, produtoSlug
                 onRemove={() => removeSlot(idx)}
                 pipelineId={pipelineId}
                 produtoSlug={produtoSlug}
+                useV2Schema={useV2Schema}
               />
             ))}
           </div>
@@ -140,12 +149,14 @@ function SlotItem({
   slot,
   onChange,
   onRemove,
+  useV2Schema = false,
   pipelineId,
   produtoSlug,
 }: {
   slot: DiscoverySlot
   onChange: (next: Partial<DiscoverySlot>) => void
   onRemove: () => void
+  useV2Schema?: boolean
   pipelineId?: string
   produtoSlug?: string
 }) {
@@ -248,13 +259,21 @@ function SlotItem({
               })()}
             </div>
             <div className="text-[11px] text-slate-500 truncate">
-              {slot.questions.length === 0
-                ? 'sem perguntas escritas — agente improvisa'
-                : `${slot.questions.length} pergunta${slot.questions.length > 1 ? 's' : ''} escrita${slot.questions.length > 1 ? 's' : ''}`}
-              {slot.coverage_notes && slot.coverage_notes.trim() && (
-                <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-medium">
-                  + contexto
-                </span>
+              {useV2Schema ? (
+                slot.goal && slot.goal.trim()
+                  ? <span className="truncate">{slot.goal.trim()}</span>
+                  : <span className="text-amber-600">⚠ sem objetivo — preencha Goal</span>
+              ) : (
+                <>
+                  {slot.questions.length === 0
+                    ? 'sem perguntas escritas — agente improvisa'
+                    : `${slot.questions.length} pergunta${slot.questions.length > 1 ? 's' : ''} escrita${slot.questions.length > 1 ? 's' : ''}`}
+                  {slot.coverage_notes && slot.coverage_notes.trim() && (
+                    <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-medium">
+                      + contexto
+                    </span>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -341,6 +360,7 @@ function SlotItem({
             </p>
           </div>
 
+          {!useV2Schema && (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 space-y-2.5">
             <div>
               <label className="block text-[11px] font-medium text-emerald-900 mb-1">
@@ -467,7 +487,9 @@ function SlotItem({
               </div>
             )}
           </div>
+          )}
 
+          {!useV2Schema && (
           <div>
             <label className="block text-[11px] font-medium text-slate-600 mb-1">
               Perguntas escritas <span className="text-slate-400 font-normal">(opcional — vazio = agente improvisa)</span>
@@ -512,8 +534,9 @@ function SlotItem({
             </div>
             <LeakWarningsList text={newQuestion} />
           </div>
+          )}
 
-          <SlotV2Section slot={slot} onChange={onChange} />
+          <SlotV2Section slot={slot} onChange={onChange} defaultOpen={useV2Schema} hideHeader={useV2Schema} />
 
           <div className="pt-2 border-t border-slate-100 flex justify-end">
             <Button size="sm" variant="outline" onClick={onRemove} className="gap-1.5 text-slate-500 hover:text-rose-600">
@@ -535,11 +558,17 @@ function SlotItem({
 function SlotV2Section({
   slot,
   onChange,
+  defaultOpen = false,
+  hideHeader = false,
 }: {
   slot: DiscoverySlot
   onChange: (next: Partial<DiscoverySlot>) => void
+  /** Quando true, abre a seção por padrão (ex: Estela). */
+  defaultOpen?: boolean
+  /** Quando true, esconde o botão de colapsar — UI sempre aberta (Estela). */
+  hideHeader?: boolean
 }) {
-  const [open, setOpen] = useState(!!slot.goal)
+  const [open, setOpen] = useState(defaultOpen || !!slot.goal)
   const [newInclude, setNewInclude] = useState('')
   const [newExample, setNewExample] = useState('')
 
@@ -619,22 +648,26 @@ function SlotV2Section({
     : renderSlotLegacyForPreview(slotV2)
 
   return (
-    <div className="pt-2 border-t border-slate-100">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-indigo-700 hover:text-indigo-900 transition"
-      >
-        <Wand2 className="w-3.5 h-3.5" />
-        Schema novo (V2) — Estela
-        {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-      </button>
-      <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
-        Quando a flag <code>feature_flag_discovery_v2</code> está ON, a Estela usa esses 4 campos em vez de Coverage Notes/Perguntas escritas.
-        Hierarquia: Pergunta literal &gt; Elementos obrigatórios &gt; Exemplos de pergunta &gt; Goal puro.
-      </p>
+    <div className={hideHeader ? '' : 'pt-2 border-t border-slate-100'}>
+      {!hideHeader && (
+        <>
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-indigo-700 hover:text-indigo-900 transition"
+          >
+            <Wand2 className="w-3.5 h-3.5" />
+            Schema novo (V2) — Estela
+            {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+          </button>
+          <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
+            Quando a flag <code>feature_flag_discovery_v2</code> está ON, a Estela usa esses 4 campos em vez de Coverage Notes/Perguntas escritas.
+            Hierarquia: Pergunta literal &gt; Elementos obrigatórios &gt; Exemplos de pergunta &gt; Goal puro.
+          </p>
+        </>
+      )}
 
-      {open && (
+      {(open || hideHeader) && (
         <div className="mt-3 space-y-3 p-3 rounded-lg bg-indigo-50/40 border border-indigo-200">
           <div>
             <label className="block text-[11px] font-medium text-slate-700 mb-1">

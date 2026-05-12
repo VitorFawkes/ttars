@@ -7,18 +7,18 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-12
 > **Trigger:** ALWAYS ON
-> **Stats:** 195 tabelas | 155 paginas | 275 hooks | 22 views | 731 components
-> **Stats:** 195 tabelas | 155 paginas | 275 hooks | 22 views | 731 components
-> **Stats:** 195 tabelas | 155 paginas | 275 hooks | 22 views | 731 components
-> **Stats:** 195 tabelas | 155 paginas | 275 hooks | 22 views | 731 components
-> **Stats:** 195 tabelas | 155 paginas | 275 hooks | 22 views | 731 components
-> **Stats:** 195 tabelas | 155 paginas | 275 hooks | 22 views | 731 components
-> **Stats:** 195 tabelas | 155 paginas | 275 hooks | 22 views | 731 components
-> **Stats:** 195 tabelas | 155 paginas | 275 hooks | 22 views | 731 components
-> **Stats:** 195 tabelas | 155 paginas | 275 hooks | 22 views | 731 components
-> **Stats:** 195 tabelas | 155 paginas | 275 hooks | 22 views | 731 components
-> **Stats:** 195 tabelas | 155 paginas | 275 hooks | 22 views | 731 components
-> **Stats:** 195 tabelas | 155 paginas | 275 hooks | 22 views | 731 components
+> **Stats:** 195 tabelas | 156 paginas | 280 hooks | 22 views | 737 components
+> **Stats:** 195 tabelas | 156 paginas | 280 hooks | 22 views | 737 components
+> **Stats:** 195 tabelas | 156 paginas | 280 hooks | 22 views | 737 components
+> **Stats:** 195 tabelas | 156 paginas | 280 hooks | 22 views | 737 components
+> **Stats:** 195 tabelas | 156 paginas | 280 hooks | 22 views | 737 components
+> **Stats:** 195 tabelas | 156 paginas | 280 hooks | 22 views | 737 components
+> **Stats:** 195 tabelas | 156 paginas | 280 hooks | 22 views | 737 components
+> **Stats:** 195 tabelas | 156 paginas | 280 hooks | 22 views | 737 components
+> **Stats:** 195 tabelas | 156 paginas | 280 hooks | 22 views | 737 components
+> **Stats:** 195 tabelas | 156 paginas | 280 hooks | 22 views | 737 components
+> **Stats:** 195 tabelas | 156 paginas | 280 hooks | 22 views | 737 components
+> **Stats:** 195 tabelas | 156 paginas | 280 hooks | 22 views | 737 components
 
 ---
 
@@ -180,7 +180,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **275 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **280 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -274,6 +274,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAgentBoundaries()` | `useAgentBoundaries.ts` |
 | `useAgentBusinessConfig()` | `useAgentBusinessConfig.ts` |
 | `useAgentBusinessConfig()` | `useAgentBusinessConfig.ts` |
+| `useAgentDiscoveryFlag()` | `useAgentDiscoveryFlag.ts` |
 | `useAgentEngine()` | `useAgentEngine.ts` |
 | `useAgentFewShotExamples()` | `useAgentFewShotExamples.ts` |
 | `useAgentFewShotExamples()` | `useAgentFewShotExamples.ts` |
@@ -330,7 +331,9 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useEchoCatalogs()` | `useEchoCatalogs.ts` |
 | `useEmpresaPessoas()` | `useEmpresaPessoas.ts` |
 | `useEmpresas()` | `useEmpresas.ts` |
+| `useEmpresas 2()` | `useEmpresas 2.ts` |
 | `useEstelaScoringRules()` | `useEstelaScoringRules.ts` |
+| `useEstelaScoringRules 2()` | `useEstelaScoringRules 2.ts` |
 | `useFlightLookup()` | `useFlightLookup.ts` |
 | `useFotos()` | `useFotos.ts` |
 | `useFutureOpportunities()` | `useFutureOpportunities.ts` |
@@ -391,6 +394,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useTasksList()` | `useTasksList.ts` |
 | `useTemplateUsages()` | `useTemplateUsages.ts` |
 | `useToggleCritical()` | `useToggleCritical.ts` |
+| `useToggleCritical 2()` | `useToggleCritical 2.ts` |
 | `useTripComments()` | `useTripComments.ts` |
 | `useTripItemHistory()` | `useTripItemHistory.ts` |
 | `useTripPlan()` | `useTripPlan.ts` |
@@ -438,6 +442,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useFilterOptions()` | `useFilterOptions.ts` |
 | `useKanbanTarefas()` | `useKanbanTarefas.ts` |
 | `useKanbanViagens()` | `useKanbanViagens.ts` |
+| `useKanbanViagens 2()` | `useKanbanViagens 2.ts` |
 | `useLeadsFilters()` | `useLeadsFilters.ts` |
 | `useMyAssistCardIds()` | `useMyAssistCardIds.ts` |
 | `usePipelineCards()` | `usePipelineCards.ts` |
@@ -537,7 +542,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **155 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **156 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -560,6 +565,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `CardViagem` | `src/pages/CardViagem.tsx` |
 | `Cards` | `src/pages/Cards.tsx` |
 | `CreateCardFromEcho` | `src/pages/CreateCardFromEcho.tsx` |
+| `Empresas 2` | `src/pages/Empresas 2.tsx` |
 | `Empresas` | `src/pages/Empresas.tsx` |
 | `ForgotPassword` | `src/pages/ForgotPassword.tsx` |
 | `GroupsPage` | `src/pages/GroupsPage.tsx` |
