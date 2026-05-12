@@ -816,3 +816,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-11T19:38:46Z | supabase/migrations/20260512e_backfill_cards_org_id_from_pipeline.sql | applied_to_prod
 2026-05-12T14:06:12Z | /home/pandassauro/ttars/supabase/migrations/20260512_card_to_reuniao_agendada_on_meeting.sql | applied_to_prod
 2026-05-12T14:29:42Z | supabase/migrations/20260512m_card_created_self_heal_stage_filter.sql | applied_to_prod
+2026-05-12T15:37:36Z | supabase/migrations/20260512n_sync_telefone_meios_org_id_and_per_org_unique.sql | applied_to_prod
