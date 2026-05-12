@@ -681,7 +681,13 @@ Deno.serve(async (req) => {
                     const acTaskId = payload['task[id]'] || payload['deal_task[id]'];
                     const acDealId = payload['deal[id]'] || payload['deal_id'];
                     const acTitle = payload['task[title]'] || payload['deal_task[title]'] || 'Tarefa AC';
-                    const acDueDate = payload['task[duedate]'] || payload['deal_task[duedate]'];
+                    // AC manda duas versoes: 'task[duedate]' (naive, sem timezone)
+                    // e 'task[duedate_iso]' (ISO 8601 com offset -05:00, fuso do AC).
+                    // Preferimos o ISO — tratar a versao naive como UTC perde 5h.
+                    const acDueDate = payload['task[duedate_iso]']
+                        || payload['deal_task[duedate_iso]']
+                        || payload['task[duedate]']
+                        || payload['deal_task[duedate]'];
                     const acNote = payload['task[note]'] || payload['deal_task[note]'];
                     const acTaskType = parseInt(payload['task[dealTasktype]'] || payload['task[type_id]'] || payload['deal_task[dealTasktype]'] || '3', 10);
                     const acStatus = payload['task[status]'] || payload['deal_task[status]'];
