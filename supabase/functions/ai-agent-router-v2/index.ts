@@ -611,17 +611,33 @@ Deno.serve(async (req) => {
             console.warn(`[v2] trigger: RPC score falhou:`, scoreErr.message);
           } else if (scoreData) {
             const sd = scoreData as Record<string, unknown>;
-            qualificationResult = {
-              score: Number(sd.score) || 0,
-              qualificado: !!sd.qualificado,
-              breakdown: sd.breakdown ?? null,
-            };
-            forcedMomentKey = qualificationResult.qualificado
-              ? "desfecho_qualificado"
-              : "desfecho_nao_qualificado";
+            const breakdown = sd.breakdown ?? null;
+            const breakdownArr = Array.isArray(breakdown) ? breakdown : [];
+            const rpcEffective = breakdownArr.length > 0 || (Number(sd.score) || 0) > 0;
+
+            // Defesa: a RPC `calculate_agent_qualification_score` avalia só
+            // regras condition_type ∈ {equals, range, boolean_true}. Regras
+            // `ai_subjective` (usadas pela Patricia) requerem LLM intermediário
+            // e a RPC retorna score=0/breakdown=[] silenciosamente. Sem este
+            // check, todo top tier viraria desfecho_nao_qualificado falsamente.
+            // Quando RPC não conseguir avaliar, descartamos e deixamos o LLM
+            // decidir baseado no contexto + prompt.
+            if (!rpcEffective) {
+              console.log(`[v2] trigger: RPC retornou score=0 breakdown=[] (regras ai_subjective não avaliadas pela RPC). Deixando LLM decidir.`);
+              qualificationResult = null;
+            } else {
+              qualificationResult = {
+                score: Number(sd.score) || 0,
+                qualificado: !!sd.qualificado,
+                breakdown,
+              };
+              forcedMomentKey = qualificationResult.qualificado
+                ? "desfecho_qualificado"
+                : "desfecho_nao_qualificado";
+            }
 
             // Buscar 3 horários (mock por enquanto — mesma lógica do check_calendar tool)
-            if (qualificationResult.qualificado) {
+            if (qualificationResult?.qualificado) {
               const today = new Date();
               const slots: Array<{ date: string; time: string; weekday: string }> = [];
               const weekdays = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
@@ -637,7 +653,9 @@ Deno.serve(async (req) => {
               }
               proposedSlots = slots;
             }
-            console.log(`[v2] trigger: desfecho forçado moment=${forcedMomentKey} score=${qualificationResult.score} qualificado=${qualificationResult.qualificado}`);
+            if (qualificationResult) {
+              console.log(`[v2] trigger: desfecho forçado moment=${forcedMomentKey} score=${qualificationResult.score} qualificado=${qualificationResult.qualificado}`);
+            }
           }
         } catch (e) {
           console.warn(`[v2] trigger: exception chamando RPC:`, (e as Error).message);
