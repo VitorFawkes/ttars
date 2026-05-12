@@ -28,7 +28,7 @@ import {
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Default models — admin pode override via ai_agents.pipeline_models.main
-const DEFAULT_MODEL = "gpt-5.5";
+const DEFAULT_MODEL = "gpt-5.1";
 const DEFAULT_TEMPERATURE = 0.6;
 const DEFAULT_MAX_TOKENS = 2048;
 

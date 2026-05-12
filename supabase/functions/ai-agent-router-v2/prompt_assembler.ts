@@ -61,6 +61,30 @@ export interface BuildSinglePromptInput {
     ai_resumo: string | null;
     ai_contexto: string | null;
     card_form_data: Record<string, unknown> | null;
+    /**
+     * Quando o router pré-decide o momento (ex: trigger determinístico de
+     * desfecho ao fim da sondagem), envia o slug aqui. O turn_policy força
+     * o LLM a usar esse momento — sem chance de "esquecer" de fechar.
+     * null = LLM decide normalmente.
+     */
+    forced_moment_key?: string | null;
+    /**
+     * Resultado da RPC calculate_agent_qualification_score, chamada pelo
+     * router antes do LLM quando os dados estão coletados. Quando presente,
+     * é renderizado como contexto autoritativo no prompt.
+     */
+    qualification_result?: {
+      score: number;
+      qualificado: boolean;
+      breakdown?: unknown;
+    } | null;
+    /**
+     * Lista de 3 dias/horários propostos pra reunião com a Wedding Planner.
+     * Buscada pelo router quando o trigger determinístico identifica
+     * desfecho_qualificado. LLM apresenta esses horários verbatim no
+     * último turno da conversa.
+     */
+    proposed_slots?: Array<{ date: string; time: string; weekday: string }> | null;
   };
   availableTools: string[];
 }
@@ -128,6 +152,17 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
   // -------- Conversation state --------------------------------------------
   const stateBlock = renderConversationState(conversationState);
 
+  // -------- Qualification result (contexto autoritativo do router) ---------
+  // Quando o router rodou a RPC determinística antes do LLM, este bloco
+  // entrega o resultado já calculado. LLM não precisa (e não deve) chamar
+  // calculate_qualification_score novamente.
+  const qualificationResultBlock = renderQualificationResult(conversationState.qualification_result);
+
+  // -------- Proposed slots (3 horários pra reunião) -----------------------
+  // Quando o trigger determinístico identifica desfecho_qualificado, o
+  // router pré-busca 3 horários e injeta aqui. LLM apresenta verbatim.
+  const proposedSlotsBlock = renderProposedSlots(conversationState.proposed_slots);
+
   // -------- Turn policy (regra do bloco ativo nesse turno) ----------------
   const turnPolicyBlock = renderTurnPolicy(moments, conversationState);
 
@@ -147,6 +182,8 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
     qualificationBlock,
     examplesBlock,
     stateBlock,
+    qualificationResultBlock,
+    proposedSlotsBlock,
     turnPolicyBlock,
     toolsBlock,
     schemaReminder,
@@ -569,6 +606,49 @@ ${state.historico_compacto || "(sem histórico — primeiro contato)"}
 }
 
 /**
+ * Renderiza o resultado da RPC de scoring quando o router chamou determinístico
+ * antes do LLM. Quando presente, o LLM tem o score já calculado como
+ * contexto autoritativo — NÃO precisa (nem deve) chamar a tool de novo.
+ */
+function renderQualificationResult(
+  result: BuildSinglePromptInput["conversationState"]["qualification_result"] | undefined,
+): string {
+  if (!result) return "";
+  const status = result.qualificado ? "✅ QUALIFICOU" : "❌ NÃO QUALIFICOU";
+  const breakdownStr = result.breakdown
+    ? `\n\n## Breakdown\n\`\`\`json\n${JSON.stringify(result.breakdown, null, 2)}\n\`\`\``
+    : "";
+  return `<qualification_result>
+🎯 SCORE JÁ CALCULADO PELO ROUTER (use como contexto autoritativo, NÃO chame a tool de novo)
+
+- **Status:** ${status}
+- **Score:** ${result.score}${breakdownStr}
+
+Este resultado é fonte de verdade. Use-o pra decidir o desfecho. O \`turn_policy\` abaixo já vai te dizer qual momento usar.
+</qualification_result>`;
+}
+
+/**
+ * Renderiza os 3 horários propostos quando o router decidiu desfecho_qualificado.
+ * LLM deve apresentar verbatim na mensagem final, oferecendo escolha ao casal.
+ */
+function renderProposedSlots(
+  slots: BuildSinglePromptInput["conversationState"]["proposed_slots"] | undefined,
+): string {
+  if (!slots || slots.length === 0) return "";
+  const lines = slots
+    .map((s, i) => `  ${i + 1}. **${s.weekday} ${s.date}** às **${s.time}**`)
+    .join("\n");
+  return `<proposed_slots>
+📅 HORÁRIOS DA WEDDING PLANNER (pré-buscados pelo router, use verbatim)
+
+${lines}
+
+Apresente os 3 horários ao casal exatamente como acima e peça pra escolher um. NÃO invente outras opções. NÃO mude o formato dos dias/horários. Se o casal pedir alternativa, diga que vai checar e siga.
+</proposed_slots>`;
+}
+
+/**
  * Bloco que diz ao LLM qual é o "bloco ativo" deste turno e como se comportar
  * frente aos blocos seguintes (caso o momento atual seja sequenciado wait_for_reply).
  *
@@ -578,11 +658,61 @@ ${state.historico_compacto || "(sem histórico — primeiro contato)"}
  *
  * O LLM continua livre para mudar de moment (escolher current_moment_key diferente
  * do last_moment_key). Nesse caso o router reseta o step para 0 automaticamente.
+ *
+ * **Forced moment** (novo): quando o router pré-decide um momento via trigger
+ * determinístico (ex: desfecho_qualificado ao fim da sondagem), `forced_moment_key`
+ * sobrescreve a escolha do LLM. Útil pra garantir que conversas terminem com
+ * proposta concreta de reunião, e não em "deu pra entender o cenário".
  */
 function renderTurnPolicy(
   moments: PlaybookMoment[],
   state: BuildSinglePromptInput["conversationState"],
 ): string {
+  // -------- Forced moment (trigger determinístico do router) --------------
+  // Tem prioridade sobre last_moment_key. LLM DEVE usar esse momento.
+  const forcedKey = state.forced_moment_key;
+  if (forcedKey) {
+    const forced = moments.find((m) => m.moment_key === forcedKey);
+    if (forced) {
+      const parts = resolveMomentParts(forced);
+      const baseText = parts[0] || forced.anchor_text || "";
+      const isLiteral = forced.message_mode === "literal";
+      const isFaithful = forced.message_mode === "faithful";
+      const modeNote = isLiteral
+        ? "Modo LITERAL: copie verbatim. Cada palavra foi curada."
+        : isFaithful
+        ? "Modo FAITHFUL: até 10% pode trocar pra fluir, estrutura e perguntas idênticas."
+        : "Modo FREE: capture a essência com suas palavras, mas mantenha estrutura.";
+
+      return `<turn_policy>
+🎯 ESTRATÉGIA DESTE TURNO — MOMENTO FORÇADO PELO ROUTER
+
+O router já decidiu por você: o momento deste turno é **\`${forced.moment_key}\`** (${forced.moment_label}).
+Isso aconteceu porque o estado da conversa (dados coletados + score calculado) bate exatamente com a condição deste momento. Não há ambiguidade.
+
+═══ TEXTO-BASE DO MOMENTO ═══
+${baseText}
+═══ FIM DO TEXTO-BASE ═══
+
+⛔ REGRAS:
+- ${modeNote}
+- Marque \`current_moment_key\` = "${forced.moment_key}".
+- NÃO chame a tool \`calculate_qualification_score\` — o router já calculou e o resultado está em \`<qualification_result>\`.
+${state.proposed_slots && state.proposed_slots.length > 0
+  ? `- Apresente os 3 horários de \`<proposed_slots>\` verbatim e peça pro casal escolher um.`
+  : ""}
+${forced.must_cover && forced.must_cover.length > 0
+  ? `- Cubra todos os pontos de \`must_cover\` do momento.`
+  : ""}
+${forced.literal_phrases && forced.literal_phrases.length > 0
+  ? `- Inclua TODAS as literal_phrases do momento integralmente.`
+  : ""}
+
+🔀 EXCEÇÃO única — se o lead acabou de mandar uma objeção FORTE ou pedido explícito que contradiz o momento forçado (ex: "não quero marcar reunião, só quero saber preço"), você pode escolher outro \`current_moment_key\` correspondente (ex: \`objecao_preco\`). Mas em conversa normal, NÃO desvie.
+</turn_policy>`;
+    }
+  }
+
   const lastKey = state.last_moment_key;
   const step = state.moment_step ?? 0;
 

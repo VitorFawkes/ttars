@@ -369,16 +369,19 @@ Deno.serve(async (req) => {
     const turns = await loadConversationHistory(supabase, conversationId, 20);
     const historico = compactConversationHistory(turns);
 
+    // cards.form_data NÃO existe — dados estruturados do lead WEDDING vivem em
+    // cards.produto_data (chaves ww_*). Para conversas sem card (inbound webhook
+    // antes da criação do card), usamos tracked_data em ai_conversation_state.
     let cardFormData: Record<string, unknown> | null = null;
     let cardTitulo: string | null = null;
     if (cardId) {
       const { data: cardRow } = await supabase
         .from("cards")
-        .select("titulo, form_data, ai_resumo, ai_contexto")
+        .select("titulo, produto_data, ai_resumo, ai_contexto")
         .eq("id", cardId)
         .maybeSingle();
       if (cardRow) {
-        cardFormData = (cardRow.form_data as Record<string, unknown>) || null;
+        cardFormData = (cardRow.produto_data as Record<string, unknown>) || null;
         cardTitulo = cardRow.titulo;
       }
     }
@@ -462,6 +465,130 @@ Deno.serve(async (req) => {
     }
 
     // ------------------------------------------------------------------
+    // 8c. Tracked data (estado estruturado acumulado da conversa)
+    //
+    // Quando não há card linkado (inbound webhook antes de criar card), o
+    // card_patch do LLM iria pra lugar nenhum. Persistimos em
+    // extracted_variables.tracked_data pra ter um lugar único de verdade.
+    // Quando há card, mesclamos com produto_data (preserva o que já estava
+    // gravado lá).
+    // ------------------------------------------------------------------
+    const previousTracked = (previousVars.tracked_data as Record<string, unknown>) || {};
+    const trackedData: Record<string, unknown> = {
+      ...(cardFormData || {}),
+      ...previousTracked,
+    };
+
+    // ------------------------------------------------------------------
+    // 8d. Trigger determinístico de desfecho + score
+    //
+    // Quando os 4 críticos (data, destino, convidados, orçamento) estão
+    // coletados + (se valor/convidado < R$ 2.500) as 2 opcionais (viagem,
+    // família), o router chama a RPC de scoring direto e força o momento
+    // de desfecho. Tira a decisão do LLM (que não foi confiável: o caso de
+    // 2026-05-12 com Vitor terminou em "deu pra entender" sem score).
+    // ------------------------------------------------------------------
+    let forcedMomentKey: string | null = null;
+    let qualificationResult: { score: number; qualificado: boolean; breakdown?: unknown } | null = null;
+    let proposedSlots: Array<{ date: string; time: string; weekday: string }> | null = null;
+
+    const dataCasamento = trackedData["ww_data_casamento"];
+    const destinoRegiao = trackedData["ww_destino"];
+    const numConvidados = trackedData["ww_num_convidados"];
+    const orcamentoFaixa = trackedData["ww_orcamento_faixa"];
+    const criticosColetados = !!(dataCasamento && destinoRegiao && numConvidados && orcamentoFaixa);
+
+    if (criticosColetados && scoringEnabled) {
+      // Parse orcamento → número de teto (tenta vários formatos)
+      let orcamentoTeto: number | null = null;
+      if (typeof orcamentoFaixa === "number") {
+        orcamentoTeto = orcamentoFaixa;
+      } else if (typeof orcamentoFaixa === "string") {
+        const digits = orcamentoFaixa.replace(/[^0-9]/g, "");
+        if (digits.length > 0) {
+          orcamentoTeto = parseInt(digits, 10);
+          // Heurística "50k" → 50000: se número tem ≤3 dígitos e original contém 'k'/'mil'
+          if (orcamentoFaixa.toLowerCase().match(/k\b|mil\b/) && orcamentoTeto < 1000) {
+            orcamentoTeto *= 1000;
+          }
+        }
+      } else if (typeof orcamentoFaixa === "object" && orcamentoFaixa) {
+        const obj = orcamentoFaixa as Record<string, unknown>;
+        const candidate = obj.maximo || obj.max || obj.teto || obj.total || obj.value;
+        if (typeof candidate === "number") orcamentoTeto = candidate;
+        else if (typeof candidate === "string") {
+          const d = candidate.replace(/[^0-9]/g, "");
+          if (d) orcamentoTeto = parseInt(d, 10);
+        }
+      }
+
+      const numConv = typeof numConvidados === "number"
+        ? numConvidados
+        : parseInt(String(numConvidados).replace(/[^0-9]/g, ""), 10) || 0;
+
+      const valorPorPax = (orcamentoTeto && numConv > 0) ? orcamentoTeto / numConv : null;
+      const isFronteira = valorPorPax !== null && valorPorPax < 2500;
+
+      const viajouInternacional = trackedData["ww_sdr_perfil_viagem_internacional"];
+      const ajudaFamilia = trackedData["ww_sdr_ajuda_familia"];
+      const opcionaisColetadas = viajouInternacional != null && ajudaFamilia != null;
+
+      const podeDesfechar = !isFronteira || opcionaisColetadas;
+
+      if (podeDesfechar) {
+        // Chamar RPC determinística — não delegar ao LLM
+        const scoringInputs: Record<string, unknown> = {
+          ww_data_casamento: dataCasamento,
+          ww_destino: destinoRegiao,
+          ww_num_convidados: numConv,
+          ww_orcamento_faixa: orcamentoTeto,
+          ww_sdr_perfil_viagem_internacional: viajouInternacional,
+          ww_sdr_ajuda_familia: ajudaFamilia,
+        };
+        try {
+          const { data: scoreData, error: scoreErr } = await supabase.rpc(
+            "calculate_agent_qualification_score",
+            { p_agent_id: agent.id, p_inputs: scoringInputs },
+          );
+          if (scoreErr) {
+            console.warn(`[v2] trigger: RPC score falhou:`, scoreErr.message);
+          } else if (scoreData) {
+            const sd = scoreData as Record<string, unknown>;
+            qualificationResult = {
+              score: Number(sd.score) || 0,
+              qualificado: !!sd.qualificado,
+              breakdown: sd.breakdown ?? null,
+            };
+            forcedMomentKey = qualificationResult.qualificado
+              ? "desfecho_qualificado"
+              : "desfecho_nao_qualificado";
+
+            // Buscar 3 horários (mock por enquanto — mesma lógica do check_calendar tool)
+            if (qualificationResult.qualificado) {
+              const today = new Date();
+              const slots: Array<{ date: string; time: string; weekday: string }> = [];
+              const weekdays = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+              const horarios = ["10:00", "14:00", "16:00"];
+              for (let i = 1; slots.length < 3 && i < 14; i++) {
+                const d = new Date(today);
+                d.setDate(today.getDate() + i);
+                const wd = d.getDay();
+                if (wd === 0 || wd === 6) continue;
+                const dStr = d.toLocaleDateString("pt-BR");
+                const horario = horarios[slots.length % horarios.length];
+                slots.push({ date: dStr, time: horario, weekday: weekdays[wd] });
+              }
+              proposedSlots = slots;
+            }
+            console.log(`[v2] trigger: desfecho forçado moment=${forcedMomentKey} score=${qualificationResult.score} qualificado=${qualificationResult.qualificado}`);
+          }
+        } catch (e) {
+          console.warn(`[v2] trigger: exception chamando RPC:`, (e as Error).message);
+        }
+      }
+    }
+
+    // ------------------------------------------------------------------
     // 9. Decidir tools disponíveis
     // ------------------------------------------------------------------
     const availableTools: string[] = [
@@ -472,10 +599,15 @@ Deno.serve(async (req) => {
       "assign_tag",
       "create_task",
     ];
-    if (scoringEnabled) availableTools.unshift("calculate_qualification_score");
+    // Só expor calculate_qualification_score se o router NÃO já calculou.
+    // Quando o trigger determinístico rodou, o resultado já está em
+    // qualificationResult — LLM não precisa (e não deve) chamar a tool de novo.
+    if (scoringEnabled && !qualificationResult) {
+      availableTools.unshift("calculate_qualification_score");
+    }
 
     // ------------------------------------------------------------------
-    // 10. Chamar Single Agent (gpt-5.5)
+    // 10. Chamar Single Agent (modelo configurável via pipeline_models.main)
     // ------------------------------------------------------------------
     const singleAgentResult = await runSingleAgent({
       supabase,
@@ -510,7 +642,10 @@ Deno.serve(async (req) => {
         card_titulo: cardTitulo,
         ai_resumo: aiResumo,
         ai_contexto: aiContexto,
-        card_form_data: cardFormData,
+        card_form_data: Object.keys(trackedData).length > 0 ? trackedData : cardFormData,
+        forced_moment_key: forcedMomentKey,
+        qualification_result: qualificationResult,
+        proposed_slots: proposedSlots,
       },
       scoringThreshold,
       availableTools,
@@ -520,23 +655,37 @@ Deno.serve(async (req) => {
 
     // ------------------------------------------------------------------
     // 11. Aplicar card_patch + contact_patch
+    //
+    // card_patch sempre é mesclado em trackedData (persiste em
+    // ai_conversation_state.extracted_variables.tracked_data adiante). Quando há
+    // card, também grava em cards.produto_data pra o CRM enxergar.
     // ------------------------------------------------------------------
     const cardPatch = singleAgentResult.output.card_patch || {};
     const contactPatch = singleAgentResult.output.contact_patch || {};
 
+    // Mesclar card_patch em trackedData (sempre, mesmo sem card linkado)
+    let updatedTrackedData = trackedData;
+    if (Object.keys(cardPatch).length > 0) {
+      updatedTrackedData = { ...trackedData };
+      const TOP_LEVEL_COLS = new Set(["titulo", "ai_resumo", "ai_contexto", "valor_estimado", "valor_final"]);
+      for (const [k, v] of Object.entries(cardPatch)) {
+        if (!TOP_LEVEL_COLS.has(k)) updatedTrackedData[k] = v;
+      }
+    }
+
     if (cardId && Object.keys(cardPatch).length > 0) {
-      // Decompose: campos top-level vs form_data nested
+      // Decompose: campos top-level vs produto_data nested
       const topLevel: Record<string, unknown> = {};
-      const formDataDelta: Record<string, unknown> = {};
+      const produtoDataDelta: Record<string, unknown> = {};
       const TOP_LEVEL_COLS = new Set(["titulo", "ai_resumo", "ai_contexto", "valor_estimado", "valor_final"]);
       for (const [k, v] of Object.entries(cardPatch)) {
         if (TOP_LEVEL_COLS.has(k)) topLevel[k] = v;
-        else formDataDelta[k] = v;
+        else produtoDataDelta[k] = v;
       }
 
-      if (Object.keys(formDataDelta).length > 0) {
-        const newFormData = { ...(cardFormData || {}), ...formDataDelta };
-        topLevel.form_data = newFormData;
+      if (Object.keys(produtoDataDelta).length > 0) {
+        const newProdutoData = { ...(cardFormData || {}), ...produtoDataDelta };
+        topLevel.produto_data = newProdutoData;
       }
 
       if (Object.keys(topLevel).length > 0) {
@@ -734,7 +883,9 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Persistir assistant turn (junta blocos em 1 turno; reasoning vai pra coluna)
+      // Persistir assistant turn (junta blocos em 1 turno; reasoning vai pra coluna).
+      // qualification_score_at_turn é persistido SEMPRE que o trigger determinístico
+      // rodou — assim dashboards e auditoria têm o histórico de score por turno.
       await supabase.from("ai_conversation_turns").insert({
         conversation_id: conversationId,
         role: "assistant",
@@ -748,8 +899,11 @@ Deno.serve(async (req) => {
           prompt_chars: singleAgentResult.prompt_system_chars + singleAgentResult.prompt_user_chars,
           validator: verdict,
           send_results: sendResults,
+          forced_moment_key: forcedMomentKey,
+          qualification_result: qualificationResult,
         },
         detected_intent: singleAgentResult.output.current_moment_key,
+        qualification_score_at_turn: qualificationResult?.score ?? null,
       });
     }
 
@@ -772,6 +926,8 @@ Deno.serve(async (req) => {
           last_moment_key: finalMomentKey,
           moment_step: newStep,
           last_reasoning: singleAgentResult.output.internal_reasoning,
+          // Snapshot de dados estruturados acumulados (resiste a card_id=null)
+          tracked_data: updatedTrackedData,
         },
         updated_at: new Date().toISOString(),
       }, { onConflict: "conversation_id" });

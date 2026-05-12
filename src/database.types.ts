@@ -550,6 +550,7 @@ export type Database = {
         Row: {
           agent_id: string
           anchor_text: string | null
+          anchor_text_parts: string[] | null
           collects_fields: string[]
           created_at: string
           delivery_mode: string
@@ -572,6 +573,7 @@ export type Database = {
         Insert: {
           agent_id: string
           anchor_text?: string | null
+          anchor_text_parts?: string[] | null
           collects_fields?: string[]
           created_at?: string
           delivery_mode?: string
@@ -594,6 +596,7 @@ export type Database = {
         Update: {
           agent_id?: string
           anchor_text?: string | null
+          anchor_text_parts?: string[] | null
           collects_fields?: string[]
           created_at?: string
           delivery_mode?: string
@@ -1401,6 +1404,118 @@ export type Database = {
           },
         ]
       }
+      ai_agent_turn_logs: {
+        Row: {
+          agent_id: string
+          attempt_number: number
+          conversation_id: string
+          created_at: string
+          discovery_config_hash: string | null
+          duration_ms: number | null
+          final_messages: string[] | null
+          id: string
+          max_tokens_used: number | null
+          model_used: string | null
+          org_id: string
+          prompt_builder_version: string | null
+          prompt_system: string | null
+          prompt_user: string | null
+          raw_response: string | null
+          slot_in_focus: string | null
+          temperature_used: number | null
+          tool_calls: Json
+          turn_id: string
+          validator_verdict: Json | null
+        }
+        Insert: {
+          agent_id: string
+          attempt_number?: number
+          conversation_id: string
+          created_at?: string
+          discovery_config_hash?: string | null
+          duration_ms?: number | null
+          final_messages?: string[] | null
+          id?: string
+          max_tokens_used?: number | null
+          model_used?: string | null
+          org_id?: string
+          prompt_builder_version?: string | null
+          prompt_system?: string | null
+          prompt_user?: string | null
+          raw_response?: string | null
+          slot_in_focus?: string | null
+          temperature_used?: number | null
+          tool_calls?: Json
+          turn_id: string
+          validator_verdict?: Json | null
+        }
+        Update: {
+          agent_id?: string
+          attempt_number?: number
+          conversation_id?: string
+          created_at?: string
+          discovery_config_hash?: string | null
+          duration_ms?: number | null
+          final_messages?: string[] | null
+          id?: string
+          max_tokens_used?: number | null
+          model_used?: string | null
+          org_id?: string
+          prompt_builder_version?: string | null
+          prompt_system?: string | null
+          prompt_user?: string | null
+          raw_response?: string | null
+          slot_in_focus?: string | null
+          temperature_used?: number | null
+          tool_calls?: Json
+          turn_id?: string
+          validator_verdict?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_turn_logs_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_health_stats"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_turn_logs_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_v1_v2_comparison"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_turn_logs_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_turn_logs_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "ai_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_turn_logs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_turn_logs_turn_id_fkey"
+            columns: ["turn_id"]
+            isOneToOne: false
+            referencedRelation: "ai_conversation_turns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_agent_wizard_drafts: {
         Row: {
           agent_id: string | null
@@ -1489,6 +1604,7 @@ export type Database = {
           external_config: Json | null
           fallback_agent_id: string | null
           fallback_message: string | null
+          feature_flag_discovery_v2: boolean
           first_message_config: Json | null
           handoff_actions: Json | null
           handoff_signals: Json | null
@@ -1538,6 +1654,7 @@ export type Database = {
           external_config?: Json | null
           fallback_agent_id?: string | null
           fallback_message?: string | null
+          feature_flag_discovery_v2?: boolean
           first_message_config?: Json | null
           handoff_actions?: Json | null
           handoff_signals?: Json | null
@@ -1587,6 +1704,7 @@ export type Database = {
           external_config?: Json | null
           fallback_agent_id?: string | null
           fallback_message?: string | null
+          feature_flag_discovery_v2?: boolean
           first_message_config?: Json | null
           handoff_actions?: Json | null
           handoff_signals?: Json | null
@@ -10302,6 +10420,7 @@ export type Database = {
           active: boolean
           branding: Json | null
           business_hours: Json | null
+          concierge_future_threshold_days: number
           created_at: string
           force_relogin_after: string | null
           id: string
@@ -10322,6 +10441,7 @@ export type Database = {
           active?: boolean
           branding?: Json | null
           business_hours?: Json | null
+          concierge_future_threshold_days?: number
           created_at?: string
           force_relogin_after?: string | null
           id?: string
@@ -10342,6 +10462,7 @@ export type Database = {
           active?: boolean
           branding?: Json | null
           business_hours?: Json | null
+          concierge_future_threshold_days?: number
           created_at?: string
           force_relogin_after?: string | null
           id?: string
@@ -16841,13 +16962,6 @@ export type Database = {
           },
           {
             foreignKeyName: "cards_pessoa_principal_id_fkey"
-            columns: ["pessoa_principal_id"]
-            isOneToOne: false
-            referencedRelation: "contatos"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "cards_pessoa_principal_id_fkey"
             columns: ["root_pessoa_principal_id"]
             isOneToOne: false
             referencedRelation: "contatos"
@@ -16857,8 +16971,8 @@ export type Database = {
             foreignKeyName: "cards_pessoa_principal_id_fkey"
             columns: ["pessoa_principal_id"]
             isOneToOne: false
-            referencedRelation: "v_contact_proposals"
-            referencedColumns: ["contact_id"]
+            referencedRelation: "contatos"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "cards_pessoa_principal_id_fkey"
@@ -16870,13 +16984,20 @@ export type Database = {
           {
             foreignKeyName: "cards_pessoa_principal_id_fkey"
             columns: ["pessoa_principal_id"]
+            isOneToOne: false
+            referencedRelation: "v_contact_proposals"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "cards_pessoa_principal_id_fkey"
+            columns: ["root_pessoa_principal_id"]
             isOneToOne: false
             referencedRelation: "view_deleted_contacts"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "cards_pessoa_principal_id_fkey"
-            columns: ["root_pessoa_principal_id"]
+            columns: ["pessoa_principal_id"]
             isOneToOne: false
             referencedRelation: "view_deleted_contacts"
             referencedColumns: ["id"]
@@ -19110,6 +19231,10 @@ export type Database = {
       }
       cadence_tarefas_duplicates_count: { Args: never; Returns: number }
       cadence_triggers_cross_org_count: { Args: never; Returns: number }
+      cadence_triggers_legacy_card_created_count: {
+        Args: never
+        Returns: number
+      }
       calculate_agent_qualification_score: {
         Args: { p_agent_id: string; p_inputs: Json }
         Returns: Json
@@ -19189,6 +19314,7 @@ export type Database = {
       }
       check_overdue_tasks_push: { Args: never; Returns: undefined }
       check_upcoming_meetings_push: { Args: never; Returns: undefined }
+      cleanup_ai_agent_turn_logs: { Args: never; Returns: undefined }
       cleanup_message_buffer: {
         Args: { p_older_than_hours?: number }
         Returns: number
@@ -19255,6 +19381,7 @@ export type Database = {
         }[]
       }
       contatos_default_org_id: { Args: never; Returns: string }
+      contatos_search_norm: { Args: { t: string }; Returns: string }
       converter_sub_card_em_principal: {
         Args: { p_sub_card_id: string }
         Returns: Json
@@ -19898,6 +20025,15 @@ export type Database = {
         Returns: undefined
       }
       platform_end_impersonation: { Args: never; Returns: undefined }
+      platform_get_admin_workspaces: {
+        Args: { p_user_id: string }
+        Returns: {
+          is_account: boolean
+          is_member: boolean
+          org_id: string
+          org_name: string
+        }[]
+      }
       platform_get_organization: { Args: { p_org_id: string }; Returns: Json }
       platform_get_stats: { Args: never; Returns: Json }
       platform_global_catalog_counts: { Args: never; Returns: Json }
@@ -20032,6 +20168,10 @@ export type Database = {
       platform_set_admin: {
         Args: { p_is_admin: boolean; p_user_id: string }
         Returns: undefined
+      }
+      platform_set_admin_workspaces: {
+        Args: { p_user_id: string; p_workspace_ids: string[] }
+        Returns: Json
       }
       platform_set_sharing_flag: {
         Args: { p_enable: boolean; p_org_id: string }
@@ -20311,6 +20451,36 @@ export type Database = {
         Args: { p_contact_ids: string[] }
         Returns: number
       }
+      rpc_update_concierge_future_threshold: {
+        Args: { p_dias: number }
+        Returns: {
+          active: boolean
+          branding: Json | null
+          business_hours: Json | null
+          concierge_future_threshold_days: number
+          created_at: string
+          force_relogin_after: string | null
+          id: string
+          logo_url: string | null
+          name: string
+          onboarding_completed_at: string | null
+          onboarding_step: number
+          parent_org_id: string | null
+          settings: Json | null
+          shares_contacts_with_children: boolean
+          slug: string
+          status: string
+          suspended_at: string | null
+          suspended_reason: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "organizations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       run_card_alerts_daily: { Args: never; Returns: Json }
       safe_log_trigger_error: {
         Args: {
@@ -20363,6 +20533,10 @@ export type Database = {
         Returns: string
       }
       sdr_descartar_pontuacao: { Args: { p_id: string }; Returns: Json }
+      sdr_desvincular_de_card: {
+        Args: { p_qualification_id: string }
+        Returns: Json
+      }
       sdr_finalizar_pontuacao: {
         Args: { p_id: string; p_merge_strategy?: string; p_notas?: string }
         Returns: Json
@@ -20397,6 +20571,22 @@ export type Database = {
           kb_id: string
           similarity: number
           titulo: string
+        }[]
+      }
+      search_contatos: {
+        Args: { p_limit?: number; p_term: string }
+        Returns: {
+          cpf_normalizado: string
+          email: string
+          empresa_id: string
+          id: string
+          match_score: number
+          monde_person_id: string
+          nome: string
+          sobrenome: string
+          telefone: string
+          telefone_normalizado: string
+          tipo_contato: string
         }[]
       }
       search_knowledge_base: {
