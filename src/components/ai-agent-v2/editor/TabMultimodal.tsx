@@ -8,9 +8,9 @@ interface Props {
 }
 
 const ITEMS: Array<{ key: 'audio' | 'image' | 'pdf'; label: string; icon: React.ComponentType<{ className?: string }>; hint: string }> = [
-  { key: 'audio', label: 'Áudio', icon: Mic, hint: 'Transcreve áudios recebidos via Whisper. Sem isso, o agente responde "não consegui entender o áudio".' },
-  { key: 'image', label: 'Imagem', icon: ImageIcon, hint: 'Lê imagens via Vision (ex: passaporte, screenshot de passagem). Custo maior por mensagem.' },
-  { key: 'pdf', label: 'PDF', icon: FileText, hint: 'Extrai texto de PDFs anexados. Útil para orçamento/proposta recebida.' },
+  { key: 'audio', label: 'Áudio', icon: Mic, hint: 'Transcreve áudios do WhatsApp via Whisper. Sem isso, ela ignora áudios e o lead fica sem resposta.' },
+  { key: 'image', label: 'Imagem', icon: ImageIcon, hint: 'Lê imagens via Vision — inspiração de decoração/vestido/local, screenshot de planilha ou contrato concorrente, foto do casal. Custo maior por mensagem.' },
+  { key: 'pdf', label: 'PDF', icon: FileText, hint: 'Extrai texto de PDFs — orçamento de fornecedor, contrato, planilha de convidados, agenda. Custo similar ao de imagem.' },
 ]
 
 export function TabMultimodal({ form, setForm }: Props) {
