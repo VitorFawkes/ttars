@@ -559,15 +559,14 @@ function SlotV2Section({
   const addMustInclude = () => {
     const item = newInclude.trim()
     if (!item) return
-    if (/\b(de|em|para|com|por|a|o|dos|das)\s+\w+\s+(se|vai|tem|tá|está|ser|ter|fazer)\b/i.test(item)) {
+    // Rejeita frases imperativas tipo "Saber se viajou..." que causariam o bug
+    // legado se a flag estivesse OFF. Phrase atômica/objeto-direto passa livre.
+    if (/^\s*(saber|verificar|entender|confirmar|descobrir|checar)\s+(se|qual|quanto|quando|como|onde)\b/i.test(item)) {
       alert(
-        "Use conceitos atômicos (1-3 palavras): 'mês', 'ano', 'número de convidados'. " +
-        "Você escreveu uma descrição — passe pra Goal ou Exemplos de pergunta."
+        "Use o objeto que a pergunta precisa coletar, não a meta-instrução. " +
+        "Ex: 'viagem internacional fora da América do Sul' em vez de 'Saber se viajou internacionalmente'. " +
+        "Se quer dar contexto pra IA, use o campo Goal acima."
       )
-      return
-    }
-    if (item.split(/\s+/).length > 4) {
-      alert('Máximo 4 palavras por item de must_include.')
       return
     }
     onChange({ must_include: [...(slot.must_include ?? []), item] })
@@ -665,7 +664,7 @@ function SlotV2Section({
               Elementos obrigatórios <span className="text-slate-400 font-normal">(opcional)</span>
             </label>
             <p className="text-[10px] text-slate-500 mb-1.5">
-              Itens atômicos que a pergunta DEVE cobrir. Ex: <code>mês</code>, <code>ano</code>.
+              Dados/conceitos que a pergunta DEVE coletar. Ex: <code>mês</code>, <code>ano</code>, <code>viagem internacional fora da América do Sul</code>. Pode ser longo se for o objeto específico — só não vire frase descritiva ("Saber se...").
             </p>
             {(slot.must_include ?? []).length > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-2">
