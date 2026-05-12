@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Target, ClipboardList, Users, UserPlus, Loader2, CheckCircle2, XCircle, Phone } from 'lucide-react'
+import { Target, ClipboardList, Users, UserPlus, Loader2, CheckCircle2, XCircle, Phone, Heart } from 'lucide-react'
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from '../ui/sheet'
 import { Input } from '../ui/Input'
 import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
@@ -7,12 +7,14 @@ import { useMeusRascunhos, useMeusCardsSdr, type MeuRascunho, type MeuCardSdr } 
 import { SdrQualificationSheet } from './SdrQualificationSheet'
 import { timeAgo } from '../../utils/timeAgo'
 import { formatPhoneBR } from '../../utils/normalizePhone'
+import type { DadosLead } from '../../hooks/useSdrQualification'
 
 type SessaoSheet = {
     qualificationId?: string | null
     cardId?: string | null
     contatoId?: string | null
     telefone?: string | null
+    initialDados?: DadosLead
 } | null
 
 export function FloatingScoreButton() {
@@ -49,8 +51,14 @@ export function FloatingScoreButton() {
                     setSessao({ cardId: c.id })
                     setPaneOpen(false)
                 }}
-                onLeadNovo={(telefone) => {
-                    setSessao({ telefone: telefone || null })
+                onLeadNovo={(dados) => {
+                    setSessao({
+                        telefone: dados.telefone || null,
+                        initialDados: {
+                            ...(dados.nomeCasal ? { nome_casal: dados.nomeCasal } : {}),
+                            ...(dados.telefone ? { telefone: dados.telefone } : {}),
+                        },
+                    })
                     setPaneOpen(false)
                 }}
             />
@@ -65,22 +73,26 @@ export function FloatingScoreButton() {
                     cardId={sessao.cardId ?? null}
                     contatoId={sessao.contatoId ?? null}
                     telefone={sessao.telefone ?? null}
+                    initialDados={sessao.initialDados}
                 />
             )}
         </>
     )
 }
 
+type LeadNovoSubmit = { nomeCasal: string; telefone: string }
+
 type PainelProps = {
     open: boolean
     onClose: () => void
     onSelectRascunho: (r: MeuRascunho) => void
     onSelectCard: (c: MeuCardSdr) => void
-    onLeadNovo: (telefone: string) => void
+    onLeadNovo: (dados: LeadNovoSubmit) => void
 }
 
 function PainelEntrada({ open, onClose, onSelectRascunho, onSelectCard, onLeadNovo }: PainelProps) {
     const [tab, setTab] = useState<'rascunhos' | 'cards' | 'novo'>('rascunhos')
+    const [nomeNovo, setNomeNovo] = useState('')
     const [telefoneNovo, setTelefoneNovo] = useState('')
     const { data: rascunhos, isLoading: rascunhosLoading } = useMeusRascunhos()
     const { data: cards, isLoading: cardsLoading } = useMeusCardsSdr()
@@ -125,10 +137,13 @@ function PainelEntrada({ open, onClose, onSelectRascunho, onSelectCard, onLeadNo
                     )}
                     {tab === 'novo' && (
                         <LeadNovoTab
+                            nomeCasal={nomeNovo}
                             telefone={telefoneNovo}
+                            onChangeNome={setNomeNovo}
                             onChangeTelefone={setTelefoneNovo}
                             onSubmit={() => {
-                                onLeadNovo(telefoneNovo)
+                                onLeadNovo({ nomeCasal: nomeNovo.trim(), telefone: telefoneNovo.trim() })
+                                setNomeNovo('')
                                 setTelefoneNovo('')
                             }}
                         />
@@ -305,45 +320,72 @@ function CardsTab({ cards, loading, onPick }: { cards: MeuCardSdr[]; loading: bo
 }
 
 function LeadNovoTab({
+    nomeCasal,
     telefone,
+    onChangeNome,
     onChangeTelefone,
     onSubmit,
 }: {
+    nomeCasal: string
     telefone: string
+    onChangeNome: (s: string) => void
     onChangeTelefone: (s: string) => void
     onSubmit: () => void
 }) {
     return (
-        <div className="px-6 py-6 space-y-3">
+        <form
+            className="px-6 py-6 space-y-5"
+            onSubmit={(e) => {
+                e.preventDefault()
+                onSubmit()
+            }}
+        >
             <div>
-                <h3 className="text-sm font-semibold text-slate-900">Pontuar lead que ainda não tem card</h3>
-                <p className="text-xs text-slate-500 mt-1">
-                    Comece a pontuação agora; quando o card for criado depois com o mesmo telefone, ele é
-                    atrelado sozinho. Você também pode atrelar manualmente a qualquer momento.
+                <h3 className="text-base font-semibold text-slate-900">Começar pontuação sem card</h3>
+                <p className="text-sm text-slate-500 mt-1 leading-snug">
+                    Preencha o que souber do lead — vai virar um rascunho atrelado depois quando o card
+                    aparecer (manual ou pelo Echo, com o mesmo telefone).
                 </p>
             </div>
-            <div>
-                <label className="text-xs text-slate-600 flex items-center gap-1">
-                    <Phone className="w-3 h-3" /> Telefone (opcional)
-                </label>
-                <Input
-                    autoFocus
-                    type="tel"
-                    value={telefone}
-                    onChange={(e) => onChangeTelefone(e.target.value)}
-                    placeholder="(11) 99999-9999"
-                />
+
+            <div className="space-y-3">
+                <div>
+                    <label className="text-xs font-medium text-slate-600 flex items-center gap-1.5 mb-1">
+                        <Heart className="w-3.5 h-3.5 text-rose-400" /> Nome do casal (opcional)
+                    </label>
+                    <Input
+                        autoFocus
+                        value={nomeCasal}
+                        onChange={(e) => onChangeNome(e.target.value)}
+                        placeholder="João e Maria"
+                    />
+                </div>
+                <div>
+                    <label className="text-xs font-medium text-slate-600 flex items-center gap-1.5 mb-1">
+                        <Phone className="w-3.5 h-3.5 text-slate-400" /> Telefone (opcional)
+                    </label>
+                    <Input
+                        type="tel"
+                        value={telefone}
+                        onChange={(e) => onChangeTelefone(e.target.value)}
+                        placeholder="(11) 99999-9999"
+                    />
+                    <p className="text-[11px] text-slate-400 mt-1">
+                        Com telefone, o card é vinculado sozinho assim que for criado.
+                    </p>
+                </div>
             </div>
+
             <button
-                type="button"
-                onClick={onSubmit}
-                className="w-full py-2 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition"
+                type="submit"
+                className="w-full py-2.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition shadow-sm"
             >
-                Começar
+                Começar pontuação
             </button>
-            <p className="text-[11px] text-slate-400 text-center pt-2">
-                Você também pode começar sem telefone — atrele depois.
+
+            <p className="text-xs text-slate-400 text-center">
+                Tudo é opcional aqui. Você pode preencher dentro da pontuação.
             </p>
-        </div>
+        </form>
     )
 }
