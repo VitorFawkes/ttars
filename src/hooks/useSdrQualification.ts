@@ -167,6 +167,20 @@ export function useVincularACard() {
     })
 }
 
+export function useDesvincularDeCard() {
+    const qc = useQueryClient()
+    return useMutation({
+        mutationFn: async (qualificationId: string) => {
+            const { data, error } = await supabase.rpc('sdr_desvincular_de_card', {
+                p_qualification_id: qualificationId,
+            })
+            if (error) throw error
+            return data as unknown as { id: string; card_id: string | null; changed: boolean }
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['sdr-qualifications'] }),
+    })
+}
+
 type ObterResult = {
     pontuacao: SdrQualification
     historico_versoes: Array<{
@@ -261,6 +275,8 @@ export function useSdrQualificationSession(initial: SessionInitial) {
     const [saving, setSaving] = useState(false)
     const [loading, setLoading] = useState(false)
     const [estelaScoreRecente, setEstelaScoreRecente] = useState<IniciarResult['estela_score_recente']>(null)
+    const [linkedCardId, setLinkedCardId] = useState<string | null>(null)
+    const [linkedContatoId, setLinkedContatoId] = useState<string | null>(null)
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const initialKeyRef = useRef<string>('')
 
@@ -282,6 +298,8 @@ export function useSdrQualificationSession(initial: SessionInitial) {
         setNotas('')
         setDirty(false)
         setEstelaScoreRecente(null)
+        setLinkedCardId(initial.cardId ?? null)
+        setLinkedContatoId(initial.contatoId ?? null)
 
         if (initial.qualificationId) {
             // Retomar rascunho existente
@@ -296,6 +314,8 @@ export function useSdrQualificationSession(initial: SessionInitial) {
                 setDadosLead(p.dados_lead || {})
                 setScoringInputs(p.scoring_inputs || {})
                 setNotas(p.notas || '')
+                setLinkedCardId(p.card_id)
+                setLinkedContatoId(p.contato_id)
                 if (p.score_result && typeof (p.score_result as SdrScoreResult).score === 'number') {
                     setScoreResult(p.score_result as SdrScoreResult)
                 }
@@ -384,6 +404,10 @@ export function useSdrQualificationSession(initial: SessionInitial) {
         starting: iniciar.isPending || loading,
         startError: iniciar.error,
         estelaScoreRecente,
+        linkedCardId,
+        linkedContatoId,
+        setLinkedCardId,
+        setLinkedContatoId,
         setInputs,
         setDados,
         setNotas: setNotasAndSave,

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, AlertTriangle, XCircle, Info, Loader2, Link2, Search } from 'lucide-react'
+import { CheckCircle2, AlertTriangle, XCircle, Info, Loader2, Link2, Search, X } from 'lucide-react'
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from '../ui/sheet'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
@@ -13,6 +13,7 @@ import {
     useFinalizarPontuacao,
     useDescartarPontuacao,
     useVincularACard,
+    useDesvincularDeCard,
     type DadosLead,
     type SdrScoreResult,
 } from '../../hooks/useSdrQualification'
@@ -75,12 +76,12 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
     const finalizar = useFinalizarPontuacao()
     const descartar = useDescartarPontuacao()
     const vincular = useVincularACard()
+    const desvincular = useDesvincularDeCard()
     const [showProximoPasso, setShowProximoPasso] = useState(false)
     const [finalizedScore, setFinalizedScore] = useState<SdrScoreResult | null>(null)
     const [investimentoText, setInvestimentoText] = useState('')
     const [dataMode, setDataMode] = useState<DataMode>('exata')
     const [showVincular, setShowVincular] = useState(false)
-    const [linkedCardId, setLinkedCardId] = useState<string | null>(cardId ?? null)
 
     const session = useSdrQualificationSession({
         qualificationId: qualificationId ?? null,
@@ -244,8 +245,23 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                                 qualificado={qualificado}
                                 disqualified={disqualified}
                                 saving={session.saving}
-                                cardId={linkedCardId}
+                                cardId={session.linkedCardId}
                                 onVincular={() => setShowVincular(true)}
+                                onDesvincular={
+                                    session.linkedCardId
+                                        ? async () => {
+                                            if (!session.qualificationId) return
+                                            if (!window.confirm('Desvincular esta pontuação do card?')) return
+                                            try {
+                                                await desvincular.mutateAsync(session.qualificationId)
+                                                session.setLinkedCardId(null)
+                                                toast.success('Pontuação desvinculada')
+                                            } catch (err) {
+                                                toast.error('Erro ao desvincular: ' + (err as Error).message)
+                                            }
+                                        }
+                                        : undefined
+                                }
                             />
 
                             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
@@ -571,7 +587,7 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                     onPick={async (selectedCardId) => {
                         try {
                             await vincular.mutateAsync({ qualificationId: session.qualificationId!, cardId: selectedCardId })
-                            setLinkedCardId(selectedCardId)
+                            session.setLinkedCardId(selectedCardId)
                             toast.success('Pontuação vinculada ao card')
                             setShowVincular(false)
                         } catch (err) {
@@ -592,6 +608,7 @@ function ScoreHeader({
     saving,
     cardId,
     onVincular,
+    onDesvincular,
 }: {
     score: number
     threshold: number
@@ -600,6 +617,7 @@ function ScoreHeader({
     saving: boolean
     cardId: string | null | undefined
     onVincular: () => void
+    onDesvincular?: () => void
 }) {
     const status = disqualified
         ? { icon: XCircle, color: 'text-rose-700', bgColor: 'bg-rose-50', borderColor: 'border-rose-200', label: 'Desqualificado', barColor: 'bg-rose-500' }
@@ -626,10 +644,25 @@ function ScoreHeader({
                     </button>
                 )}
                 {cardId && (
-                    <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-white border border-slate-200 text-slate-600">
-                        <Link2 className="w-3 h-3" />
-                        Vinculado a card
-                    </span>
+                    <div className="inline-flex items-center gap-1">
+                        <a
+                            href={`/cards/${cardId}`}
+                            className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-white border border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-700 transition"
+                            title="Abrir card vinculado"
+                        >
+                            <Link2 className="w-3 h-3" />
+                            Vinculado a card
+                        </a>
+                        {onDesvincular && (
+                            <button
+                                onClick={onDesvincular}
+                                className="inline-flex items-center text-xs px-1.5 py-1 rounded-md border border-slate-300 bg-white hover:bg-rose-50 hover:border-rose-300 hover:text-rose-700 transition"
+                                title="Desvincular pontuação do card"
+                            >
+                                <X className="w-3 h-3" />
+                            </button>
+                        )}
+                    </div>
                 )}
             </div>
 

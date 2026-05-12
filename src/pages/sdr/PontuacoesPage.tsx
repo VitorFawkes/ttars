@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { CheckCircle2, XCircle, Clock, Target, Loader2, Search, Link2, ChevronRight, Plus, Users } from 'lucide-react'
-import { useListarPontuacoes, useVincularACard, type DadosLead } from '../../hooks/useSdrQualification'
+import { useListarPontuacoes, useVincularACard, useDesvincularDeCard, type DadosLead } from '../../hooks/useSdrQualification'
 import { useMeusCardsSdr } from '../../hooks/useMeusLeadsSdr'
 import { Badge } from '../../components/ui/Badge'
 import { Input } from '../../components/ui/Input'
@@ -54,6 +54,17 @@ export default function PontuacoesPage() {
     const [sessao, setSessao] = useState<SessaoSheet>(null)
     const [vincularFor, setVincularFor] = useState<Pontuacao | null>(null)
     const [novaPontuacaoOpen, setNovaPontuacaoOpen] = useState(false)
+    const desvincular = useDesvincularDeCard()
+
+    const handleDesvincular = async (p: Pontuacao) => {
+        if (!window.confirm(`Desvincular esta pontuação do card "${p.card_titulo ?? ''}"?`)) return
+        try {
+            await desvincular.mutateAsync(p.id)
+            toast.success('Pontuação desvinculada')
+        } catch (err) {
+            toast.error('Erro: ' + (err as Error).message)
+        }
+    }
 
     const filtros = useMemo(() => ({ only_mine: onlyMine, produto: 'WEDDING' }), [onlyMine])
     const { data, isLoading, error } = useListarPontuacoes(filtros)
@@ -150,6 +161,7 @@ export default function PontuacoesPage() {
                         destaque
                         onContinuar={(p) => setSessao({ qualificationId: p.id })}
                         onVincular={(p) => setVincularFor(p)}
+                        onDesvincular={handleDesvincular}
                     />
 
                     {/* Cards no nome dela esperando primeira pontuação */}
@@ -205,6 +217,7 @@ export default function PontuacoesPage() {
                         emptyMsg="Ainda não há pontuações finalizadas."
                         onContinuar={null}
                         onVincular={(p) => setVincularFor(p)}
+                        onDesvincular={handleDesvincular}
                     />
 
                     {/* Descartadas — colapsado por padrão se vazio */}
@@ -265,6 +278,7 @@ function Secao({
     destaque,
     onContinuar,
     onVincular,
+    onDesvincular,
 }: {
     titulo: string
     descricao: string
@@ -273,6 +287,7 @@ function Secao({
     destaque?: boolean
     onContinuar: ((p: Pontuacao) => void) | null
     onVincular: ((p: Pontuacao) => void) | null
+    onDesvincular?: ((p: Pontuacao) => void) | null
 }) {
     return (
         <section className={destaque ? '' : ''}>
@@ -292,7 +307,7 @@ function Secao({
                 {items.length === 0 ? (
                     <p className="p-6 text-sm text-slate-400 text-center">{emptyMsg}</p>
                 ) : (
-                    <Tabela items={items} onContinuar={onContinuar} onVincular={onVincular} />
+                    <Tabela items={items} onContinuar={onContinuar} onVincular={onVincular} onDesvincular={onDesvincular} />
                 )}
             </div>
         </section>
@@ -303,10 +318,12 @@ function Tabela({
     items,
     onContinuar,
     onVincular,
+    onDesvincular,
 }: {
     items: Pontuacao[]
     onContinuar: ((p: Pontuacao) => void) | null
     onVincular: ((p: Pontuacao) => void) | null
+    onDesvincular?: ((p: Pontuacao) => void) | null
 }) {
     return (
         <table className="w-full text-sm">
@@ -386,6 +403,15 @@ function Tabela({
                                         >
                                             <Link2 className="w-3 h-3" />
                                             Vincular
+                                        </button>
+                                    )}
+                                    {p.card_id && onDesvincular && (
+                                        <button
+                                            onClick={() => onDesvincular(p)}
+                                            className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-slate-200 hover:border-rose-300 hover:text-rose-700 transition"
+                                            title="Desvincular do card"
+                                        >
+                                            Desvincular
                                         </button>
                                     )}
                                     {isDraft && onContinuar && (
