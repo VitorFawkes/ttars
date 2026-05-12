@@ -54,6 +54,17 @@ export interface DiscoverySlot {
   coverage_notes?: string | null
   /** Liga ao campo do CRM (system_fields.field_key) — usado pra ligação visual com critérios. */
   crm_field_key?: string | null
+
+  // ─── Schema V2 (Discovery Redesign 2026-05-11) ───
+  // Campos novos pra Estela quando feature_flag_discovery_v2=true.
+  /** Objetivo do slot em texto livre. O LLM lê pra entender o que precisa cobrir. */
+  goal?: string | null
+  /** Lista atômica de elementos que a pergunta DEVE cobrir (ex: ["mês", "ano"]). */
+  must_include?: string[]
+  /** 1-3 exemplos de pergunta usados como REFERÊNCIA DE TOM (LLM não copia literal). */
+  example_questions?: string[]
+  /** Override: quando preenchido, LLM usa textualmente sem adaptar. */
+  literal_question?: string | null
 }
 
 /** Resolve priority efetiva considerando backward compat com required. */
