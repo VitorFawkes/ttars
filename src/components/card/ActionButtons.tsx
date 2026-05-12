@@ -110,14 +110,28 @@ export default function ActionButtons({ card, onAlertClick }: ActionButtonsProps
         }
     }
 
-    // Close menu on Escape
+    const menuContainerRef = useRef<HTMLDivElement>(null)
+
+    // Close menu on Escape and on click outside (works regardless of z-index of other UI)
     useEffect(() => {
         if (!menuOpen) return
         const onKey = (e: KeyboardEvent) => {
             if (e.key === 'Escape') setMenuOpen(false)
         }
+        const onPointerDown = (e: PointerEvent) => {
+            const target = e.target as Element | null
+            if (!target) return
+            if (menuContainerRef.current?.contains(target)) return
+            // Don't close if click is inside a Radix portal spawned by menu (e.g. Tag popover)
+            if (target.closest?.('[data-radix-popper-content-wrapper]')) return
+            setMenuOpen(false)
+        }
         window.addEventListener('keydown', onKey)
-        return () => window.removeEventListener('keydown', onKey)
+        document.addEventListener('pointerdown', onPointerDown, true)
+        return () => {
+            window.removeEventListener('keydown', onKey)
+            document.removeEventListener('pointerdown', onPointerDown, true)
+        }
     }, [menuOpen])
 
     // Conta mensagens do card para habilitar item "IA · Ler conversa WhatsApp"
@@ -441,7 +455,7 @@ export default function ActionButtons({ card, onAlertClick }: ActionButtonsProps
 
     return (
         <>
-            <div className="flex items-center gap-1.5 relative">
+            <div ref={menuContainerRef} className="flex items-center gap-1.5 relative">
                 {/* Single trigger: "Ações ▾" mega-menu — all actions live here */}
                 <button
                     onClick={() => setMenuOpen((o) => !o)}
@@ -462,19 +476,11 @@ export default function ActionButtons({ card, onAlertClick }: ActionButtonsProps
                 </button>
 
                 {menuOpen && (
-                    <>
-                        {/* Click-outside catcher */}
-                        <div
-                            className="fixed inset-0 z-30"
-                            onClick={() => setMenuOpen(false)}
-                            aria-hidden="true"
-                        />
-                        <MegaMenu
-                            columns={visibleColumns}
-                            cardId={card.id}
-                            produto={card.produto ?? null}
-                        />
-                    </>
+                    <MegaMenu
+                        columns={visibleColumns}
+                        cardId={card.id}
+                        produto={card.produto ?? null}
+                    />
                 )}
             </div>
 

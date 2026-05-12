@@ -54,7 +54,8 @@ export function TagSelector({ cardId, produto, readOnly = false }: TagSelectorPr
                     </PopoverTrigger>
                     <PopoverContent
                         align="start"
-                        className="w-56 p-0 bg-white border border-slate-200 shadow-lg rounded-lg overflow-hidden"
+                        sideOffset={18}
+                        className="w-56 p-0 bg-white border border-slate-200 shadow-lg rounded-lg overflow-hidden z-[60]"
                     >
                         <div className="p-2 border-b border-slate-100">
                             <div className="flex items-center gap-2 px-2 py-1 bg-slate-50 rounded-md">
