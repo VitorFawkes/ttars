@@ -109,6 +109,7 @@ function OrigemBadgeEditable({ cardId, origem, origemLead, indicadoPorId }: { ca
         queryKey: ['indicacao-search-header', debouncedIndicacao],
         queryFn: async () => {
             if (!debouncedIndicacao) return []
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data, error } = await (supabase.rpc as any)('search_contatos', {
                 p_term: debouncedIndicacao,
                 p_limit: 6,
@@ -1920,6 +1921,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                                         phaseSlug="sdr"
                                         compact
                                         showNoSdrOption
+                                        orgId={card.org_id ?? undefined}
                                     />
                                 </div>
                             </div>
@@ -1936,6 +1938,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                                         phaseSlug="planner"
                                         compact
                                         showNoSdrOption
+                                        orgId={card.org_id ?? undefined}
                                     />
                                 </div>
                                 <span className="text-[10px] font-bold text-slate-300 leading-none shrink-0" title="Assistente">+A</span>
@@ -1947,6 +1950,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                                         roleId={assistenteRoleId || undefined}
                                         compact
                                         showNoSdrOption
+                                        orgId={card.org_id ?? undefined}
                                     />
                                 </div>
                             </div>
@@ -1963,6 +1967,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                                         phaseSlug="pos_venda"
                                         compact
                                         showNoSdrOption
+                                        orgId={card.org_id ?? undefined}
                                     />
                                 </div>
                                 <span className="text-[10px] font-bold text-slate-300 leading-none shrink-0" title="Assistente">+A</span>
@@ -1974,6 +1979,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                                         roleId={assistenteRoleId || undefined}
                                         compact
                                         showNoSdrOption
+                                        orgId={card.org_id ?? undefined}
                                     />
                                 </div>
                             </div>
@@ -1991,6 +1997,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                                                 phaseSlug="pos_venda"
                                                 compact
                                                 showNoSdrOption
+                                                orgId={card.org_id ?? undefined}
                                             />
                                         </div>
                                     </div>

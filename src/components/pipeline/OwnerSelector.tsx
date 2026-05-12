@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { ChevronDown, User, Zap, Users, Search, X } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useRoles } from '../../hooks/useRoles'
+import { useOrg } from '../../contexts/OrgContext'
 interface Profile {
     id: string
     nome: string | null
@@ -38,6 +39,11 @@ interface OwnerSelectorProps {
     roleId?: string
     /** Filter users by their team_id (UUID from teams table) */
     teamId?: string
+    /** Workspace org cujos membros devem ser listados.
+     *  Default: org ativa do usuário (useOrg). Em CardHeader, passe card.org_id —
+     *  admins cross-org acessam um card de outro workspace mas precisam ver os
+     *  usuários DAQUELE workspace, não os do workspace que ele está logado. */
+    orgId?: string
 }
 
 export default function OwnerSelector({
@@ -51,8 +57,11 @@ export default function OwnerSelector({
     phaseSlug,
     compact = false,
     roleId,
-    teamId
+    teamId,
+    orgId
 }: OwnerSelectorProps) {
+    const { org } = useOrg()
+    const effectiveOrgId = orgId ?? org?.id ?? null
     const [isOpen, setIsOpen] = useState(false)
     const [searchTerm, setSearchTerm] = useState('')
     const searchInputRef = useRef<HTMLInputElement>(null)
@@ -72,21 +81,46 @@ export default function OwnerSelector({
     // Fetch roles from database for badge display
     const { roles } = useRoles()
 
-    // Fetch eligible users (all active users) + team_members cross-org.
-    // RLS nas pipeline_phases restringe ao escopo da org ativa; então se o usuário
-    // tem um team_members apontando para uma team cuja phase é visível na org ativa,
-    // ele é considerado "daquela fase na org ativa".
+    // Fetch eligible users (members of the workspace) + team_members cross-org.
+    // Multi-tenant: profiles "moram" na account pai (profiles.org_id aponta pra ela),
+    // mas a verdade sobre "quem trabalha neste workspace" está em org_members.
+    // Listar por profiles.org_id quebra em workspace filho (lista vazia ou usuários
+    // de outras orgs). Listar por org_members garante o conjunto correto.
     const { data: allUsers = [], isLoading, error: usersError } = useQuery({
-        queryKey: ['eligible-owners'],
+        queryKey: ['eligible-owners', effectiveOrgId],
+        enabled: !!effectiveOrgId,
         queryFn: async () => {
-            const { data: profiles, error } = await supabase
-                .from('profiles')
-                .select('id, nome, email, role, role_id, produtos, team_id, is_admin')
-                .eq('active', true)
-                .order('nome')
+            if (!effectiveOrgId) return [] as Profile[]
 
-            if (error) throw error
-            const profileIds = (profiles || []).map(p => p.id)
+            const { data: members, error: membersError } = await supabase
+                .from('org_members')
+                .select('user_id, profiles!inner(id, nome, email, role, role_id, produtos, team_id, is_admin, active)')
+                .eq('org_id', effectiveOrgId)
+
+            if (membersError) throw membersError
+
+            type ProfileRow = {
+                id: string
+                nome: string | null
+                email: string | null
+                role: string | null
+                role_id: string | null
+                produtos: string[] | null
+                team_id: string | null
+                is_admin: boolean | null
+                active: boolean | null
+            }
+            const rawProfiles = (members || [])
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                .map(m => (m as any).profiles as ProfileRow | null)
+                .filter((p): p is ProfileRow => !!p && p.active !== false)
+            // Dedup (caso org_members tenha duplicatas) e ordena por nome
+            const dedup = new Map<string, ProfileRow>()
+            rawProfiles.forEach(p => { if (!dedup.has(p.id)) dedup.set(p.id, p) })
+            const profiles = Array.from(dedup.values()).sort((a, b) =>
+                (a.nome || '').localeCompare(b.nome || '', 'pt-BR')
+            )
+            const profileIds = profiles.map(p => p.id)
 
             // Preload parent team (para label "teams.name" do display)
             const parentTeamIds = [...new Set(profiles?.filter(p => p.team_id).map(p => p.team_id as string) ?? [])]
