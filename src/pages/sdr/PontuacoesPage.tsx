@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { CheckCircle2, XCircle, Clock, Target, Loader2, Search, Link2, ChevronRight, Plus, Users } from 'lucide-react'
-import { useListarPontuacoes, useVincularACard, useDesvincularDeCard, type DadosLead } from '../../hooks/useSdrQualification'
+import { useListarPontuacoes, useVincularACard, useDesvincularDeCard, useReabrirPontuacao, type DadosLead } from '../../hooks/useSdrQualification'
 import { useMeusCardsSdr } from '../../hooks/useMeusLeadsSdr'
 import { Badge } from '../../components/ui/Badge'
 import { Input } from '../../components/ui/Input'
@@ -55,6 +55,7 @@ export default function PontuacoesPage() {
     const [vincularFor, setVincularFor] = useState<Pontuacao | null>(null)
     const [novaPontuacaoOpen, setNovaPontuacaoOpen] = useState(false)
     const desvincular = useDesvincularDeCard()
+    const reabrir = useReabrirPontuacao()
 
     const handleDesvincular = async (p: Pontuacao) => {
         if (!window.confirm(`Desvincular esta pontuação do card "${p.card_titulo ?? ''}"?`)) return
@@ -63,6 +64,22 @@ export default function PontuacoesPage() {
             toast.success('Pontuação desvinculada')
         } catch (err) {
             toast.error('Erro: ' + (err as Error).message)
+        }
+    }
+
+    const handleEditar = async (p: Pontuacao) => {
+        if (p.status === 'rascunho') {
+            setSessao({ qualificationId: p.id })
+            return
+        }
+        // Pontuação finalizada → reabrir cria v2 em rascunho
+        if (!window.confirm('Esta pontuação já foi registrada. Editar vai criar uma nova versão pra preservar o histórico. Continuar?')) return
+        try {
+            const res = await reabrir.mutateAsync(p.id)
+            toast.success('Nova versão aberta para edição')
+            setSessao({ qualificationId: res.id })
+        } catch (err) {
+            toast.error('Erro ao reabrir: ' + (err as Error).message)
         }
     }
 
@@ -212,12 +229,13 @@ export default function PontuacoesPage() {
                     {/* Finalizadas */}
                     <Secao
                         titulo="Finalizadas"
-                        descricao="Pontuações já registradas."
+                        descricao="Pontuações já registradas. Clique em Editar pra criar uma nova versão."
                         items={finalizadas}
                         emptyMsg="Ainda não há pontuações finalizadas."
                         onContinuar={null}
                         onVincular={(p) => setVincularFor(p)}
                         onDesvincular={handleDesvincular}
+                        onEditar={handleEditar}
                     />
 
                     {/* Descartadas — colapsado por padrão se vazio */}
@@ -279,6 +297,7 @@ function Secao({
     onContinuar,
     onVincular,
     onDesvincular,
+    onEditar,
 }: {
     titulo: string
     descricao: string
@@ -288,6 +307,7 @@ function Secao({
     onContinuar: ((p: Pontuacao) => void) | null
     onVincular: ((p: Pontuacao) => void) | null
     onDesvincular?: ((p: Pontuacao) => void) | null
+    onEditar?: ((p: Pontuacao) => void) | null
 }) {
     return (
         <section className={destaque ? '' : ''}>
@@ -307,7 +327,7 @@ function Secao({
                 {items.length === 0 ? (
                     <p className="p-6 text-sm text-slate-400 text-center">{emptyMsg}</p>
                 ) : (
-                    <Tabela items={items} onContinuar={onContinuar} onVincular={onVincular} onDesvincular={onDesvincular} />
+                    <Tabela items={items} onContinuar={onContinuar} onVincular={onVincular} onDesvincular={onDesvincular} onEditar={onEditar} />
                 )}
             </div>
         </section>
@@ -319,11 +339,13 @@ function Tabela({
     onContinuar,
     onVincular,
     onDesvincular,
+    onEditar,
 }: {
     items: Pontuacao[]
     onContinuar: ((p: Pontuacao) => void) | null
     onVincular: ((p: Pontuacao) => void) | null
     onDesvincular?: ((p: Pontuacao) => void) | null
+    onEditar?: ((p: Pontuacao) => void) | null
 }) {
     return (
         <table className="w-full text-sm">
@@ -412,6 +434,15 @@ function Tabela({
                                             title="Desvincular do card"
                                         >
                                             Desvincular
+                                        </button>
+                                    )}
+                                    {!isDraft && p.status === 'finalizado' && onEditar && (
+                                        <button
+                                            onClick={() => onEditar(p)}
+                                            className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-slate-200 hover:border-indigo-300 hover:text-indigo-700 transition"
+                                            title="Editar (cria nova versão)"
+                                        >
+                                            Editar
                                         </button>
                                     )}
                                     {isDraft && onContinuar && (
