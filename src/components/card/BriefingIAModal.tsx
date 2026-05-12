@@ -240,7 +240,7 @@ export default function BriefingIAModal({ isOpen, onClose, cardId, cardType, onR
                     placeholder="Escreva observações sobre o lead, viagem, preferências..."
                     rows={6}
                     disabled={textSaving}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-none disabled:opacity-50"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-y min-h-[144px] disabled:opacity-50"
                   />
                   <p className="text-xs text-slate-400 mt-1.5">
                     O texto será salvo diretamente como observação no briefing

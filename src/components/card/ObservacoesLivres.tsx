@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { MessageSquare, Check, Loader2 } from 'lucide-react'
 import type { Database } from '../../database.types'
 
 type Card = Database['public']['Tables']['cards']['Row']
+type ProdutoData = Record<string, unknown> & { observacoes?: string }
 
 interface ObservacoesLivresProps {
     card: Card
@@ -12,30 +13,31 @@ interface ObservacoesLivresProps {
 
 export default function ObservacoesLivres({ card }: ObservacoesLivresProps) {
     const queryClient = useQueryClient()
-    const productData = (card.produto_data as any) || {}
-    const observacoes = (productData as any).observacoes || ''
+    const productData = (card.produto_data as ProdutoData | null) || {}
+    const observacoes = productData.observacoes || ''
 
     const [editedObs, setEditedObs] = useState(observacoes)
     const [isDirty, setIsDirty] = useState(false)
 
-    // Sync state when card changes
-    useEffect(() => {
-        const obs = (card.produto_data as any)?.observacoes || ''
-        setEditedObs(obs)
+    // Sync state when card changes (render-time pattern)
+    const [prevObs, setPrevObs] = useState(observacoes)
+    if (prevObs !== observacoes) {
+        setPrevObs(observacoes)
+        setEditedObs(observacoes)
         setIsDirty(false)
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-    }, [card.produto_data])
+    }
 
     const updateObsMutation = useMutation({
         mutationFn: async (newObs: string) => {
-            const { error } = await (supabase.from('cards') as any)
+            const { error } = await supabase
+                .from('cards')
                 .update({
                     produto_data: {
                         ...productData,
                         observacoes: newObs
                     }
-                })
-                .eq('id', card.id)
+                } as Database['public']['Tables']['cards']['Update'])
+                .eq('id', card.id!)
             if (error) throw error
         },
         onSuccess: () => {
@@ -51,7 +53,7 @@ export default function ObservacoesLivres({ card }: ObservacoesLivresProps) {
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const value = e.target.value
         setEditedObs(value)
-        setIsDirty(value !== ((card.produto_data as any)?.observacoes || ''))
+        setIsDirty(value !== observacoes)
     }
 
     // Handle Enter to save (Shift+Enter for new line)
@@ -97,7 +99,7 @@ export default function ObservacoesLivres({ card }: ObservacoesLivresProps) {
                     value={editedObs}
                     onChange={handleChange}
                     onKeyDown={handleKeyDown}
-                    className="w-full px-4 py-3 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow resize-none bg-white"
+                    className="w-full px-4 py-3 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow resize-y bg-white min-h-[96px]"
                     placeholder="Observações gerais sobre o card, anotações do vendedor, etc..."
                     rows={4}
                 />
