@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Search, ArrowLeft, Plus, Loader2, Phone, User, Check, Globe, UserPlus } from 'lucide-react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
-import { cn, buildContactSearchFilter, normalizePhone } from '../../lib/utils'
+import { cn } from '../../lib/utils'
 import { formatContactName, getContactInitials, sanitizeContactNames } from '../../lib/contactUtils'
 import { toast } from 'sonner'
 import MondeSearchSection from '../../components/contacts/MondeSearchSection'
@@ -39,46 +39,21 @@ export default function MobileContactPicker({ onConfirm, onClose, alreadySelecte
     queryKey: ['mobile-contacts-search', debouncedSearch],
     queryFn: async () => {
       if (!debouncedSearch) return []
-      const searchFilter = buildContactSearchFilter(debouncedSearch)
-
-      const [{ data: primaryResults, error }, meiosContactIds] = await Promise.all([
-        supabase
-          .from('contatos')
-          .select('id, nome, sobrenome, telefone, email')
-          .is('deleted_at', null)
-          .or(searchFilter)
-          .limit(8),
-        (async () => {
-          const normalized = normalizePhone(debouncedSearch)
-          if (normalized.length < 4) return [] as string[]
-          const { data } = await supabase
-            .from('contato_meios')
-            .select('contato_id')
-            .in('tipo', ['telefone', 'whatsapp'])
-            .ilike('valor_normalizado', `%${normalized}%`)
-            .limit(10)
-          return (data || []).map(m => m.contato_id)
-        })()
-      ])
-
+      const { data, error } = await (supabase.rpc as any)('search_contatos', {
+        p_term: debouncedSearch,
+        p_limit: 8,
+      })
       if (error) throw error
-      const primaryIds = new Set((primaryResults || []).map(c => c.id))
-      const extraIds = meiosContactIds.filter(id => !primaryIds.has(id))
-      let allContacts = primaryResults || []
-
-      if (extraIds.length > 0) {
-        const { data: extraContacts } = await supabase
-          .from('contatos')
-          .select('id, nome, sobrenome, telefone, email')
-          .in('id', extraIds)
-          .is('deleted_at', null)
-          .limit(8)
-        if (extraContacts) allContacts = [...allContacts, ...extraContacts]
-      }
-
-      return allContacts
+      return (data ?? []) as Array<{
+        id: string
+        nome: string
+        sobrenome: string | null
+        telefone: string | null
+        email: string | null
+      }>
     },
-    enabled: debouncedSearch.length >= 2
+    enabled: debouncedSearch.length >= 2,
+    staleTime: 30_000,
   })
 
   const toggleContact = (id: string, name: string) => {

@@ -9,7 +9,7 @@ import { fundirCardsV2 } from '@/hooks/useDuplicateCardDetection'
 import { useToast } from '@/contexts/ToastContext'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useOrg } from '@/contexts/OrgContext'
-import { cn, buildContactSearchFilter } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import { MergeCandidateCard, type MergeCandidate } from './MergeCandidateCard'
 
 interface Props {
@@ -138,14 +138,11 @@ function useSearchCandidates({
             const queryByContact = async (): Promise<ViewRow[]> => {
                 let pessoaIds: string[]
                 if (hasTerm) {
-                    const filter = buildContactSearchFilter(term)
-                    const { data: contatos } = await supabase
-                        .from('contatos')
-                        .select('id')
-                        .is('deleted_at', null)
-                        .or(filter)
-                        .limit(20)
-                    pessoaIds = (contatos ?? []).map(c => c.id as string)
+                    const { data: contatos } = await (supabase.rpc as any)('search_contatos', {
+                        p_term: term,
+                        p_limit: 20,
+                    })
+                    pessoaIds = ((contatos ?? []) as Array<{ id: string }>).map(c => c.id)
                 } else if (sourcePessoaId) {
                     pessoaIds = [sourcePessoaId]
                 } else {

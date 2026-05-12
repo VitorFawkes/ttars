@@ -115,6 +115,23 @@ export function useReactivationPatterns() {
     const fetchData = useCallback(async () => {
         setLoading(true)
         try {
+            // Busca fuzzy resolve IDs antes; filtro do reactivation_patterns por contact_id.
+            let searchIds: string[] | null = null
+            if (filters.search && filters.search.trim().length >= 2) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data: hits } = await (db.rpc as any)('search_contatos', {
+                    p_term: filters.search.trim(),
+                    p_limit: 500,
+                })
+                searchIds = ((hits ?? []) as Array<{ id: string }>).map(h => h.id)
+                if (searchIds.length === 0) {
+                    setData([])
+                    setTotalCount(0)
+                    setLoading(false)
+                    return
+                }
+            }
+
             let query = db
                 .from('reactivation_patterns')
                 .select(
@@ -124,9 +141,8 @@ export function useReactivationPatterns() {
 
             if (filters.minScore > 0) query = query.gte('reactivation_score', filters.minScore)
 
-            if (filters.search) {
-                const term = `%${filters.search}%`
-                query = query.or(`nome.ilike.${term},sobrenome.ilike.${term}`, { foreignTable: 'contatos' })
+            if (searchIds) {
+                query = query.in('contact_id', searchIds)
             }
 
             if (filters.urgency === 'overdue') query = query.lt('days_until_ideal_contact', 0)

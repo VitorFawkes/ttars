@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, Calendar, DollarSign, History, Edit2, Check, X, 
 import { getOrigemLabel, getOrigemColor, ORIGEM_OPTIONS, needsOrigemDetalhe } from '../../lib/constants/origem'
 import { useLeadSources } from '../../hooks/useLeadSources'
 import { useNavigate } from 'react-router-dom'
-import { cn, buildContactSearchFilter } from '../../lib/utils'
+import { cn } from '../../lib/utils'
 import type { Database } from '../../database.types'
 
 interface TripsProdutoData {
@@ -109,16 +109,21 @@ function OrigemBadgeEditable({ cardId, origem, origemLead, indicadoPorId }: { ca
         queryKey: ['indicacao-search-header', debouncedIndicacao],
         queryFn: async () => {
             if (!debouncedIndicacao) return []
-            const { data, error } = await supabase
-                .from('contatos')
-                .select('id, nome, sobrenome, telefone, email')
-                .is('deleted_at', null)
-                .or(buildContactSearchFilter(debouncedIndicacao))
-                .limit(6)
+            const { data, error } = await (supabase.rpc as any)('search_contatos', {
+                p_term: debouncedIndicacao,
+                p_limit: 6,
+            })
             if (error) throw error
-            return data
+            return (data ?? []) as Array<{
+                id: string
+                nome: string
+                sobrenome: string | null
+                telefone: string | null
+                email: string | null
+            }>
         },
-        enabled: debouncedIndicacao.length > 1
+        enabled: debouncedIndicacao.length > 1,
+        staleTime: 30_000,
     })
 
     // Fetch linked contact info

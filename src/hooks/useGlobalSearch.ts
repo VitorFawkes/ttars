@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useNavigate } from 'react-router-dom'
 import { useProductContext } from '@/hooks/useProductContext'
-import { buildContactSearchFilter, normalizePhone } from '@/lib/utils'
 
 export interface SearchResult {
     id: string
@@ -65,44 +64,18 @@ export function useGlobalSearch() {
                 })
             }
 
-            // Search Contacts (primary phone + contato_meios for secondary phones)
-            const contactFilter = buildContactSearchFilter(query)
-
-            const [{ data: contacts }, meiosContactIds] = await Promise.all([
-                supabase
-                    .from('contatos')
-                    .select('id, nome, sobrenome, email, telefone')
-                    .is('deleted_at', null)
-                    .or(contactFilter)
-                    .limit(5),
-                // Search secondary phones in contato_meios
-                (async () => {
-                    const normalized = normalizePhone(query)
-                    if (normalized.length < 4) return [] as string[]
-                    const { data } = await supabase
-                        .from('contato_meios')
-                        .select('contato_id')
-                        .in('tipo', ['telefone', 'whatsapp'])
-                        .ilike('valor_normalizado', `%${normalized}%`)
-                        .limit(10)
-                    return (data || []).map(m => m.contato_id)
-                })()
-            ])
-
-            // Fetch extra contacts found via contato_meios but not in primary results
-            const primaryIds = new Set((contacts || []).map(c => c.id))
-            const extraIds = meiosContactIds.filter(id => !primaryIds.has(id))
-            let allContacts = contacts || []
-
-            if (extraIds.length > 0) {
-                const { data: extraContacts } = await supabase
-                    .from('contatos')
-                    .select('id, nome, sobrenome, email, telefone')
-                    .in('id', extraIds)
-                    .is('deleted_at', null)
-                    .limit(5)
-                if (extraContacts) allContacts = [...allContacts, ...extraContacts]
-            }
+            // Search Contacts (fuzzy + acento; RPC já cobre contato_meios)
+            const { data: contactsRaw } = await (supabase.rpc as any)('search_contatos', {
+                p_term: query,
+                p_limit: 5,
+            })
+            const allContacts = (contactsRaw ?? []) as Array<{
+                id: string
+                nome: string
+                sobrenome: string | null
+                email: string | null
+                telefone: string | null
+            }>
 
             if (allContacts.length > 0) {
                 allContacts.forEach(contact => {

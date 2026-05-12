@@ -61,21 +61,31 @@ export function usePeopleIntelligence() {
     const fetchPeople = useCallback(async () => {
         setLoading(true)
         try {
+            // Busca fuzzy: resolve IDs primeiro via RPC, depois aplica demais filtros pela tabela.
+            let searchIds: string[] | null = null
+            if (filters.search && filters.search.trim().length >= 2) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data: hits } = await (supabase.rpc as any)('search_contatos', {
+                    p_term: filters.search.trim(),
+                    p_limit: 500, // teto largo: ranking via score, filtros adicionais cortam depois
+                })
+                searchIds = ((hits ?? []) as Array<{ id: string }>).map(h => h.id)
+                if (searchIds.length === 0) {
+                    setPeople([])
+                    setTotalCount(0)
+                    setLoading(false)
+                    return
+                }
+            }
+
             // Start building the query
             let query = supabase
                 .from('contatos')
                 .select('*, stats:contact_stats(*)', { count: 'exact' })
                 .is('deleted_at', null)
 
-            // Apply Filters
-            if (filters.search) {
-                const term = `%${filters.search}%`
-                const words = filters.search.trim().split(/\s+/)
-                let searchFilter = `nome.ilike.${term},sobrenome.ilike.${term},email.ilike.${term},cpf.ilike.${term}`
-                if (words.length >= 2) {
-                    searchFilter += `,and(nome.ilike.%${words[0]}%,sobrenome.ilike.%${words.slice(1).join(' ')}%)`
-                }
-                query = query.or(searchFilter)
+            if (searchIds) {
+                query = query.in('id', searchIds)
             }
 
             if (filters.type !== 'all') {

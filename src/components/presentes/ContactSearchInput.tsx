@@ -31,11 +31,10 @@ export default function ContactSearchInput({ onSelect, placeholder = 'Buscar con
         queryKey: ['contact-search', search],
         queryFn: async () => {
             if (search.length < 2) return []
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data, error } = await (supabase as any).from('contatos')
-                .select('id, nome, sobrenome, email, telefone')
-                .or(`nome.ilike.%${search}%,sobrenome.ilike.%${search}%,email.ilike.%${search}%,telefone.ilike.%${search}%`)
-                .limit(15)
+            const { data, error } = await (supabase.rpc as any)('search_contatos', {
+                p_term: search,
+                p_limit: 15,
+            })
             if (error) throw error
             return (data || []) as ContactResult[]
         },

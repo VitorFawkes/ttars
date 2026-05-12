@@ -5,7 +5,7 @@ import { Button } from '../ui/Button'
 import { Plus, User, X, Loader2, ChevronDown, ChevronRight, Check, Users, Search, UserPlus, Phone, Mail, Sparkles, FileText, CheckCircle, AlertCircle, Mic, PenLine } from 'lucide-react'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
-import { cn, buildContactSearchFilter } from '../../lib/utils'
+import { cn } from '../../lib/utils'
 import ContactSelector from '../card/ContactSelector'
 import DuplicateCardBanner from '../card/DuplicateCardBanner'
 import { formatContactName, getContactInitials } from '../../lib/contactUtils'
@@ -287,17 +287,21 @@ export default function CreateCardModal({ isOpen, onClose }: CreateCardModalProp
         queryKey: ['indicacao-search', debouncedIndicacao],
         queryFn: async () => {
             if (!debouncedIndicacao) return []
-            const searchFilter = buildContactSearchFilter(debouncedIndicacao)
-            const { data, error } = await supabase
-                .from('contatos')
-                .select('id, nome, sobrenome, telefone, email')
-                .is('deleted_at', null)
-                .or(searchFilter)
-                .limit(6)
+            const { data, error } = await (supabase.rpc as any)('search_contatos', {
+                p_term: debouncedIndicacao,
+                p_limit: 6,
+            })
             if (error) throw error
-            return data
+            return (data ?? []) as Array<{
+                id: string
+                nome: string
+                sobrenome: string | null
+                telefone: string | null
+                email: string | null
+            }>
         },
-        enabled: debouncedIndicacao.length > 1
+        enabled: debouncedIndicacao.length > 1,
+        staleTime: 30_000,
     })
 
     // Dynamic fields stored in briefing_inicial (for future use)

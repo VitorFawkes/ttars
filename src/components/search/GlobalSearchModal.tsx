@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useGlobalSearchContext } from './GlobalSearchProvider'
 import { Search, Loader2, FileText, Users, LayoutGrid, X } from 'lucide-react'
-import { cn, buildContactSearchFilter } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 
 interface SearchResult {
     id: string
@@ -49,15 +49,18 @@ export function GlobalSearchModal() {
                 })
             }
 
-            // Search Contacts
-            const contactFilter = buildContactSearchFilter(query)
-
-            const { data: contacts } = await supabase
-                .from('contatos')
-                .select('id, nome, sobrenome, email, telefone')
-                .is('deleted_at', null)
-                .or(contactFilter)
-                .limit(5)
+            // Search Contacts (fuzzy + acento, via RPC)
+            const { data: contactsRaw } = await (supabase.rpc as any)('search_contatos', {
+                p_term: query,
+                p_limit: 5,
+            })
+            const contacts = (contactsRaw ?? []) as Array<{
+                id: string
+                nome: string
+                sobrenome: string | null
+                email: string | null
+                telefone: string | null
+            }>
 
             if (contacts) {
                 contacts.forEach(contact => {

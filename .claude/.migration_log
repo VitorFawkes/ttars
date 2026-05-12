@@ -816,3 +816,9 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-11T19:38:46Z | supabase/migrations/20260512e_backfill_cards_org_id_from_pipeline.sql | applied_to_prod
 2026-05-11T23:24:21Z | supabase/migrations/20260512h_sdr_qualifications_anchor_optional_in_draft.sql | applied_to_prod
 2026-05-12T14:32:37Z | supabase/migrations/20260512o_overdue_trigger_allow_section_won.sql | applied_to_prod
+2026-05-12T14:40:06Z | supabase/migrations/20260512p_search_contatos_fuzzy.sql | applied_to_prod
+2026-05-12T14:40:50Z | supabase/migrations/20260512p_search_contatos_fuzzy.sql | applied_to_prod
+2026-05-12T14:41:47Z | supabase/migrations/20260512p_search_contatos_fuzzy.sql | applied_to_prod
+2026-05-12T14:42:29Z | supabase/migrations/20260512p_search_contatos_fuzzy.sql | applied_to_prod
+2026-05-12T14:44:03Z | supabase/migrations/20260512p_search_contatos_fuzzy.sql | applied_to_prod
+2026-05-12T14:49:53Z | supabase/migrations/20260512p_search_contatos_fuzzy.sql | applied_to_prod

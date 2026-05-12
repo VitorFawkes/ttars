@@ -6,7 +6,7 @@ import type { Database } from '../../database.types'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
-import { cn, buildContactSearchFilter, normalizePhone } from '../../lib/utils'
+import { cn } from '../../lib/utils'
 import { useDuplicateDetection } from '../../hooks/useDuplicateDetection'
 import DuplicateWarningPanel from '../contacts/DuplicateWarningPanel'
 import { parseSupabaseContactError } from '../../lib/supabaseErrorParser'
@@ -66,53 +66,32 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, onCon
         return () => clearTimeout(timer)
     }, [searchTerm])
 
-    // Search contacts (primary phone + contato_meios for secondary phones)
+    // Busca fuzzy (tolera typo/acento) — RPC já inclui contato_meios e ranqueia substring exato primeiro.
+    // Hidrata com Row completa pra preservar campos usados downstream (monde_person_id, etc.).
     const { data: contacts, isLoading } = useQuery({
         queryKey: ['contacts-search', debouncedSearch],
         queryFn: async () => {
-            if (!debouncedSearch) return []
-
-            const searchFilter = buildContactSearchFilter(debouncedSearch)
-
-            // Search primary fields + secondary phones in parallel
-            const [{ data: primaryResults, error }, meiosContactIds] = await Promise.all([
-                supabase
-                    .from('contatos')
-                    .select('*')
-                    .is('deleted_at', null)
-                    .or(searchFilter)
-                    .limit(8),
-                (async () => {
-                    const normalized = normalizePhone(debouncedSearch)
-                    if (normalized.length < 4) return [] as string[]
-                    const { data } = await supabase
-                        .from('contato_meios')
-                        .select('contato_id')
-                        .in('tipo', ['telefone', 'whatsapp'])
-                        .ilike('valor_normalizado', `%${normalized}%`)
-                        .limit(10)
-                    return (data || []).map(m => m.contato_id)
-                })()
-            ])
-
+            if (!debouncedSearch) return [] as Database['public']['Tables']['contatos']['Row'][]
+            const { data: hits, error: rpcErr } = await (supabase.rpc as any)('search_contatos', {
+                p_term: debouncedSearch,
+                p_limit: 8,
+            })
+            if (rpcErr) throw rpcErr
+            const ids = ((hits ?? []) as Array<{ id: string }>).map(h => h.id)
+            if (ids.length === 0) return []
+            const { data, error } = await supabase
+                .from('contatos')
+                .select('*')
+                .in('id', ids)
+                .is('deleted_at', null)
             if (error) throw error
-            const primaryIds = new Set((primaryResults || []).map(c => c.id))
-            const extraIds = meiosContactIds.filter(id => !primaryIds.has(id))
-            let allContacts = (primaryResults || []) as Database['public']['Tables']['contatos']['Row'][]
-
-            if (extraIds.length > 0) {
-                const { data: extraContacts } = await supabase
-                    .from('contatos')
-                    .select('*')
-                    .in('id', extraIds)
-                    .is('deleted_at', null)
-                    .limit(8)
-                if (extraContacts) allContacts = [...allContacts, ...extraContacts as Database['public']['Tables']['contatos']['Row'][]]
-            }
-
-            return allContacts
+            const byId = new Map((data ?? []).map(c => [c.id, c]))
+            return ids
+                .map(id => byId.get(id))
+                .filter(Boolean) as Database['public']['Tables']['contatos']['Row'][]
         },
-        enabled: debouncedSearch.length >= 2
+        enabled: debouncedSearch.length >= 2,
+        staleTime: 30_000,
     })
 
     // Create contact mutation

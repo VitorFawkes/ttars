@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
-import { CheckCircle2, XCircle, Clock, Target, Loader2, Search, Link2, ChevronRight } from 'lucide-react'
-import { useListarPontuacoes, useVincularACard } from '../../hooks/useSdrQualification'
+import { CheckCircle2, XCircle, Clock, Target, Loader2, Search, Link2, ChevronRight, Plus, Users } from 'lucide-react'
+import { useListarPontuacoes, useVincularACard, type DadosLead } from '../../hooks/useSdrQualification'
+import { useMeusCardsSdr } from '../../hooks/useMeusLeadsSdr'
 import { Badge } from '../../components/ui/Badge'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
@@ -9,8 +10,17 @@ import { formatPhoneBR } from '../../utils/normalizePhone'
 import { formatBRL } from '../../utils/currencyMask'
 import { timeAgo } from '../../utils/timeAgo'
 import { SdrQualificationSheet } from '../../components/sdr-qualification/SdrQualificationSheet'
+import { NovaPontuacaoModal } from '../../components/sdr-qualification/NovaPontuacaoModal'
 import { supabase } from '../../lib/supabase'
 import { toast } from 'sonner'
+
+type SessaoSheet = {
+    qualificationId?: string | null
+    cardId?: string | null
+    contatoId?: string | null
+    telefone?: string | null
+    initialDados?: DadosLead
+} | null
 
 type Pontuacao = {
     id: string
@@ -40,12 +50,20 @@ type Pontuacao = {
 export default function PontuacoesPage() {
     const [onlyMine, setOnlyMine] = useState(false)
     const [search, setSearch] = useState('')
-    const [openQualId, setOpenQualId] = useState<string | null>(null)
+    const [sessao, setSessao] = useState<SessaoSheet>(null)
     const [vincularFor, setVincularFor] = useState<Pontuacao | null>(null)
+    const [novaPontuacaoOpen, setNovaPontuacaoOpen] = useState(false)
 
     const filtros = useMemo(() => ({ only_mine: onlyMine, produto: 'WEDDING' }), [onlyMine])
     const { data, isLoading, error } = useListarPontuacoes(filtros)
+    const { data: meusCards } = useMeusCardsSdr()
     const all = data?.pontuacoes ?? []
+
+    // Cards sem pontuação finalizada — oportunidade pra começar
+    const cardsSemPontuacao = useMemo(
+        () => (meusCards ?? []).filter((c) => !c.sdr_qualification_score_latest).slice(0, 8),
+        [meusCards],
+    )
 
     const filtered = useMemo(() => {
         if (!search.trim()) return all
@@ -72,6 +90,10 @@ export default function PontuacoesPage() {
                         Pontuações em andamento e histórico — mesma régua que a Estela.
                     </p>
                 </div>
+                <Button onClick={() => setNovaPontuacaoOpen(true)} className="gap-1.5">
+                    <Plus className="w-4 h-4" />
+                    Nova pontuação
+                </Button>
             </header>
 
             {/* KPIs */}
@@ -125,9 +147,54 @@ export default function PontuacoesPage() {
                         items={rascunhos}
                         emptyMsg="Nenhuma pontuação em andamento."
                         destaque
-                        onContinuar={(p) => setOpenQualId(p.id)}
+                        onContinuar={(p) => setSessao({ qualificationId: p.id })}
                         onVincular={(p) => setVincularFor(p)}
                     />
+
+                    {/* Cards no nome dela esperando primeira pontuação */}
+                    {cardsSemPontuacao.length > 0 && (
+                        <section>
+                            <div className="mb-2">
+                                <h2 className="text-sm font-semibold text-slate-900">
+                                    Meus cards sem pontuação
+                                    <span className="ml-2 text-xs font-normal text-slate-400">
+                                        {cardsSemPontuacao.length}
+                                    </span>
+                                </h2>
+                                <p className="text-xs text-slate-500">
+                                    Cards de Weddings no seu nome que ainda não foram pontuados.
+                                </p>
+                            </div>
+                            <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+                                <ul className="divide-y divide-slate-100">
+                                    {cardsSemPontuacao.map((c) => (
+                                        <li key={c.id}>
+                                            <button
+                                                onClick={() => setSessao({ cardId: c.id })}
+                                                className="w-full text-left px-4 py-3 hover:bg-slate-50 transition flex items-center justify-between gap-3"
+                                            >
+                                                <div className="min-w-0 flex-1 flex items-center gap-3">
+                                                    <Users className="w-4 h-4 text-slate-400 shrink-0" />
+                                                    <div className="min-w-0">
+                                                        <div className="text-sm font-medium text-slate-900 truncate">
+                                                            {c.titulo}
+                                                        </div>
+                                                        <div className="text-xs text-slate-500 truncate">
+                                                            {c.pessoa_nome ?? '(sem contato)'}
+                                                            {c.pessoa_telefone && ` · ${formatPhoneBR(c.pessoa_telefone)}`}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <span className="shrink-0 text-xs text-indigo-600 font-medium inline-flex items-center gap-1">
+                                                    Pontuar <ChevronRight className="w-3 h-3" />
+                                                </span>
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </section>
+                    )}
 
                     {/* Finalizadas */}
                     <Secao
@@ -151,11 +218,15 @@ export default function PontuacoesPage() {
                 </>
             )}
 
-            {openQualId && (
+            {sessao && (
                 <SdrQualificationSheet
                     open
-                    onOpenChange={(next) => !next && setOpenQualId(null)}
-                    qualificationId={openQualId}
+                    onOpenChange={(next) => !next && setSessao(null)}
+                    qualificationId={sessao.qualificationId ?? null}
+                    cardId={sessao.cardId ?? null}
+                    contatoId={sessao.contatoId ?? null}
+                    telefone={sessao.telefone ?? null}
+                    initialDados={sessao.initialDados}
                 />
             )}
 
@@ -165,6 +236,21 @@ export default function PontuacoesPage() {
                     onClose={() => setVincularFor(null)}
                 />
             )}
+
+            <NovaPontuacaoModal
+                open={novaPontuacaoOpen}
+                onClose={() => setNovaPontuacaoOpen(false)}
+                onStart={(dados) => {
+                    setNovaPontuacaoOpen(false)
+                    setSessao({
+                        telefone: dados.telefone || null,
+                        initialDados: {
+                            ...(dados.nomeCasal ? { nome_casal: dados.nomeCasal } : {}),
+                            ...(dados.telefone ? { telefone: dados.telefone } : {}),
+                        },
+                    })
+                }}
+            />
         </div>
     )
 }

@@ -8,7 +8,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useOrg } from '@/contexts/OrgContext'
 import { useToast } from '@/contexts/ToastContext'
 import { useTransformIntoSubCard, type SubCardCategory } from '@/hooks/useTransformIntoSubCard'
-import { cn, buildContactSearchFilter } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 
 interface ParentCandidate {
     id: string
@@ -70,14 +70,11 @@ function useEligibleParents(opts: {
 
             const queryByContact = async () => {
                 if (term.length <= 1) return []
-                const filter = buildContactSearchFilter(term)
-                const { data: contatos } = await supabase
-                    .from('contatos')
-                    .select('id')
-                    .is('deleted_at', null)
-                    .or(filter)
-                    .limit(20)
-                const ids = (contatos ?? []).map(c => c.id as string)
+                const { data: contatos } = await (supabase.rpc as any)('search_contatos', {
+                    p_term: term,
+                    p_limit: 20,
+                })
+                const ids = ((contatos ?? []) as Array<{ id: string }>).map(c => c.id)
                 if (ids.length === 0) return []
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const { data } = await buildBase()
