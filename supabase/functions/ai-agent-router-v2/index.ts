@@ -16,6 +16,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { runSingleAgent } from "./single_agent.ts";
 import { validateBrandCompliance, type ValidatorRule } from "./brand_validator.ts";
+import { loadScoringRulesForPlaybook, type ScoringRule } from "./playbook_loader.ts";
+import { evaluateSubjectiveRules } from "./subjective_evaluator.ts";
 import {
   type AgentRow,
   type BusinessConfigRow,
@@ -593,7 +595,12 @@ Deno.serve(async (req) => {
       }
 
       if (podeDesfechar) {
-        // Chamar RPC determinística — não delegar ao LLM
+        // Chamar RPC determinística + avaliar regras ai_subjective via LLM.
+        // RPC avalia só {equals, range, boolean_true}. Regras ai_subjective
+        // (todas as 14 regras da Patricia) precisam de LLM intermediário. Sem
+        // isso, RPC retornava score=0/breakdown=[] e o trigger nunca disparava
+        // o desfecho determinístico — Patricia improvisava agendamento sem
+        // slots reais. Padrão portado da Estela em 2026-05-12.
         const scoringInputs: Record<string, unknown> = {
           ww_data_casamento: dataCasamento,
           ww_destino: destinoRegiao,
@@ -602,6 +609,54 @@ Deno.serve(async (req) => {
           ww_sdr_perfil_viagem_internacional: viajouInternacional,
           ww_sdr_ajuda_familia: ajudaFamilia,
         };
+
+        // Carrega regras pra ter pesos + labels das ai_subjective em mãos
+        // antes da RPC. Custa 1 SELECT extra (~10ms). Mantém isolamento por
+        // agent_id, então não afeta Estela.
+        let scoringRules: ScoringRule[] = [];
+        try {
+          scoringRules = await loadScoringRulesForPlaybook(supabase, agent.id);
+        } catch (e) {
+          console.warn(`[v2] trigger: falha ao carregar scoring rules:`, (e as Error).message);
+        }
+
+        // Avalia regras ai_subjective via LLM (gpt-5.1). Combina histórico +
+        // ai_resumo + ai_contexto + trackedData. Falha tolerante: se LLM cai,
+        // resolved={} e trigger ainda decide pela RPC pura (que vai vir vazia
+        // pra Patricia hoje, mas o fluxo se mantém).
+        const subjectiveResolved: Record<string, boolean> = {};
+        const subjectiveRules = scoringRules.filter((r) => r.condition_type === 'ai_subjective');
+        if (subjectiveRules.length > 0 && OPENAI_API_KEY) {
+          // Normaliza trackedData (Record<string, unknown>) para form_data (Record<string, string>)
+          const formDataString: Record<string, string> = {};
+          for (const [k, v] of Object.entries(trackedData)) {
+            if (v == null) continue;
+            formDataString[k] = typeof v === 'string' ? v : String(v);
+          }
+          try {
+            const evalRes = await evaluateSubjectiveRules({
+              rules: subjectiveRules,
+              historico_compacto: historico,
+              ai_resumo: aiResumo || '',
+              ai_contexto: aiContexto || '',
+              form_data: formDataString,
+              agentName: agent.nome ?? '',
+              openaiApiKey: OPENAI_API_KEY,
+            });
+            Object.assign(subjectiveResolved, evalRes.resolved);
+            console.log(JSON.stringify({
+              event: 'v2_subjective_evaluated',
+              agent_id: agent.id,
+              rules_count: subjectiveRules.length,
+              resolved: evalRes.resolved,
+              tokens: evalRes.tokens,
+              elapsed_ms: evalRes.elapsed_ms,
+            }));
+          } catch (e) {
+            console.warn(`[v2] trigger: subjective eval falhou:`, (e as Error).message);
+          }
+        }
+
         try {
           const { data: scoreData, error: scoreErr } = await supabase.rpc(
             "calculate_agent_qualification_score",
@@ -611,27 +666,47 @@ Deno.serve(async (req) => {
             console.warn(`[v2] trigger: RPC score falhou:`, scoreErr.message);
           } else if (scoreData) {
             const sd = scoreData as Record<string, unknown>;
-            const breakdown = sd.breakdown ?? null;
-            const breakdownArr = Array.isArray(breakdown) ? breakdown : [];
-            const rpcEffective = breakdownArr.length > 0 || (Number(sd.score) || 0) > 0;
+            const rpcBreakdown = Array.isArray(sd.breakdown) ? [...(sd.breakdown as unknown[])] : [];
+            let score = Number(sd.score) || 0;
+            let disqualified = Boolean(sd.disqualified ?? false);
+            const breakdown: unknown[] = [...rpcBreakdown];
 
-            // Defesa: a RPC `calculate_agent_qualification_score` avalia só
-            // regras condition_type ∈ {equals, range, boolean_true}. Regras
-            // `ai_subjective` (usadas pela Patricia) requerem LLM intermediário
-            // e a RPC retorna score=0/breakdown=[] silenciosamente. Sem este
-            // check, todo top tier viraria desfecho_nao_qualificado falsamente.
-            // Quando RPC não conseguir avaliar, descartamos e deixamos o LLM
-            // decidir baseado no contexto + prompt.
-            if (!rpcEffective) {
-              console.log(`[v2] trigger: RPC retornou score=0 breakdown=[] (regras ai_subjective não avaliadas pela RPC). Deixando LLM decidir.`);
+            // Soma pesos das ai_subjective resolvidas como true (a RPC não
+            // contemplou essas regras). Disqualify subjective força !qualificado.
+            for (const r of scoringRules) {
+              if (r.condition_type !== 'ai_subjective') continue;
+              if (subjectiveResolved[r.id] !== true) continue;
+              if (r.rule_type === 'disqualify') {
+                disqualified = true;
+              } else {
+                score += Number(r.weight ?? 0);
+                breakdown.push({
+                  dimension: r.dimension,
+                  label: r.label ?? r.dimension,
+                  weight: r.weight ?? 0,
+                  rule_id: r.id,
+                  rule_type: r.rule_type ?? 'qualify',
+                  source: 'ai_subjective',
+                });
+              }
+            }
+
+            const threshold = Number(sd.threshold ?? scoringThreshold) || scoringThreshold;
+            const qualificado = !disqualified && score >= threshold;
+
+            const breakdownEffective = breakdown.length > 0 || score > 0;
+            if (!breakdownEffective) {
+              // RPC vazia E nenhuma subjective resolvida → não dá pra confiar.
+              // Mantém fallback de deixar LLM decidir.
+              console.log(`[v2] trigger: score=0 breakdown=[] mesmo com ai_subjective avaliado. Deixando LLM decidir.`);
               qualificationResult = null;
             } else {
               qualificationResult = {
-                score: Number(sd.score) || 0,
-                qualificado: !!sd.qualificado,
+                score,
+                qualificado,
                 breakdown,
               };
-              forcedMomentKey = qualificationResult.qualificado
+              forcedMomentKey = qualificado
                 ? "desfecho_qualificado"
                 : "desfecho_nao_qualificado";
             }
@@ -654,7 +729,7 @@ Deno.serve(async (req) => {
               proposedSlots = slots;
             }
             if (qualificationResult) {
-              console.log(`[v2] trigger: desfecho forçado moment=${forcedMomentKey} score=${qualificationResult.score} qualificado=${qualificationResult.qualificado}`);
+              console.log(`[v2] trigger: desfecho forçado moment=${forcedMomentKey} score=${qualificationResult.score} qualificado=${qualificationResult.qualificado} threshold=${threshold}`);
             }
           }
         } catch (e) {
