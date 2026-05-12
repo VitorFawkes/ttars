@@ -823,3 +823,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-12T16:03:01Z | supabase/migrations/20260512r_mappings_only.sql | applied_to_prod
 2026-05-12T16:04:06Z | supabase/migrations/20260512s_ac_meeting_complete_fix.sql | applied_to_prod
 2026-05-12T16:04:50Z | supabase/migrations/20260512s_ac_meeting_complete_fix.sql | applied_to_prod
+2026-05-12T16:12:46Z | supabase/migrations/20260512t_meeting_duration_default_backfill.sql | applied_to_prod

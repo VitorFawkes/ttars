@@ -766,6 +766,11 @@ Deno.serve(async (req) => {
                         };
                         if (isComplete) tarefaPayload.concluida_em = new Date().toISOString();
                         if (responsavelId) tarefaPayload.responsavel_id = responsavelId;
+                        // Reunioes vindas do AC nao trazem duracao no payload — populamos
+                        // o default de 15 min em metadata pra UI mostrar corretamente.
+                        if (crmTipo === 'reuniao' || crmTipo === 'reuniao_video' || crmTipo === 'reuniao_presencial' || crmTipo === 'reuniao_telefone') {
+                            tarefaPayload.metadata = { duration_minutes: 15 };
+                        }
 
                         if (existingTarefa) {
                             // UPDATE with loop prevention
