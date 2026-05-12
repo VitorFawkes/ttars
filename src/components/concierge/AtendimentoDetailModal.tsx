@@ -483,7 +483,24 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
 }
 
 function ViagemBlock({ item, onClose }: { item: MeuDiaItem; onClose: () => void }) {
-  const valor = item.card_valor_final ?? item.card_valor_estimado
+  // Painel de cabeçalho sempre referencia o card RAIZ da viagem. Quando o
+  // atendimento foi criado num sub-card (ex: "Alteração de hotel"), queremos
+  // mostrar/abrir a viagem inteira, não o sub-card.
+  const cardId         = item.root_card_id            ?? item.card_id
+  const cardTitulo     = item.root_card_titulo        ?? item.card_titulo
+  const produto        = item.root_produto            ?? item.produto
+  const dataInicio     = item.root_data_viagem_inicio ?? item.data_viagem_inicio
+  const dataFim        = item.root_data_viagem_fim    ?? item.data_viagem_fim
+  const valorFinal     = item.root_valor_final        ?? item.card_valor_final
+  const valorEstimado  = item.root_valor_estimado     ?? item.card_valor_estimado
+  const valor          = valorFinal ?? valorEstimado
+
+  // dias_pra_embarque é derivado de data_viagem_inicio na view — quando
+  // recalcular vale a pena fazer client-side a partir da data raiz.
+  const diasPraEmbarque = dataInicio
+    ? Math.floor((new Date(dataInicio).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : null
+
   return (
     <div className="bg-indigo-50/40 border border-indigo-100 rounded-lg overflow-hidden">
       <div className="px-3 py-2 border-b border-indigo-100 flex items-center justify-between gap-2">
@@ -491,7 +508,7 @@ function ViagemBlock({ item, onClose }: { item: MeuDiaItem; onClose: () => void 
           Viagem
         </div>
         <Link
-          to={`/cards/${item.card_id}`}
+          to={`/cards/${cardId}`}
           onClick={onClose}
           className="inline-flex items-center gap-1 text-[11.5px] font-medium text-indigo-600 hover:text-indigo-700"
         >
@@ -499,38 +516,38 @@ function ViagemBlock({ item, onClose }: { item: MeuDiaItem; onClose: () => void 
         </Link>
       </div>
       <div className="p-3 space-y-2">
-        <div className="font-semibold text-slate-900 leading-snug">{item.card_titulo}</div>
+        <div className="font-semibold text-slate-900 leading-snug">{cardTitulo}</div>
         <div className="flex items-center gap-x-3 gap-y-1 text-[12.5px] text-slate-700 flex-wrap">
-          <span className="font-mono uppercase tracking-wide text-[11px] text-slate-500">{item.produto?.toUpperCase()}</span>
-          {item.data_viagem_inicio && (
+          <span className="font-mono uppercase tracking-wide text-[11px] text-slate-500">{produto?.toUpperCase()}</span>
+          {dataInicio && (
             <span className="inline-flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-slate-400" />
               <span className="font-mono">
-                {new Date(item.data_viagem_inicio).toLocaleDateString('pt-BR')}
-                {item.data_viagem_fim && ` – ${new Date(item.data_viagem_fim).toLocaleDateString('pt-BR')}`}
+                {new Date(dataInicio).toLocaleDateString('pt-BR')}
+                {dataFim && ` – ${new Date(dataFim).toLocaleDateString('pt-BR')}`}
               </span>
             </span>
           )}
-          {item.dias_pra_embarque !== null && (
+          {diasPraEmbarque !== null && (
             <span className={cn(
               'inline-flex items-center px-2 py-0.5 rounded font-mono text-[11.5px] font-semibold',
-              item.dias_pra_embarque < 0 ? 'bg-slate-100 text-slate-600' :
-              item.dias_pra_embarque <= 2 ? 'bg-red-50 text-red-700' :
-              item.dias_pra_embarque <= 7 ? 'bg-amber-50 text-amber-700' :
+              diasPraEmbarque < 0 ? 'bg-slate-100 text-slate-600' :
+              diasPraEmbarque <= 2 ? 'bg-red-50 text-red-700' :
+              diasPraEmbarque <= 7 ? 'bg-amber-50 text-amber-700' :
               'bg-slate-50 text-slate-600'
             )}>
-              {item.dias_pra_embarque < 0
-                ? `Já voltou há ${-item.dias_pra_embarque}d`
-                : item.dias_pra_embarque === 0
+              {diasPraEmbarque < 0
+                ? `Já voltou há ${-diasPraEmbarque}d`
+                : diasPraEmbarque === 0
                 ? 'Embarca hoje'
-                : `Embarca em ${item.dias_pra_embarque}d`}
+                : `Embarca em ${diasPraEmbarque}d`}
             </span>
           )}
           {valor != null && valor > 0 && (
             <span className="inline-flex items-center gap-1 text-slate-700">
               <Wallet className="w-3.5 h-3.5 text-slate-400" />
               <span className="font-mono font-semibold">{fmtBRL(valor)}</span>
-              {item.card_valor_final == null && <span className="text-[10.5px] text-slate-400 italic">(estimado)</span>}
+              {valorFinal == null && <span className="text-[10.5px] text-slate-400 italic">(estimado)</span>}
             </span>
           )}
         </div>

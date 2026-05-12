@@ -836,3 +836,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-12T16:12:46Z | supabase/migrations/20260512t_meeting_duration_default_backfill.sql | applied_to_prod
 2026-05-12T17:03:31Z | supabase/migrations/20260512_view_meu_dia_concierge_full_name.sql | applied_to_prod
 2026-05-12T17:03:55Z | supabase/migrations/20260512_find_duplicate_tasks_full_name.sql | applied_to_prod
+2026-05-12T17:49:00Z | supabase/migrations/20260513_org_concierge_future_threshold.sql | applied_to_prod
+2026-05-12T17:55:36Z | supabase/migrations/20260513b_rpc_update_concierge_future_threshold.sql | applied_to_prod

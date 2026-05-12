@@ -1,9 +1,18 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { sbAny } from './_supabaseUntyped'
+import { useOrg } from '../../contexts/OrgContext'
 import type { MeuDiaItem, TipoConcierge, SourceConcierge } from './types'
 
-export type EstadoFunil = 'aguardando_atendimento' | 'em_contato' | 'aguardando_retorno' | 'feito' | 'encerrado'
+export type EstadoFunil =
+  | 'agendado_futuro'
+  | 'aguardando_atendimento'
+  | 'em_contato'
+  | 'aguardando_retorno'
+  | 'feito'
+  | 'encerrado'
+
+export const DEFAULT_CONCIERGE_FUTURE_THRESHOLD_DAYS = 30
 
 export type JanelaEmbarque =
   | 'sem_data'
@@ -72,6 +81,7 @@ export interface KanbanColumnSpec {
 }
 
 export const ESTADO_FUNIL_COLUMNS: KanbanColumnSpec[] = [
+  { id: 'agendado_futuro',        label: 'Agendados para o futuro', hint: 'Estocados até a data chegar',  tone: { bg: 'bg-violet-50',  text: 'text-violet-700',  border: 'border-violet-200',  accent: 'bg-violet-400'  } },
   { id: 'aguardando_atendimento', label: 'Aguardando atendimento', hint: 'Não iniciado ainda',           tone: { bg: 'bg-slate-50',   text: 'text-slate-700',   border: 'border-slate-200',   accent: 'bg-slate-300'   } },
   { id: 'em_contato',             label: 'Em contato',             hint: 'Você está cuidando agora',     tone: { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200',    accent: 'bg-blue-500'    } },
   { id: 'aguardando_retorno',     label: 'Aguardando retorno',     hint: 'Cliente notificado, esperando',tone: { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200',   accent: 'bg-amber-500'   } },
@@ -79,18 +89,30 @@ export const ESTADO_FUNIL_COLUMNS: KanbanColumnSpec[] = [
   { id: 'encerrado',              label: 'Encerrado',              hint: 'Recusado ou cancelado',        tone: { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200',     accent: 'bg-red-500'     } },
 ]
 
-export function computeEstadoFunil(item: MeuDiaItem): EstadoFunil {
+export function computeEstadoFunil(item: MeuDiaItem, thresholdDays: number = DEFAULT_CONCIERGE_FUTURE_THRESHOLD_DAYS): EstadoFunil {
   // Outcome decide o destino — 'aceito' (legado, oferta aceita) entra junto com 'feito'.
   if (item.outcome === 'aceito' || item.outcome === 'feito')          return 'feito'
   if (item.outcome === 'recusado' || item.outcome === 'cancelado')    return 'encerrado'
+  // Atendimento ainda em aberto: se data_vencimento estiver muito distante,
+  // segrega na aba "Agendados para o futuro" — checagem feita ANTES de
+  // notificou_cliente_em/started_at pra cobrir casos em que a concierge
+  // criou pra futuro e já iniciou contato preventivo.
+  if (!item.concluida && item.data_vencimento) {
+    const venc = new Date(item.data_vencimento).getTime()
+    const cutoff = Date.now() + thresholdDays * 24 * 60 * 60 * 1000
+    if (Number.isFinite(venc) && venc > cutoff) return 'agendado_futuro'
+  }
   if (item.notificou_cliente_em)                                      return 'aguardando_retorno'
   if (item.started_at)                                                return 'em_contato'
   return 'aguardando_atendimento'
 }
 
 export function useKanbanTarefas(filters: KanbanTarefasFilters = {}) {
+  const { org } = useOrg()
+  const thresholdDays = org?.concierge_future_threshold_days ?? DEFAULT_CONCIERGE_FUTURE_THRESHOLD_DAYS
+
   const baseQuery = useQuery({
-    queryKey: ['concierge', 'kanban-tarefas-base', { donoId: filters.donoId, tipos: filters.tipos, sources: filters.sources }],
+    queryKey: ['concierge', 'kanban-tarefas-base', { donoId: filters.donoId, tipos: filters.tipos, sources: filters.sources, thresholdDays }],
     queryFn: async (): Promise<KanbanTarefaItem[]> => {
       let q = sbAny.from('v_meu_dia_concierge').select('*')
 
@@ -105,7 +127,7 @@ export function useKanbanTarefas(filters: KanbanTarefasFilters = {}) {
 
       return ((data ?? []) as MeuDiaItem[]).map(item => ({
         ...item,
-        estado_funil: computeEstadoFunil(item),
+        estado_funil: computeEstadoFunil(item, thresholdDays),
         janela_embarque: computeJanelaEmbarque(item.dias_pra_embarque),
       }))
     },
@@ -163,5 +185,6 @@ export function useKanbanTarefas(filters: KanbanTarefasFilters = {}) {
     data: filtered,
     rawData: enriched,
     groupedByEstado,
+    thresholdDays,
   }
 }
