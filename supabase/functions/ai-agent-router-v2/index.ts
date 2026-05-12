@@ -625,6 +625,7 @@ Deno.serve(async (req) => {
         // resolved={} e trigger ainda decide pela RPC pura (que vai vir vazia
         // pra Patricia hoje, mas o fluxo se mantém).
         const subjectiveResolved: Record<string, boolean> = {};
+        let subjectiveEvalRan = false;
         const subjectiveRules = scoringRules.filter((r) => r.condition_type === 'ai_subjective');
         if (subjectiveRules.length > 0 && OPENAI_API_KEY) {
           // Normaliza trackedData (Record<string, unknown>) para form_data (Record<string, string>)
@@ -644,6 +645,10 @@ Deno.serve(async (req) => {
               openaiApiKey: OPENAI_API_KEY,
             });
             Object.assign(subjectiveResolved, evalRes.resolved);
+            // Marca avaliação como rodada quando cobriu TODAS as regras (sinal
+            // de sucesso completo). Se faltou alguma → tratamos como falha
+            // parcial e mantemos fallback conservador.
+            subjectiveEvalRan = Object.keys(evalRes.resolved).length === subjectiveRules.length;
             console.log(JSON.stringify({
               event: 'v2_subjective_evaluated',
               agent_id: agent.id,
@@ -651,6 +656,7 @@ Deno.serve(async (req) => {
               resolved: evalRes.resolved,
               tokens: evalRes.tokens,
               elapsed_ms: evalRes.elapsed_ms,
+              eval_ran: subjectiveEvalRan,
             }));
           } catch (e) {
             console.warn(`[v2] trigger: subjective eval falhou:`, (e as Error).message);
@@ -694,11 +700,14 @@ Deno.serve(async (req) => {
             const threshold = Number(sd.threshold ?? scoringThreshold) || scoringThreshold;
             const qualificado = !disqualified && score >= threshold;
 
-            const breakdownEffective = breakdown.length > 0 || score > 0;
+            // Confia no resultado se: (a) há breakdown/score, OU
+            // (b) subjective eval rodou com sucesso (todas as regras
+            // respondidas pelo LLM, mesmo todas false → resultado legítimo
+            // de "não qualifica"). Só cai no fallback se RPC vazia E
+            // subjective não rodou completo (timeout, parse error, etc).
+            const breakdownEffective = breakdown.length > 0 || score > 0 || subjectiveEvalRan;
             if (!breakdownEffective) {
-              // RPC vazia E nenhuma subjective resolvida → não dá pra confiar.
-              // Mantém fallback de deixar LLM decidir.
-              console.log(`[v2] trigger: score=0 breakdown=[] mesmo com ai_subjective avaliado. Deixando LLM decidir.`);
+              console.log(`[v2] trigger: RPC vazia e subjective não avaliou. Deixando LLM decidir.`);
               qualificationResult = null;
             } else {
               qualificationResult = {
