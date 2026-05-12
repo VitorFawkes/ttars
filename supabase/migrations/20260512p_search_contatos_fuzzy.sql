@@ -69,6 +69,9 @@ BEGIN
   v_phone := regexp_replace(p_term, '\D', '', 'g');
 
   RETURN QUERY
+  -- candidates: tudo que passa nos filtros (substring ou trigram).
+  -- O trigram filtra agressivo (default threshold 0.3) então o conjunto é tratável
+  -- mesmo sem LIMIT intermediário. O ranking acontece direto no SELECT final.
   WITH base AS (
     SELECT
       c.id,
@@ -96,7 +99,7 @@ BEGIN
          OR (length(v_phone) >= 4 AND c.telefone_normalizado ILIKE '%' || v_phone || '%')
             -- CPF normalizado (placeholder da página Pessoas inclui CPF)
          OR (length(v_phone) >= 4 AND c.cpf_normalizado ILIKE '%' || v_phone || '%')
-            -- Fuzzy trigram (resolve Giulianna ↔ Giuliana, Marcello ↔ Marcelo)
+            -- Fuzzy trigram (tolera letra dobrada, troca, omissão)
          OR (length(v_norm) >= 4 AND public.contatos_search_norm(c.nome)      % v_norm)
          OR (length(v_norm) >= 4 AND public.contatos_search_norm(c.sobrenome) % v_norm)
             -- Telefone secundário via contato_meios
@@ -107,35 +110,39 @@ BEGIN
                 AND cm.valor_normalizado ILIKE '%' || v_phone || '%'
             ))
       )
-    LIMIT 200  -- teto de candidatos antes do scoring
+  ),
+  scored AS (
+    SELECT b.*,
+      (
+          -- Bônus de match exato (vence fuzzy sempre)
+          CASE
+            WHEN b.full_norm LIKE v_norm || '%'        THEN 3.0
+            WHEN b.full_norm LIKE '%' || v_norm || '%' THEN 2.0
+            ELSE 0
+          END
+          -- Similaridade trigram (0..1) como tie-break e captura de fuzzy
+        + GREATEST(
+            similarity(b.nome_norm, v_norm),
+            similarity(b.sob_norm,  v_norm),
+            similarity(b.full_norm, v_norm)
+          )
+      )::real AS match_score
+    FROM base b
   )
   SELECT
-    b.id,
-    b.nome,
-    b.sobrenome,
-    b.email,
-    b.telefone,
-    b.telefone_normalizado,
-    b.cpf_normalizado,
-    b.empresa_id,
-    b.monde_person_id,
-    b.tipo_contato,
-    (
-        -- Bônus de match exato (vence fuzzy sempre)
-        CASE
-          WHEN b.full_norm LIKE v_norm || '%'        THEN 3.0
-          WHEN b.full_norm LIKE '%' || v_norm || '%' THEN 2.0
-          ELSE 0
-        END
-        -- Similaridade trigram (0..1) como tie-break e captura de fuzzy
-      + GREATEST(
-          similarity(b.nome_norm, v_norm),
-          similarity(b.sob_norm,  v_norm),
-          similarity(b.full_norm, v_norm)
-        )
-    )::real AS match_score
-  FROM base b
-  ORDER BY match_score DESC, b.nome NULLS LAST
+    s.id,
+    s.nome,
+    s.sobrenome,
+    s.email,
+    s.telefone,
+    s.telefone_normalizado,
+    s.cpf_normalizado,
+    s.empresa_id,
+    s.monde_person_id,
+    s.tipo_contato,
+    s.match_score
+  FROM scored s
+  ORDER BY s.match_score DESC, s.nome NULLS LAST
   LIMIT p_limit;
 END;
 $$;
