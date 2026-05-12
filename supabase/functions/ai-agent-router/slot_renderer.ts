@@ -39,7 +39,12 @@ export function renderSlotForPrompt(slot: SlotV2): string | null {
   }
 
   const mustInclude = (slot.must_include ?? []).filter((s) => s && s.trim());
-  const examples = (slot.example_questions ?? []).filter((q) => q && q.trim());
+  const examplesRaw = (slot.example_questions ?? []).filter((q) => q && q.trim());
+  // Fase Alpha-2 (12/05/2026): 1 ou 2 exemplos colapsam em template literal
+  // (variância zero/baixa = LLM copia). Pra ser referência de tom precisa ter
+  // 3+ exemplos diversos. Defensivamente tratamos 1-2 como zero — UI também
+  // bloqueia salvamento de 1-2.
+  const examples = examplesRaw.length >= 3 ? examplesRaw : [];
 
   let block = `**Slot ${slot.key}** (${slot.label})
 - Objetivo: ${goal}`;
@@ -50,14 +55,14 @@ export function renderSlotForPrompt(slot: SlotV2): string | null {
 - A pergunta DEVE coletar EXATAMENTE: ${items}. Formule natural seguindo voice config.`;
     if (examples.length > 0) {
       block += `
-- Referência de tom (não copiar literal): ${examples.map((q) => `"${q}"`).join(" | ")}`;
+- Variações de tom (abstraia o padrão — NÃO copie literal NENHUMA delas; o LLM que copia exemplo perde naturalidade): ${examples.map((q) => `"${q}"`).join(" | ")}`;
     }
   } else if (examples.length > 0) {
     block += `
-- Referência de tom (não copiar literal): ${examples.map((q) => `"${q}"`).join(" | ")}`;
+- Variações de tom (abstraia o padrão — NÃO copie literal NENHUMA delas; o LLM que copia exemplo perde naturalidade): ${examples.map((q) => `"${q}"`).join(" | ")}`;
   } else {
     block += `
-- Formule a pergunta natural seguindo voice config e contexto da conversa.`;
+- Formule a pergunta natural seguindo voice config e contexto da conversa. NÃO use clichês ("Que delícia", "que máximo"). Pergunta direta, sem rationale.`;
   }
 
   if (slot.crm_field_key) {

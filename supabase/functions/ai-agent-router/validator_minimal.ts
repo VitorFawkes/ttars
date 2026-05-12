@@ -9,6 +9,8 @@
 export interface ValidatorInput {
   response: string;
   turn_count: number; // 1 = primeira mensagem
+  /** Histórico compacto pra detectar repetição entre turns (anti-repeat). */
+  historico_compacto?: string;
 }
 
 export interface RedLineHit {
@@ -76,6 +78,56 @@ const RULES: Array<{
     test: ({ response }) => {
       const m = response.match(/(sua\s+pergunta:?\s*[\wÀ-ÿ]|você\s+(quer|está)\s+(saber|perguntando)\s+se)/i);
       return m?.[0] ?? null;
+    },
+  },
+  {
+    id: "never_repeat_signature",
+    instruction: "Reformule SEM repetir as palavras 'Que delícia', 'que máximo', 'amei', 'que demais', 'combina demais', 'já dá vontade', 'super [adjetivo]'. Use reconhecimento sóbrio (Entendi, Bacana, Faz sentido) ou pule direto pra pergunta.",
+    test: ({ response }) => {
+      const m = response.match(/\b(que\s+del[ií]cia|que\s+m[áa]ximo|que\s+demais|que\s+lindo|combina\s+demais|já\s+dá\s+vontade)\b/i);
+      return m?.[0] ?? null;
+    },
+  },
+  {
+    id: "never_meta_rationale",
+    instruction: "Reformule SEM explicar ao lead o porquê interno da pergunta. NÃO diga 'porque envolve viagem', 'a taxa de presença costuma ser menor', 'sinal de poder aquisitivo'. Faça a pergunta direta — o lead não precisa do rationale.",
+    test: ({ response }) => {
+      const m = response.match(/(taxa\s+de\s+presença|porque\s+envolve\s+(viagem|logística|hospedagem)|sinal\s+de\s+poder\s+aquisitivo|costuma\s+ser\s+menor\s+(do\s+que|que)\s+(casamento|em)|por(que|\s+conta\s+do)\s+(perfil|investimento|alcance))/i);
+      return m?.[0] ?? null;
+    },
+  },
+  {
+    id: "max_questions_per_turn",
+    instruction: "Reformule reduzindo pra UMA pergunta (ou no máximo 2 se forem complementares sobre o MESMO tema, ex: 'mês? e ano?'). Você empilhou 3+ perguntas de temas diferentes — quebra a conversa.",
+    test: ({ response }) => {
+      // Conta quantos sinais de interrogação aparecem.
+      const qmarks = (response.match(/\?/g) ?? []).length;
+      if (qmarks < 3) return null;
+      // 3+ pontos de interrogação é forte indicador de pergunta empilhada.
+      return `${qmarks} perguntas detectadas`;
+    },
+  },
+  {
+    id: "never_repeat_recent_words",
+    instruction: "Reformule SEM repetir palavras/expressões que VOCÊ já usou nos últimos 2 turnos (vê em <word_memory> do prompt). Use sinônimos ou abordagem diferente.",
+    test: ({ response, historico_compacto }) => {
+      if (!historico_compacto) return null;
+      const lines = historico_compacto.split("\n");
+      const agentLines = lines.filter((l) => /^\[(estela|agente|assistant|ag)\]/i.test(l)).slice(-2);
+      if (agentLines.length === 0) return null;
+      const recentText = agentLines.join(" ").toLowerCase();
+      const SIGNATURES = [
+        "que delícia", "que delicia", "que máximo", "que maximo",
+        "combina demais", "que demais", "que lindo", "já dá vontade",
+        "amei", "super",
+      ];
+      const responseLower = response.toLowerCase();
+      for (const sig of SIGNATURES) {
+        if (recentText.includes(sig) && responseLower.includes(sig)) {
+          return sig;
+        }
+      }
+      return null;
     },
   },
 ];

@@ -614,8 +614,8 @@ function SlotV2Section({
       return
     }
     const current = slot.example_questions ?? []
-    if (current.length >= 3) {
-      alert('Máximo 3 exemplos por slot.')
+    if (current.length >= 5) {
+      alert('Máximo 5 exemplos por slot. Já é mais que suficiente pra LLM abstrair padrão.')
       return
     }
     onChange({ example_questions: [...current, q] })
@@ -625,6 +625,14 @@ function SlotV2Section({
   const removeExample = (i: number) => {
     onChange({ example_questions: (slot.example_questions ?? []).filter((_, j) => j !== i) })
   }
+
+  // Fase Alpha-2 (12/05/2026): exemplos com 1 ou 2 itens colapsam em template
+  // literal (variância zero/baixa = LLM copia). Backend ignora 1-2 itens
+  // defensivamente (trata como zero). UI avisa o admin.
+  const examplesCount = (slot.example_questions ?? []).length
+  const examplesWarning = examplesCount === 1 || examplesCount === 2
+    ? `⚠ Com ${examplesCount} exemplo${examplesCount > 1 ? 's' : ''} a Estela COPIA literal (variância baixa). Pra servir como referência de tom precisa de 3+ exemplos diversos OU zero (improvisa). Backend ignora ${examplesCount} itens defensivamente.`
+    : null
 
   const slotV2: SlotV2 = {
     key: slot.key,
@@ -740,11 +748,17 @@ function SlotV2Section({
 
           <div>
             <label className="block text-[11px] font-medium text-slate-700 mb-1">
-              Exemplos de pergunta <span className="text-slate-400 font-normal">(opcional, máx 3)</span>
+              Exemplos de pergunta <span className="text-slate-400 font-normal">(opcional — deixe vazio OU 3+ diversos)</span>
             </label>
             <p className="text-[10px] text-slate-500 mb-1.5">
-              1 a 3 exemplos de TOM. A Estela NÃO copia literal — usa como referência de voz.
+              <strong>Vazio</strong> = a Estela improvisa baseada no objetivo + tom da agente (recomendado pra maioria dos slots).{' '}
+              <strong>3 a 5 exemplos diversos</strong> = a Estela abstrai o padrão. Com 1 ou 2 exemplos a Estela COPIA literal — variância baixa demais.
             </p>
+            {examplesWarning && (
+              <div className="mb-2 px-2.5 py-1.5 rounded-md bg-amber-50 border border-amber-300 text-[11px] text-amber-900 leading-relaxed">
+                {examplesWarning}
+              </div>
+            )}
             {(slot.example_questions ?? []).map((q, i) => (
               <div key={i} className="flex items-start gap-2 mb-1.5">
                 <input
@@ -769,7 +783,7 @@ function SlotV2Section({
                 </button>
               </div>
             ))}
-            {(slot.example_questions ?? []).length < 3 && (
+            {(slot.example_questions ?? []).length < 5 && (
               <div className="flex gap-2">
                 <input
                   value={newExample}
@@ -780,7 +794,7 @@ function SlotV2Section({
                       addExample()
                     }
                   }}
-                  placeholder={`Ex: E sobre a data, vocês já têm em mente? (${(slot.example_questions ?? []).length}/3)`}
+                  placeholder={`Ex: E sobre a data, vocês já têm em mente? (${(slot.example_questions ?? []).length}/5)`}
                   maxLength={200}
                   className="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-xs"
                 />

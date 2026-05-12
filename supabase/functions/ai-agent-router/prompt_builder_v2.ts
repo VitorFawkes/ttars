@@ -1356,6 +1356,38 @@ function renderTurnBlock(input: BuildPromptV2Input): string {
     for (const [k, v] of formDataEntries) knownLines.push(`  - ${k}: ${v}`);
   }
 
+  // Fase Alpha-3 (12/05/2026): bloco <collected_slots> que mapeia slots da
+  // sondagem que JÁ têm valor em form_data. Sem isso, LLM tenta re-perguntar
+  // ou empilhar tudo num turn só. Aqui mostramos explicitamente "esses já
+  // estão prontos — foca no que falta".
+  const slotsOfMoment = (cur.discovery_config?.slots ?? []) as Array<{
+    key: string;
+    label: string;
+    crm_field_key?: string | null;
+    priority?: string;
+  }>;
+  const collectedFromSlots: Array<{ key: string; label: string; value: string }> = [];
+  const pendingSlots: typeof slotsOfMoment = [];
+  for (const s of slotsOfMoment) {
+    if (!s.crm_field_key) {
+      pendingSlots.push(s);
+      continue;
+    }
+    const v = (ctx.form_data as Record<string, unknown>)[s.crm_field_key];
+    if (v !== null && v !== undefined && String(v).trim() !== '') {
+      collectedFromSlots.push({ key: s.key, label: s.label, value: String(v) });
+    } else {
+      pendingSlots.push(s);
+    }
+  }
+  if (collectedFromSlots.length > 0) {
+    knownLines.push('');
+    knownLines.push('Slots já coletados nesta conversa (NÃO pergunte de novo):');
+    for (const c of collectedFromSlots) {
+      knownLines.push(`  ✓ ${c.label} = ${c.value}`);
+    }
+  }
+
   const qualSignalEntries = Object.entries(ctx.qualificationSignals ?? {}).filter(([k, v]) => v && String(v).trim() && !ctx.form_data[k]);
   if (qualSignalEntries.length > 0) {
     knownLines.push('');
@@ -1443,12 +1475,91 @@ function renderTurnBlock(input: BuildPromptV2Input): string {
     parts.push('</must_include>');
   }
 
+  // Fase Beta-4 (12/05/2026): anti-repetição entre turns. Extrai palavras
+  // "marcantes" das últimas 2 respostas do agente no histórico e instrui
+  // explicitamente a não repetir. Sem isso, LLM volta a usar "Que delícia"
+  // 3 turns seguidos porque cada turn é gerado sem memória de léxico.
+  const recentAgentWords = extractRecentAgentSignatureWords(ctx.historico_compacto);
+  if (recentAgentWords.length > 0) {
+    parts.push('');
+    parts.push('<word_memory>');
+    parts.push('Palavras/expressões marcantes que VOCÊ usou nos últimos 2 turnos:');
+    for (const w of recentAgentWords) parts.push(`  - "${w}"`);
+    parts.push('Próxima resposta NÃO pode repetir essas mesmas palavras/expressões. Se quiser cobrir tema parecido, use sinônimo ou abordagem diferente. Validador determinístico vai detectar e regenerar se repetir.');
+    parts.push('</word_memory>');
+  }
+
+  // Fase Beta-5 (12/05/2026): foco em 1 slot por turn. Lista o slot atual
+  // em <slot_focus> e os pendentes em <next_slots> só pra contexto — LLM
+  // NÃO deve perguntar todos no mesmo turn. Sem isso, vê 6 slots disponíveis
+  // e tenta cobrir 3 no mesmo turn (empilhamento de perguntas).
+  if (input.current_slot && input.current_slot.goal) {
+    parts.push('');
+    parts.push('<slot_focus>');
+    parts.push(`Slot prioritário neste turn: ${input.current_slot.label} (${input.current_slot.key})`);
+    parts.push(`Objetivo: ${input.current_slot.goal}`);
+    if (input.current_slot.must_include && input.current_slot.must_include.length > 0) {
+      parts.push(`Sua pergunta DEVE coletar: ${input.current_slot.must_include.join(', ')}`);
+    }
+    parts.push('Faça UMA pergunta natural sobre ESSE objetivo. Não empilhe perguntas sobre outros slots no mesmo turn — eles vêm nos próximos.');
+    parts.push('</slot_focus>');
+
+    const otherPending = pendingSlots.filter(s => s.key !== input.current_slot!.key);
+    if (otherPending.length > 0) {
+      parts.push('');
+      parts.push('<next_slots>');
+      parts.push('Pra próximos turns (NÃO pergunte agora):');
+      for (const s of otherPending) parts.push(`  - ${s.label}`);
+      parts.push('</next_slots>');
+    }
+  }
+
   parts.push('');
   parts.push('<last_message from="lead">');
   parts.push(input.userMessage);
   parts.push('</last_message>');
+
+  // Fase Beta-5b (12/05/2026): formato de saída dirigido. Limita cognitive load
+  // do output e força brevidade — sem isso o LLM tende a fazer monólogo de 200+
+  // palavras com 3 perguntas empilhadas.
+  parts.push('');
+  parts.push('<output_format>');
+  parts.push('- Máximo 2 frases curtas + 1 pergunta (regra geral).');
+  parts.push('- Máximo 100 palavras no total.');
+  parts.push('- UMA pergunta por turno. Exceção: 2 perguntas se forem complementares sobre o MESMO tema (ex: "mês? e ano?"). Nunca 2 temas diferentes.');
+  parts.push('- Sem "Que delícia", "que máximo", "amei", "que demais" — soa forçado. Se quer reconhecer, use reconhecimento sóbrio ("Entendi", "Faz sentido", "Bacana") ou pule direto pra pergunta.');
+  parts.push('- NUNCA explique o "porquê interno" de uma pergunta ("a taxa de presença é menor porque..."). Pergunta direta. O lead não precisa do rationale.');
+  parts.push('</output_format>');
+
   parts.push('</turn>');
   return parts.join('\n');
+}
+
+/**
+ * Extrai expressões "marcantes" das últimas 2 respostas do agente no histórico
+ * compacto pra anti-repetição. Filtra stopwords e expressões muito comuns
+ * (artigos, pronomes, etc) e retorna até 10 expressões/colocações de 1-3 palavras.
+ */
+function extractRecentAgentSignatureWords(historicoCompacto: string): string[] {
+  if (!historicoCompacto) return [];
+  // Pega últimas 2 linhas que começam com [estela]/[agente]/[assistant]
+  const lines = historicoCompacto.split('\n');
+  const agentLines = lines.filter(l => /^\[(estela|agente|assistant|ag)\]/i.test(l)).slice(-2);
+  if (agentLines.length === 0) return [];
+  const text = agentLines.join(' ').toLowerCase();
+
+  // Anti-padrões conhecidos primeiro (mais peso)
+  const SIGNATURE_PHRASES = [
+    'que delícia', 'que delicia', 'que máximo', 'que maximo', 'amei', 'que demais',
+    'que lindo', 'super', 'já dá vontade', 'combina demais', 'vibe',
+    'sobre a taxa de presença', 'porque envolve', 'sinal de poder',
+    'taxa de presença', 'tempo para planejar', 'desse período',
+  ];
+  const found = new Set<string>();
+  for (const phrase of SIGNATURE_PHRASES) {
+    if (text.includes(phrase)) found.add(phrase);
+  }
+  return Array.from(found).slice(0, 10);
 }
 
 function renderClosingInstructions(input: BuildPromptV2Input): string {

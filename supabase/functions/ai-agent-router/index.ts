@@ -4342,6 +4342,7 @@ serve(async (req) => {
         firstAttemptVerdict = runValidatorMinimal({
           response: personaResponse,
           turn_count: ctx.turn_count,
+          historico_compacto: ctx.historico_compacto,
         });
 
         if (firstAttemptVerdict.decision === "PUBLICAR") {
@@ -4367,6 +4368,7 @@ serve(async (req) => {
           retryAttemptVerdict = runValidatorMinimal({
             response: retryPersonaResponse,
             turn_count: ctx.turn_count,
+            historico_compacto: ctx.historico_compacto,
           });
 
           if (retryAttemptVerdict.decision === "PUBLICAR") {
