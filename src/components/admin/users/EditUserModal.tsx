@@ -18,8 +18,16 @@ import { useRoles } from '../../../hooks/useRoles';
 import { useTeamOptions } from '../../../hooks/useTeams';
 import { useUsers } from '../../../hooks/useUsers';
 import { useProducts } from '../../../hooks/useProducts';
+import { useAuth } from '../../../contexts/AuthContext';
 import type { Database } from '../../../database.types';
 import { cn } from '../../../lib/utils';
+
+type WorkspaceRow = {
+    org_id: string;
+    org_name: string;
+    is_account: boolean;
+    is_member: boolean;
+};
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 
@@ -34,6 +42,8 @@ interface EditUserModalProps {
 export function EditUserModal({ user, isOpen, onClose, onSuccess }: EditUserModalProps) {
     const { toast } = useToast();
     const queryClient = useQueryClient();
+    const { profile: currentProfile } = useAuth();
+    const isPlatformAdmin = currentProfile?.is_platform_admin === true;
     const [isLoading, setIsLoading] = useState(false);
 
     // Fetch roles, teams and products from database
@@ -51,6 +61,16 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess }: EditUserModa
         produtos: [] as string[]
     });
 
+    // Workspaces visíveis para este admin (gerenciado só por platform admin)
+    const [workspaces, setWorkspaces] = useState<WorkspaceRow[]>([]);
+    const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<Set<string>>(new Set());
+    const [initialWorkspaceIds, setInitialWorkspaceIds] = useState<Set<string>>(new Set());
+    const [workspacesLoading, setWorkspacesLoading] = useState(false);
+
+    const selectedRole = roles.find(r => r.id === formData.role_id);
+    const isAdminRole = selectedRole?.name === 'admin';
+    const showWorkspaceSection = isPlatformAdmin && isAdminRole && !!user;
+
     // Load user data when modal opens
     useEffect(() => {
         if (user) {
@@ -63,6 +83,47 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess }: EditUserModa
             });
         }
     }, [user]);
+
+    // Buscar workspaces da account quando platform admin abre modal de admin
+    useEffect(() => {
+        if (!showWorkspaceSection || !user) {
+            setWorkspaces([]);
+            setSelectedWorkspaceIds(new Set());
+            setInitialWorkspaceIds(new Set());
+            return;
+        }
+        let cancelled = false;
+        setWorkspacesLoading(true);
+        type RpcFn = (fn: string, args: { p_user_id: string }) =>
+            Promise<{ data: WorkspaceRow[] | null; error: { message: string } | null }>;
+        (supabase.rpc as unknown as RpcFn)('platform_get_admin_workspaces', { p_user_id: user.id })
+            .then(({ data, error }) => {
+                if (cancelled) return;
+                if (error) {
+                    toast({ title: 'Erro ao carregar workspaces', description: error.message, type: 'error' });
+                    return;
+                }
+                const rows = data ?? [];
+                setWorkspaces(rows);
+                const memberIds = new Set(rows.filter(r => r.is_member).map(r => r.org_id));
+                setSelectedWorkspaceIds(memberIds);
+                setInitialWorkspaceIds(new Set(memberIds));
+            })
+            .finally(() => { if (!cancelled) setWorkspacesLoading(false); });
+        return () => { cancelled = true; };
+    }, [showWorkspaceSection, user, toast]);
+
+    const toggleWorkspace = (orgId: string) => {
+        setSelectedWorkspaceIds(prev => {
+            const next = new Set(prev);
+            if (next.has(orgId)) next.delete(orgId); else next.add(orgId);
+            return next;
+        });
+    };
+
+    const workspacesChanged =
+        selectedWorkspaceIds.size !== initialWorkspaceIds.size ||
+        Array.from(selectedWorkspaceIds).some(id => !initialWorkspaceIds.has(id));
 
     const toggleProduct = (value: string) => {
         setFormData(prev => ({
@@ -127,16 +188,30 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess }: EditUserModa
                 });
             }
 
-            const selectedRole = roles.find(r => r.id === formData.role_id);
-            const isAdmin = selectedRole?.name === 'admin';
-
             await updateMutation.mutateAsync({
                 nome: formData.nome,
                 role_id: formData.role_id || null,
                 team_id: formData.team_id === 'none' ? null : formData.team_id,
                 produtos: formData.produtos.length > 0 ? (formData.produtos as AppProduct[]) : null,
-                is_admin: isAdmin
+                is_admin: isAdminRole
             });
+
+            // Sync de workspaces (só platform admin + role=admin + mudou)
+            if (showWorkspaceSection && workspacesChanged) {
+                type SetWorkspacesRpc = (fn: string, args: { p_user_id: string; p_workspace_ids: string[] }) =>
+                    Promise<{ data: unknown; error: { message: string } | null }>;
+                const { error: wsError } = await (supabase.rpc as unknown as SetWorkspacesRpc)(
+                    'platform_set_admin_workspaces',
+                    { p_user_id: user.id, p_workspace_ids: Array.from(selectedWorkspaceIds) }
+                );
+                if (wsError) {
+                    toast({
+                        title: 'Atualizado, mas falhou ao salvar workspaces',
+                        description: wsError.message,
+                        type: 'error'
+                    });
+                }
+            }
         } finally {
             setIsLoading(false);
         }
@@ -211,6 +286,39 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess }: EditUserModa
                                 Define o que o usuário pode fazer no sistema (permissões).
                             </p>
                         </div>
+
+                        {showWorkspaceSection && (
+                            <div className="space-y-2 pt-2">
+                                <Label>Workspaces que este admin enxerga</Label>
+                                {workspacesLoading ? (
+                                    <p className="text-xs text-muted-foreground">Carregando workspaces…</p>
+                                ) : workspaces.length === 0 ? (
+                                    <p className="text-xs text-muted-foreground">Nenhum workspace disponível.</p>
+                                ) : (
+                                    <div className="space-y-1.5 rounded-lg border border-slate-200 p-3 bg-slate-50">
+                                        {workspaces.map(w => (
+                                            <label key={w.org_id} className="flex items-center gap-2.5 cursor-pointer py-1">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedWorkspaceIds.has(w.org_id)}
+                                                    onChange={() => toggleWorkspace(w.org_id)}
+                                                    className="rounded border-slate-300 text-indigo-600 w-4 h-4 flex-shrink-0"
+                                                />
+                                                <span className="text-sm text-foreground">
+                                                    {w.org_name}
+                                                    {w.is_account && (
+                                                        <span className="ml-2 text-xs text-slate-500">(empresa)</span>
+                                                    )}
+                                                </span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
+                                <p className="text-xs text-muted-foreground">
+                                    Só platform admin vê esta seção. Marque os workspaces que este admin deve poder alternar no menu superior.
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     {/* Divider */}
