@@ -114,7 +114,7 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
   const listeningBlock = renderListening(listening);
 
   // -------- Playbook (TODOS os momentos) ----------------------------------
-  const playbookBlock = renderPlaybook(moments);
+  const playbookBlock = renderPlaybook(moments, conversationState);
 
   // -------- Silent signals ------------------------------------------------
   const silentSignalsBlock = renderSilentSignals(silentSignals);
@@ -320,7 +320,17 @@ ${parts.join("\n")}
 </listening>`;
 }
 
-function renderPlaybook(moments: PlaybookMoment[]): string {
+function renderPlaybook(
+  moments: PlaybookMoment[],
+  state?: BuildSinglePromptInput["conversationState"],
+): string {
+  // Quando o moment ativo é wait_for_reply sequenciado, mascara os blocos
+  // futuros do moment atual no playbook geral. O LLM continua sabendo que
+  // existem N blocos, mas só vê o conteúdo do bloco ativo aqui (também
+  // detalhado no <turn_policy>). Sem isso, o modo literal copia todos os
+  // blocos de uma vez. Outros moments seguem renderizados por completo.
+  const activeKey = state?.last_moment_key ?? null;
+  const activeStep = state?.moment_step ?? 0;
   if (moments.length === 0) {
     return `<playbook>
 (Nenhum momento configurado. Aja com base na identity, voice, boundaries.)
@@ -361,13 +371,21 @@ function renderPlaybook(moments: PlaybookMoment[]): string {
     lines.push(`- **Modo:** ${modeHint[m.message_mode] || m.message_mode}`);
     const parts = resolveMomentParts(m);
     const isSequencedWait = m.delivery_mode === "wait_for_reply" && parts.length > 1;
+    const isActiveMoment = activeKey === m.moment_key;
     if (isSequencedWait) {
       lines.push(`- **Sequência de blocos** (${parts.length} blocos, um por rodada de envio — espera resposta do lead entre cada):`);
       parts.forEach((p, i) => {
-        lines.push(`  - **Bloco ${i + 1} de ${parts.length}:**`);
-        lines.push("    ```");
-        p.split("\n").forEach((line) => lines.push(`    ${line}`));
-        lines.push("    ```");
+        // Quando é o moment ATIVO, mascara blocos diferentes do ativo pra
+        // evitar que o LLM copie conteúdo futuro de uma vez. O bloco ativo
+        // continua visível aqui E também no <turn_policy>.
+        if (isActiveMoment && i !== activeStep) {
+          lines.push(`  - **Bloco ${i + 1} de ${parts.length}:** (texto mascarado — virá em turno futuro quando o router avançar pra este bloco)`);
+        } else {
+          lines.push(`  - **Bloco ${i + 1} de ${parts.length}:**${isActiveMoment && i === activeStep ? " ← VOCÊ ESTÁ AQUI NESTE TURNO" : ""}`);
+          lines.push("    ```");
+          p.split("\n").forEach((line) => lines.push(`    ${line}`));
+          lines.push("    ```");
+        }
       });
     } else if (m.anchor_text) {
       lines.push(`- **Anchor text:**`);
@@ -601,25 +619,45 @@ Esse moment NÃO tem blocos sequenciais. Você pode mudar de moment livremente s
   const inRange = step >= 0 && step < parts.length;
   const activeIdx = inRange ? step : 0;
   const isLast = activeIdx === parts.length - 1;
+  const isLiteral = moment.message_mode === "literal";
+  const isFaithful = moment.message_mode === "faithful";
 
   return `<turn_policy>
-🎯 ESTRATÉGIA DESTE TURNO
+🎯 ESTRATÉGIA DESTE TURNO — REGRAS DURAS, NÃO OPCIONAIS
 
 Você está no moment \`${moment.moment_key}\` (${moment.moment_label}), **Bloco ${activeIdx + 1} de ${parts.length}**.
 
-Texto-base do bloco ativo (use como guia conforme o modo do moment — literal/faithful/free):
-\`\`\`
+═══ TEXTO-BASE DO BLOCO ATIVO ═══
 ${parts[activeIdx]}
-\`\`\`
+═══ FIM DO TEXTO-BASE ═══
 
-REGRAS DESTE TURNO:
-- Suas mensagens devem cobrir APENAS o conteúdo do Bloco ${activeIdx + 1}. NÃO antecipe o conteúdo dos próximos blocos.
-- Adapte o texto reagindo à última mensagem do lead, mas mantenha o conteúdo essencial desse bloco.
-- Marque \`current_moment_key\` = "${moment.moment_key}" para o router saber que você continuou no mesmo moment.
+⛔ REGRA #1 — UM BLOCO POR TURNO (INVIOLÁVEL):
+- O array \`messages\` DEVE conter **exatamente 1 elemento** neste turno.
+- Esse 1 elemento cobre **APENAS o Bloco ${activeIdx + 1}**. Não pode conter conteúdo dos Blocos ${activeIdx + 2 <= parts.length ? activeIdx + 2 : "—"}${parts.length > activeIdx + 2 ? `, ${activeIdx + 3}` : ""}${parts.length > activeIdx + 3 ? ", …" : ""}.
+- Se você sentir vontade de "completar a apresentação" ou "avançar a conversa", PARE. O router vai chamar você de novo no próximo turno e enviar o Bloco ${activeIdx + 2 <= parts.length ? activeIdx + 2 : "(próximo do flow)"} naturalmente.
+
+⛔ REGRA #2 — REAGIR AO LEAD SEM ANTECIPAR:
+- Pode adicionar uma frase curta de reação à última mensagem do lead (ex: "Tudo bem também, Vitor.") **DENTRO da mesma mensagem** que cobre o Bloco ${activeIdx + 1}.
+- NÃO crie um array \`messages\` com 2 elementos (um pra reação + outro pro bloco). Funde tudo numa mensagem só.
+
+⛔ REGRA #3 — NÃO TRUNCAR O BLOCO:
+${isLiteral
+  ? `- Modo LITERAL: copie o texto-base **palavra por palavra**. Se o bloco contém múltiplas perguntas (ex: "X? E Y?"), envie TODAS — nunca corte a segunda. Admin curou cada caractere.`
+  : isFaithful
+  ? `- Modo FAITHFUL: até 10% das palavras podem trocar pra fluir, mas estrutura, ordem e número de perguntas ficam idênticos ao texto-base.`
+  : `- Modo FREE: capture a essência. Se o texto-base tem múltiplas perguntas, mantenha todas mesmo adaptando.`}
+${moment.literal_phrases && moment.literal_phrases.length > 0
+  ? `- Atenção: as literal_phrases do moment (frases obrigatórias) DEVEM aparecer integralmente. Não omita nenhuma.`
+  : ""}
+
+✅ APÓS O TURNO:
+- Marque \`current_moment_key\` = "${moment.moment_key}".
 ${isLast
-  ? "- Este é o ÚLTIMO bloco da sequência. Depois que o lead responder, o próximo turno será de outro moment (escolhido pelo flow)."
-  : `- Depois que o lead responder, o router avança automaticamente para o Bloco ${activeIdx + 2}.`}
-- Se o estado da conversa pedir MUDANÇA DE MOMENT (lead pulou de assunto, objeção, etc), você PODE mudar — marque outro \`current_moment_key\` e o router reseta a contagem.
+  ? `- Este é o ÚLTIMO bloco. Próximo turno será de outro moment do flow.`
+  : `- Router avança automaticamente para o Bloco ${activeIdx + 2} no próximo turno.`}
+
+🔀 EXCEÇÃO (mudança de moment):
+- Se o lead trouxe objeção, pergunta nova, ou mudou de assunto totalmente, você PODE escolher outro \`current_moment_key\` (ex: \`objecao_preco\`). Aí o router reseta a contagem. Mas SE você continuar em \`${moment.moment_key}\`, então as Regras #1, #2 e #3 acima são obrigatórias.
 </turn_policy>`;
 }
 

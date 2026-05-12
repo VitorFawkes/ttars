@@ -555,8 +555,29 @@ Deno.serve(async (req) => {
 
     // ------------------------------------------------------------------
     // 13. Brand Validator
+    //
+    // Passamos o moment ativo + mode pra o validador entender que em modo
+    // literal/faithful o admin curou o texto — não deve sugerir rewrites
+    // que bagunçam o playbook (ex: cortar a 2ª pergunta complementar).
     // ------------------------------------------------------------------
     const validatorRules = (agent.validator_rules || []) as ValidatorRule[];
+
+    let activeMomentMode: "literal" | "faithful" | "free" | null = null;
+    let activeMomentLabel: string | null = null;
+    const activeMomentKey = singleAgentResult.output.current_moment_key || effectiveMomentKey;
+    if (activeMomentKey) {
+      const { data: momentRow } = await supabase
+        .from("ai_agent_moments")
+        .select("message_mode, moment_label")
+        .eq("agent_id", agent.id)
+        .eq("moment_key", activeMomentKey)
+        .maybeSingle();
+      if (momentRow) {
+        activeMomentMode = (momentRow.message_mode as "literal" | "faithful" | "free") ?? null;
+        activeMomentLabel = (momentRow.moment_label as string) ?? null;
+      }
+    }
+
     const verdict = await validateBrandCompliance(
       {
         messages: singleAgentResult.output.messages,
@@ -564,6 +585,9 @@ Deno.serve(async (req) => {
         agent_name: agent.nome,
         is_first_contact: turns.length <= 1,
         last_lead_message: processedText,
+        active_moment_key: activeMomentKey,
+        active_moment_mode: activeMomentMode,
+        active_moment_label: activeMomentLabel,
       },
       OPENAI_API_KEY,
     );
@@ -582,6 +606,30 @@ Deno.serve(async (req) => {
       finalMessages = verdict.corrected_messages.map((m) => m.content);
     } else {
       finalMessages = singleAgentResult.output.messages.map((m) => m.content);
+    }
+
+    // Enforcement: quando o moment ativo é wait_for_reply sequenciado, o
+    // contrato é "1 mensagem por turno". Se o LLM ignorou turn_policy e
+    // gerou múltiplas, MERGE elas em 1 (mantém só a primeira e descarta o
+    // resto, que pertence aos próximos blocos do playbook — vão sair
+    // naturalmente nos próximos turnos).
+    if (!blocked && effectiveMomentKey && finalMessages.length > 1) {
+      const { data: activeMomentRow } = await supabase
+        .from("ai_agent_moments")
+        .select("delivery_mode, anchor_text, anchor_text_parts")
+        .eq("agent_id", agent.id)
+        .eq("moment_key", effectiveMomentKey)
+        .maybeSingle();
+      if (activeMomentRow && activeMomentRow.delivery_mode === "wait_for_reply") {
+        const parts = (activeMomentRow.anchor_text_parts as string[] | null);
+        const partsCount = parts && parts.length > 0
+          ? parts.length
+          : (activeMomentRow.anchor_text ? (activeMomentRow.anchor_text as string).split(/\n[ \t]*[-*_]{3,}[ \t]*\n/).filter((p) => p.trim()).length : 1);
+        if (partsCount > 1) {
+          console.log(`[v2] enforcement: moment ${effectiveMomentKey} é sequenciado (${partsCount} blocos), LLM gerou ${finalMessages.length} messages — truncando pra 1`);
+          finalMessages = [finalMessages[0]];
+        }
+      }
     }
 
     // ------------------------------------------------------------------

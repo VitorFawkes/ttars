@@ -36,6 +36,15 @@ export interface BrandValidatorInput {
    */
   is_first_contact?: boolean;
   last_lead_message?: string;
+  /**
+   * Moment ativo + mode pra orientar o validador. Em modo `literal`, o admin
+   * curou o texto-base palavra-por-palavra — combinações que parecem violar
+   * regras (ex: 2 perguntas juntas) foram VALIDADAS pelo admin. Validator
+   * pode apenas BLOCK (regras hard) mas NÃO reescrever.
+   */
+  active_moment_key?: string | null;
+  active_moment_mode?: "literal" | "faithful" | "free" | null;
+  active_moment_label?: string | null;
 }
 
 const VALIDATOR_MODEL = "gpt-5.1";
@@ -92,6 +101,14 @@ ${rulesBlock}
 
 - Primeira mensagem da conversa? ${input.is_first_contact ? "SIM" : "NÃO"}
 - Última mensagem do lead: ${input.last_lead_message ? `"${input.last_lead_message}"` : "(não disponível)"}
+- Moment ativo: ${input.active_moment_key ? `\`${input.active_moment_key}\`${input.active_moment_label ? ` (${input.active_moment_label})` : ""}` : "(não informado)"}
+- Modo de geração deste turno: ${input.active_moment_mode || "(não informado)"}
+
+${input.active_moment_mode === "literal"
+  ? `⚠️ MODO LITERAL: o admin curou palavra-por-palavra o texto-base deste momento. Estruturas que parecem violar regras (ex: duas perguntas na mesma mensagem, frases longas) foram **validadas pelo admin** ao escolher modo literal. NÃO use ação "rewrite" neste turno — só use "block" se a mensagem viola uma red line absoluta (ex: inventou preço, mencionou que é IA). Para violações de "correct", retorne action="pass" com a violation registrada em violations[] mas NÃO mexa no texto.`
+  : input.active_moment_mode === "faithful"
+  ? `📌 MODO FAITHFUL: o admin curou o texto-base com tolerância de 10% de palavras. Estruturas no texto-base (perguntas, ordem) foram validadas — não trate como violação. Use rewrite só pra ajustes pontuais que não bagunçam a estrutura curada.`
+  : ""}
 
 ## SEU JOB
 
@@ -177,6 +194,17 @@ Retorne JSON conforme schema. Se nenhuma condição é verdadeira, retorne \`vio
         `[brand_validator] action=rewrite mas corrected_messages vazio. Caindo pra pass.`,
       );
       verdict.action = "pass";
+    }
+
+    // Salvaguarda: em modo LITERAL, admin curou o texto. Validator não tem
+    // autoridade pra reescrever. Se LLM ignorou a instrução e tentou rewrite,
+    // forçamos pass mantendo as violations registradas pra auditoria.
+    if (verdict.action === "rewrite" && input.active_moment_mode === "literal") {
+      console.warn(
+        `[brand_validator] action=rewrite ignorado em modo literal (admin curou). Caindo pra pass.`,
+      );
+      verdict.action = "pass";
+      verdict.corrected_messages = [];
     }
 
     return verdict;
