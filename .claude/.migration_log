@@ -817,3 +817,9 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-12T14:06:12Z | /home/pandassauro/ttars/supabase/migrations/20260512_card_to_reuniao_agendada_on_meeting.sql | applied_to_prod
 2026-05-12T14:29:42Z | supabase/migrations/20260512m_card_created_self_heal_stage_filter.sql | applied_to_prod
 2026-05-12T15:37:36Z | supabase/migrations/20260512n_sync_telefone_meios_org_id_and_per_org_unique.sql | applied_to_prod
+2026-05-12T15:58:02Z | supabase/migrations/20260512o_ac_meeting_to_reuniao_and_move_card.sql | applied_to_prod
+2026-05-12T16:00:13Z | supabase/migrations/20260512p_ac_meeting_backfill_retry.sql | applied_to_prod
+2026-05-12T16:01:55Z | supabase/migrations/20260512q_debug_minimal.sql | applied_to_prod
+2026-05-12T16:03:01Z | supabase/migrations/20260512r_mappings_only.sql | applied_to_prod
+2026-05-12T16:04:06Z | supabase/migrations/20260512s_ac_meeting_complete_fix.sql | applied_to_prod
+2026-05-12T16:04:50Z | supabase/migrations/20260512s_ac_meeting_complete_fix.sql | applied_to_prod
