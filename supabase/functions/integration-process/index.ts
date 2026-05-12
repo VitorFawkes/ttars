@@ -792,6 +792,34 @@ Deno.serve(async (req) => {
                             .eq('external_source', 'active_campaign')
                             .maybeSingle();
 
+                        // Dedup pra reunioes: AC tem automacoes que criam 2 tasks
+                        // identicas (mesmo deal, mesmo titulo, mesma data, AC IDs
+                        // diferentes ~0.5s apart). Se nao for um update de tarefa
+                        // existente E ja tem uma tarefa identica recente pro mesmo
+                        // card no mesmo horario, pula a criacao.
+                        if (!existingTarefa
+                            && (crmTipo === 'reuniao' || crmTipo === 'reuniao_video' || crmTipo === 'reuniao_presencial' || crmTipo === 'reuniao_telefone')
+                            && acDueDate) {
+                            const { data: dupTarefa } = await supabase
+                                .from('tarefas')
+                                .select('id, external_id')
+                                .eq('card_id', taskCard.id)
+                                .eq('tipo', crmTipo)
+                                .eq('data_vencimento', new Date(acDueDate as string).toISOString())
+                                .eq('external_source', 'active_campaign')
+                                .is('deleted_at', null)
+                                .neq('external_id', String(acTaskId))
+                                .order('created_at', { ascending: true })
+                                .limit(1)
+                                .maybeSingle();
+                            if (dupTarefa) {
+                                console.log(`[ac-dedup] Skipping duplicate ${crmTipo} for card ${taskCard.id} at ${acDueDate}: kept ${dupTarefa.external_id}, dropped ${acTaskId}`);
+                                stats.ignored = (stats.ignored || 0) + 1;
+                                await updateEventStatus(event.id, 'ignored', `Duplicate ${crmTipo} for card at ${acDueDate}, kept AC ${dupTarefa.external_id}`);
+                                continue;
+                            }
+                        }
+
                         const tarefaPayload: Record<string, any> = {
                             card_id: taskCard.id,
                             titulo: acTitle,
