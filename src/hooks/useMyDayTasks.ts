@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { startOfDay, endOfDay, addDays, subDays, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { toast } from 'sonner'
+import { formatContactName } from '../lib/contactUtils'
 
 export interface MyDayTask {
     id: string
@@ -58,7 +59,7 @@ export function useMyDayTasks({ productFilter, responsavelIds }: UseMyDayTasksOp
                 .select(`
                     id, titulo, tipo, data_vencimento, concluida, status, card_id, responsavel_id,
                     card:cards!tarefas_card_id_fkey(id, titulo, produto, pessoa_principal_id,
-                        contato:contatos!cards_pessoa_principal_id_fkey(nome)
+                        contato:contatos!cards_pessoa_principal_id_fkey(nome, sobrenome)
                     )
                 `)
                 .eq('concluida', false)
@@ -110,7 +111,7 @@ export function useMyDayTasks({ productFilter, responsavelIds }: UseMyDayTasksOp
                 status: t.status,
                 card_id: t.card?.id || t.card_id,
                 card_titulo: t.card?.titulo || '',
-                contato_nome: t.card?.contato?.nome || null,
+                contato_nome: t.card?.contato ? (formatContactName(t.card.contato) || null) : null,
                 responsavel_id: t.responsavel_id,
                 responsavel_nome: t.responsavel_id ? (profileMap[t.responsavel_id] || null) : null,
             })) as MyDayTask[]

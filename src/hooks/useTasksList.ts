@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useProductContext } from './useProductContext'
 import { startOfDay, endOfDay, addDays, differenceInDays, startOfWeek, endOfWeek, startOfMonth, subDays } from 'date-fns'
 import type { TaskFilterState, TaskOrigemFilter, TaskPrazo } from './useTaskFilters'
+import { formatContactName } from '../lib/contactUtils'
 
 export interface TaskListItem {
     id: string
@@ -94,7 +95,7 @@ interface RawTaskRow {
             nome: string | null
             phase?: { slug: string | null } | null
         } | null
-        contato?: { id: string; nome: string; telefone: string | null; email: string | null } | null
+        contato?: { id: string; nome: string; sobrenome: string | null; telefone: string | null; email: string | null } | null
     } | null
 }
 
@@ -201,7 +202,7 @@ export function useTasksList({ filters, enabled = true }: UseTasksListOptions) {
                     card:cards!tarefas_card_id_fkey!inner(
                         id, titulo, produto, valor_estimado, valor_final, pipeline_stage_id, status_comercial,
                         stage:pipeline_stages(nome, phase:pipeline_phases!pipeline_stages_phase_id_fkey(slug)),
-                        contato:contatos!cards_pessoa_principal_id_fkey(id, nome, telefone, email)
+                        contato:contatos!cards_pessoa_principal_id_fkey(id, nome, sobrenome, telefone, email)
                     )
                 `)
                 .is('deleted_at', null)
@@ -375,7 +376,7 @@ export function useTasksList({ filters, enabled = true }: UseTasksListOptions) {
                     card_phase_slug: t.card?.stage?.phase?.slug || null,
                     card_status_comercial: t.card?.status_comercial || null,
                     contato_id: t.card?.contato?.id || null,
-                    contato_nome: t.card?.contato?.nome || null,
+                    contato_nome: t.card?.contato ? (formatContactName(t.card.contato) || null) : null,
                     contato_telefone: t.card?.contato?.telefone || null,
                     contato_email: t.card?.contato?.email || null,
                     responsavel_id: t.responsavel_id,

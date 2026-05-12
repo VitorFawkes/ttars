@@ -1,4 +1,5 @@
-import { Phone, Mail, MessageCircle, Users as UsersIcon, AlertTriangle, ListChecks, Tag as TagIcon, UserX } from 'lucide-react'
+import { useState } from 'react'
+import { Phone, Mail, MessageCircle, Users as UsersIcon, AlertTriangle, ListChecks, Tag as TagIcon, UserX, ChevronDown, ChevronUp } from 'lucide-react'
 import { useCardPeople, type CardPerson } from '../../hooks/useCardPeople'
 import { useCardObservacoes, flattenObservacoes } from '../../hooks/concierge/useCardObservacoes'
 import { useAtendimentosCard } from '../../hooks/concierge/useAtendimentosCard'
@@ -251,19 +252,39 @@ export function CardObservacoesStandalone({ cardId }: { cardId: string }) {
 }
 
 function ObservacoesBlock({ entries }: { entries: ObsEntry[] }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const Chevron = isExpanded ? ChevronUp : ChevronDown
+  const count = entries.length
+
   return (
     <div className="bg-amber-50 border border-amber-200 rounded-lg overflow-hidden">
-      <div className="px-3 py-1.5 border-b border-amber-200 flex items-center gap-1.5 text-[10.5px] uppercase tracking-wide font-semibold text-amber-800">
-        <AlertTriangle className="w-3 h-3" />
-        Observações importantes
-      </div>
-      <ul className="p-3 space-y-1.5">
-        {entries.map((e, i) => (
-          <li key={`${e.source}-${e.key}-${i}`} className="text-[12px] text-amber-900 leading-snug">
-            <span className="font-semibold">{e.label}:</span> <span className="text-slate-800">{e.value}</span>
-          </li>
-        ))}
-      </ul>
+      <button
+        type="button"
+        onClick={() => setIsExpanded(v => !v)}
+        className="w-full px-3 py-1.5 border-b border-amber-200 flex items-center justify-between gap-1.5 text-[10.5px] uppercase tracking-wide font-semibold text-amber-800 hover:bg-amber-100/60 transition-colors"
+        aria-expanded={isExpanded}
+      >
+        <span className="flex items-center gap-1.5">
+          <AlertTriangle className="w-3 h-3" />
+          Observações importantes
+          <span className="font-mono text-[10px] text-amber-700/70 normal-case tracking-normal">
+            ({count})
+          </span>
+        </span>
+        <span className="flex items-center gap-1 normal-case tracking-normal text-amber-700">
+          {isExpanded ? 'recolher' : 'ver mais'}
+          <Chevron className="w-3 h-3" />
+        </span>
+      </button>
+      {isExpanded && (
+        <ul className="p-3 space-y-1.5">
+          {entries.map((e, i) => (
+            <li key={`${e.source}-${e.key}-${i}`} className="text-[12px] text-amber-900 leading-snug">
+              <span className="font-semibold">{e.label}:</span> <span className="text-slate-800">{e.value}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
