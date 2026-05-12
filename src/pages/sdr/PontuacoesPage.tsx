@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { CheckCircle2, XCircle, Clock, Target, Loader2, Search, Link2, ChevronRight, Plus, Users } from 'lucide-react'
-import { useListarPontuacoes, useVincularACard, useDesvincularDeCard, useReabrirPontuacao, type DadosLead } from '../../hooks/useSdrQualification'
+import { CheckCircle2, XCircle, Clock, Target, Loader2, Search, Link2, ChevronRight, Plus, Users, Trash2, Pencil } from 'lucide-react'
+import { useListarPontuacoes, useVincularACard, useDesvincularDeCard, useVoltarParaRascunho, useDescartarPontuacao, type DadosLead } from '../../hooks/useSdrQualification'
 import { useMeusCardsSdr } from '../../hooks/useMeusLeadsSdr'
 import { Badge } from '../../components/ui/Badge'
 import { Input } from '../../components/ui/Input'
@@ -55,7 +55,8 @@ export default function PontuacoesPage() {
     const [vincularFor, setVincularFor] = useState<Pontuacao | null>(null)
     const [novaPontuacaoOpen, setNovaPontuacaoOpen] = useState(false)
     const desvincular = useDesvincularDeCard()
-    const reabrir = useReabrirPontuacao()
+    const voltarRascunho = useVoltarParaRascunho()
+    const descartar = useDescartarPontuacao()
 
     const handleDesvincular = async (p: Pontuacao) => {
         if (!window.confirm(`Desvincular esta pontuação do card "${p.card_titulo ?? ''}"?`)) return
@@ -72,14 +73,23 @@ export default function PontuacoesPage() {
             setSessao({ qualificationId: p.id })
             return
         }
-        // Pontuação finalizada → reabrir cria v2 em rascunho
-        if (!window.confirm('Esta pontuação já foi registrada. Editar vai criar uma nova versão pra preservar o histórico. Continuar?')) return
+        // Pontuação finalizada → volta para rascunho (sobrescreve a mesma)
         try {
-            const res = await reabrir.mutateAsync(p.id)
-            toast.success('Nova versão aberta para edição')
-            setSessao({ qualificationId: res.id })
+            await voltarRascunho.mutateAsync(p.id)
+            setSessao({ qualificationId: p.id })
         } catch (err) {
             toast.error('Erro ao reabrir: ' + (err as Error).message)
+        }
+    }
+
+    const handleExcluir = async (p: Pontuacao) => {
+        const nome = p.dados_lead?.nome_contato || p.dados_lead?.nome_casal || 'esta pontuação'
+        if (!window.confirm(`Excluir ${nome}? Ela vai para "Descartadas" e pode ser recuperada depois.`)) return
+        try {
+            await descartar.mutateAsync(p.id)
+            toast.success('Pontuação excluída')
+        } catch (err) {
+            toast.error('Erro: ' + (err as Error).message)
         }
     }
 
@@ -179,6 +189,7 @@ export default function PontuacoesPage() {
                         onContinuar={(p) => setSessao({ qualificationId: p.id })}
                         onVincular={(p) => setVincularFor(p)}
                         onDesvincular={handleDesvincular}
+                        onExcluir={handleExcluir}
                     />
 
                     {/* Cards no nome dela esperando primeira pontuação */}
@@ -229,13 +240,14 @@ export default function PontuacoesPage() {
                     {/* Finalizadas */}
                     <Secao
                         titulo="Finalizadas"
-                        descricao="Pontuações já registradas. Clique em Editar pra criar uma nova versão."
+                        descricao="Pontuações já registradas. Editar volta a pontuação pra rascunho — você sobrescreve."
                         items={finalizadas}
                         emptyMsg="Ainda não há pontuações finalizadas."
                         onContinuar={null}
                         onVincular={(p) => setVincularFor(p)}
                         onDesvincular={handleDesvincular}
                         onEditar={handleEditar}
+                        onExcluir={handleExcluir}
                     />
 
                     {/* Descartadas — colapsado por padrão se vazio */}
@@ -298,6 +310,7 @@ function Secao({
     onVincular,
     onDesvincular,
     onEditar,
+    onExcluir,
 }: {
     titulo: string
     descricao: string
@@ -308,6 +321,7 @@ function Secao({
     onVincular: ((p: Pontuacao) => void) | null
     onDesvincular?: ((p: Pontuacao) => void) | null
     onEditar?: ((p: Pontuacao) => void) | null
+    onExcluir?: ((p: Pontuacao) => void) | null
 }) {
     return (
         <section className={destaque ? '' : ''}>
@@ -327,7 +341,7 @@ function Secao({
                 {items.length === 0 ? (
                     <p className="p-6 text-sm text-slate-400 text-center">{emptyMsg}</p>
                 ) : (
-                    <Tabela items={items} onContinuar={onContinuar} onVincular={onVincular} onDesvincular={onDesvincular} onEditar={onEditar} />
+                    <Tabela items={items} onContinuar={onContinuar} onVincular={onVincular} onDesvincular={onDesvincular} onEditar={onEditar} onExcluir={onExcluir} />
                 )}
             </div>
         </section>
@@ -340,12 +354,14 @@ function Tabela({
     onVincular,
     onDesvincular,
     onEditar,
+    onExcluir,
 }: {
     items: Pontuacao[]
     onContinuar: ((p: Pontuacao) => void) | null
     onVincular: ((p: Pontuacao) => void) | null
     onDesvincular?: ((p: Pontuacao) => void) | null
     onEditar?: ((p: Pontuacao) => void) | null
+    onExcluir?: ((p: Pontuacao) => void) | null
 }) {
     return (
         <table className="w-full text-sm">
@@ -440,9 +456,18 @@ function Tabela({
                                         <button
                                             onClick={() => onEditar(p)}
                                             className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-slate-200 hover:border-indigo-300 hover:text-indigo-700 transition"
-                                            title="Editar (cria nova versão)"
+                                            title="Editar (volta pra rascunho, sobrescreve)"
                                         >
-                                            Editar
+                                            <Pencil className="w-3 h-3" /> Editar
+                                        </button>
+                                    )}
+                                    {p.status !== 'descartado' && onExcluir && (
+                                        <button
+                                            onClick={() => onExcluir(p)}
+                                            className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-slate-200 hover:border-rose-300 hover:text-rose-700 transition"
+                                            title="Excluir (vai para Descartadas)"
+                                        >
+                                            <Trash2 className="w-3 h-3" />
                                         </button>
                                     )}
                                     {isDraft && onContinuar && (

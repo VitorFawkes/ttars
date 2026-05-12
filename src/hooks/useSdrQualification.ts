@@ -181,6 +181,20 @@ export function useDesvincularDeCard() {
     })
 }
 
+export function useVoltarParaRascunho() {
+    const qc = useQueryClient()
+    return useMutation({
+        mutationFn: async (qualificationId: string) => {
+            const { data, error } = await supabase.rpc('sdr_voltar_para_rascunho' as never, ({
+                p_qualification_id: qualificationId,
+            }) as never)
+            if (error) throw error
+            return data as unknown as { id: string; status: string; changed: boolean }
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['sdr-qualifications'] }),
+    })
+}
+
 type ObterResult = {
     pontuacao: SdrQualification
     historico_versoes: Array<{
