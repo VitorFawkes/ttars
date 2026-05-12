@@ -684,10 +684,43 @@ Deno.serve(async (req) => {
                     // AC manda duas versoes: 'task[duedate]' (naive, sem timezone)
                     // e 'task[duedate_iso]' (ISO 8601 com offset -05:00, fuso do AC).
                     // Preferimos o ISO — tratar a versao naive como UTC perde 5h.
-                    const acDueDate = payload['task[duedate_iso]']
+                    let acDueDate: string | null = payload['task[duedate_iso]']
                         || payload['deal_task[duedate_iso]']
                         || payload['task[duedate]']
-                        || payload['deal_task[duedate]'];
+                        || payload['deal_task[duedate]']
+                        || null;
+
+                    // Para reunioes, o task[duedate] e auto-gerado por automacao AC
+                    // (ex: "agora + 15min"). O horario real que o usuario marcou
+                    // mora em campo CUSTOM do deal, com nome tipo "Data e horario do
+                    // agendamento da 1a. Reuniao SDR TRIPS". Varremos deal[fields][N]
+                    // procurando por chave com data+(reuni|agendament) e valor nao
+                    // vazio — se achar, usa esse no lugar do task[duedate].
+                    const acTaskTypeIdEarly = parseInt(payload['task[dealTasktype]'] || payload['task[type_id]'] || payload['deal_task[dealTasktype]'] || '0', 10);
+                    if (acTaskTypeIdEarly === 4) {
+                        const dealFields = new Map<string, { key?: string; value?: string }>();
+                        for (const [k, v] of Object.entries(payload)) {
+                            const m = k.match(/^deal\[fields\]\[(\d+)\]\[(key|value)\]$/);
+                            if (m) {
+                                const idx = m[1], attr = m[2];
+                                if (!dealFields.has(idx)) dealFields.set(idx, {});
+                                (dealFields.get(idx) as Record<string, unknown>)[attr] = v as string;
+                            }
+                        }
+                        for (const f of dealFields.values()) {
+                            const name = (f.key || '').toLowerCase();
+                            const val = (f.value || '').toString().trim();
+                            if (!val) continue;
+                            const looksLikeMeeting = name.includes('data') && (name.includes('reuni') || name.includes('agendament'));
+                            if (looksLikeMeeting) {
+                                // AC pode mandar 'YYYY-MM-DD HH:MM:SS' (naive UTC) ou ISO.
+                                // PostgreSQL parseia ambos como TIMESTAMPTZ — passamos
+                                // direto sem normalizar.
+                                acDueDate = val;
+                                break;
+                            }
+                        }
+                    }
                     const acNote = payload['task[note]'] || payload['deal_task[note]'];
                     const acTaskType = parseInt(payload['task[dealTasktype]'] || payload['task[type_id]'] || payload['deal_task[dealTasktype]'] || '3', 10);
                     const acStatus = payload['task[status]'] || payload['deal_task[status]'];
