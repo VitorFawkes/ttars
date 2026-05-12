@@ -52,8 +52,10 @@
     "react-dom": "^19.2.0",
     "react-grid-layout": "^2.2.2",
     "react-hook-form": "^7.71.0",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^7.9.6",
     "recharts": "^3.5.0",
+    "remark-gfm": "^4.0.1",
     "sonner": "^2.0.7",
     "swagger-ui-react": "^5.31.0",
     "tailwind-merge": "^3.4.0",
@@ -65,6 +67,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@playwright/test": "^1.59.1",
+    "@tailwindcss/typography": "^0.5.19",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.1",
     "@types/node": "^24.10.1",

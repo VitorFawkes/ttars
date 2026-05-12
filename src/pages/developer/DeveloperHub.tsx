@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/Button';
 import { ApiKeysManagement } from '@/components/admin/integrations/ApiKeysManagement';
 import SwaggerUI from 'swagger-ui-react';
 import 'swagger-ui-react/swagger-ui.css';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import crmApiDoc from '../../../docs/crm-api.md?raw';
 import {
     Code,
     Key,
@@ -168,13 +171,42 @@ export default function DeveloperHub() {
 
                     {/* DOCS TAB */}
                     <TabsContent value="docs" className="h-full m-0">
-                        <div className="rounded-lg border bg-white overflow-hidden shadow-sm">
-                            <SwaggerUI
-                                url={specUrl}
-                                docExpansion="list"
-                                persistAuthorization={true}
-                            />
-                        </div>
+                        <Tabs defaultValue="guide" className="flex flex-col gap-4">
+                            <TabsList className="inline-flex h-9 items-center justify-start rounded-md bg-muted p-1 self-start">
+                                <TabsTrigger value="guide" className="rounded-sm px-3 py-1.5 text-sm">
+                                    Guia completo
+                                </TabsTrigger>
+                                <TabsTrigger value="swagger" className="rounded-sm px-3 py-1.5 text-sm">
+                                    Referência interativa (Swagger)
+                                </TabsTrigger>
+                            </TabsList>
+
+                            <TabsContent value="guide" className="m-0">
+                                <div className="rounded-lg border bg-white shadow-sm">
+                                    <article className="prose prose-slate prose-sm max-w-none p-8
+                                        prose-headings:tracking-tight prose-h1:text-3xl prose-h2:text-2xl prose-h2:mt-10 prose-h3:text-xl prose-h4:text-base
+                                        prose-a:text-indigo-600 prose-table:text-sm prose-th:bg-slate-50
+                                        prose-code:before:content-none prose-code:after:content-none prose-code:font-normal
+                                        [&_:not(pre)>code]:rounded [&_:not(pre)>code]:bg-slate-100 [&_:not(pre)>code]:px-1.5 [&_:not(pre)>code]:py-0.5 [&_:not(pre)>code]:text-slate-900
+                                        prose-pre:bg-slate-900 prose-pre:text-slate-50
+                                        [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-slate-50">
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                            {crmApiDoc}
+                                        </ReactMarkdown>
+                                    </article>
+                                </div>
+                            </TabsContent>
+
+                            <TabsContent value="swagger" className="m-0">
+                                <div className="rounded-lg border bg-white overflow-hidden shadow-sm">
+                                    <SwaggerUI
+                                        url={specUrl}
+                                        docExpansion="list"
+                                        persistAuthorization={true}
+                                    />
+                                </div>
+                            </TabsContent>
+                        </Tabs>
                     </TabsContent>
 
                     {/* WEBHOOKS TAB */}
