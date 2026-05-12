@@ -16,9 +16,9 @@
  *  - Fase 4: validação, simular, undo/redo, ELK auto-layout
  *  - Fase 5: redirect v1 → v2
  */
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 
@@ -33,16 +33,35 @@ import type { WorkflowNodeType } from './types'
 import { loadWorkflow } from './lib/persistence'
 import { applyAutoLayout } from './lib/autoLayout'
 import { NodeRefLabelsProvider } from './store/NodeRefLabels'
+import { useOrg } from '@/contexts/OrgContext'
 import { useInstanceTrail } from './hooks/useInstanceTrail'
 
 const WorkflowEditorPage: React.FC = () => {
     const { id } = useParams<{ id: string }>()
+    const navigate = useNavigate()
+    const { org } = useOrg()
     const isNew = !id || id === 'new'
     const [loading, setLoading] = useState(!isNew)
 
     const nodes = useWorkflowStore((s) => s.nodes)
     const reset = useWorkflowStore((s) => s.reset)
     const hydrate = useWorkflowStore((s) => s.hydrate)
+
+    // Fecha o editor e volta pra lista quando o usuário troca de org.
+    // Sem isso, o user veria o canvas de uma automação que não pertence
+    // mais ao workspace atual.
+    const initialOrgIdRef = useRef<string | null | undefined>(undefined)
+    useEffect(() => {
+        // Primeira renderização: registra a org inicial.
+        if (initialOrgIdRef.current === undefined) {
+            if (org?.id) initialOrgIdRef.current = org.id
+            return
+        }
+        // Org carregou diferente da inicial: redireciona pra lista.
+        if (org?.id && org.id !== initialOrgIdRef.current) {
+            navigate('/settings/automations', { replace: true })
+        }
+    }, [org?.id, navigate])
 
     useEffect(() => {
         reset()
