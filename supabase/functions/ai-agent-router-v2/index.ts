@@ -535,6 +535,17 @@ Deno.serve(async (req) => {
 
       const podeDesfechar = !isFronteira || opcionaisColetadas;
 
+      // FRONTEIRA + opcionais ainda não coletadas → força LLM a ficar na
+      // sondagem (perguntar viagem internacional + apoio família) ANTES de
+      // qualquer desfecho. Sem isso, o LLM pulava pra desfecho_qualificado
+      // direto (red_line só protegia o caminho do não-qualificado). Bug
+      // observado 2026-05-12: caso 50k/30/Nordeste virou qualificado direto
+      // sem coletar opcionais.
+      if (!podeDesfechar && criticosColetados && isFronteira) {
+        forcedMomentKey = "sondagem";
+        console.log(`[v2] trigger: fronteira sem opcionais → forçando moment=sondagem (valor/pax=${valorPorPax})`);
+      }
+
       if (podeDesfechar) {
         // Chamar RPC determinística — não delegar ao LLM
         const scoringInputs: Record<string, unknown> = {
@@ -774,10 +785,12 @@ Deno.serve(async (req) => {
     }
 
     // Enforcement: quando o moment ativo é wait_for_reply sequenciado, o
-    // contrato é "1 mensagem por turno". Se o LLM ignorou turn_policy e
-    // gerou múltiplas, MERGE elas em 1 (mantém só a primeira e descarta o
-    // resto, que pertence aos próximos blocos do playbook — vão sair
-    // naturalmente nos próximos turnos).
+    // contrato é "1 mensagem por turno". Se o LLM gerou múltiplas mensagens
+    // dentro do mesmo bloco (ex: separou eco social de "Tudo bem, X" da
+    // apresentação literal do bloco 2), MESCLA todas em 1 mensagem só —
+    // preserva todo o conteúdo do LLM em vez de jogar fora o que veio
+    // depois (bug histórico: em 2026-05-12 com gpt-5.1, eco social ia, mas
+    // o bloco 2 inteiro era descartado).
     if (!blocked && effectiveMomentKey && finalMessages.length > 1) {
       const { data: activeMomentRow } = await supabase
         .from("ai_agent_moments")
@@ -791,8 +804,8 @@ Deno.serve(async (req) => {
           ? parts.length
           : (activeMomentRow.anchor_text ? (activeMomentRow.anchor_text as string).split(/\n[ \t]*[-*_]{3,}[ \t]*\n/).filter((p) => p.trim()).length : 1);
         if (partsCount > 1) {
-          console.log(`[v2] enforcement: moment ${effectiveMomentKey} é sequenciado (${partsCount} blocos), LLM gerou ${finalMessages.length} messages — truncando pra 1`);
-          finalMessages = [finalMessages[0]];
+          console.log(`[v2] enforcement: moment ${effectiveMomentKey} é sequenciado (${partsCount} blocos), LLM gerou ${finalMessages.length} messages — mesclando em 1`);
+          finalMessages = [finalMessages.join("\n\n")];
         }
       }
     }
