@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { supabase } from '../../lib/supabase'
+import { sbAny } from './_supabaseUntyped'
 import { useOrg } from '../../contexts/OrgContext'
 
 export function useUpdateConciergeFutureThreshold() {
@@ -15,7 +15,8 @@ export function useUpdateConciergeFutureThreshold() {
       }
       // RLS bloqueia UPDATE direto em organizations pra membros não-admin.
       // RPC SECURITY DEFINER valida membership via requesting_org_id().
-      const { error } = await supabase.rpc('rpc_update_concierge_future_threshold', {
+      // Usa sbAny pra evitar dependência do database.types.ts (regenerado fora do PR).
+      const { error } = await sbAny.rpc('rpc_update_concierge_future_threshold', {
         p_dias: Math.round(dias),
       })
       if (error) throw error
