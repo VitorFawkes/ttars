@@ -79,6 +79,7 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess }: EditUserModa
         role_id: string | null;
         team_id: string | null;
         produtos: AppProduct[] | null;
+        is_admin: boolean;
     };
 
     const updateMutation = useMutation({
@@ -126,11 +127,15 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess }: EditUserModa
                 });
             }
 
+            const selectedRole = roles.find(r => r.id === formData.role_id);
+            const isAdmin = selectedRole?.name === 'admin';
+
             await updateMutation.mutateAsync({
                 nome: formData.nome,
                 role_id: formData.role_id || null,
                 team_id: formData.team_id === 'none' ? null : formData.team_id,
-                produtos: formData.produtos.length > 0 ? (formData.produtos as AppProduct[]) : null
+                produtos: formData.produtos.length > 0 ? (formData.produtos as AppProduct[]) : null,
+                is_admin: isAdmin
             });
         } finally {
             setIsLoading(false);
