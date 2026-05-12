@@ -420,3 +420,65 @@ export async function executePatriciaToolCall(
     };
   }
 }
+
+// ============================================================================
+// Multimodal — transcrição de áudio (Whisper)
+// ============================================================================
+//
+// Cópia da lógica do router v1 (sem importar — engines isoladas por desenho).
+// MVP: só áudio. Imagem/documento ficam pra fase futura se Patricia ganhar.
+
+export async function downloadMedia(url: string): Promise<{ base64: string; mimeType: string }> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Media download failed ${response.status}`);
+  const buffer = await response.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  const base64 = btoa(binary);
+  const mimeType = response.headers.get("content-type") || "application/octet-stream";
+  return { base64, mimeType };
+}
+
+export async function transcribeAudio(base64: string, mimeType: string, apiKey: string): Promise<string> {
+  const binaryStr = atob(base64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+  const ext = mimeType.includes("ogg") ? "ogg" : mimeType.includes("mp4") ? "mp4" : "ogg";
+  const formData = new FormData();
+  formData.append("file", new Blob([bytes], { type: mimeType }), `audio.${ext}`);
+  formData.append("model", "whisper-1");
+  formData.append("language", "pt");
+
+  const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: formData,
+  });
+  if (!res.ok) throw new Error(`Whisper API error ${res.status}: ${await res.text()}`);
+  const result = await res.json();
+  return result.text || "";
+}
+
+/**
+ * Processa mídia: baixa, transcreve áudio. Retorna o texto que substituirá
+ * o conteúdo da mensagem do lead. Em falha, retorna placeholder para o agente
+ * tratar com graça.
+ */
+export async function transcribeMediaIfAudio(
+  messageType: string,
+  mediaUrl: string | null,
+  apiKey: string,
+): Promise<string> {
+  if (messageType !== "audio" || !mediaUrl) return "";
+  if (!apiKey) return "[áudio recebido — transcrição indisponível]";
+  try {
+    const { base64, mimeType } = await downloadMedia(mediaUrl);
+    const text = await transcribeAudio(base64, mimeType, apiKey);
+    return text || "[áudio recebido — sem fala detectada]";
+  } catch (err) {
+    console.error(`[transcribeMediaIfAudio] error:`, err);
+    return "[áudio recebido — falha na transcrição]";
+  }
+}

@@ -28,6 +28,7 @@ import {
   normalizePhone,
   normalizeWhatsAppText,
   sendEchoMessage,
+  transcribeMediaIfAudio,
 } from "./_utils.ts";
 
 // ============================================================================
@@ -75,13 +76,15 @@ Deno.serve(async (req) => {
 
   const isDrain = (body as { _drain?: boolean })._drain === true;
 
-  // Patricia v1 só aceita TEXT
-  if (body.message_type && body.message_type !== "text") {
-    console.log(`[v2] message_type=${body.message_type} ignorado (MVP só processa text)`);
+  // Patricia aceita TEXT direto ou ÁUDIO (transcrito via Whisper).
+  // Outros tipos (image, document, sticker, etc) ainda são descartados.
+  const allowedTypes = new Set(["text", "audio"]);
+  if (body.message_type && !allowedTypes.has(body.message_type)) {
+    console.log(`[v2] message_type=${body.message_type} ignorado (não suportado)`);
     return jsonResponse({
       ok: true,
       skipped: true,
-      reason: "message_type não suportado em Patricia MVP",
+      reason: `message_type ${body.message_type} não suportado`,
     });
   }
 
@@ -234,15 +237,26 @@ Deno.serve(async (req) => {
       }
 
       claimedRows.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      // MVP da Patricia é text-only: ignora msgs de áudio/imagem do buffer.
-      const combined = claimedRows
-        .filter((b) => (b.message_type || "text") === "text")
-        .map((b) => b.message_text)
-        .filter(Boolean)
-        .join("\n");
+      // Texto + áudio: para cada msg do buffer, se for áudio transcreve via
+      // Whisper e usa o texto transcrito; se for texto usa direto. Outros
+      // tipos (image, sticker) viram placeholder pra Patricia tratar.
+      const segments: string[] = [];
+      for (const r of claimedRows) {
+        const mt = r.message_type || "text";
+        if (mt === "text") {
+          if (r.message_text && r.message_text.trim().length > 0) segments.push(r.message_text);
+        } else if (mt === "audio" && r.media_url) {
+          const transcribed = await transcribeMediaIfAudio("audio", r.media_url, OPENAI_API_KEY);
+          if (transcribed) segments.push(transcribed);
+        } else {
+          // image/document/sticker — placeholder neutro
+          segments.push(`[lead enviou ${mt} — conteúdo não processado neste MVP]`);
+        }
+      }
+      const combined = segments.join("\n");
       if (combined) {
         processedText = combined;
-        console.log(`[v2 debounce] Claimed ${claimedRows.length} message(s) atomically (${combined.length} chars)`);
+        console.log(`[v2 debounce] Claimed ${claimedRows.length} message(s) atomically (${combined.length} chars, audio_transcribed=${claimedRows.some((r) => r.message_type === "audio")})`);
       }
     }
 
