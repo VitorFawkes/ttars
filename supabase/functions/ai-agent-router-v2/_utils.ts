@@ -422,11 +422,28 @@ export async function executePatriciaToolCall(
 }
 
 // ============================================================================
-// Multimodal — transcrição de áudio (Whisper)
+// Multimodal — áudio (Whisper) + imagem (Vision) + documento (file API)
 // ============================================================================
 //
-// Cópia da lógica do router v1 (sem importar — engines isoladas por desenho).
-// MVP: só áudio. Imagem/documento ficam pra fase futura se Patricia ganhar.
+// Cópia da lógica do router v1 adaptada pro contexto de casamento (não viagem).
+// Engines isoladas — não importa de v1.
+
+const WEDDING_IMAGE_PROMPT = `Descreva esta imagem enviada por um lead que está planejando o casamento.
+Tipos comuns que podem aparecer:
+- Inspiração visual (vestido, decoração, paleta de cores, local, buquê, mesa posta, foto Pinterest)
+- Foto de local de casamento (praia, salão, vinícola, sítio)
+- Captura de tela de planilha/orçamento/contrato
+- Print de outro fornecedor (proposta concorrente, valor de referência)
+- Documento (RG, comprovante, agenda)
+- Foto do casal ou da família
+
+Descreva objetivamente o que aparece. Se houver texto na imagem (planilha, contrato, captura), extraia o texto. Se houver valores em R$, liste. Se for inspiração visual, descreva estilo/cores/elementos.
+Português, máximo 300 palavras. Direto e factual. Não invente.`;
+
+const WEDDING_DOCUMENT_PROMPT = `Extraia texto e dados relevantes deste documento enviado por um lead de casamento.
+Tipos comuns: orçamento de outro fornecedor, contrato, planilha de convidados, agenda, comprovante.
+Extraia: datas, valores em R$, nomes de fornecedores, número de convidados, locais.
+Português, formato estruturado, máximo 500 palavras.`;
 
 export async function downloadMedia(url: string): Promise<{ base64: string; mimeType: string }> {
   const response = await fetch(url);
@@ -461,24 +478,112 @@ export async function transcribeAudio(base64: string, mimeType: string, apiKey: 
   return result.text || "";
 }
 
+export async function analyzeImage(base64: string, mimeType: string, apiKey: string): Promise<string> {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "gpt-5.1",
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: WEDDING_IMAGE_PROMPT },
+          { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}`, detail: "low" } },
+        ],
+      }],
+      max_completion_tokens: 1000,
+      temperature: 0.1,
+    }),
+  });
+  if (!res.ok) throw new Error(`Vision API ${res.status}: ${await res.text()}`);
+  const result = await res.json();
+  return result.choices?.[0]?.message?.content || "";
+}
+
+export async function analyzeDocument(base64: string, mimeType: string, apiKey: string): Promise<string> {
+  const binaryStr = atob(base64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+  const ext = mimeType.includes("pdf") ? "pdf" : "bin";
+  const formData = new FormData();
+  formData.append("file", new Blob([bytes], { type: mimeType }), `document.${ext}`);
+  formData.append("purpose", "assistants");
+
+  const uploadRes = await fetch("https://api.openai.com/v1/files", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: formData,
+  });
+  if (!uploadRes.ok) throw new Error(`File upload ${uploadRes.status}: ${await uploadRes.text()}`);
+  const fileObj = await uploadRes.json();
+
+  try {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gpt-5.1",
+        messages: [{
+          role: "user",
+          content: [
+            { type: "text", text: WEDDING_DOCUMENT_PROMPT },
+            { type: "file", file: { file_id: fileObj.id } },
+          ],
+        }],
+        max_completion_tokens: 1500,
+        temperature: 0.1,
+      }),
+    });
+    if (!res.ok) throw new Error(`Chat API ${res.status}: ${await res.text()}`);
+    const result = await res.json();
+    return result.choices?.[0]?.message?.content || "";
+  } finally {
+    fetch(`https://api.openai.com/v1/files/${fileObj.id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${apiKey}` },
+    }).catch(() => {});
+  }
+}
+
 /**
- * Processa mídia: baixa, transcreve áudio. Retorna o texto que substituirá
- * o conteúdo da mensagem do lead. Em falha, retorna placeholder para o agente
- * tratar com graça.
+ * Processa mídia (áudio/imagem/documento) e retorna texto que entra no fluxo
+ * do single_agent como se fosse mensagem de texto. Em falha, retorna placeholder
+ * sinalizando o tipo recebido pra a agente tratar com graça.
  */
-export async function transcribeMediaIfAudio(
+export async function processMediaToText(
   messageType: string,
   mediaUrl: string | null,
   apiKey: string,
+  multimodalConfig?: { audio?: boolean; image?: boolean; pdf?: boolean } | null,
 ): Promise<string> {
-  if (messageType !== "audio" || !mediaUrl) return "";
-  if (!apiKey) return "[áudio recebido — transcrição indisponível]";
+  if (!mediaUrl) return "";
+  if (!apiKey) return `[${messageType} recebido — processamento indisponível]`;
+
+  // Respeitar toggle do agent (se admin desligou processamento de algum tipo)
+  if (multimodalConfig) {
+    if (messageType === "audio" && multimodalConfig.audio === false) return `[áudio recebido — processamento desabilitado pelo admin]`;
+    if (messageType === "image" && multimodalConfig.image === false) return `[imagem recebida — processamento desabilitado pelo admin]`;
+    if (messageType === "document" && multimodalConfig.pdf === false) return `[documento recebido — processamento desabilitado pelo admin]`;
+  }
+
   try {
     const { base64, mimeType } = await downloadMedia(mediaUrl);
-    const text = await transcribeAudio(base64, mimeType, apiKey);
-    return text || "[áudio recebido — sem fala detectada]";
+    if (messageType === "audio") {
+      const text = await transcribeAudio(base64, mimeType, apiKey);
+      return text ? `[transcrição de áudio]: ${text}` : `[áudio recebido — sem fala detectada]`;
+    }
+    if (messageType === "image") {
+      const text = await analyzeImage(base64, mimeType, apiKey);
+      return text ? `[análise de imagem]: ${text}` : `[imagem recebida — não consegui descrever]`;
+    }
+    if (messageType === "document") {
+      const text = await analyzeDocument(base64, mimeType, apiKey);
+      return text ? `[conteúdo do documento]: ${text}` : `[documento recebido — não consegui extrair]`;
+    }
+    return `[${messageType} recebido — tipo não suportado]`;
   } catch (err) {
-    console.error(`[transcribeMediaIfAudio] error:`, err);
-    return "[áudio recebido — falha na transcrição]";
+    console.error(`[processMediaToText] erro processando ${messageType}:`, err);
+    return `[${messageType} recebido — falha no processamento]`;
   }
 }

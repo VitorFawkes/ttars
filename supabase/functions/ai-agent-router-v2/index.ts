@@ -27,8 +27,8 @@ import {
   loadConversationHistory,
   normalizePhone,
   normalizeWhatsAppText,
+  processMediaToText,
   sendEchoMessage,
-  transcribeMediaIfAudio,
 } from "./_utils.ts";
 
 // ============================================================================
@@ -76,9 +76,9 @@ Deno.serve(async (req) => {
 
   const isDrain = (body as { _drain?: boolean })._drain === true;
 
-  // Patricia aceita TEXT direto ou ÁUDIO (transcrito via Whisper).
-  // Outros tipos (image, document, sticker, etc) ainda são descartados.
-  const allowedTypes = new Set(["text", "audio"]);
+  // Patricia aceita TEXT, ÁUDIO (Whisper), IMAGEM (Vision gpt-5.1) e DOCUMENTO (file API gpt-5.1).
+  // Outros tipos (sticker, location, contact_card, etc) ainda são descartados.
+  const allowedTypes = new Set(["text", "audio", "image", "document"]);
   if (body.message_type && !allowedTypes.has(body.message_type)) {
     console.log(`[v2] message_type=${body.message_type} ignorado (não suportado)`);
     return jsonResponse({
@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
           test_mode_phone_whitelist, validator_rules, pipeline_models,
           identity_config, voice_config, boundaries_config, listening_config,
           handoff_actions, handoff_signals, intelligent_decisions, context_fields_config,
-          engine, timings
+          engine, timings, multimodal_config
         )
       `)
       .eq("phone_line_id", lineRow.id)
@@ -237,26 +237,28 @@ Deno.serve(async (req) => {
       }
 
       claimedRows.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      // Texto + áudio: para cada msg do buffer, se for áudio transcreve via
-      // Whisper e usa o texto transcrito; se for texto usa direto. Outros
-      // tipos (image, sticker) viram placeholder pra Patricia tratar.
+      // Texto vai direto. Áudio/imagem/documento são processados via OpenAI
+      // (Whisper / Vision gpt-5.1 / file API gpt-5.1) e o conteúdo extraído
+      // entra como texto no fluxo. Multimodal_config do agente respeita
+      // toggle de cada tipo se admin desligar.
+      const mmConfig = (agent as unknown as { multimodal_config?: { audio?: boolean; image?: boolean; pdf?: boolean } | null }).multimodal_config ?? null;
       const segments: string[] = [];
       for (const r of claimedRows) {
         const mt = r.message_type || "text";
         if (mt === "text") {
           if (r.message_text && r.message_text.trim().length > 0) segments.push(r.message_text);
-        } else if (mt === "audio" && r.media_url) {
-          const transcribed = await transcribeMediaIfAudio("audio", r.media_url, OPENAI_API_KEY);
-          if (transcribed) segments.push(transcribed);
+        } else if (r.media_url && (mt === "audio" || mt === "image" || mt === "document")) {
+          const processed = await processMediaToText(mt, r.media_url, OPENAI_API_KEY, mmConfig);
+          if (processed) segments.push(processed);
         } else {
-          // image/document/sticker — placeholder neutro
-          segments.push(`[lead enviou ${mt} — conteúdo não processado neste MVP]`);
+          segments.push(`[lead enviou ${mt} — conteúdo não processado]`);
         }
       }
       const combined = segments.join("\n");
       if (combined) {
         processedText = combined;
-        console.log(`[v2 debounce] Claimed ${claimedRows.length} message(s) atomically (${combined.length} chars, audio_transcribed=${claimedRows.some((r) => r.message_type === "audio")})`);
+        const mediaTypes = claimedRows.filter((r) => r.message_type && r.message_type !== "text").map((r) => r.message_type);
+        console.log(`[v2 debounce] Claimed ${claimedRows.length} message(s) atomically (${combined.length} chars, media=${mediaTypes.join(",") || "none"})`);
       }
     }
 
