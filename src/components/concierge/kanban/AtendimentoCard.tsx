@@ -47,13 +47,15 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
   const prazo = relPrazo(item.data_vencimento)
   const valor = fmtBRL(item.valor)
   const isVencido = item.status_apresentacao === 'vencido'
-  // Dentro da coluna Futuro, "prazo chegando" = data_vencimento em ≤7 dias.
-  // O card destaca em amber (chegando) ou vermelho (passou) — o pulse da
-  // coluna avisa o concierge antes mesmo dele abrir.
+  // Dentro da coluna Futuro, "prazo chegando" = data_vencimento dentro
+  // da antecedência configurada POR CARD (concierge_aviso_dias, default 7).
+  // O card destaca em amber (chegando) ou vermelho (passou). O pulse da
+  // coluna usa a mesma lógica e avisa antes mesmo do concierge abrir.
   const futuroAtivo = item.estado_funil === 'agendado_futuro'
+  const avisoDiasMs = (item.concierge_aviso_dias ?? 7) * 24 * 60 * 60 * 1000
   const futuroChegando = futuroAtivo && !!prazo && (prazo.overdue || (
     !!item.data_vencimento &&
-    new Date(item.data_vencimento).getTime() <= Date.now() + 7 * 24 * 60 * 60 * 1000
+    new Date(item.data_vencimento).getTime() <= Date.now() + avisoDiasMs
   ))
   const futuroOverdue = futuroAtivo && !!prazo?.overdue
   const isCritical = item.prioridade === 'critica'
