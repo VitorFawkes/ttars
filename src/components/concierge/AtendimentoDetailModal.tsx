@@ -134,7 +134,7 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   const podeConfirmar = !!destinoSelecionado
     && destinoSelecionado !== estadoAtual
     && destinoSelecionado !== 'aguardando_atendimento'
-    && (destinoSelecionado !== 'agendado_futuro' || !!snoozeIso)
+    && destinoSelecionado !== 'agendado_futuro'
   const isPendingMove = isMarkingOutcome || isMovingEstado || isSnoozing
 
   const handleSalvarPrazoTarefa = () => {
@@ -160,15 +160,6 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
 
   const handleConfirmar = async () => {
     if (!destinoSelecionado || !podeConfirmar) return
-
-    // Estocar em "Agendados para o futuro" via modal: grava concierge_futuro_em.
-    if (destinoSelecionado === 'agendado_futuro' && snoozeIso) {
-      try {
-        await snoozeAsync({ tarefaId: item.tarefa_id, data: snoozeIso })
-        onClose()
-      } catch { /* toast via hook */ }
-      return
-    }
 
     // "Feito" pra oferta marcado como aceito → outcome='aceito' direto.
     if (destinoSelecionado === 'feito' && isOferta && comoAceito) {
@@ -425,7 +416,12 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
                     // 'aguardando_atendimento' não pode ser destino: é estado inicial,
                     // useMoverEstadoFunil rejeita. Mantém visível pra orientação,
                     // mas só clicável se for o estado atual (sem efeito).
-                    const desabilitado = col.id === 'aguardando_atendimento' && !isAtual
+                    // 'agendado_futuro' não é destino pela grid: estocar é decisão
+                    // explícita feita pelo drag (pra forçar o concierge a escolher
+                    // uma data no modal de snooze). Aqui no detalhe só editamos.
+                    const desabilitado =
+                      (col.id === 'aguardando_atendimento' && !isAtual) ||
+                      (col.id === 'agendado_futuro' && !isAtual)
                     return (
                       <button
                         key={col.id}
@@ -437,6 +433,7 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
                         disabled={desabilitado || isAtual}
                         title={
                           isAtual ? 'Coluna atual' :
+                          col.id === 'agendado_futuro' ? 'Pra estocar em Futuro, arraste o card pra coluna' :
                           desabilitado ? 'Estado inicial — não dá pra voltar' :
                           `Mover para ${col.label}`
                         }
@@ -460,45 +457,6 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
               </div>
 
               {/* Sub-area condicional ao destino selecionado */}
-              {destinoSelecionado === 'agendado_futuro' && estadoAtual !== 'agendado_futuro' && (
-                <div className="bg-violet-50/40 border border-violet-100 rounded-lg p-3 space-y-2">
-                  <div className="text-[11.5px] font-semibold text-slate-700 flex items-center gap-1.5">
-                    <CalendarClock className="w-3.5 h-3.5 text-violet-600" />
-                    Quando voltar pra fila?
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[7, 30, 60].map(dias => {
-                      const presetValue = isoToDateInput(addDaysIso(dias))
-                      const isSel = snoozeDate === presetValue
-                      return (
-                        <button
-                          key={dias}
-                          type="button"
-                          onClick={() => setSnoozeDate(presetValue)}
-                          className={cn(
-                            'px-2.5 py-1.5 rounded-md text-[12px] font-medium border transition',
-                            isSel
-                              ? 'bg-violet-100 border-violet-300 text-violet-800'
-                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                          )}
-                        >
-                          Em {dias} dias
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <input
-                    type="date"
-                    value={snoozeDate}
-                    onChange={(e) => setSnoozeDate(e.target.value)}
-                    className="w-full h-9 px-3 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-300"
-                  />
-                  <p className="text-[10.5px] text-slate-500">
-                    Nada se move sozinho. Quando a data chegar, o card destaca em amarelo; se passar, em vermelho.
-                  </p>
-                </div>
-              )}
-
               {destinoSelecionado === 'feito' && isOferta && (
                 <div className="bg-purple-50/40 border border-purple-100 rounded-lg p-3 space-y-3">
                   <label className="flex items-start gap-2 text-[12.5px] font-medium text-slate-700 cursor-pointer">
@@ -644,49 +602,50 @@ interface PrazoTarefaEditorProps {
 }
 
 function PrazoTarefaEditor({ dataVencimento, prazoDate, onChangePrazoDate, onSalvar, isPending, canSalvar }: PrazoTarefaEditorProps) {
-  let toneClasses = 'bg-slate-50 border-slate-200 text-slate-700'
-  let label = 'Prazo da tarefa'
+  let toneText = 'text-slate-600'
+  let label = 'sem prazo'
 
   if (dataVencimento) {
     const target = new Date(dataVencimento).getTime()
     const now = Date.now()
     const diffD = Math.round((target - now) / (1000 * 60 * 60 * 24))
     if (diffD < 0) {
-      toneClasses = 'bg-red-50 border-red-200 text-red-700'
-      label = `Prazo passou há ${-diffD}d`
+      toneText = 'text-red-600'
+      label = `venceu há ${-diffD}d`
     } else if (diffD === 0) {
-      toneClasses = 'bg-amber-50 border-amber-200 text-amber-800'
-      label = 'Prazo é hoje'
+      toneText = 'text-amber-700'
+      label = 'hoje'
     } else if (diffD <= 7) {
-      toneClasses = 'bg-amber-50 border-amber-200 text-amber-800'
-      label = `Prazo em ${diffD}d`
+      toneText = 'text-amber-700'
+      label = `em ${diffD}d`
     } else {
-      toneClasses = 'bg-slate-50 border-slate-200 text-slate-700'
-      label = `Prazo em ${diffD}d`
+      toneText = 'text-slate-600'
+      label = `em ${diffD}d`
     }
   }
 
   return (
-    <div className={cn('border rounded-lg p-3 space-y-2', toneClasses)}>
-      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide font-semibold">
-        <Calendar className="w-3.5 h-3.5" />
-        {label}
-      </div>
-      <div className="flex items-center gap-2">
-        <input
-          type="date"
-          value={prazoDate}
-          onChange={(e) => onChangePrazoDate(e.target.value)}
+    <div className="flex items-center gap-2 text-[12px]">
+      <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+      <span className="text-slate-500">Prazo</span>
+      <input
+        type="date"
+        value={prazoDate}
+        onChange={(e) => onChangePrazoDate(e.target.value)}
+        disabled={isPending}
+        className="h-6 px-1.5 text-[12px] bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 focus:border-indigo-300 disabled:opacity-50"
+      />
+      <span className={cn('font-medium', toneText)}>({label})</span>
+      {canSalvar && (
+        <button
+          type="button"
+          onClick={onSalvar}
           disabled={isPending}
-          className="h-8 px-2 text-sm bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 disabled:opacity-50"
-        />
-        <Button size="sm" onClick={onSalvar} disabled={!canSalvar || isPending}>
-          {isPending ? 'Salvando…' : 'Salvar prazo'}
-        </Button>
-      </div>
-      <p className="text-[10.5px] opacity-75">
-        Ajuste se quem criou a tarefa deu uma data sem noção do prazo real.
-      </p>
+          className="ml-auto text-[11px] font-medium text-indigo-600 hover:text-indigo-700 disabled:opacity-50"
+        >
+          {isPending ? 'salvando…' : 'salvar'}
+        </button>
+      )}
     </div>
   )
 }
