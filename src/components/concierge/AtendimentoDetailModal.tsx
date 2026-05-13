@@ -56,7 +56,7 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   // started_at / notificou_cliente_em / outcome).
   const estadoAtual: EstadoFunil | null = item ? computeEstadoFunil(item) : null
   const [destinoSelecionado, setDestinoSelecionado] = useState<EstadoFunil | null>(null)
-  const [outcomeEncerramento, setOutcomeEncerramento] = useState<'recusado' | 'cancelado'>('cancelado')
+  const outcomeEncerramento = 'cancelado' as const
   // Quando o atendimento é uma oferta E o usuário escolhe "Feito", pode marcar
   // adicionalmente como "Aceito" (cliente fechou). Outcome no banco vira 'aceito'.
   const [comoAceito, setComoAceito] = useState(false)
@@ -477,25 +477,10 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
               )}
 
               {destinoSelecionado === 'encerrado' && (
-                <div className="bg-red-50/40 border border-red-100 rounded-lg p-3 space-y-2">
-                  <div className="text-[11.5px] font-semibold text-slate-700">Como encerrar?</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(['recusado', 'cancelado'] as const).map(opt => (
-                      <button
-                        key={opt}
-                        type="button"
-                        onClick={() => setOutcomeEncerramento(opt)}
-                        className={cn(
-                          'p-2 rounded-lg border-2 text-[12px] font-semibold capitalize transition-all',
-                          outcomeEncerramento === opt
-                            ? 'border-red-300 bg-white text-red-700'
-                            : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
-                        )}
-                      >
-                        {opt}
-                      </button>
-                    ))}
-                  </div>
+                <div className="bg-red-50/40 border border-red-100 rounded-lg p-3">
+                  <p className="text-[12px] text-slate-700">
+                    Vai marcar como <span className="font-semibold">cancelado</span>. Use a observação abaixo se quiser explicar o porquê.
+                  </p>
                 </div>
               )}
 
