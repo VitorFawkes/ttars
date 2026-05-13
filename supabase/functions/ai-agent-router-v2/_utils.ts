@@ -370,11 +370,39 @@ export async function executePatriciaToolCall(
         let rangeStart: Date | null = parseFlexDate(args.data_inicio);
         let rangeEnd: Date | null = parseFlexDate(args.data_fim);
         const userPickedSpecificStart = !!rangeStart;
+        let rolledFromWeekend: { original: string } | null = null;
 
         // Defaults: começa amanhã, vai até janela configurada
         if (!rangeStart) {
           rangeStart = new Date(today);
           rangeStart.setDate(today.getDate() + 1);
+        }
+
+        // Auto-roll quando o lead pede uma data que cai em fim de semana
+        // E skip_weekends=true. Avança pra próxima segunda-feira e devolve
+        // slots reais (em vez de retornar vazio com note pedindo "qual dia
+        // alternativo?"). UX melhor: lead pede "dia 17", recebe horários
+        // do dia 18 com nota explicando que 17 era domingo.
+        if (userPickedSpecificStart && skipWeekends) {
+          const wd = rangeStart.getDay();
+          if (wd === 0 || wd === 6) {
+            const originalDD = String(rangeStart.getDate()).padStart(2, "0");
+            const originalMM = String(rangeStart.getMonth() + 1).padStart(2, "0");
+            const originalLabel = dateFormat === "full"
+              ? `${originalDD}/${originalMM}/${rangeStart.getFullYear()}`
+              : `${originalDD}/${originalMM}`;
+            rolledFromWeekend = { original: originalLabel };
+            // Avança 1 ou 2 dias até segunda
+            while (rangeStart.getDay() === 0 || rangeStart.getDay() === 6) {
+              rangeStart.setDate(rangeStart.getDate() + 1);
+            }
+            // Se o lead não definiu data_fim, ajusta rangeEnd pra
+            // janela a partir da nova data
+            if (!rangeEnd) {
+              rangeEnd = new Date(rangeStart);
+              rangeEnd.setDate(rangeStart.getDate() + windowDays);
+            }
+          }
         }
         if (!rangeEnd) {
           rangeEnd = new Date(rangeStart);
@@ -465,9 +493,13 @@ export async function executePatriciaToolCall(
           weekday: s.weekday,
         }));
 
-        // Diagnóstico explícito quando a lista vem vazia
+        // Diagnóstico explícito quando a lista vem vazia OU quando rolamos
+        // de fim de semana pra dia útil (lead precisa ser informado).
         let note: string | null = null;
-        if (finalSlots.length === 0) {
+        if (rolledFromWeekend) {
+          // Sempre coloca a nota quando rolou — mesmo que tenha slots
+          note = `A data solicitada (${rolledFromWeekend.original}) é final de semana e a Wedding Planner não atende sáb/dom. Slots abaixo são do PRÓXIMO dia útil. Mencione isso ao lead com naturalidade ANTES de oferecer os horários (ex: "${rolledFromWeekend.original} cai num domingo, mas no dia útil seguinte ela tem...").`;
+        } else if (finalSlots.length === 0) {
           if (userPickedSpecificStart && skipWeekends && totalDaysScanned === skippedWeekendDays && skippedWeekendDays > 0) {
             note = "data solicitada cai em final de semana — Wedding Planner não atende sábado/domingo. Sugira um dia útil próximo.";
           } else if (candidates.length === 0) {
