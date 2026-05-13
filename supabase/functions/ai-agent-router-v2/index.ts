@@ -707,22 +707,56 @@ Deno.serve(async (req) => {
 
             // Soma pesos das ai_subjective resolvidas como true (a RPC não
             // contemplou essas regras). Disqualify subjective força !qualificado.
+            //
+            // Regras de destino (dimension `destino_pref_*`) NÃO somam entre si:
+            // casal pode mencionar múltiplos destinos ("Caribe ou Nordeste"),
+            // mas pontuação considera o de MAIOR peso (decisão de negócio
+            // 2026-05-13). Demais famílias (família, viagem, valor/convidado,
+            // bonus) somam normal.
+            const MAX_GROUP_PREFIXES = ['destino_pref_'];
+            type ResolvedRule = typeof scoringRules[number];
+            const maxGroupBest: Record<string, ResolvedRule> = {};
+            const directSum: ResolvedRule[] = [];
+
             for (const r of scoringRules) {
               if (r.condition_type !== 'ai_subjective') continue;
               if (subjectiveResolved[r.id] !== true) continue;
               if (r.rule_type === 'disqualify') {
                 disqualified = true;
-              } else {
-                score += Number(r.weight ?? 0);
-                breakdown.push({
-                  dimension: r.dimension,
-                  label: r.label ?? r.dimension,
-                  weight: r.weight ?? 0,
-                  rule_id: r.id,
-                  rule_type: r.rule_type ?? 'qualify',
-                  source: 'ai_subjective',
-                });
+                continue;
               }
+              const prefix = MAX_GROUP_PREFIXES.find((p) => r.dimension.startsWith(p));
+              if (prefix) {
+                const cur = maxGroupBest[prefix];
+                if (!cur || Number(r.weight ?? 0) > Number(cur.weight ?? 0)) {
+                  maxGroupBest[prefix] = r;
+                }
+              } else {
+                directSum.push(r);
+              }
+            }
+
+            for (const r of directSum) {
+              score += Number(r.weight ?? 0);
+              breakdown.push({
+                dimension: r.dimension,
+                label: r.label ?? r.dimension,
+                weight: r.weight ?? 0,
+                rule_id: r.id,
+                rule_type: r.rule_type ?? 'qualify',
+                source: 'ai_subjective',
+              });
+            }
+            for (const r of Object.values(maxGroupBest)) {
+              score += Number(r.weight ?? 0);
+              breakdown.push({
+                dimension: r.dimension,
+                label: r.label ?? r.dimension,
+                weight: r.weight ?? 0,
+                rule_id: r.id,
+                rule_type: r.rule_type ?? 'qualify',
+                source: 'ai_subjective_max',
+              });
             }
 
             const threshold = Number(sd.threshold ?? scoringThreshold) || scoringThreshold;
@@ -820,18 +854,52 @@ Deno.serve(async (req) => {
               const free = candidates.filter((c) => !occupied.has(c.iso));
               slotsConflictsExcluded = candidates.length - free.length;
 
-              // Pega 3 slots distribuindo entre dias diferentes (UX melhor —
-              // 3 dias com 1 horário cada > 1 dia com 3 horários).
-              const finalSlots: Slot[] = [];
-              const usedDates = new Set<string>();
-              for (const slot of free) {
-                if (usedDates.has(slot.date)) continue;
-                finalSlots.push(slot);
-                usedDates.add(slot.date);
-                if (finalSlots.length === 3) break;
+              // Red_line da Patricia em desfecho_qualificado: "Sempre ter
+              // pelo menos 3 dias E 3 horários mais pertos a partir do
+              // próximo dia útil". Selecionamos 1 slot por dia diferente,
+              // rotacionando o horário preferido (10:00 → 14:00 → 16:00 →
+              // volta pro 10:00). Se o horário preferido daquele dia estiver
+              // ocupado, cai pro próximo livre do mesmo dia.
+              const horariosOrdem = ["10:00", "14:00", "16:00"];
+              const freeByDate = new Map<string, Slot[]>();
+              for (const c of free) {
+                const arr = freeByDate.get(c.date);
+                if (arr) arr.push(c);
+                else freeByDate.set(c.date, [c]);
               }
-              // Se não atingiu 3 (poucos dias livres), completa permitindo
-              // mais de um horário por dia.
+              // Mantém a ordem cronológica dos dias (Map preserva inserção,
+              // e candidates já estavam ordenados por dia ascendente).
+              const finalSlots: Slot[] = [];
+              let rotateIdx = 0;
+              for (const [, slotsThisDate] of freeByDate) {
+                if (finalSlots.length === 3) break;
+                const preferTime = horariosOrdem[rotateIdx % horariosOrdem.length];
+                rotateIdx++;
+                const usedTimes = new Set(finalSlots.map((s) => s.time));
+                // Prioriza nesta ordem:
+                //   1. Horário preferido pela rotação E ainda não usado
+                //   2. Qualquer horário livre que ainda não foi usado
+                //   3. Primeiro slot livre do dia (último recurso: repete horário)
+                let chosen = slotsThisDate.find((s) => s.time === preferTime && !usedTimes.has(s.time));
+                if (!chosen) chosen = slotsThisDate.find((s) => !usedTimes.has(s.time));
+                if (!chosen) chosen = slotsThisDate[0];
+                if (chosen) finalSlots.push(chosen);
+              }
+              // Se não atingiu 3 dias diferentes (poucos dias livres),
+              // completa permitindo mais de um horário por dia,
+              // preferindo horários diferentes dos já escolhidos.
+              if (finalSlots.length < 3) {
+                const usedTimes = new Set(finalSlots.map((s) => s.time));
+                for (const slot of free) {
+                  if (finalSlots.includes(slot)) continue;
+                  if (!usedTimes.has(slot.time)) {
+                    finalSlots.push(slot);
+                    usedTimes.add(slot.time);
+                    if (finalSlots.length === 3) break;
+                  }
+                }
+              }
+              // Se ainda assim ficou < 3, completa com qualquer slot livre.
               if (finalSlots.length < 3) {
                 for (const slot of free) {
                   if (finalSlots.includes(slot)) continue;

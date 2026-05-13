@@ -636,15 +636,18 @@ function renderProposedSlots(
   slots: BuildSinglePromptInput["conversationState"]["proposed_slots"] | undefined,
 ): string {
   if (!slots || slots.length === 0) return "";
+  // Formato bold WhatsApp: *texto* (asterisco simples). WhatsApp não renderiza
+  // Markdown **texto**. Padronizar aqui evita LLM ter que traduzir formato
+  // (que vinha embolando — bug 2026-05-13: *qui... ,**sex...*).
   const lines = slots
-    .map((s, i) => `  ${i + 1}. **${s.weekday} ${s.date}** às **${s.time}**`)
+    .map((s, i) => `  ${i + 1}. *${s.weekday} ${s.date}* às *${s.time}*`)
     .join("\n");
   return `<proposed_slots>
 📅 HORÁRIOS DA WEDDING PLANNER (pré-buscados pelo router, use verbatim)
 
 ${lines}
 
-Apresente os 3 horários ao casal exatamente como acima e peça pra escolher um. NÃO invente outras opções. NÃO mude o formato dos dias/horários. Se o casal pedir alternativa, diga que vai checar e siga.
+Apresente os 3 horários ao casal exatamente como acima e peça pra escolher um. NÃO invente outras opções. NÃO mude o formato dos dias/horários. Os asteriscos simples (\`*texto*\`) são a sintaxe de bold do WhatsApp — preserve EXATAMENTE assim, sem dobrar pra \`**\` e sem remover. Se o casal pedir alternativa, diga que vai checar e siga.
 </proposed_slots>`;
 }
 
