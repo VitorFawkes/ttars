@@ -539,6 +539,20 @@ Deno.serve(async (req) => {
     let forcedMomentKey: string | null = null;
     let qualificationResult: { score: number; qualificado: boolean; breakdown?: unknown } | null = null;
     let proposedSlots: Array<{ date: string; time: string; weekday: string }> | null = null;
+    // Snapshot do que o subjective_evaluator devolveu — persistido em
+    // context_used pra auditoria via SQL (logs do edge runtime não aparecem
+    // em function_logs do analytics).
+    let subjectiveEvalSnapshot: {
+      rules_count: number;
+      resolved: Record<string, boolean>;
+      tokens: { input: number; output: number };
+      elapsed_ms: number;
+      eval_ran: boolean;
+      rules_summary?: Array<{ rule_id: string; dimension: string; resolved: boolean | null; weight: number; rule_type: string }>;
+    } | null = null;
+    // Snapshot dos slots ocupados (reunioes table) excluídos do mock — útil
+    // pra debug quando agenda começar a ter conflitos.
+    let slotsConflictsExcluded: number = 0;
 
     const dataCasamento = trackedData["ww_data_casamento"];
     const destinoRegiao = trackedData["ww_destino"];
@@ -649,6 +663,20 @@ Deno.serve(async (req) => {
             // de sucesso completo). Se faltou alguma → tratamos como falha
             // parcial e mantemos fallback conservador.
             subjectiveEvalRan = Object.keys(evalRes.resolved).length === subjectiveRules.length;
+            subjectiveEvalSnapshot = {
+              rules_count: subjectiveRules.length,
+              resolved: evalRes.resolved,
+              tokens: evalRes.tokens,
+              elapsed_ms: evalRes.elapsed_ms,
+              eval_ran: subjectiveEvalRan,
+              rules_summary: subjectiveRules.map((r) => ({
+                rule_id: r.id,
+                dimension: r.dimension,
+                resolved: evalRes.resolved[r.id] ?? null,
+                weight: Number(r.weight ?? 0),
+                rule_type: r.rule_type ?? 'qualify',
+              })),
+            };
             console.log(JSON.stringify({
               event: 'v2_subjective_evaluated',
               agent_id: agent.id,
@@ -720,22 +748,112 @@ Deno.serve(async (req) => {
                 : "desfecho_nao_qualificado";
             }
 
-            // Buscar 3 horários (mock por enquanto — mesma lógica do check_calendar tool)
+            // Buscar 3 horários disponíveis. Estratégia em camadas:
+            //   1. Geramos até 9 slots candidatos (3 dias úteis × 3 horários).
+            //   2. Buscamos reuniões agendadas/confirmadas no mesmo org nos
+            //      próximos 14 dias.
+            //   3. Excluímos candidatos que conflitam com reunião existente
+            //      (mesmo dia e hora).
+            //   4. Retornamos os 3 primeiros livres. Se mesmo após exclusão
+            //      não sobra 3, completamos com candidatos brutos.
+            // Tolerante a falhas: se a query SQL erra, mantém o mock antigo.
             if (qualificationResult?.qualificado) {
               const today = new Date();
-              const slots: Array<{ date: string; time: string; weekday: string }> = [];
               const weekdays = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
               const horarios = ["10:00", "14:00", "16:00"];
-              for (let i = 1; slots.length < 3 && i < 14; i++) {
+              type Slot = { date: string; time: string; weekday: string; iso: string };
+              const candidates: Slot[] = [];
+              for (let i = 1; i < 14 && candidates.length < 9; i++) {
                 const d = new Date(today);
                 d.setDate(today.getDate() + i);
                 const wd = d.getDay();
                 if (wd === 0 || wd === 6) continue;
+                const yyyy = d.getFullYear();
+                const mm = String(d.getMonth() + 1).padStart(2, "0");
+                const dd = String(d.getDate()).padStart(2, "0");
                 const dStr = d.toLocaleDateString("pt-BR");
-                const horario = horarios[slots.length % horarios.length];
-                slots.push({ date: dStr, time: horario, weekday: weekdays[wd] });
+                for (const h of horarios) {
+                  candidates.push({
+                    date: dStr,
+                    time: h,
+                    weekday: weekdays[wd],
+                    iso: `${yyyy}-${mm}-${dd}T${h}:00`,
+                  });
+                }
               }
-              proposedSlots = slots;
+
+              // Coleta horários ocupados de reuniões no mesmo org nas próximas 2 semanas.
+              const occupied = new Set<string>();
+              try {
+                const horizonStart = new Date(today);
+                const horizonEnd = new Date(today);
+                horizonEnd.setDate(today.getDate() + 14);
+                const { data: meetings, error: meetErr } = await supabase
+                  .from("reunioes")
+                  .select("data_inicio,status")
+                  .eq("org_id", agent.org_id)
+                  .gte("data_inicio", horizonStart.toISOString())
+                  .lt("data_inicio", horizonEnd.toISOString())
+                  .in("status", ["agendada", "confirmada", "agendado", "confirmado"]);
+                if (meetErr) {
+                  console.warn("[v2] trigger: erro lendo reunioes:", meetErr.message);
+                } else if (Array.isArray(meetings)) {
+                  for (const m of meetings) {
+                    const di = m.data_inicio as string | null;
+                    if (!di) continue;
+                    // Converte para o mesmo formato dos candidatos:
+                    // "YYYY-MM-DDTHH:MM:00" em horário local do server (UTC do edge).
+                    const md = new Date(di);
+                    const yyyy = md.getFullYear();
+                    const mm = String(md.getMonth() + 1).padStart(2, "0");
+                    const dd = String(md.getDate()).padStart(2, "0");
+                    const hh = String(md.getHours()).padStart(2, "0");
+                    const mi = String(md.getMinutes()).padStart(2, "0");
+                    occupied.add(`${yyyy}-${mm}-${dd}T${hh}:${mi}:00`);
+                  }
+                }
+              } catch (e) {
+                console.warn("[v2] trigger: exception lendo reunioes:", (e as Error).message);
+              }
+
+              // Filtra conflitos
+              const free = candidates.filter((c) => !occupied.has(c.iso));
+              slotsConflictsExcluded = candidates.length - free.length;
+
+              // Pega 3 slots distribuindo entre dias diferentes (UX melhor —
+              // 3 dias com 1 horário cada > 1 dia com 3 horários).
+              const finalSlots: Slot[] = [];
+              const usedDates = new Set<string>();
+              for (const slot of free) {
+                if (usedDates.has(slot.date)) continue;
+                finalSlots.push(slot);
+                usedDates.add(slot.date);
+                if (finalSlots.length === 3) break;
+              }
+              // Se não atingiu 3 (poucos dias livres), completa permitindo
+              // mais de um horário por dia.
+              if (finalSlots.length < 3) {
+                for (const slot of free) {
+                  if (finalSlots.includes(slot)) continue;
+                  finalSlots.push(slot);
+                  if (finalSlots.length === 3) break;
+                }
+              }
+              // Fallback final: se filtro deixou < 3, usa candidatos brutos
+              // (mantém comportamento antigo — nunca pior que antes).
+              if (finalSlots.length < 3) {
+                for (const slot of candidates) {
+                  if (finalSlots.includes(slot)) continue;
+                  finalSlots.push(slot);
+                  if (finalSlots.length === 3) break;
+                }
+              }
+
+              proposedSlots = finalSlots.map((s) => ({
+                date: s.date,
+                time: s.time,
+                weekday: s.weekday,
+              }));
             }
             if (qualificationResult) {
               console.log(`[v2] trigger: desfecho forçado moment=${forcedMomentKey} score=${qualificationResult.score} qualificado=${qualificationResult.qualificado} threshold=${threshold}`);
@@ -1065,6 +1183,9 @@ Deno.serve(async (req) => {
           send_results: sendResults,
           forced_moment_key: forcedMomentKey,
           qualification_result: qualificationResult,
+          proposed_slots: proposedSlots,
+          subjective_eval: subjectiveEvalSnapshot,
+          slots_conflicts_excluded: slotsConflictsExcluded,
         },
         detected_intent: singleAgentResult.output.current_moment_key,
         qualification_score_at_turn: qualificationResult?.score ?? null,
