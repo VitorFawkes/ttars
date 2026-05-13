@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ListChecks, Plane, AlarmClock } from 'lucide-react'
+import { ListChecks, Plane, AlarmClock, CheckSquare, Square } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
 import { useKanbanTarefas } from '../../hooks/concierge/useKanbanTarefas'
@@ -70,15 +70,17 @@ export default function KanbanPage() {
   const count = prefs.modo === 'tarefas' ? totalTarefas : totalViagens
 
   // Conta cards estocados em "Agendados para o futuro" cujo prazo da tarefa
-  // (data_vencimento) chega em <=7d (inclui as que já passaram — esses são
-  // o sinal mais forte). O concierge_em_futuro é o flag sticky.
+  // (data_vencimento) está dentro da antecedência configurada POR CARD
+  // (concierge_aviso_dias, default 7). Inclui as datas que já passaram.
   const chegandoEssaSemana = useMemo(() => {
     if (prefs.modo !== 'tarefas' || !tarefas) return 0
-    const limite = Date.now() + 7 * 24 * 60 * 60 * 1000
+    const now = Date.now()
     return tarefas.filter(t => {
       if (!t.concierge_em_futuro || !t.data_vencimento) return false
       const data = new Date(t.data_vencimento).getTime()
-      return Number.isFinite(data) && data <= limite
+      if (!Number.isFinite(data)) return false
+      const avisoMs = (t.concierge_aviso_dias ?? 7) * 24 * 60 * 60 * 1000
+      return data <= now + avisoMs
     }).length
   }, [tarefas, prefs.modo])
 
@@ -133,6 +135,25 @@ export default function KanbanPage() {
             </span>
           )}
 
+          {prefs.modo === 'tarefas' && (
+            <button
+              type="button"
+              onClick={() => setPref('mostrarChecklists', v => !v)}
+              className={cn(
+                'inline-flex items-center gap-1 h-7 px-2 text-[11.5px] font-medium rounded-md border transition-colors',
+                prefs.mostrarChecklists
+                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              )}
+              title={prefs.mostrarChecklists
+                ? 'Esconder checklists dos cards (mostra só o contador X/Y)'
+                : 'Mostrar checklists nos cards pra marcar sem abrir o atendimento'}
+            >
+              {prefs.mostrarChecklists ? <CheckSquare className="w-3 h-3" /> : <Square className="w-3 h-3" />}
+              Checklists
+            </button>
+          )}
+
           {produtoAtual && (
             <span className="text-[10.5px] text-slate-400 font-mono uppercase tracking-wide">{produtoAtual}</span>
           )}
@@ -166,7 +187,7 @@ export default function KanbanPage() {
 
       <div className="flex-1 overflow-hidden">
         {prefs.modo === 'tarefas'
-          ? <ConciergeKanbanBoard filters={tarefasFilters} />
+          ? <ConciergeKanbanBoard filters={tarefasFilters} mostrarChecklists={prefs.mostrarChecklists} />
           : <ConciergeViagensBoard filters={viagensFilters} />}
       </div>
     </div>

@@ -4,6 +4,16 @@ export type OutcomeConcierge = 'aceito' | 'recusado' | 'feito' | 'cancelado'
 export type CobradoDe = 'cliente' | 'cortesia' | 'incluido_pacote'
 export type StatusApresentacao = 'concluido' | 'fechado' | 'vencido' | 'hoje' | 'esta_semana' | 'futuro'
 
+/** Item de checklist interno de uma tarefa do Concierge. Texto livre +
+ *  checkbox. Quando 100% dos itens estão feitos, a UI sugere concluir
+ *  a tarefa-mãe (sem auto-fechar). */
+export interface ChecklistItem {
+  id: string
+  texto: string
+  feito: boolean
+  ordem: number
+}
+
 /**
  * Cada categoria declara em quais produtos ela faz sentido.
  * 'universal' = aparece em qualquer produto.
@@ -128,6 +138,14 @@ export interface MeuDiaItem {
    *  kanban /concierge indefinidamente. FALSE = fluxo normal. Nada move
    *  sozinho. O aviso visual de "prazo chegando" usa data_vencimento. */
   concierge_em_futuro?: boolean
+  /** Quantos dias antes do data_vencimento o card estocado em Futuro
+   *  comec,a a piscar/destacar. Default 7. So usado quando
+   *  concierge_em_futuro = TRUE. */
+  concierge_aviso_dias?: number
+  /** Checklist interno da tarefa (array de itens texto+checkbox).
+   *  Default `[]`. Renderizado no AtendimentoDetailModal e como
+   *  contador X/Y no AtendimentoCard. */
+  checklist?: ChecklistItem[]
   dono_id: string | null
   card_id: string
   tarefa_criada_por: string | null

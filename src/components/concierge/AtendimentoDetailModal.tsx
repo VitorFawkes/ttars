@@ -7,6 +7,10 @@ import { useMarcarOutcome, useReatribuirAtendimento } from '../../hooks/concierg
 import { useMoverEstadoFunil } from '../../hooks/concierge/useMoverEstadoFunil'
 import { useToggleEmFuturoConcierge } from '../../hooks/concierge/useToggleEmFuturoConcierge'
 import { useEditarPrazoTarefa } from '../../hooks/concierge/useEditarPrazoTarefa'
+import { useChecklistTarefa } from '../../hooks/concierge/useChecklistTarefa'
+import { EstocarFuturoModal } from './kanban/EstocarFuturoModal'
+import { ChecklistEditor } from './atendimento-form/ChecklistEditor'
+import type { ChecklistItem } from '../../hooks/concierge/types'
 import { useToggleTarefaCritica } from '../../hooks/concierge/useToggleCritical'
 import { useConciergeProfilesLookup } from '../../hooks/concierge/useConciergeProfilesLookup'
 import { useConciergeUsers } from '../../hooks/concierge/useConciergeUsers'
@@ -56,6 +60,8 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   // started_at / notificou_cliente_em / outcome).
   const estadoAtual: EstadoFunil | null = item ? computeEstadoFunil(item) : null
   const [destinoSelecionado, setDestinoSelecionado] = useState<EstadoFunil | null>(null)
+  const [estocarModalOpen, setEstocarModalOpen] = useState(false)
+  const [editarAvisoOpen, setEditarAvisoOpen] = useState(false)
   const outcomeEncerramento = 'cancelado' as const
   // Quando o atendimento é uma oferta E o usuário escolhe "Feito", pode marcar
   // adicionalmente como "Aceito" (cliente fechou). Outcome no banco vira 'aceito'.
@@ -78,6 +84,7 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   const { mutateAsync: moverEstadoAsync, isPending: isMovingEstado } = useMoverEstadoFunil()
   const { mutateAsync: toggleEmFuturoAsync, isPending: isTogglingFuturo } = useToggleEmFuturoConcierge()
   const { mutate: editarPrazo, isPending: isEditingPrazo } = useEditarPrazoTarefa()
+  const { mutate: salvarChecklist } = useChecklistTarefa()
   const { mutate: toggleCritica, isPending: togglingCritica } = useToggleTarefaCritica()
   const { mutate: reatribuir, isPending: isReatribuindo } = useReatribuirAtendimento()
   const profilesLookup = useConciergeProfilesLookup()
@@ -122,9 +129,40 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
     editarPrazo({ tarefaId: item.tarefa_id, data: iso })
   }
 
-  const handleEstocarFuturo = async () => {
+  const handleEstocarFuturo = async (avisoDias: number) => {
     try {
-      await toggleEmFuturoAsync({ tarefaId: item.tarefa_id, emFuturo: true })
+      await toggleEmFuturoAsync({ tarefaId: item.tarefa_id, emFuturo: true, avisoDias })
+      setEstocarModalOpen(false)
+      onClose()
+    } catch { /* toast via hook */ }
+  }
+
+  const handleAjustarAviso = async (avisoDias: number) => {
+    try {
+      await toggleEmFuturoAsync({ tarefaId: item.tarefa_id, emFuturo: true, avisoDias })
+      setEditarAvisoOpen(false)
+    } catch { /* toast via hook */ }
+  }
+
+  const handleChecklistChange = (proximos: ChecklistItem[]) => {
+    salvarChecklist({ tarefaId: item.tarefa_id, itens: proximos })
+  }
+
+  const checklistItens: ChecklistItem[] = Array.isArray(item.checklist) ? item.checklist : []
+  const checklistTodosFeitos = checklistItens.length > 0 && checklistItens.every(i => i.feito)
+
+  const handleMarcarComoFeito = async () => {
+    try {
+      const kanbanItem: KanbanTarefaItem = {
+        ...item,
+        concierge_em_futuro: false,
+        estado_funil: estadoAtual ?? 'aguardando_atendimento',
+        janela_embarque: 'embarca_futuro',
+      }
+      if (estadoAtual === 'agendado_futuro' && item.concierge_em_futuro) {
+        await toggleEmFuturoAsync({ tarefaId: item.tarefa_id, emFuturo: false })
+      }
+      await moverEstadoAsync({ atendimento: kanbanItem, destino: 'feito' })
       onClose()
     } catch { /* toast via hook */ }
   }
@@ -318,16 +356,26 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
             <div className="flex items-center justify-between gap-2 px-3 py-2 bg-violet-50 border border-violet-200 rounded-lg text-[12px] text-violet-800">
               <span className="flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-violet-600" />
-                Estocado em "Agendados para o futuro"
+                Estocado em "Futuro" — avisa {item.concierge_aviso_dias ?? 7}d antes
               </span>
-              <button
-                type="button"
-                onClick={handleTirarDoFuturo}
-                disabled={isTogglingFuturo}
-                className="text-[11.5px] font-medium text-violet-700 hover:text-violet-900 disabled:opacity-50"
-              >
-                {isTogglingFuturo ? 'tirando…' : 'tirar do Futuro'}
-              </button>
+              <span className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditarAvisoOpen(true)}
+                  disabled={isTogglingFuturo}
+                  className="text-[11.5px] font-medium text-violet-700 hover:text-violet-900 disabled:opacity-50"
+                >
+                  ajustar aviso
+                </button>
+                <button
+                  type="button"
+                  onClick={handleTirarDoFuturo}
+                  disabled={isTogglingFuturo}
+                  className="text-[11.5px] font-medium text-violet-700 hover:text-violet-900 disabled:opacity-50"
+                >
+                  {isTogglingFuturo ? 'tirando…' : 'tirar do Futuro'}
+                </button>
+              </span>
             </div>
           )}
 
@@ -374,6 +422,29 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
             )
           })()}
 
+          <ChecklistEditor
+            itens={checklistItens}
+            readOnly={!!item.outcome}
+            onChange={handleChecklistChange}
+          />
+
+          {checklistTodosFeitos && !item.outcome && (
+            <div className="flex items-center justify-between gap-2 px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-lg">
+              <div className="text-[12.5px] text-emerald-800">
+                <span className="font-semibold">Tudo do checklist tá feito.</span>{' '}
+                <span className="text-emerald-700">Marcar a tarefa como concluída?</span>
+              </div>
+              <Button
+                size="sm"
+                onClick={handleMarcarComoFeito}
+                disabled={isMovingEstado || isTogglingFuturo}
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                {isMovingEstado || isTogglingFuturo ? 'Salvando…' : 'Marcar como feito'}
+              </Button>
+            </div>
+          )}
+
           {!item.outcome ? (
             <div className="space-y-3">
               <div>
@@ -392,13 +463,12 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
                         type="button"
                         onClick={() => {
                           if (desabilitado || isAtual) return
-                          // Estocar em "Agendados para o futuro": só marca a
-                          // flag sticky direto. O prazo da tarefa (que define
-                          // o aviso de proximidade) já fica editável aqui em
-                          // cima, no PrazoTarefaEditor.
+                          // Estocar em "Agendados para o futuro": abre o
+                          // modal pra escolher em quantos dias antes do
+                          // prazo o card vai piscar.
                           if (col.id === 'agendado_futuro') {
                             setDestinoSelecionado(null)
-                            handleEstocarFuturo()
+                            setEstocarModalOpen(true)
                             return
                           }
                           setDestinoSelecionado(col.id)
@@ -547,6 +617,23 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
         </div>
       </div>
 
+      <EstocarFuturoModal
+        open={estocarModalOpen}
+        modo="estocar"
+        avisoDiasAtual={item.concierge_aviso_dias ?? 7}
+        onClose={() => setEstocarModalOpen(false)}
+        isSubmitting={isTogglingFuturo}
+        onConfirm={handleEstocarFuturo}
+      />
+
+      <EstocarFuturoModal
+        open={editarAvisoOpen}
+        modo="editar"
+        avisoDiasAtual={item.concierge_aviso_dias ?? 7}
+        onClose={() => setEditarAvisoOpen(false)}
+        isSubmitting={isTogglingFuturo}
+        onConfirm={handleAjustarAviso}
+      />
     </div>
   )
 }
