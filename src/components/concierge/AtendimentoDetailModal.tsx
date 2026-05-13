@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { X, AlertCircle, ExternalLink, Calendar, Wallet, Flame, User, ChevronDown, Check } from 'lucide-react'
+import { X, AlertCircle, ExternalLink, Calendar, Wallet, Flame, User, ChevronDown, Check, CalendarClock } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useMarcarOutcome, useReatribuirAtendimento } from '../../hooks/concierge/useAtendimentoMutations'
 import { useMoverEstadoFunil } from '../../hooks/concierge/useMoverEstadoFunil'
+import { useSnoozeAtendimento } from '../../hooks/concierge/useSnoozeAtendimento'
 import { useToggleTarefaCritica } from '../../hooks/concierge/useToggleCritical'
 import { useConciergeProfilesLookup } from '../../hooks/concierge/useConciergeProfilesLookup'
 import { useConciergeUsers } from '../../hooks/concierge/useConciergeUsers'
@@ -30,6 +31,29 @@ function fmtBRL(v: number | null | undefined) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
 }
 
+function isoToDateInput(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (!Number.isFinite(d.getTime())) return ''
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+function dateInputToIso(value: string): string | null {
+  if (!value) return null
+  const d = new Date(`${value}T09:00:00`)
+  return Number.isFinite(d.getTime()) ? d.toISOString() : null
+}
+
+function addDaysIso(dias: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() + dias)
+  d.setHours(9, 0, 0, 0)
+  return d.toISOString()
+}
+
 export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   const item = (props.item ?? props.atendimento) as MeuDiaItem | undefined
   const isOpen = props.open ?? props.isOpen ?? false
@@ -45,9 +69,23 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   const [valorFinal, setValorFinal] = useState(item?.valor?.toString() ?? '')
   const [cobradoDe, setCobradoDe] = useState<CobradoDe | ''>(item?.cobrado_de ?? '')
   const [observacao, setObservacao] = useState('')
+  // Data planejada de retorno (concierge_futuro_em). Reinicializa quando o
+  // item muda — atende tanto a edição inline (atendimento já em Futuro)
+  // quanto a escolha de estocar via grid de colunas.
+  const [snoozeDate, setSnoozeDate] = useState<string>(() =>
+    item?.concierge_futuro_em ? isoToDateInput(item.concierge_futuro_em) : isoToDateInput(addDaysIso(30))
+  )
+  useEffect(() => {
+    if (!item) return
+    setSnoozeDate(item.concierge_futuro_em
+      ? isoToDateInput(item.concierge_futuro_em)
+      : isoToDateInput(addDaysIso(30))
+    )
+  }, [item?.atendimento_id, item?.concierge_futuro_em]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { mutate: marcarOutcome, isPending: isMarkingOutcome } = useMarcarOutcome()
   const { mutateAsync: moverEstadoAsync, isPending: isMovingEstado } = useMoverEstadoFunil()
+  const { mutateAsync: snoozeAsync, isPending: isSnoozing } = useSnoozeAtendimento()
   const { mutate: toggleCritica, isPending: togglingCritica } = useToggleTarefaCritica()
   const { mutate: reatribuir, isPending: isReatribuindo } = useReatribuirAtendimento()
   const profilesLookup = useConciergeProfilesLookup()
@@ -80,11 +118,39 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   const donoNome = item.dono_id ? profilesLookup?.get(item.dono_id) : null
 
   const isOferta = item.tipo_concierge === 'oferta'
-  const podeConfirmar = !!destinoSelecionado && destinoSelecionado !== estadoAtual && destinoSelecionado !== 'aguardando_atendimento'
-  const isPendingMove = isMarkingOutcome || isMovingEstado
+  const snoozeIso = dateInputToIso(snoozeDate)
+  const podeConfirmar = !!destinoSelecionado
+    && destinoSelecionado !== estadoAtual
+    && destinoSelecionado !== 'aguardando_atendimento'
+    && (destinoSelecionado !== 'agendado_futuro' || !!snoozeIso)
+  const isPendingMove = isMarkingOutcome || isMovingEstado || isSnoozing
+
+  const handleSalvarPrazoFuturo = async () => {
+    if (!snoozeIso) return
+    try {
+      await snoozeAsync({ tarefaId: item.tarefa_id, data: snoozeIso })
+      onClose()
+    } catch { /* toast via hook */ }
+  }
+
+  const handleTirarDoFuturo = async () => {
+    try {
+      await snoozeAsync({ tarefaId: item.tarefa_id, data: null })
+      onClose()
+    } catch { /* toast via hook */ }
+  }
 
   const handleConfirmar = async () => {
     if (!destinoSelecionado || !podeConfirmar) return
+
+    // Estocar em "Agendados para o futuro" via modal: grava concierge_futuro_em.
+    if (destinoSelecionado === 'agendado_futuro' && snoozeIso) {
+      try {
+        await snoozeAsync({ tarefaId: item.tarefa_id, data: snoozeIso })
+        onClose()
+      } catch { /* toast via hook */ }
+      return
+    }
 
     // "Feito" pra oferta marcado como aceito → outcome='aceito' direto.
     if (destinoSelecionado === 'feito' && isOferta && comoAceito) {
@@ -100,9 +166,15 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
 
     // Demais casos delegam ao useMoverEstadoFunil (em_contato → started_at,
     // aguardando_retorno → rpc_notificar_cliente, feito/encerrado → rpc_marcar_outcome).
+    // Se o atendimento estava em Futuro, antes precisamos limpar o flag sticky
+    // pra que computeEstadoFunil não force ele a continuar lá.
     try {
+      if (estadoAtual === 'agendado_futuro' && item.concierge_futuro_em) {
+        await snoozeAsync({ tarefaId: item.tarefa_id, data: null })
+      }
       const kanbanItem: KanbanTarefaItem = {
         ...item,
+        concierge_futuro_em: null,
         estado_funil: estadoAtual ?? 'aguardando_atendimento',
         janela_embarque: 'embarca_futuro',
         // Pra "feito" em oferta, pré-popular valor/cobrado_de no item passado
@@ -244,6 +316,18 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
             </div>
           )}
 
+          {item.concierge_futuro_em && !item.outcome && (
+            <FuturoEditor
+              concierge_futuro_em={item.concierge_futuro_em}
+              snoozeDate={snoozeDate}
+              onChangeSnoozeDate={setSnoozeDate}
+              onSalvar={handleSalvarPrazoFuturo}
+              onTirar={handleTirarDoFuturo}
+              isPending={isSnoozing}
+              canSalvar={!!snoozeIso && isoToDateInput(item.concierge_futuro_em) !== snoozeDate}
+            />
+          )}
+
           <ViagemBlock item={item} onClose={onClose} />
 
           <CardContextBlocks
@@ -347,6 +431,45 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
               </div>
 
               {/* Sub-area condicional ao destino selecionado */}
+              {destinoSelecionado === 'agendado_futuro' && estadoAtual !== 'agendado_futuro' && (
+                <div className="bg-violet-50/40 border border-violet-100 rounded-lg p-3 space-y-2">
+                  <div className="text-[11.5px] font-semibold text-slate-700 flex items-center gap-1.5">
+                    <CalendarClock className="w-3.5 h-3.5 text-violet-600" />
+                    Quando voltar pra fila?
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[7, 30, 60].map(dias => {
+                      const presetValue = isoToDateInput(addDaysIso(dias))
+                      const isSel = snoozeDate === presetValue
+                      return (
+                        <button
+                          key={dias}
+                          type="button"
+                          onClick={() => setSnoozeDate(presetValue)}
+                          className={cn(
+                            'px-2.5 py-1.5 rounded-md text-[12px] font-medium border transition',
+                            isSel
+                              ? 'bg-violet-100 border-violet-300 text-violet-800'
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                          )}
+                        >
+                          Em {dias} dias
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <input
+                    type="date"
+                    value={snoozeDate}
+                    onChange={(e) => setSnoozeDate(e.target.value)}
+                    className="w-full h-9 px-3 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-300"
+                  />
+                  <p className="text-[10.5px] text-slate-500">
+                    Nada se move sozinho. Quando a data chegar, o card destaca em amarelo; se passar, em vermelho.
+                  </p>
+                </div>
+              )}
+
               {destinoSelecionado === 'feito' && isOferta && (
                 <div className="bg-purple-50/40 border border-purple-100 rounded-lg p-3 space-y-3">
                   <label className="flex items-start gap-2 text-[12.5px] font-medium text-slate-700 cursor-pointer">
@@ -477,6 +600,59 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
             <Button variant="outline" onClick={onClose}>Fechar</Button>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+interface FuturoEditorProps {
+  concierge_futuro_em: string
+  snoozeDate: string
+  onChangeSnoozeDate: (value: string) => void
+  onSalvar: () => void
+  onTirar: () => void
+  isPending: boolean
+  canSalvar: boolean
+}
+
+function FuturoEditor({ concierge_futuro_em, snoozeDate, onChangeSnoozeDate, onSalvar, onTirar, isPending, canSalvar }: FuturoEditorProps) {
+  const target = new Date(concierge_futuro_em).getTime()
+  const now = Date.now()
+  const diffD = Math.round((target - now) / (1000 * 60 * 60 * 24))
+  let toneClasses: string
+  let label: string
+  if (diffD < 0) {
+    toneClasses = 'bg-red-50 border-red-200 text-red-700'
+    label = `Prazo passou há ${-diffD}d — decida se volta pra fila ou estoca de novo.`
+  } else if (diffD <= 7) {
+    toneClasses = 'bg-amber-50 border-amber-200 text-amber-800'
+    label = diffD === 0 ? 'Prazo planejado é hoje.' : `Prazo planejado em ${diffD}d.`
+  } else {
+    toneClasses = 'bg-violet-50 border-violet-200 text-violet-700'
+    label = `Volta pra fila em ${diffD}d (prazo planejado).`
+  }
+
+  return (
+    <div className={cn('border rounded-lg p-3 space-y-2', toneClasses)}>
+      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide font-semibold">
+        <CalendarClock className="w-3.5 h-3.5" />
+        Estocado em "Agendados para o futuro"
+      </div>
+      <p className="text-[12.5px]">{label}</p>
+      <div className="flex items-center gap-2">
+        <input
+          type="date"
+          value={snoozeDate}
+          onChange={(e) => onChangeSnoozeDate(e.target.value)}
+          disabled={isPending}
+          className="h-8 px-2 text-sm bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-300 disabled:opacity-50"
+        />
+        <Button size="sm" onClick={onSalvar} disabled={!canSalvar || isPending}>
+          Salvar prazo
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onTirar} disabled={isPending}>
+          Tirar do Futuro
+        </Button>
       </div>
     </div>
   )

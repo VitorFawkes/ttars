@@ -79,29 +79,36 @@ export function useConciergePreferences() {
 
   const [prefs, setPrefs] = useState<ConciergePreferences>(() => readPrefs(key))
 
+  // Rehidrata quando a org muda (key inicial pode ser null se o OrgContext
+  // ainda não carregou). Importante: NÃO escrever no localStorage dentro
+  // de um useEffect que reage a [key, prefs] — isso sobrescreveria os
+  // dados persistidos com DEFAULT_PREFS entre o setPrefs(readPrefs) e o
+  // ciclo seguinte. Toda persistência acontece dentro das funções de
+  // mutação abaixo, com o `key` capturado no momento da chamada.
   useEffect(() => {
     setPrefs(readPrefs(key))
   }, [key])
-
-  useEffect(() => {
-    writePrefs(key, prefs)
-  }, [key, prefs])
 
   const setPref = useCallback(<K extends keyof ConciergePreferences>(
     field: K,
     value: ConciergePreferences[K] | ((prev: ConciergePreferences[K]) => ConciergePreferences[K])
   ) => {
-    setPrefs(prev => ({
-      ...prev,
-      [field]: typeof value === 'function'
+    setPrefs(prev => {
+      const nextValue = typeof value === 'function'
         ? (value as (p: ConciergePreferences[K]) => ConciergePreferences[K])(prev[field])
-        : value,
-    }))
-  }, [])
+        : value
+      const next = { ...prev, [field]: nextValue }
+      writePrefs(key, next)
+      return next
+    })
+  }, [key])
 
   const clearAll = useCallback(() => {
-    setPrefs(DEFAULT_PREFS)
-  }, [])
+    setPrefs(() => {
+      writePrefs(key, DEFAULT_PREFS)
+      return DEFAULT_PREFS
+    })
+  }, [key])
 
   const toggleSet = useCallback(<K extends 'tipos' | 'sources' | 'janelas' | 'categorias' | 'tagIds'>(
     field: K,
@@ -109,12 +116,14 @@ export function useConciergePreferences() {
   ) => {
     setPrefs(prev => {
       const arr = (prev[field] as string[]) ?? []
-      const next = arr.includes(value as string)
+      const nextArr = arr.includes(value as string)
         ? arr.filter(v => v !== value)
         : [...arr, value as string]
-      return { ...prev, [field]: next as ConciergePreferences[K] }
+      const next = { ...prev, [field]: nextArr as ConciergePreferences[K] }
+      writePrefs(key, next)
+      return next
     })
-  }, [])
+  }, [key])
 
   const hasAnyFilter = useMemo(() => (
     prefs.tipos.length > 0 ||
