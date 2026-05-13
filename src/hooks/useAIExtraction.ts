@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 
 const N8N_WEBHOOK_URL = 'https://n8n-n8n.ymnmx7.easypanel.host/webhook/ai-extraction-unified'
 
-export type AIExtractionSource = 'whatsapp' | 'briefing_audio' | 'meeting_transcript'
+export type AIExtractionSource = 'whatsapp' | 'briefing_audio' | 'meeting_transcript' | 'briefing_multimodal'
 
 export interface AIExtractionMeta {
   status?: 'wrong_trip'
@@ -16,8 +16,37 @@ export interface AIExtractionMeta {
   messages_about_other_trips?: number
 }
 
+/**
+ * Posição visual do consultor em screenshots de WhatsApp (briefing_multimodal).
+ */
+export type SenderPosition = 'right_green' | 'left_white' | 'unknown'
+
+/**
+ * Análise por imagem retornada pelo edge function briefing-multimodal-extract.
+ * Usada quando o status volta como 'needs_confirmation' — UI pede ao usuário
+ * confirmar qual lado é dele em cada imagem antes de re-extrair.
+ */
+export interface ImageAnalysis {
+  image_index: number
+  signed_url: string
+  detected_layout?: SenderPosition
+  detected_consultor_name?: string | null
+  detected_client_name?: string | null
+  reason?: string | null
+}
+
+/**
+ * Pista enviada pelo usuário (após confirmação visual) pra orientar a
+ * re-extração: pra cada imagem, qual lado é o consultor.
+ */
+export interface SenderHint {
+  image_index: number
+  consultor_position: SenderPosition
+  confirmed_by_user: boolean
+}
+
 export interface AIExtractionResult {
-  status: 'success' | 'no_update' | 'wrong_trip' | 'error' | 'transcription_empty'
+  status: 'success' | 'no_update' | 'wrong_trip' | 'error' | 'transcription_empty' | 'needs_confirmation' | 'not_whatsapp'
   source?: AIExtractionSource
   briefing_text?: string
   transcription?: string
@@ -27,6 +56,8 @@ export interface AIExtractionResult {
   message?: string
   error?: string
   meeting_id?: string | null
+  /** Quando status='needs_confirmation', traz análise por imagem pro modal. */
+  image_analysis?: ImageAnalysis[]
 }
 
 export type AIExtractionStep = 'idle' | 'uploading' | 'processing' | 'done' | 'error'
@@ -48,6 +79,12 @@ export interface AIExtractionOptions {
   transcription?: string
   mode?: 'novo' | 'atualizar'
   meetingId?: string
+  /** Caminhos de imagens já upadas no storage — usado por briefing_multimodal. */
+  imagePaths?: string[]
+  /** Texto livre digitado pelo usuário no momento da criação do card. */
+  textInput?: string
+  /** Pistas de remetente confirmadas pelo usuário (retry após needs_confirmation). */
+  senderHints?: SenderHint[]
 }
 
 /**
