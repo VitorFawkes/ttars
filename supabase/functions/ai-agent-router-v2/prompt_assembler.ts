@@ -85,6 +85,13 @@ export interface BuildSinglePromptInput {
      * último turno da conversa.
      */
     proposed_slots?: Array<{ date: string; time: string; weekday: string }> | null;
+    /**
+     * Resultados de tools executadas no MESMO turn anterior (agentic loop).
+     * Quando o LLM chama uma tool e queremos que ele use o resultado pra
+     * gerar a resposta, o router executa, popula isto e re-chama o LLM.
+     * Hoje só `check_calendar` usa esse caminho.
+     */
+    tool_results?: Record<string, unknown> | null;
   };
   availableTools: string[];
 }
@@ -163,6 +170,12 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
   // router pré-busca 3 horários e injeta aqui. LLM apresenta verbatim.
   const proposedSlotsBlock = renderProposedSlots(conversationState.proposed_slots);
 
+  // -------- Tool results (agentic loop curto) -----------------------------
+  // Quando o router executou uma tool e está re-chamando o LLM pra usar o
+  // resultado, popula este bloco com a saída da tool. Hoje cobre só
+  // check_calendar — a Patricia usa o retorno pra responder ao lead.
+  const toolResultsBlock = renderToolResults(conversationState.tool_results);
+
   // -------- Turn policy (regra do bloco ativo nesse turno) ----------------
   const turnPolicyBlock = renderTurnPolicy(moments, conversationState);
 
@@ -184,6 +197,7 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
     stateBlock,
     qualificationResultBlock,
     proposedSlotsBlock,
+    toolResultsBlock,
     turnPolicyBlock,
     toolsBlock,
     schemaReminder,
@@ -632,6 +646,48 @@ Este resultado é fonte de verdade. Use-o pra decidir o desfecho. O \`turn_polic
  * Renderiza os 3 horários propostos quando o router decidiu desfecho_qualificado.
  * LLM deve apresentar verbatim na mensagem final, oferecendo escolha ao casal.
  */
+/**
+ * Renderiza resultados de tools executadas pelo router antes desta chamada
+ * do LLM (agentic loop curto). Quando presente, o LLM DEVE basear sua
+ * resposta nesses resultados, sem inventar.
+ *
+ * Hoje cobre check_calendar (negociação de data fora dos slots iniciais).
+ */
+function renderToolResults(
+  results: BuildSinglePromptInput["conversationState"]["tool_results"] | undefined,
+): string {
+  if (!results || Object.keys(results).length === 0) return "";
+  const lines: string[] = [];
+  for (const [toolName, payload] of Object.entries(results)) {
+    if (toolName === "check_calendar") {
+      const r = payload as { slots_disponiveis?: Array<{ date: string; time: string; weekday: string }>; note?: string | null };
+      const slots = r.slots_disponiveis || [];
+      const note = r.note || null;
+      lines.push(`📅 **check_calendar** retornou:`);
+      if (slots.length === 0) {
+        lines.push(`- Nenhum horário disponível na data/range solicitado.`);
+        if (note) lines.push(`- Motivo: ${note}`);
+        lines.push(`- ⚠️ Explique honestamente ao lead (use o motivo acima) e ofereça outra data próxima. NÃO re-ofereça os mesmos slots originais de \`<proposed_slots>\`.`);
+      } else {
+        lines.push(`- Horários reais encontrados pela agenda da Wedding Planner:`);
+        for (const s of slots) {
+          lines.push(`  - *${s.weekday} ${s.date}* às *${s.time}*`);
+        }
+        if (note) lines.push(`- Observação: ${note}`);
+        lines.push(`- ✅ Apresente estes horários ao lead. Eles SUBSTITUEM os de \`<proposed_slots>\` agora. Quando o lead escolher um deles, chame \`confirm_meeting_slot\` com a date+time correspondente.`);
+      }
+    } else {
+      // Outras tools: render genérico
+      lines.push(`📦 **${toolName}** retornou: \`${JSON.stringify(payload)}\``);
+    }
+  }
+  return `<tool_results>
+🛠️ Resultados de tools que o router já executou ANTES desta resposta. Use estes dados como fonte de verdade.
+
+${lines.join("\n")}
+</tool_results>`;
+}
+
 function renderProposedSlots(
   slots: BuildSinglePromptInput["conversationState"]["proposed_slots"] | undefined,
 ): string {
@@ -713,8 +769,9 @@ ${baseText}
 - NÃO chame a tool \`calculate_qualification_score\` — o router já calculou e o resultado está em \`<qualification_result>\`.
 ${state.proposed_slots && state.proposed_slots.length > 0
   ? `- Apresente TODOS os ${state.proposed_slots.length} horários de \`<proposed_slots>\` verbatim e peça pro casal escolher um. Cada slot tem date+time exatos — não omita nenhum.
-- ⚠️ AGENDAMENTO: quando o casal escolher/aceitar um dos horários, a ÚNICA tool válida é \`confirm_meeting_slot\` com { date, time } da escolha exata. NUNCA use \`create_task\` pra agendar reunião com a Wedding Planner — \`create_task\` é só pra tarefas internas administrativas. Se \`confirm_meeting_slot\` não estiver listada em \`<tools_available>\`, o agendamento real foi desabilitado e você só confirma verbalmente (sem chamar nenhuma tool).
-- Sem chamar a tool, a reunião NÃO entra na agenda real da Wedding Planner — só você sabe. Sempre chame a tool ao confirmar.`
+- ⚠️ AGENDAMENTO: quando o casal escolher/aceitar um dos horários, a ÚNICA tool válida é \`confirm_meeting_slot\` com { date, time } da escolha exata. NUNCA use \`create_task\` pra agendar reunião com a Wedding Planner — \`create_task\` é só pra tarefas internas administrativas.
+- Sem chamar a tool, a reunião NÃO entra na agenda real da Wedding Planner — só você sabe. Sempre chame a tool ao confirmar.
+- 🔄 NEGOCIAÇÃO DE DATA: se o casal pedir uma data ou horário FORA dos slots de \`<proposed_slots>\` (ex: 'tem dia 17?', 'antes de quinta?', 'na semana que vem?', 'manhã do dia 20?'), CHAME a tool \`check_calendar\` com a data/range que o casal pediu. NÃO repita os mesmos slots originais. NÃO diga 'vou checar' sem chamar a tool. Apresente os slots retornados pela tool. Se vier vazio, leia o \`note\` e explique honestamente (ex: 'esse dia cai num domingo e a Wedding Planner não atende — quer que eu veja na segunda 18/05?').`
   : ""}
 ${forced.must_cover && forced.must_cover.length > 0
   ? `- Cubra todos os pontos de \`must_cover\` do momento.`
@@ -815,7 +872,7 @@ function renderTools(tools: string[]): string {
     search_knowledge_base:
       "Busca na base de conhecimento (FAQ, destinos, processo Welcome). Args: { query: string }. Retorna { results: [...] }. Use quando lead pergunta algo factual.",
     check_calendar:
-      "Verifica agenda da Wedding Planner. Args: { responsavel_id, data_inicio, data_fim }. Retorna { slots_disponiveis: [...] }. Use só em desfecho_qualificado.",
+      "Verifica horários DISPONÍVEIS na agenda real da Wedding Planner. Use quando o lead pedir uma data ou horário diferente dos que estão em <proposed_slots> (ex: 'tem dia 17?', 'consegue antes de quinta?', 'manhã do dia 20?', 'na semana que vem?'). Args (todos OPCIONAIS): { data_inicio: 'DD/MM' ou 'DD/MM/YYYY' (default = amanhã), data_fim: idem (default = data_inicio + janela configurada), quantidade: int 1-15 (default 6) }. Retorna { slots_disponiveis: [{date, time, weekday}], note?: string }. Se `slots_disponiveis` vier vazio, leia `note` pra entender o motivo (final de semana, range fora da janela, tudo ocupado) e explique honestamente ao lead. NUNCA invente horários — sempre chame esta tool antes de oferecer outra data.",
     confirm_meeting_slot:
       "[OBRIGATÓRIA NO DESFECHO] CRIA a reunião na agenda real da Wedding Planner. SEMPRE chame esta tool (NÃO chame `create_task` pra isso!) quando o casal escolher/aceitar um dos 3 horários oferecidos em <proposed_slots>. Args: { date: 'DD/MM/YYYY', time: 'HH:MM' } — use EXATAMENTE a data e hora que o casal escolheu. Retorna { reuniao_id, status }. Se retornar erro de conflito, peça pro casal escolher outro horário entre os disponíveis. Esta é a ÚNICA forma de a reunião realmente entrar na agenda da Wedding Planner.",
     request_handoff:

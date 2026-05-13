@@ -329,24 +329,158 @@ export async function executePatriciaToolCall(
       }
 
       case "check_calendar": {
-        // Stub: retorna 3 slots mock pra próximos dias úteis (10h, 14h, 16h)
-        const today = new Date();
-        const slots: Array<{ date: string; time: string; weekday: string }> = [];
-        const weekdays = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
-        for (let i = 1; slots.length < 3 && i < 10; i++) {
-          const d = new Date(today);
-          d.setDate(today.getDate() + i);
-          const wd = d.getDay();
-          if (wd === 0 || wd === 6) continue; // pula fim de semana
-          const dStr = d.toLocaleDateString("pt-BR");
-          ["10:00", "14:00", "16:00"].forEach((t) => {
-            if (slots.length < 3) slots.push({ date: dStr, time: t, weekday: weekdays[wd] });
-          });
+        // Verifica agenda real da Wedding Planner.
+        // Args: { data_inicio?: 'DD/MM' ou 'DD/MM/YYYY' ou 'YYYY-MM-DD',
+        //         data_fim?: idem, quantidade?: int (default 6, max 15) }
+        // Respeita scheduling_config do agente (horários disponíveis,
+        // skip_weekends, formato de data). Filtra conflitos com reuniões
+        // já agendadas/confirmadas no responsável_id da WP.
+        if (!agent.wedding_planner_profile_id) {
+          return { tool_name: call.tool_name, ok: false, error: "Wedding Planner não configurada — configure ai_agents.wedding_planner_profile_id.", duration_ms: Date.now() - startedAt };
         }
+
+        const sc = agent.scheduling_config ?? {};
+        const availableHours = (Array.isArray(sc.available_hours) && sc.available_hours.length > 0)
+          ? sc.available_hours
+          : ["10:00", "14:00", "16:00"];
+        const skipWeekends = sc.skip_weekends !== false;
+        const windowDays = Number(sc.search_window_days ?? 14);
+        const dateFormat = sc.date_format === "full" ? "full" : "short";
+
+        const parseFlexDate = (s: unknown): Date | null => {
+          if (typeof s !== "string") return null;
+          let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+          if (m) return new Date(`${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}T00:00:00`);
+          m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+          if (m) return new Date(`${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}T00:00:00`);
+          m = s.match(/^(\d{1,2})\/(\d{1,2})$/);
+          if (m) {
+            const now = new Date();
+            const yyyy = now.getFullYear();
+            const candidate = new Date(`${yyyy}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}T00:00:00`);
+            if (candidate.getTime() < now.getTime() - 24 * 3600 * 1000) candidate.setFullYear(yyyy + 1);
+            return candidate;
+          }
+          return null;
+        };
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const args = call.args || {};
+        let rangeStart: Date | null = parseFlexDate(args.data_inicio);
+        let rangeEnd: Date | null = parseFlexDate(args.data_fim);
+        const userPickedSpecificStart = !!rangeStart;
+
+        // Defaults: começa amanhã, vai até janela configurada
+        if (!rangeStart) {
+          rangeStart = new Date(today);
+          rangeStart.setDate(today.getDate() + 1);
+        }
+        if (!rangeEnd) {
+          rangeEnd = new Date(rangeStart);
+          rangeEnd.setDate(rangeStart.getDate() + windowDays);
+        }
+        // Cap em janela máxima a partir de hoje
+        const maxEnd = new Date(today);
+        maxEnd.setDate(today.getDate() + Math.max(windowDays, 30));
+        if (rangeEnd.getTime() > maxEnd.getTime()) rangeEnd = maxEnd;
+        // Garante rangeEnd >= rangeStart
+        if (rangeEnd.getTime() < rangeStart.getTime()) rangeEnd = new Date(rangeStart);
+
+        const quantidade = Math.min(Math.max(Number(args.quantidade ?? 6), 1), 15);
+
+        // Gera candidatos no range
+        const weekdayLabels = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+        type Slot = { date: string; time: string; weekday: string; iso: string };
+        const candidates: Slot[] = [];
+        const fmt = (d: Date): string => {
+          const dd = String(d.getDate()).padStart(2, "0");
+          const mm = String(d.getMonth() + 1).padStart(2, "0");
+          return dateFormat === "full" ? `${dd}/${mm}/${d.getFullYear()}` : `${dd}/${mm}`;
+        };
+
+        const cur = new Date(rangeStart);
+        cur.setHours(0, 0, 0, 0);
+        let skippedWeekendDays = 0;
+        let totalDaysScanned = 0;
+        while (cur.getTime() <= rangeEnd.getTime() && candidates.length < 60) {
+          const wd = cur.getDay();
+          totalDaysScanned++;
+          if (skipWeekends && (wd === 0 || wd === 6)) {
+            skippedWeekendDays++;
+            cur.setDate(cur.getDate() + 1);
+            continue;
+          }
+          const yyyy = cur.getFullYear();
+          const mm = String(cur.getMonth() + 1).padStart(2, "0");
+          const dd = String(cur.getDate()).padStart(2, "0");
+          const dateStr = fmt(cur);
+          for (const h of availableHours) {
+            candidates.push({
+              date: dateStr,
+              time: h,
+              weekday: weekdayLabels[wd],
+              iso: `${yyyy}-${mm}-${dd}T${h}:00`,
+            });
+          }
+          cur.setDate(cur.getDate() + 1);
+        }
+
+        // Busca reuniões da WP no range
+        const occupied = new Set<string>();
+        try {
+          const endPlus = new Date(rangeEnd);
+          endPlus.setDate(endPlus.getDate() + 1);
+          const { data: meetings, error: meetErr } = await supabase
+            .from("reunioes")
+            .select("data_inicio")
+            .eq("org_id", agent.org_id)
+            .eq("responsavel_id", agent.wedding_planner_profile_id)
+            .gte("data_inicio", rangeStart.toISOString())
+            .lt("data_inicio", endPlus.toISOString())
+            .in("status", ["agendada", "confirmada", "agendado", "confirmado"]);
+          if (meetErr) {
+            console.warn("[tool check_calendar] erro lendo reunioes:", meetErr.message);
+          } else if (Array.isArray(meetings)) {
+            for (const m of meetings) {
+              const di = m.data_inicio as string | null;
+              if (!di) continue;
+              const md = new Date(di);
+              const yyyy = md.getFullYear();
+              const mm = String(md.getMonth() + 1).padStart(2, "0");
+              const dd = String(md.getDate()).padStart(2, "0");
+              const hh = String(md.getHours()).padStart(2, "0");
+              const mi = String(md.getMinutes()).padStart(2, "0");
+              occupied.add(`${yyyy}-${mm}-${dd}T${hh}:${mi}:00`);
+            }
+          }
+        } catch (e) {
+          console.warn("[tool check_calendar] exception:", (e as Error).message);
+        }
+
+        const free = candidates.filter((c) => !occupied.has(c.iso));
+        const finalSlots = free.slice(0, quantidade).map((s) => ({
+          date: s.date,
+          time: s.time,
+          weekday: s.weekday,
+        }));
+
+        // Diagnóstico explícito quando a lista vem vazia
+        let note: string | null = null;
+        if (finalSlots.length === 0) {
+          if (userPickedSpecificStart && skipWeekends && totalDaysScanned === skippedWeekendDays && skippedWeekendDays > 0) {
+            note = "data solicitada cai em final de semana — Wedding Planner não atende sábado/domingo. Sugira um dia útil próximo.";
+          } else if (candidates.length === 0) {
+            note = "nenhum dia útil no range solicitado.";
+          } else {
+            note = "todos os horários disponíveis estão ocupados nesse intervalo. Tente outra data.";
+          }
+        }
+
         return {
           tool_name: call.tool_name,
           ok: true,
-          result: { slots_disponiveis: slots },
+          result: { slots_disponiveis: finalSlots, note },
           duration_ms: Date.now() - startedAt,
         };
       }

@@ -963,7 +963,7 @@ Deno.serve(async (req) => {
     // ------------------------------------------------------------------
     // 10. Chamar Single Agent (modelo configurável via pipeline_models.main)
     // ------------------------------------------------------------------
-    const singleAgentResult = await runSingleAgent({
+    let singleAgentResult = await runSingleAgent({
       supabase,
       apiKey: OPENAI_API_KEY,
       agent: {
@@ -1075,28 +1075,43 @@ Deno.serve(async (req) => {
     // ------------------------------------------------------------------
     const availableToolsSet = new Set(availableTools);
     const toolResults: Array<{ tool: string; ok: boolean; error?: string; rerouted_from?: string }> = [];
+    let checkCalendarResult: { slots_disponiveis?: Array<{ date: string; time: string; weekday: string }>; note?: string | null } | null = null;
     const inDesfechoComSlots = forcedMomentKey === "desfecho_qualificado" && !!(proposedSlots && proposedSlots.length > 0);
 
     // Defesa pré-loop: se LLM está em desfecho com slots E NÃO chamou
-    // confirm_meeting_slot E o lead acabou de escolher um horário, injetamos
-    // a chamada da tool baseada em parsing da mensagem do lead + slots
-    // oferecidos. Sem isso, LLM diz "fica marcado" sem agendar de verdade.
+    // confirm_meeting_slot mas a resposta dele OU a msg do lead aponta
+    // claramente pra um dos slots, injetamos a chamada. Sem isso, LLM diz
+    // "fica marcado" sem agendar de verdade.
     const llmCalledConfirm = singleAgentResult.output.tool_calls.some((tc) => tc.tool_name === "confirm_meeting_slot");
-    if (inDesfechoComSlots && !llmCalledConfirm && processedText) {
-      const userMsg = processedText.toLowerCase();
-      // Tenta achar dia+hora na mensagem do lead matching algum slot oferecido
+    if (inDesfechoComSlots && !llmCalledConfirm) {
+      // Busca match em: msg do lead + texto da resposta da Patricia
+      // (cobre 2 casos: "marca 14/05 10h" do lead, OU Patricia já
+      // confirmando "vou agendar 14/05 às 10:00" sem chamar tool).
+      const agentMessages = (singleAgentResult.output.messages || [])
+        .map((m) => (m.content || "").toLowerCase())
+        .join(" ");
+      const haystack = `${(processedText || "").toLowerCase()} ${agentMessages}`;
+
+      // Aliases pra weekdays (curto + longo)
+      const weekdayAliases: Record<string, string[]> = {
+        dom: ["dom", "domingo"],
+        seg: ["seg", "segunda", "segunda-feira"],
+        ter: ["ter", "terça", "terca", "terça-feira", "terca-feira"],
+        qua: ["qua", "quarta", "quarta-feira"],
+        qui: ["qui", "quinta", "quinta-feira"],
+        sex: ["sex", "sexta", "sexta-feira"],
+        sáb: ["sáb", "sab", "sábado", "sabado"],
+      };
+
       let matched: { date: string; time: string } | null = null;
       for (const slot of proposedSlots!) {
-        // Slot date pode ser "14/05" ou "14/05/2026". Time é "HH:MM".
         const [dd, mm] = slot.date.split("/");
         const hh = slot.time.split(":")[0];
-        // Patterns aceitos pra dia: "14/05", "14/5", "dia 14", "14"
-        // Patterns aceitos pra hora: "14h", "14:00", "às 14", "14 horas"
         const dayPatterns = [
           slot.date.toLowerCase(),
           `${parseInt(dd, 10)}/${parseInt(mm, 10)}`,
           `dia ${parseInt(dd, 10)}`,
-          slot.weekday.toLowerCase(),
+          ...(weekdayAliases[slot.weekday.toLowerCase()] || [slot.weekday.toLowerCase()]),
         ];
         const hourPatterns = [
           slot.time,
@@ -1104,16 +1119,17 @@ Deno.serve(async (req) => {
           `${parseInt(hh, 10)}h`,
           `às ${parseInt(hh, 10)}`,
           ` ${parseInt(hh, 10)} `,
+          `${parseInt(hh, 10)}:00`,
         ];
-        const dayHit = dayPatterns.some((p) => p.length >= 2 && userMsg.includes(p));
-        const hourHit = hourPatterns.some((p) => userMsg.includes(p));
+        const dayHit = dayPatterns.some((p) => p.length >= 2 && haystack.includes(p));
+        const hourHit = hourPatterns.some((p) => haystack.includes(p));
         if (dayHit && hourHit) {
           matched = { date: slot.date, time: slot.time };
           break;
         }
       }
       if (matched) {
-        console.warn(`[v2] LLM não chamou confirm_meeting_slot em desfecho — injetando chamada baseada em escolha do lead { date: ${matched.date}, time: ${matched.time} }`);
+        console.warn(`[v2] LLM não chamou confirm_meeting_slot em desfecho — injetando chamada { date: ${matched.date}, time: ${matched.time} }`);
         singleAgentResult.output.tool_calls.unshift({
           tool_name: "confirm_meeting_slot",
           args: matched,
@@ -1153,8 +1169,86 @@ Deno.serve(async (req) => {
       }
       const result = await executePatriciaToolCall(supabase, agent, cardId, contactId, tc);
       toolResults.push({ tool: tc.tool_name, ok: result.ok, error: result.error });
+      if (tc.tool_name === "check_calendar" && result.ok && result.result) {
+        checkCalendarResult = result.result as typeof checkCalendarResult;
+      }
       if (!result.ok) {
         console.error(`[v2] tool ${tc.tool_name} falhou: ${result.error}`);
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // 12b. Agentic loop curto pra check_calendar
+    //
+    // O LLM gera mensagem + tool_calls no mesmo output e NÃO vê o resultado
+    // da tool no mesmo turn. Quando o lead pediu uma data fora dos slots
+    // originais (ex: 'tem dia 17?'), a Patricia chama check_calendar mas
+    // responde "vou ver" às cegas. Aqui pegamos o retorno da tool e
+    // re-chamamos o single_agent com tool_results populado → resposta
+    // baseada nos slots reais retornados.
+    //
+    // Só roda 1 vez por turn (sem risco de loop infinito). Só pra
+    // check_calendar — outras tools mantêm comportamento atual.
+    // ------------------------------------------------------------------
+    if (inDesfechoComSlots && checkCalendarResult) {
+      const newSlots = checkCalendarResult.slots_disponiveis || [];
+      console.log(`[v2] agentic loop: check_calendar retornou ${newSlots.length} slots (note: ${checkCalendarResult.note || "—"}). Re-chamando LLM.`);
+
+      // Atualiza proposedSlots local: quando tem slots novos, usa eles.
+      // Se vier vazio, mantém os originais visíveis no contexto (LLM vai
+      // explicar a falta usando o note).
+      if (newSlots.length > 0) {
+        proposedSlots = newSlots;
+      }
+
+      try {
+        const reagentResult = await runSingleAgent({
+          supabase,
+          apiKey: OPENAI_API_KEY,
+          agent: {
+            id: agent.id,
+            nome: agent.nome,
+            modelo: agent.modelo,
+            temperature: agent.temperature,
+            max_tokens: agent.max_tokens,
+            pipeline_models: agent.pipeline_models,
+            identity_config: agent.identity_config,
+            voice_config: agent.voice_config,
+            boundaries_config: agent.boundaries_config,
+            listening_config: agent.listening_config,
+          },
+          business: business ? {
+            company_name: business.company_name,
+            company_description: business.company_description,
+            methodology_text: business.methodology_text,
+            process_steps: business.process_steps || [],
+            secondary_contact_role_name: business.secondary_contact_role_name,
+          } : null,
+          conversationState: {
+            historico_compacto: historico,
+            last_lead_message: processedText,
+            last_moment_key: effectiveMomentKey,
+            moment_step: effectiveStep,
+            turn_count: turns.length,
+            is_primeiro_contato: turns.length <= 1,
+            contact_name: contactName,
+            card_titulo: cardTitulo,
+            ai_resumo: aiResumo,
+            ai_contexto: aiContexto,
+            card_form_data: Object.keys(trackedData).length > 0 ? trackedData : cardFormData,
+            forced_moment_key: forcedMomentKey,
+            qualification_result: qualificationResult,
+            proposed_slots: proposedSlots,
+            tool_results: { check_calendar: checkCalendarResult },
+          },
+          scoringThreshold,
+          availableTools,
+        });
+        console.log(`[v2] agentic loop: re-chamada concluída duration=${reagentResult.duration_ms}ms`);
+        // Substitui o resultado original — a nova mensagem usa os slots reais.
+        singleAgentResult = reagentResult;
+      } catch (e) {
+        console.warn(`[v2] agentic loop: re-chamada falhou (${(e as Error).message}). Mantendo resposta original.`);
       }
     }
 
