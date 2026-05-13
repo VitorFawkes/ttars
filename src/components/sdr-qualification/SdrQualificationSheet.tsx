@@ -34,7 +34,7 @@ type Props = {
     onFinalized?: (result: SdrScoreResult) => void
 }
 
-type DataMode = 'exata' | 'mes_ano' | 'periodo' | 'indefinido'
+type DataMode = 'exata' | 'mes_ano' | 'indefinido'
 
 function findRule(rules: ScoringRule[], dimension: string): ScoringRule | undefined {
     return rules.find((r) => r.dimension === dimension)
@@ -72,12 +72,12 @@ function findValorFaixaRule(rules: ScoringRule[], investimentoTotal: number, num
 }
 
 function detectDataMode(value: string | null | undefined, meses?: string[] | null): DataMode {
-    if (meses && meses.length > 0) return 'periodo'
+    if (meses && meses.length > 0) return 'mes_ano'
     if (!value) return 'exata'
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return 'exata'
     if (/^\d{4}-\d{2}$/.test(value)) return 'mes_ano'
     if (value === 'indefinido' || value === '__indefinido__') return 'indefinido'
-    return 'periodo'
+    return 'mes_ano'
 }
 
 export function SdrQualificationSheet({ open, onOpenChange, qualificationId, contatoId, cardId, telefone, initialDados, onFinalized }: Props) {
@@ -107,7 +107,6 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
             }
             if (initialDados.data_casamento || (initialDados.data_casamento_meses && initialDados.data_casamento_meses.length > 0)) {
                 setDataMode(detectDataMode(initialDados.data_casamento, initialDados.data_casamento_meses))
-                setMesAnoLocal(parseMesAno(initialDados.data_casamento))
             }
         } else if (session.qualificationId && session.dadosLead) {
             // Quando retoma rascunho, popula state local visual (mascara R$, modo data)
@@ -116,7 +115,6 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
             }
             if (session.dadosLead.data_casamento || (session.dadosLead.data_casamento_meses && session.dadosLead.data_casamento_meses.length > 0)) {
                 setDataMode(detectDataMode(session.dadosLead.data_casamento, session.dadosLead.data_casamento_meses))
-                setMesAnoLocal(parseMesAno(session.dadosLead.data_casamento))
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -339,7 +337,6 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                                                         [
                                                             ['exata', 'Data exata'],
                                                             ['mes_ano', 'Mês/Ano'],
-                                                            ['periodo', 'Período ou múltiplas'],
                                                             ['indefinido', 'Indefinido'],
                                                         ] as const
                                                     ).map(([mode, label]) => (
