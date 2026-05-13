@@ -104,6 +104,7 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
     const [finalizedScore, setFinalizedScore] = useState<SdrScoreResult | null>(null)
     const [investimentoText, setInvestimentoText] = useState('')
     const [dataMode, setDataMode] = useState<DataMode>('exata')
+    const [mesAnoLocal, setMesAnoLocal] = useState<{ mes: string; ano: string }>({ mes: '', ano: '' })
     const [showVincular, setShowVincular] = useState(false)
 
     const session = useSdrQualificationSession({
@@ -121,6 +122,7 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
             }
             if (initialDados.data_casamento) {
                 setDataMode(detectDataMode(initialDados.data_casamento))
+                setMesAnoLocal(parseMesAno(initialDados.data_casamento))
             }
         } else if (session.qualificationId && session.dadosLead) {
             // Quando retoma rascunho, popula state local visual (mascara R$, modo data)
@@ -129,6 +131,7 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
             }
             if (session.dadosLead.data_casamento) {
                 setDataMode(detectDataMode(session.dadosLead.data_casamento))
+                setMesAnoLocal(parseMesAno(session.dadosLead.data_casamento))
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -382,15 +385,21 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                                                 />
                                             )}
                                             {dataMode === 'mes_ano' && (() => {
-                                                const { mes, ano } = parseMesAno(session.dadosLead.data_casamento)
                                                 const anoAtual = new Date().getFullYear()
                                                 const anosOpcoes: number[] = []
                                                 for (let a = anoAtual; a <= anoAtual + 8; a++) anosOpcoes.push(a)
+                                                const aplicar = (mes: string, ano: string) => {
+                                                    setMesAnoLocal({ mes, ano })
+                                                    const valor = buildMesAno(mes, ano)
+                                                    // Só persiste em data_casamento quando mês E ano preenchidos.
+                                                    // Se um faltar, limpa a string salva mas mantém escolha visual.
+                                                    handleDadoChange('data_casamento', valor)
+                                                }
                                                 return (
                                                     <div className="grid grid-cols-2 gap-2">
                                                         <select
-                                                            value={mes}
-                                                            onChange={(e) => handleDadoChange('data_casamento', buildMesAno(e.target.value, ano))}
+                                                            value={mesAnoLocal.mes}
+                                                            onChange={(e) => aplicar(e.target.value, mesAnoLocal.ano)}
                                                             className="h-9 px-3 rounded-md border border-slate-200 bg-white text-sm text-slate-900"
                                                         >
                                                             <option value="">Mês</option>
@@ -401,8 +410,8 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                                                             ))}
                                                         </select>
                                                         <select
-                                                            value={ano}
-                                                            onChange={(e) => handleDadoChange('data_casamento', buildMesAno(mes, e.target.value))}
+                                                            value={mesAnoLocal.ano}
+                                                            onChange={(e) => aplicar(mesAnoLocal.mes, e.target.value)}
                                                             className="h-9 px-3 rounded-md border border-slate-200 bg-white text-sm text-slate-900"
                                                         >
                                                             <option value="">Ano</option>
