@@ -176,12 +176,8 @@ export function useMoverEstadoFunil() {
       toast.error('Não foi possível mover o atendimento', { description: err.message })
     },
 
-    onSuccess: (_data, vars) => {
-      if (vars.destino === 'aguardando_atendimento') toast.success('Devolvido pra fila de aguardando')
-      else if (vars.destino === 'em_contato')         toast.success('Atendimento iniciado')
-      else if (vars.destino === 'aguardando_retorno') toast.success('Cliente notificado')
-      else if (vars.destino === 'feito')         toast.success('Atendimento concluído')
-      else if (vars.destino === 'encerrado')     toast.success('Atendimento encerrado')
+    onSuccess: () => {
+      toast.success('Card movido com sucesso')
 
       queryClient.invalidateQueries({ queryKey: ['concierge'] })
       queryClient.invalidateQueries({ queryKey: ['tasks-list'] })
