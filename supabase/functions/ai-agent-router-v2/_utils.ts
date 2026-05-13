@@ -39,6 +39,26 @@ export interface AgentRow {
   context_fields_config: Record<string, unknown> | null;
   engine: string;
   timings: { debounce_seconds?: number; typing_delay_seconds?: number; max_message_blocks?: number } | null;
+  /**
+   * Profile da Wedding Planner (ou T.Planner) responsável. Quando setado, o
+   * router (a) filtra agenda apenas pelas reuniões desse profile e (b) usa
+   * esse profile como `responsavel_id` ao criar reunião via tool
+   * confirm_meeting_slot. NULL = comportamento legado.
+   */
+  wedding_planner_profile_id: string | null;
+  /**
+   * Config de oferta de horários no desfecho_qualificado (editável via Studio).
+   * NULL = defaults seguros (3 dias × 1 horário, formato curto).
+   */
+  scheduling_config: {
+    available_hours?: string[];        // ex: ["10:00", "14:00", "16:00"]
+    max_slots_per_day?: number;         // quantos horários por dia
+    max_days?: number;                  // quantos dias distintos cobrir
+    total_slots?: number;               // cap total de slots a oferecer
+    skip_weekends?: boolean;
+    search_window_days?: number;        // janela de busca
+    date_format?: "short" | "full";    // "14/05" vs "14/05/2026"
+  } | null;
 }
 
 export interface BusinessConfigRow {
@@ -347,20 +367,46 @@ export async function executePatriciaToolCall(
           return { tool_name: call.tool_name, ok: false, error: "Wedding Planner não configurada no agente. Configure ai_agents.wedding_planner_profile_id.", duration_ms: Date.now() - startedAt };
         }
 
-        // Parse data/hora → ISO local
+        // Parse data/hora → ISO local. Aceita:
+        //   - iso: "YYYY-MM-DDTHH:MM:00" (passa direto)
+        //   - date "DD/MM/YYYY" + time "HH:MM"
+        //   - date "DD/MM" + time "HH:MM" (deriva ano: corrente ou próximo se já passou)
         let isoLocal: string | null = null;
         if (typeof call.args.iso === "string") {
           isoLocal = call.args.iso;
         } else if (typeof call.args.date === "string" && typeof call.args.time === "string") {
-          // "DD/MM/YYYY" + "HH:MM" → "YYYY-MM-DDTHH:MM:00"
-          const dateMatch = call.args.date.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-          const timeMatch = call.args.time.match(/^(\d{2}):(\d{2})$/);
-          if (dateMatch && timeMatch) {
-            isoLocal = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}T${timeMatch[1]}:${timeMatch[2]}:00`;
+          const dateFull = call.args.date.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+          const dateShort = call.args.date.match(/^(\d{1,2})\/(\d{1,2})$/);
+          const timeMatch = call.args.time.match(/^(\d{1,2}):(\d{2})$/);
+          if (timeMatch) {
+            const hh = timeMatch[1].padStart(2, "0");
+            const mi = timeMatch[2];
+            if (dateFull) {
+              const dd = dateFull[1].padStart(2, "0");
+              const mm = dateFull[2].padStart(2, "0");
+              isoLocal = `${dateFull[3]}-${mm}-${dd}T${hh}:${mi}:00`;
+            } else if (dateShort) {
+              const dd = dateShort[1].padStart(2, "0");
+              const mm = dateShort[2].padStart(2, "0");
+              // Deriva ano: corrente; se a data já passou (mais de 1 dia atrás),
+              // assume próximo ano.
+              const now = new Date();
+              let yyyy = now.getFullYear();
+              const candidate = new Date(`${yyyy}-${mm}-${dd}T${hh}:${mi}:00`);
+              if (Number.isNaN(candidate.getTime())) {
+                isoLocal = null;
+              } else {
+                const diffMs = candidate.getTime() - now.getTime();
+                if (diffMs < -24 * 3600 * 1000) {
+                  yyyy++;
+                }
+                isoLocal = `${yyyy}-${mm}-${dd}T${hh}:${mi}:00`;
+              }
+            }
           }
         }
         if (!isoLocal) {
-          return { tool_name: call.tool_name, ok: false, error: "formato inválido. Esperado { date: 'DD/MM/YYYY', time: 'HH:MM' } ou { iso: 'YYYY-MM-DDTHH:MM:00' }", duration_ms: Date.now() - startedAt };
+          return { tool_name: call.tool_name, ok: false, error: "formato inválido. Esperado { date: 'DD/MM' ou 'DD/MM/YYYY', time: 'HH:MM' } ou { iso: 'YYYY-MM-DDTHH:MM:00' }", duration_ms: Date.now() - startedAt };
         }
 
         // Re-checa disponibilidade ANTES de criar (entre sugestão e

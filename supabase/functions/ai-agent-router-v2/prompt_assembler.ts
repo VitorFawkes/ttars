@@ -678,7 +678,17 @@ function renderTurnPolicy(
     const forced = moments.find((m) => m.moment_key === forcedKey);
     if (forced) {
       const parts = resolveMomentParts(forced);
-      const baseText = parts[0] || forced.anchor_text || "";
+      let baseText = parts[0] || forced.anchor_text || "";
+      // Substitui placeholder {slots_disponiveis} pela lista formatada
+      // dos horários reais. Sem isso, LLM tenta interpretar o placeholder
+      // como variável literal e às vezes colava "<proposed_slots>" na
+      // resposta. Formato WhatsApp: *qui 14/05 às 10:00*, *qui 14/05 às 14:00*…
+      if (baseText.includes("{slots_disponiveis}") && state.proposed_slots && state.proposed_slots.length > 0) {
+        const formattedSlots = state.proposed_slots
+          .map((s) => `*${s.weekday} ${s.date}* às *${s.time}*`)
+          .join(", ");
+        baseText = baseText.replaceAll("{slots_disponiveis}", formattedSlots);
+      }
       const isLiteral = forced.message_mode === "literal";
       const isFaithful = forced.message_mode === "faithful";
       const modeNote = isLiteral
@@ -702,8 +712,9 @@ ${baseText}
 - Marque \`current_moment_key\` = "${forced.moment_key}".
 - NÃO chame a tool \`calculate_qualification_score\` — o router já calculou e o resultado está em \`<qualification_result>\`.
 ${state.proposed_slots && state.proposed_slots.length > 0
-  ? `- Apresente os 3 horários de \`<proposed_slots>\` verbatim e peça pro casal escolher um.
-- Quando o casal escolher um dos 3 horários, chame a tool \`confirm_meeting_slot\` com a date/time exata escolhida — isso cria a reunião na agenda real da Wedding Planner. NÃO confirme verbalmente o agendamento sem chamar a tool.`
+  ? `- Apresente TODOS os ${state.proposed_slots.length} horários de \`<proposed_slots>\` verbatim e peça pro casal escolher um. Cada slot tem date+time exatos — não omita nenhum.
+- ⚠️ AGENDAMENTO: quando o casal escolher/aceitar um dos horários, a ÚNICA tool válida é \`confirm_meeting_slot\` com { date, time } da escolha exata. NUNCA use \`create_task\` pra agendar reunião com a Wedding Planner — \`create_task\` é só pra tarefas internas administrativas. Se \`confirm_meeting_slot\` não estiver listada em \`<tools_available>\`, o agendamento real foi desabilitado e você só confirma verbalmente (sem chamar nenhuma tool).
+- Sem chamar a tool, a reunião NÃO entra na agenda real da Wedding Planner — só você sabe. Sempre chame a tool ao confirmar.`
   : ""}
 ${forced.must_cover && forced.must_cover.length > 0
   ? `- Cubra todos os pontos de \`must_cover\` do momento.`

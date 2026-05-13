@@ -127,7 +127,7 @@ Deno.serve(async (req) => {
           test_mode_phone_whitelist, validator_rules, pipeline_models,
           identity_config, voice_config, boundaries_config, listening_config,
           handoff_actions, handoff_signals, intelligent_decisions, context_fields_config,
-          engine, timings, multimodal_config, wedding_planner_profile_id
+          engine, timings, multimodal_config, wedding_planner_profile_id, scheduling_config
         )
       `)
       .eq("phone_line_id", lineRow.id)
@@ -796,31 +796,43 @@ Deno.serve(async (req) => {
                 : "desfecho_nao_qualificado";
             }
 
-            // Buscar 3 horários disponíveis. Estratégia em camadas:
-            //   1. Geramos até 9 slots candidatos (3 dias úteis × 3 horários).
-            //   2. Buscamos reuniões agendadas/confirmadas no mesmo org nos
-            //      próximos 14 dias.
-            //   3. Excluímos candidatos que conflitam com reunião existente
-            //      (mesmo dia e hora).
-            //   4. Retornamos os 3 primeiros livres. Se mesmo após exclusão
-            //      não sobra 3, completamos com candidatos brutos.
-            // Tolerante a falhas: se a query SQL erra, mantém o mock antigo.
+            // Buscar horários disponíveis. Configurável via
+            // `ai_agents.scheduling_config` (Studio). Defaults seguros mantêm
+            // comportamento legado quando config é null.
             if (qualificationResult?.qualificado) {
+              const sc = agent.scheduling_config ?? {};
+              const availableHours = (Array.isArray(sc.available_hours) && sc.available_hours.length > 0)
+                ? sc.available_hours
+                : ["10:00", "14:00", "16:00"];
+              const maxPerDay = Number(sc.max_slots_per_day ?? 1);
+              const maxDays = Number(sc.max_days ?? 3);
+              const totalSlots = Number(sc.total_slots ?? Math.max(maxDays * maxPerDay, 3));
+              const skipWeekends = sc.skip_weekends !== false; // default true
+              const windowDays = Number(sc.search_window_days ?? 14);
+              const dateFormat = (sc.date_format === "full") ? "full" : "short"; // default short
+
               const today = new Date();
               const weekdays = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
-              const horarios = ["10:00", "14:00", "16:00"];
               type Slot = { date: string; time: string; weekday: string; iso: string };
               const candidates: Slot[] = [];
-              for (let i = 1; i < 14 && candidates.length < 9; i++) {
+              const formatDate = (d: Date): string => {
+                const dd = String(d.getDate()).padStart(2, "0");
+                const mm = String(d.getMonth() + 1).padStart(2, "0");
+                if (dateFormat === "full") {
+                  return `${dd}/${mm}/${d.getFullYear()}`;
+                }
+                return `${dd}/${mm}`;
+              };
+              for (let i = 1; i < windowDays; i++) {
                 const d = new Date(today);
                 d.setDate(today.getDate() + i);
                 const wd = d.getDay();
-                if (wd === 0 || wd === 6) continue;
+                if (skipWeekends && (wd === 0 || wd === 6)) continue;
                 const yyyy = d.getFullYear();
                 const mm = String(d.getMonth() + 1).padStart(2, "0");
                 const dd = String(d.getDate()).padStart(2, "0");
-                const dStr = d.toLocaleDateString("pt-BR");
-                for (const h of horarios) {
+                const dStr = formatDate(d);
+                for (const h of availableHours) {
                   candidates.push({
                     date: dStr,
                     time: h,
@@ -830,15 +842,13 @@ Deno.serve(async (req) => {
                 }
               }
 
-              // Coleta horários ocupados de reuniões no mesmo org nas próximas 2 semanas.
-              // Quando há Wedding Planner configurada no agente, filtra apenas as
-              // reuniões dela (responsavel_id) — evita marcar como conflito uma
-              // reunião de outro consultor da org.
+              // Coleta horários ocupados de reuniões no mesmo org nas próximas N semanas.
+              // Quando há Wedding Planner configurada, filtra apenas as reuniões dela.
               const occupied = new Set<string>();
               try {
                 const horizonStart = new Date(today);
                 const horizonEnd = new Date(today);
-                horizonEnd.setDate(today.getDate() + 14);
+                horizonEnd.setDate(today.getDate() + windowDays);
                 let meetingsQuery = supabase
                   .from("reunioes")
                   .select("data_inicio,status")
@@ -856,8 +866,6 @@ Deno.serve(async (req) => {
                   for (const m of meetings) {
                     const di = m.data_inicio as string | null;
                     if (!di) continue;
-                    // Converte para o mesmo formato dos candidatos:
-                    // "YYYY-MM-DDTHH:MM:00" em horário local do server (UTC do edge).
                     const md = new Date(di);
                     const yyyy = md.getFullYear();
                     const mm = String(md.getMonth() + 1).padStart(2, "0");
@@ -871,70 +879,45 @@ Deno.serve(async (req) => {
                 console.warn("[v2] trigger: exception lendo reunioes:", (e as Error).message);
               }
 
-              // Filtra conflitos
               const free = candidates.filter((c) => !occupied.has(c.iso));
               slotsConflictsExcluded = candidates.length - free.length;
 
-              // Red_line da Patricia em desfecho_qualificado: "Sempre ter
-              // pelo menos 3 dias E 3 horários mais pertos a partir do
-              // próximo dia útil". Selecionamos 1 slot por dia diferente,
-              // rotacionando o horário preferido (10:00 → 14:00 → 16:00 →
-              // volta pro 10:00). Se o horário preferido daquele dia estiver
-              // ocupado, cai pro próximo livre do mesmo dia.
-              const horariosOrdem = ["10:00", "14:00", "16:00"];
+              // Distribui slots: até `maxPerDay` por dia, até `maxDays` dias,
+              // total <= `totalSlots`. Ordem cronológica preservada (candidates
+              // já vem ordenado).
               const freeByDate = new Map<string, Slot[]>();
               for (const c of free) {
                 const arr = freeByDate.get(c.date);
                 if (arr) arr.push(c);
                 else freeByDate.set(c.date, [c]);
               }
-              // Mantém a ordem cronológica dos dias (Map preserva inserção,
-              // e candidates já estavam ordenados por dia ascendente).
               const finalSlots: Slot[] = [];
-              let rotateIdx = 0;
+              let daysUsed = 0;
               for (const [, slotsThisDate] of freeByDate) {
-                if (finalSlots.length === 3) break;
-                const preferTime = horariosOrdem[rotateIdx % horariosOrdem.length];
-                rotateIdx++;
-                const usedTimes = new Set(finalSlots.map((s) => s.time));
-                // Prioriza nesta ordem:
-                //   1. Horário preferido pela rotação E ainda não usado
-                //   2. Qualquer horário livre que ainda não foi usado
-                //   3. Primeiro slot livre do dia (último recurso: repete horário)
-                let chosen = slotsThisDate.find((s) => s.time === preferTime && !usedTimes.has(s.time));
-                if (!chosen) chosen = slotsThisDate.find((s) => !usedTimes.has(s.time));
-                if (!chosen) chosen = slotsThisDate[0];
-                if (chosen) finalSlots.push(chosen);
+                if (finalSlots.length >= totalSlots) break;
+                if (daysUsed >= maxDays) break;
+                let pickedThisDay = 0;
+                for (const slot of slotsThisDate) {
+                  if (pickedThisDay >= maxPerDay) break;
+                  if (finalSlots.length >= totalSlots) break;
+                  finalSlots.push(slot);
+                  pickedThisDay++;
+                }
+                if (pickedThisDay > 0) daysUsed++;
               }
-              // Se não atingiu 3 dias diferentes (poucos dias livres),
-              // completa permitindo mais de um horário por dia,
-              // preferindo horários diferentes dos já escolhidos.
-              if (finalSlots.length < 3) {
-                const usedTimes = new Set(finalSlots.map((s) => s.time));
-                for (const slot of free) {
-                  if (finalSlots.includes(slot)) continue;
-                  if (!usedTimes.has(slot.time)) {
-                    finalSlots.push(slot);
-                    usedTimes.add(slot.time);
-                    if (finalSlots.length === 3) break;
+              // Fallback: se filtrou tudo, usa candidatos brutos (nunca pior
+              // que antes).
+              if (finalSlots.length === 0 && candidates.length > 0) {
+                let pickedDays = 0;
+                const seenDates = new Set<string>();
+                for (const c of candidates) {
+                  if (finalSlots.length >= totalSlots) break;
+                  if (!seenDates.has(c.date)) {
+                    if (pickedDays >= maxDays) continue;
+                    seenDates.add(c.date);
+                    pickedDays++;
                   }
-                }
-              }
-              // Se ainda assim ficou < 3, completa com qualquer slot livre.
-              if (finalSlots.length < 3) {
-                for (const slot of free) {
-                  if (finalSlots.includes(slot)) continue;
-                  finalSlots.push(slot);
-                  if (finalSlots.length === 3) break;
-                }
-              }
-              // Fallback final: se filtro deixou < 3, usa candidatos brutos
-              // (mantém comportamento antigo — nunca pior que antes).
-              if (finalSlots.length < 3) {
-                for (const slot of candidates) {
-                  if (finalSlots.includes(slot)) continue;
-                  finalSlots.push(slot);
-                  if (finalSlots.length === 3) break;
+                  finalSlots.push(c);
                 }
               }
 
@@ -965,10 +948,8 @@ Deno.serve(async (req) => {
       "update_contact",
       "assign_tag",
     ];
-    // create_task fica disponível EXCETO no desfecho_qualificado com slots
-    // pré-buscados — nesse contexto, a tool correta é confirm_meeting_slot,
-    // e expor create_task junto induz o LLM a chamar a errada (observado
-    // 2026-05-13).
+    // create_task é exposta SÓ fora do desfecho_qualificado com slots
+    // (confunde LLM, observado 2026-05-13).
     if (!(forcedMomentKey === "desfecho_qualificado" && proposedSlots && proposedSlots.length > 0)) {
       availableTools.push("create_task");
     }
@@ -1084,9 +1065,92 @@ Deno.serve(async (req) => {
 
     // ------------------------------------------------------------------
     // 12. Executar tool_calls
+    //
+    // Defesa em camadas:
+    //   1. Auto-rotear create_task → confirm_meeting_slot quando estamos
+    //      em desfecho_qualificado com slots (LLM tem viés forte de chamar
+    //      create_task mesmo instruído contrário — observado 2026-05-13).
+    //   2. Filtrar pra só executar tools em availableTools (LLM pode
+    //      alucinar nomes de tools).
     // ------------------------------------------------------------------
-    const toolResults: Array<{ tool: string; ok: boolean; error?: string }> = [];
-    for (const tc of singleAgentResult.output.tool_calls) {
+    const availableToolsSet = new Set(availableTools);
+    const toolResults: Array<{ tool: string; ok: boolean; error?: string; rerouted_from?: string }> = [];
+    const inDesfechoComSlots = forcedMomentKey === "desfecho_qualificado" && !!(proposedSlots && proposedSlots.length > 0);
+
+    // Defesa pré-loop: se LLM está em desfecho com slots E NÃO chamou
+    // confirm_meeting_slot E o lead acabou de escolher um horário, injetamos
+    // a chamada da tool baseada em parsing da mensagem do lead + slots
+    // oferecidos. Sem isso, LLM diz "fica marcado" sem agendar de verdade.
+    const llmCalledConfirm = singleAgentResult.output.tool_calls.some((tc) => tc.tool_name === "confirm_meeting_slot");
+    if (inDesfechoComSlots && !llmCalledConfirm && processedText) {
+      const userMsg = processedText.toLowerCase();
+      // Tenta achar dia+hora na mensagem do lead matching algum slot oferecido
+      let matched: { date: string; time: string } | null = null;
+      for (const slot of proposedSlots!) {
+        // Slot date pode ser "14/05" ou "14/05/2026". Time é "HH:MM".
+        const [dd, mm] = slot.date.split("/");
+        const hh = slot.time.split(":")[0];
+        // Patterns aceitos pra dia: "14/05", "14/5", "dia 14", "14"
+        // Patterns aceitos pra hora: "14h", "14:00", "às 14", "14 horas"
+        const dayPatterns = [
+          slot.date.toLowerCase(),
+          `${parseInt(dd, 10)}/${parseInt(mm, 10)}`,
+          `dia ${parseInt(dd, 10)}`,
+          slot.weekday.toLowerCase(),
+        ];
+        const hourPatterns = [
+          slot.time,
+          `${hh}h`,
+          `${parseInt(hh, 10)}h`,
+          `às ${parseInt(hh, 10)}`,
+          ` ${parseInt(hh, 10)} `,
+        ];
+        const dayHit = dayPatterns.some((p) => p.length >= 2 && userMsg.includes(p));
+        const hourHit = hourPatterns.some((p) => userMsg.includes(p));
+        if (dayHit && hourHit) {
+          matched = { date: slot.date, time: slot.time };
+          break;
+        }
+      }
+      if (matched) {
+        console.warn(`[v2] LLM não chamou confirm_meeting_slot em desfecho — injetando chamada baseada em escolha do lead { date: ${matched.date}, time: ${matched.time} }`);
+        singleAgentResult.output.tool_calls.unshift({
+          tool_name: "confirm_meeting_slot",
+          args: matched,
+        });
+      }
+    }
+
+    for (let tc of singleAgentResult.output.tool_calls) {
+      // (1) Auto-rotear create_task em contexto de agendamento
+      if (
+        inDesfechoComSlots &&
+        tc.tool_name === "create_task"
+      ) {
+        const args = tc.args || {};
+        // Tenta extrair date/time dos vários formatos comuns: data_inicio,
+        // data_vencimento, scheduled_at — tudo pode ser ISO ou string livre.
+        const dt = args.data_inicio || args.data_vencimento || args.scheduled_at || args.start_at;
+        let rerouted: { date: string; time: string } | null = null;
+        if (typeof dt === "string") {
+          // ISO "YYYY-MM-DDTHH:MM..." ou "YYYY-MM-DD HH:MM"
+          const m = dt.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})/);
+          if (m) {
+            rerouted = { date: `${m[3]}/${m[2]}/${m[1]}`, time: `${m[4]}:${m[5]}` };
+          }
+        }
+        if (rerouted) {
+          console.warn(`[v2] LLM chamou create_task em desfecho com slots — auto-rotando pra confirm_meeting_slot { date: ${rerouted.date}, time: ${rerouted.time} }`);
+          tc = { tool_name: "confirm_meeting_slot", args: rerouted };
+        }
+      }
+
+      if (!availableToolsSet.has(tc.tool_name)) {
+        const original = tc.tool_name;
+        console.warn(`[v2] tool '${original}' não está em availableTools — ignorando`);
+        toolResults.push({ tool: original, ok: false, error: "tool não disponível neste contexto" });
+        continue;
+      }
       const result = await executePatriciaToolCall(supabase, agent, cardId, contactId, tc);
       toolResults.push({ tool: tc.tool_name, ok: result.ok, error: result.error });
       if (!result.ok) {
