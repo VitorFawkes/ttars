@@ -34,10 +34,15 @@ export type DadosLead = {
     nome_parceiro?: string
     telefone?: string
     email?: string
+    /** Aceita data ISO (yyyy-mm-dd), mês ISO (yyyy-mm) ou texto livre em PT (ex: "Segundo semestre 2027"). */
     data_casamento?: string
     num_convidados?: number
     investimento_total?: number
     destino_desejado?: string
+    /** Quando casal pede destino fora do catálogo mas está aberto: qual queria originalmente. */
+    destino_outro_queria?: string
+    /** Quando casal pede destino fora do catálogo mas está aberto: quais destinos do catálogo aceita. */
+    destino_outro_aberto_a?: string
     observacoes?: string
 }
 

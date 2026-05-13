@@ -1269,25 +1269,61 @@ async function calculateCurrentScore(
       return { enabled: false, score: null, threshold: null, qualificado: null };
     }
 
-    // Aplica regras ai_subjective resolvidas (não são conhecidas pela RPC)
+    // Aplica regras ai_subjective resolvidas (não são conhecidas pela RPC).
+    // Quando duas+ regras do mesmo exclusion_group são resolvidas como true
+    // (ex: o LLM marcou Caribe E Nordeste), contamos só a de maior weight —
+    // espelhando o comportamento do prompt "responda YES para APENAS UMA por
+    // grupo" e mantendo o resultado idêntico ao que a SDR humana vê em sdr_atualizar_pontuacao (migration 20260513c).
     let score = Number(data?.score ?? 0);
     let disqualified = Boolean(data?.disqualified ?? false);
     const breakdown = Array.isArray(data?.breakdown) ? [...data.breakdown] : [];
 
     if (scoringRules) {
-      for (const r of scoringRules) {
-        if (r.condition_type !== 'ai_subjective') continue;
-        if (subjectiveResults[r.id] !== true) continue;
-        if (r.rule_type === 'disqualify') {
+      const resolvedSubjective = scoringRules.filter(
+        (r) => r.condition_type === 'ai_subjective' && subjectiveResults[r.id] === true,
+      );
+
+      // Agrupa qualify/bonus por exclusion_group; sem grupo entra em buckets únicos por id.
+      const groupKey = (r: { id: string; exclusion_group?: string | null; rule_type?: string }) => {
+        if (r.rule_type === 'disqualify') return `__disqualify_${r.id}`;
+        if (r.exclusion_group && r.exclusion_group.trim().length > 0) {
+          return `grp:${r.rule_type ?? 'qualify'}:${r.exclusion_group}`;
+        }
+        return `solo:${r.id}`;
+      };
+      const buckets = new Map<string, typeof resolvedSubjective>();
+      for (const r of resolvedSubjective) {
+        const k = groupKey(r);
+        const arr = buckets.get(k) ?? [];
+        arr.push(r);
+        buckets.set(k, arr);
+      }
+
+      for (const arr of buckets.values()) {
+        // Pega a regra de maior weight; empate vai pra menor ordem; depois id estável.
+        const winner = arr.reduce((best, cur) => {
+          const bw = Number(best.weight ?? 0);
+          const cw = Number(cur.weight ?? 0);
+          if (cw > bw) return cur;
+          if (cw < bw) return best;
+          const bo = Number(best.ordem ?? 0);
+          const co = Number(cur.ordem ?? 0);
+          if (co < bo) return cur;
+          if (co > bo) return best;
+          return best.id < cur.id ? best : cur;
+        });
+
+        if (winner.rule_type === 'disqualify') {
           disqualified = true;
         } else {
-          score += Number(r.weight ?? 0);
+          score += Number(winner.weight ?? 0);
           breakdown.push({
-            dimension: r.dimension,
-            label: r.label ?? r.dimension,
-            weight: r.weight ?? 0,
-            rule_id: r.id,
-            rule_type: r.rule_type ?? 'qualify',
+            dimension: winner.dimension,
+            label: winner.label ?? winner.dimension,
+            weight: winner.weight ?? 0,
+            rule_id: winner.id,
+            rule_type: winner.rule_type ?? 'qualify',
+            exclusion_group: winner.exclusion_group ?? null,
             source: 'ai_subjective',
           });
         }

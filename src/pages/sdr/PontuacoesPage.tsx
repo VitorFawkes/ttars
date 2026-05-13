@@ -368,6 +368,7 @@ function Tabela({
             <thead className="bg-slate-50 text-slate-600 text-xs">
                 <tr>
                     <th className="text-left p-3 font-medium">Lead</th>
+                    <th className="text-left p-3 font-medium">Casal</th>
                     <th className="text-left p-3 font-medium">SDR</th>
                     <th className="text-left p-3 font-medium">Score</th>
                     <th className="text-left p-3 font-medium">Card</th>
@@ -383,22 +384,22 @@ function Tabela({
                     const isDraft = p.status === 'rascunho'
                     const dataExibicao = p.finalized_at ?? p.created_at
                     const nomePrincipal = p.dados_lead?.nome_contato || p.dados_lead?.nome_casal || p.card_titulo || '(sem nome)'
-                    const subtitulo = p.dados_lead?.nome_contato && p.dados_lead?.nome_casal
-                        ? `Casal: ${p.dados_lead.nome_casal}`
-                        : null
+                    const nomeCasal = p.dados_lead?.nome_casal ?? null
                     return (
                         <tr key={p.id} className="hover:bg-slate-50">
                             <td className="p-3">
                                 <div className="font-medium text-slate-900">{nomePrincipal}</div>
                                 <div className="text-xs text-slate-500">
-                                    {subtitulo && <span>{subtitulo} · </span>}
                                     {p.telefone ? formatPhoneBR(p.telefone) : ''}
                                     {p.dados_lead?.investimento_total && p.dados_lead?.num_convidados && (
-                                        <span className="ml-2">
-                                            · {formatBRL(p.dados_lead.investimento_total)} ÷ {p.dados_lead.num_convidados} conv
+                                        <span className={p.telefone ? 'ml-2' : ''}>
+                                            {p.telefone ? '· ' : ''}{formatBRL(p.dados_lead.investimento_total)} ÷ {p.dados_lead.num_convidados} conv
                                         </span>
                                     )}
                                 </div>
+                            </td>
+                            <td className="p-3 text-slate-700 text-xs">
+                                {nomeCasal ?? <span className="text-slate-400">—</span>}
                             </td>
                             <td className="p-3 text-slate-700">{p.sdr_nome ?? '—'}</td>
                             <td className="p-3">
