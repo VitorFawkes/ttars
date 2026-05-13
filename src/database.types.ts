@@ -1638,6 +1638,7 @@ export type Database = {
           updated_at: string | null
           validator_rules: Json | null
           voice_config: Json | null
+          wedding_planner_profile_id: string | null
         }
         Insert: {
           ativa?: boolean | null
@@ -1688,6 +1689,7 @@ export type Database = {
           updated_at?: string | null
           validator_rules?: Json | null
           voice_config?: Json | null
+          wedding_planner_profile_id?: string | null
         }
         Update: {
           ativa?: boolean | null
@@ -1738,6 +1740,7 @@ export type Database = {
           updated_at?: string | null
           validator_rules?: Json | null
           voice_config?: Json | null
+          wedding_planner_profile_id?: string | null
         }
         Relationships: [
           {
@@ -1808,6 +1811,27 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agents_wedding_planner_profile_id_fkey"
+            columns: ["wedding_planner_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agents_wedding_planner_profile_id_fkey"
+            columns: ["wedding_planner_profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_team_proposal_performance"
+            referencedColumns: ["consultant_id"]
+          },
+          {
+            foreignKeyName: "ai_agents_wedding_planner_profile_id_fkey"
+            columns: ["wedding_planner_profile_id"]
+            isOneToOne: false
+            referencedRelation: "view_profiles_complete"
             referencedColumns: ["id"]
           },
           {
@@ -10420,6 +10444,7 @@ export type Database = {
           active: boolean
           branding: Json | null
           business_hours: Json | null
+          concierge_future_threshold_days: number
           created_at: string
           force_relogin_after: string | null
           id: string
@@ -10440,6 +10465,7 @@ export type Database = {
           active?: boolean
           branding?: Json | null
           business_hours?: Json | null
+          concierge_future_threshold_days?: number
           created_at?: string
           force_relogin_after?: string | null
           id?: string
@@ -10460,6 +10486,7 @@ export type Database = {
           active?: boolean
           branding?: Json | null
           business_hours?: Json | null
+          concierge_future_threshold_days?: number
           created_at?: string
           force_relogin_after?: string | null
           id?: string
@@ -14255,7 +14282,7 @@ export type Database = {
         Row: {
           card_id: string
           categoria_outro: string | null
-          concierge_futuro_em: string | null
+          concierge_em_futuro: boolean
           concluida: boolean
           concluida_em: string | null
           concluido_por: string | null
@@ -14290,7 +14317,7 @@ export type Database = {
         Insert: {
           card_id: string
           categoria_outro?: string | null
-          concierge_futuro_em?: string | null
+          concierge_em_futuro?: boolean
           concluida?: boolean
           concluida_em?: string | null
           concluido_por?: string | null
@@ -14325,7 +14352,7 @@ export type Database = {
         Update: {
           card_id?: string
           categoria_outro?: string | null
-          concierge_futuro_em?: string | null
+          concierge_em_futuro?: boolean
           concluida?: boolean
           concluida_em?: string | null
           concluido_por?: string | null
@@ -16858,7 +16885,7 @@ export type Database = {
           card_valor_final: number | null
           categoria: string | null
           cobrado_de: string | null
-          concierge_futuro_em: string | null
+          concierge_em_futuro: boolean | null
           concluida: boolean | null
           concluida_em: string | null
           data_vencimento: string | null

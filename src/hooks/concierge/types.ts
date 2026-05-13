@@ -124,10 +124,10 @@ export interface MeuDiaItem {
   concluida_em: string | null
   /** Marcado quando o concierge inicia o atendimento (drag pra "Em contato"). */
   started_at?: string | null
-  /** Sticky: quando preenchido, atendimento fica na coluna "Agendados para o
-   *  futuro" no kanban /concierge. O valor é o prazo planejado (só aviso
-   *  visual — nunca move o card sozinho). NULL = fluxo normal. */
-  concierge_futuro_em?: string | null
+  /** Sticky: TRUE = atendimento fica na coluna "Agendados para o futuro" no
+   *  kanban /concierge indefinidamente. FALSE = fluxo normal. Nada move
+   *  sozinho. O aviso visual de "prazo chegando" usa data_vencimento. */
+  concierge_em_futuro?: boolean
   dono_id: string | null
   card_id: string
   tarefa_criada_por: string | null

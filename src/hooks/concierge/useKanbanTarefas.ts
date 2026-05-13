@@ -90,7 +90,7 @@ export function computeEstadoFunil(item: MeuDiaItem): EstadoFunil {
   // Flag sticky: se o concierge estocou o atendimento na coluna Futuro, ele
   // fica lá indefinidamente — INDEPENDENTE de outcome/started_at/notificação.
   // Sair só por ação manual do concierge (drag pra outra coluna).
-  if (item.concierge_futuro_em)                                       return 'agendado_futuro'
+  if (item.concierge_em_futuro)                                       return 'agendado_futuro'
   // Outcome decide o destino — 'aceito' (legado, oferta aceita) entra junto com 'feito'.
   if (item.outcome === 'aceito' || item.outcome === 'feito')          return 'feito'
   if (item.outcome === 'recusado' || item.outcome === 'cancelado')    return 'encerrado'

@@ -14,11 +14,10 @@ import { useHorizontalScroll } from '../../../hooks/useHorizontalScroll'
 import { useKanbanTarefas, ESTADO_FUNIL_COLUMNS, type EstadoFunil, type KanbanTarefaItem, type KanbanTarefasFilters } from '../../../hooks/concierge/useKanbanTarefas'
 import { useMoverEstadoFunil } from '../../../hooks/concierge/useMoverEstadoFunil'
 import { useExecutarEmLote } from '../../../hooks/concierge/useAtendimentoMutations'
-import { useSnoozeAtendimento } from '../../../hooks/concierge/useSnoozeAtendimento'
+import { useToggleEmFuturoConcierge } from '../../../hooks/concierge/useToggleEmFuturoConcierge'
 import { ConciergeKanbanColumn } from './ConciergeKanbanColumn'
 import { AtendimentoCard } from './AtendimentoCard'
 import { EncerrarAtendimentoModal } from './EncerrarAtendimentoModal'
-import { SnoozeAtendimentoModal } from './SnoozeAtendimentoModal'
 import { AtendimentoDetailModal } from '../AtendimentoDetailModal'
 import { SelectionActionBar } from './SelectionActionBar'
 
@@ -30,13 +29,12 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
   const { groupedByEstado, isLoading, data } = useKanbanTarefas(filters)
   const moverFunil = useMoverEstadoFunil()
   const executarEmLote = useExecutarEmLote()
-  const snoozeAtendimento = useSnoozeAtendimento()
+  const toggleEmFuturo = useToggleEmFuturoConcierge()
 
   const [activeItem, setActiveItem] = useState<KanbanTarefaItem | null>(null)
   const [selected, setSelected] = useState<KanbanTarefaItem | null>(null)
   const [pendingEncerrar, setPendingEncerrar] = useState<KanbanTarefaItem | null>(null)
   const [pendingBulkEncerrar, setPendingBulkEncerrar] = useState<KanbanTarefaItem[] | null>(null)
-  const [pendingSnooze, setPendingSnooze] = useState<KanbanTarefaItem | null>(null)
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   // Colunas retraídas por default. "Futuro" é estoque (não fluxo ativo) e
@@ -88,9 +86,11 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
     if (!item || !destino) return
     if (item.estado_funil === destino) return
 
-    // Estocar na coluna Futuro: pede data via modal. Nada se move antes do confirm.
+    // Estocar na coluna Futuro: seta flag sticky direto. O prazo da tarefa
+    // (data_vencimento) é editado pelo PrazoTarefaEditor no modal de detalhe
+    // — não pede data aqui pra não atrasar o estoque.
     if (destino === 'agendado_futuro') {
-      setPendingSnooze(item)
+      toggleEmFuturo.mutate({ tarefaId: item.tarefa_id, emFuturo: true })
       return
     }
 
@@ -99,8 +99,8 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
     // Se o destino for diferente de 'aguardando_atendimento', em seguida
     // aplicamos a transição normal (em_contato, retorno, feito, encerrado).
     if (item.estado_funil === 'agendado_futuro') {
-      snoozeAtendimento.mutate(
-        { tarefaId: item.tarefa_id, data: null },
+      toggleEmFuturo.mutate(
+        { tarefaId: item.tarefa_id, emFuturo: false },
         {
           onSuccess: () => {
             if (destino === 'aguardando_atendimento') return
@@ -193,12 +193,12 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
           {ESTADO_FUNIL_COLUMNS.map(col => {
             const items = groupedByEstado.get(col.id) ?? []
             const isCollapsed = collapsedCols.has(col.id)
-            // Pulsa amarelo na coluna Futuro quando tem card cujo prazo
-            // planejado de retorno está em ≤7 dias (incluindo passados).
+            // Pulsa amarelo na coluna Futuro quando tem card estocado cujo
+            // prazo (data_vencimento) está em ≤7 dias (incluindo passados).
             // Esse é o sinal pra concierge abrir e decidir.
             const pulsarUrgente = col.id === 'agendado_futuro' && items.some(it => {
-              if (!it.concierge_futuro_em) return false
-              const t = new Date(it.concierge_futuro_em).getTime()
+              if (!it.data_vencimento) return false
+              const t = new Date(it.data_vencimento).getTime()
               return Number.isFinite(t) && t <= Date.now() + 7 * 24 * 60 * 60 * 1000
             })
             return (
@@ -262,19 +262,6 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
           moverFunil.mutate(
             { atendimento: pendingEncerrar, destino: 'encerrado', outcomeEncerramento: motivo, observacao },
             { onSettled: () => setPendingEncerrar(null) }
-          )
-        }}
-      />
-
-      <SnoozeAtendimentoModal
-        open={!!pendingSnooze}
-        onClose={() => setPendingSnooze(null)}
-        isSubmitting={snoozeAtendimento.isPending}
-        onConfirm={(dataIso) => {
-          if (!pendingSnooze) return
-          snoozeAtendimento.mutate(
-            { tarefaId: pendingSnooze.tarefa_id, data: dataIso },
-            { onSettled: () => setPendingSnooze(null) }
           )
         }}
       />

@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { X, AlertCircle, ExternalLink, Calendar, Wallet, Flame, User, ChevronDown, Check, CalendarClock } from 'lucide-react'
+import { X, AlertCircle, ExternalLink, Calendar, Wallet, Flame, User, ChevronDown, Check } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useMarcarOutcome, useReatribuirAtendimento } from '../../hooks/concierge/useAtendimentoMutations'
 import { useMoverEstadoFunil } from '../../hooks/concierge/useMoverEstadoFunil'
-import { useSnoozeAtendimento } from '../../hooks/concierge/useSnoozeAtendimento'
+import { useToggleEmFuturoConcierge } from '../../hooks/concierge/useToggleEmFuturoConcierge'
 import { useEditarPrazoTarefa } from '../../hooks/concierge/useEditarPrazoTarefa'
-import { SnoozeAtendimentoModal } from './kanban/SnoozeAtendimentoModal'
 import { useToggleTarefaCritica } from '../../hooks/concierge/useToggleCritical'
 import { useConciergeProfilesLookup } from '../../hooks/concierge/useConciergeProfilesLookup'
 import { useConciergeUsers } from '../../hooks/concierge/useConciergeUsers'
@@ -49,13 +48,6 @@ function dateInputToIso(value: string): string | null {
   return Number.isFinite(d.getTime()) ? d.toISOString() : null
 }
 
-function addDaysIso(dias: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() + dias)
-  d.setHours(9, 0, 0, 0)
-  return d.toISOString()
-}
-
 export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   const item = (props.item ?? props.atendimento) as MeuDiaItem | undefined
   const isOpen = props.open ?? props.isOpen ?? false
@@ -64,7 +56,6 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   // started_at / notificou_cliente_em / outcome).
   const estadoAtual: EstadoFunil | null = item ? computeEstadoFunil(item) : null
   const [destinoSelecionado, setDestinoSelecionado] = useState<EstadoFunil | null>(null)
-  const [snoozePromptOpen, setSnoozePromptOpen] = useState(false)
   const [outcomeEncerramento, setOutcomeEncerramento] = useState<'recusado' | 'cancelado'>('cancelado')
   // Quando o atendimento é uma oferta E o usuário escolhe "Feito", pode marcar
   // adicionalmente como "Aceito" (cliente fechou). Outcome no banco vira 'aceito'.
@@ -72,19 +63,6 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   const [valorFinal, setValorFinal] = useState(item?.valor?.toString() ?? '')
   const [cobradoDe, setCobradoDe] = useState<CobradoDe | ''>(item?.cobrado_de ?? '')
   const [observacao, setObservacao] = useState('')
-  // Data planejada de retorno (concierge_futuro_em). Reinicializa quando o
-  // item muda — atende tanto a edição inline (atendimento já em Futuro)
-  // quanto a escolha de estocar via grid de colunas.
-  const [snoozeDate, setSnoozeDate] = useState<string>(() =>
-    item?.concierge_futuro_em ? isoToDateInput(item.concierge_futuro_em) : isoToDateInput(addDaysIso(30))
-  )
-  useEffect(() => {
-    if (!item) return
-    setSnoozeDate(item.concierge_futuro_em
-      ? isoToDateInput(item.concierge_futuro_em)
-      : isoToDateInput(addDaysIso(30))
-    )
-  }, [item?.atendimento_id, item?.concierge_futuro_em]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Prazo da tarefa (data_vencimento). Editável a qualquer momento —
   // quem cria a tarefa nem sempre acerta o prazo.
@@ -98,7 +76,7 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
 
   const { mutate: marcarOutcome, isPending: isMarkingOutcome } = useMarcarOutcome()
   const { mutateAsync: moverEstadoAsync, isPending: isMovingEstado } = useMoverEstadoFunil()
-  const { mutateAsync: snoozeAsync, isPending: isSnoozing } = useSnoozeAtendimento()
+  const { mutateAsync: toggleEmFuturoAsync, isPending: isTogglingFuturo } = useToggleEmFuturoConcierge()
   const { mutate: editarPrazo, isPending: isEditingPrazo } = useEditarPrazoTarefa()
   const { mutate: toggleCritica, isPending: togglingCritica } = useToggleTarefaCritica()
   const { mutate: reatribuir, isPending: isReatribuindo } = useReatribuirAtendimento()
@@ -132,12 +110,11 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   const donoNome = item.dono_id ? profilesLookup?.get(item.dono_id) : null
 
   const isOferta = item.tipo_concierge === 'oferta'
-  const snoozeIso = dateInputToIso(snoozeDate)
   const podeConfirmar = !!destinoSelecionado
     && destinoSelecionado !== estadoAtual
     && destinoSelecionado !== 'aguardando_atendimento'
     && destinoSelecionado !== 'agendado_futuro'
-  const isPendingMove = isMarkingOutcome || isMovingEstado || isSnoozing
+  const isPendingMove = isMarkingOutcome || isMovingEstado || isTogglingFuturo
 
   const handleSalvarPrazoTarefa = () => {
     const iso = dateInputToIso(prazoDate)
@@ -145,17 +122,16 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
     editarPrazo({ tarefaId: item.tarefa_id, data: iso })
   }
 
-  const handleSalvarPrazoFuturo = async () => {
-    if (!snoozeIso) return
+  const handleEstocarFuturo = async () => {
     try {
-      await snoozeAsync({ tarefaId: item.tarefa_id, data: snoozeIso })
+      await toggleEmFuturoAsync({ tarefaId: item.tarefa_id, emFuturo: true })
       onClose()
     } catch { /* toast via hook */ }
   }
 
   const handleTirarDoFuturo = async () => {
     try {
-      await snoozeAsync({ tarefaId: item.tarefa_id, data: null })
+      await toggleEmFuturoAsync({ tarefaId: item.tarefa_id, emFuturo: false })
       onClose()
     } catch { /* toast via hook */ }
   }
@@ -180,12 +156,12 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
     // Se o atendimento estava em Futuro, antes precisamos limpar o flag sticky
     // pra que computeEstadoFunil não force ele a continuar lá.
     try {
-      if (estadoAtual === 'agendado_futuro' && item.concierge_futuro_em) {
-        await snoozeAsync({ tarefaId: item.tarefa_id, data: null })
+      if (estadoAtual === 'agendado_futuro' && item.concierge_em_futuro) {
+        await toggleEmFuturoAsync({ tarefaId: item.tarefa_id, emFuturo: false })
       }
       const kanbanItem: KanbanTarefaItem = {
         ...item,
-        concierge_futuro_em: null,
+        concierge_em_futuro: false,
         estado_funil: estadoAtual ?? 'aguardando_atendimento',
         janela_embarque: 'embarca_futuro',
         // Pra "feito" em oferta, pré-popular valor/cobrado_de no item passado
@@ -338,16 +314,21 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
             />
           )}
 
-          {item.concierge_futuro_em && !item.outcome && (
-            <FuturoEditor
-              concierge_futuro_em={item.concierge_futuro_em}
-              snoozeDate={snoozeDate}
-              onChangeSnoozeDate={setSnoozeDate}
-              onSalvar={handleSalvarPrazoFuturo}
-              onTirar={handleTirarDoFuturo}
-              isPending={isSnoozing}
-              canSalvar={!!snoozeIso && isoToDateInput(item.concierge_futuro_em) !== snoozeDate}
-            />
+          {item.concierge_em_futuro && !item.outcome && (
+            <div className="flex items-center justify-between gap-2 px-3 py-2 bg-violet-50 border border-violet-200 rounded-lg text-[12px] text-violet-800">
+              <span className="flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-violet-600" />
+                Estocado em "Agendados para o futuro"
+              </span>
+              <button
+                type="button"
+                onClick={handleTirarDoFuturo}
+                disabled={isTogglingFuturo}
+                className="text-[11.5px] font-medium text-violet-700 hover:text-violet-900 disabled:opacity-50"
+              >
+                {isTogglingFuturo ? 'tirando…' : 'tirar do Futuro'}
+              </button>
+            </div>
           )}
 
           <ViagemBlock item={item} onClose={onClose} />
@@ -411,11 +392,13 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
                         type="button"
                         onClick={() => {
                           if (desabilitado || isAtual) return
-                          // Estocar em "Agendados para o futuro": abre prompt
-                          // de data direto (igual o drag pra coluna faz).
+                          // Estocar em "Agendados para o futuro": só marca a
+                          // flag sticky direto. O prazo da tarefa (que define
+                          // o aviso de proximidade) já fica editável aqui em
+                          // cima, no PrazoTarefaEditor.
                           if (col.id === 'agendado_futuro') {
                             setDestinoSelecionado(null)
-                            setSnoozePromptOpen(true)
+                            handleEstocarFuturo()
                             return
                           }
                           setDestinoSelecionado(col.id)
@@ -424,7 +407,7 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
                         title={
                           isAtual ? 'Coluna atual' :
                           desabilitado ? 'Estado inicial — não dá pra voltar' :
-                          col.id === 'agendado_futuro' ? 'Escolher quando volta pra fila' :
+                          col.id === 'agendado_futuro' ? 'Estocar na coluna Futuro (sticky)' :
                           `Mover para ${col.label}`
                         }
                         className={cn(
@@ -579,19 +562,6 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
         </div>
       </div>
 
-      <SnoozeAtendimentoModal
-        open={snoozePromptOpen}
-        onClose={() => setSnoozePromptOpen(false)}
-        isSubmitting={isSnoozing}
-        onConfirm={(dataIso) => {
-          snoozeAsync({ tarefaId: item.tarefa_id, data: dataIso })
-            .then(() => {
-              setSnoozePromptOpen(false)
-              onClose()
-            })
-            .catch(() => { /* toast via hook */ })
-        }}
-      />
     </div>
   )
 }
@@ -704,59 +674,6 @@ function PrazoTarefaEditor({ dataVencimento, prazoDate, onChangePrazoDate, onSal
           {isPending ? 'salvando…' : 'salvar'}
         </button>
       )}
-    </div>
-  )
-}
-
-interface FuturoEditorProps {
-  concierge_futuro_em: string
-  snoozeDate: string
-  onChangeSnoozeDate: (value: string) => void
-  onSalvar: () => void
-  onTirar: () => void
-  isPending: boolean
-  canSalvar: boolean
-}
-
-function FuturoEditor({ concierge_futuro_em, snoozeDate, onChangeSnoozeDate, onSalvar, onTirar, isPending, canSalvar }: FuturoEditorProps) {
-  const target = new Date(concierge_futuro_em).getTime()
-  const now = Date.now()
-  const diffD = Math.round((target - now) / (1000 * 60 * 60 * 24))
-  let toneClasses: string
-  let label: string
-  if (diffD < 0) {
-    toneClasses = 'bg-red-50 border-red-200 text-red-700'
-    label = `Prazo passou há ${-diffD}d — decida se volta pra fila ou estoca de novo.`
-  } else if (diffD <= 7) {
-    toneClasses = 'bg-amber-50 border-amber-200 text-amber-800'
-    label = diffD === 0 ? 'Prazo planejado é hoje.' : `Prazo planejado em ${diffD}d.`
-  } else {
-    toneClasses = 'bg-violet-50 border-violet-200 text-violet-700'
-    label = `Volta pra fila em ${diffD}d (prazo planejado).`
-  }
-
-  return (
-    <div className={cn('border rounded-lg p-3 space-y-2', toneClasses)}>
-      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide font-semibold">
-        <CalendarClock className="w-3.5 h-3.5" />
-        Estocado em "Agendados para o futuro"
-      </div>
-      <p className="text-[12.5px]">{label}</p>
-      <div className="flex items-center gap-2">
-        <input
-          type="date"
-          value={snoozeDate}
-          onChange={(e) => onChangeSnoozeDate(e.target.value)}
-          disabled={isPending}
-          className="h-8 px-2 text-sm bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-300 disabled:opacity-50"
-        />
-        <Button size="sm" onClick={onSalvar} disabled={!canSalvar || isPending}>
-          Salvar prazo
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onTirar} disabled={isPending}>
-          Tirar do Futuro
-        </Button>
-      </div>
     </div>
   )
 }

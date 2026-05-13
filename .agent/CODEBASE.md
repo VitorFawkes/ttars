@@ -7,18 +7,18 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-13
 > **Trigger:** ALWAYS ON
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 730 components
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 730 components
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 730 components
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 730 components
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 730 components
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 730 components
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 730 components
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 730 components
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 730 components
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 730 components
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 730 components
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 730 components
+> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
+> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
+> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
+> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
+> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
+> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
+> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
+> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
+> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
+> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
+> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
+> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
 
 ---
 
@@ -388,11 +388,11 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useScheduledJobs()` | `useScheduledJobs.ts` |
 | `useSdrQualification()` | `useSdrQualification.ts` |
 | `useSdrRpcs()` | `useSdrRpcs.ts` |
-| `useSnoozeAtendimento()` | `useSnoozeAtendimento.ts` |
 | `useTaskOutcomes()` | `useTaskOutcomes.ts` |
 | `useTasksList()` | `useTasksList.ts` |
 | `useTemplateUsages()` | `useTemplateUsages.ts` |
 | `useToggleCritical()` | `useToggleCritical.ts` |
+| `useToggleEmFuturoConcierge()` | `useToggleEmFuturoConcierge.ts` |
 | `useTripComments()` | `useTripComments.ts` |
 | `useTripItemHistory()` | `useTripItemHistory.ts` |
 | `useTripPlan()` | `useTripPlan.ts` |

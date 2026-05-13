@@ -69,14 +69,15 @@ export default function KanbanPage() {
   const totalViagens = viagens?.length ?? 0
   const count = prefs.modo === 'tarefas' ? totalTarefas : totalViagens
 
-  // Conta cards estocados em "Agendados para o futuro" cuja data planejada
-  // chega em <=7d (inclui as que já passaram — esses são o sinal mais forte).
+  // Conta cards estocados em "Agendados para o futuro" cujo prazo da tarefa
+  // (data_vencimento) chega em <=7d (inclui as que já passaram — esses são
+  // o sinal mais forte). O concierge_em_futuro é o flag sticky.
   const chegandoEssaSemana = useMemo(() => {
     if (prefs.modo !== 'tarefas' || !tarefas) return 0
     const limite = Date.now() + 7 * 24 * 60 * 60 * 1000
     return tarefas.filter(t => {
-      if (!t.concierge_futuro_em) return false
-      const data = new Date(t.concierge_futuro_em).getTime()
+      if (!t.concierge_em_futuro || !t.data_vencimento) return false
+      const data = new Date(t.data_vencimento).getTime()
       return Number.isFinite(data) && data <= limite
     }).length
   }, [tarefas, prefs.modo])
