@@ -7,6 +7,7 @@ import { useMarcarOutcome, useReatribuirAtendimento } from '../../hooks/concierg
 import { useMoverEstadoFunil } from '../../hooks/concierge/useMoverEstadoFunil'
 import { useSnoozeAtendimento } from '../../hooks/concierge/useSnoozeAtendimento'
 import { useEditarPrazoTarefa } from '../../hooks/concierge/useEditarPrazoTarefa'
+import { SnoozeAtendimentoModal } from './kanban/SnoozeAtendimentoModal'
 import { useToggleTarefaCritica } from '../../hooks/concierge/useToggleCritical'
 import { useConciergeProfilesLookup } from '../../hooks/concierge/useConciergeProfilesLookup'
 import { useConciergeUsers } from '../../hooks/concierge/useConciergeUsers'
@@ -63,6 +64,7 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   // started_at / notificou_cliente_em / outcome).
   const estadoAtual: EstadoFunil | null = item ? computeEstadoFunil(item) : null
   const [destinoSelecionado, setDestinoSelecionado] = useState<EstadoFunil | null>(null)
+  const [snoozePromptOpen, setSnoozePromptOpen] = useState(false)
   const [outcomeEncerramento, setOutcomeEncerramento] = useState<'recusado' | 'cancelado'>('cancelado')
   // Quando o atendimento é uma oferta E o usuário escolhe "Feito", pode marcar
   // adicionalmente como "Aceito" (cliente fechou). Outcome no banco vira 'aceito'.
@@ -416,25 +418,27 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
                     // 'aguardando_atendimento' não pode ser destino: é estado inicial,
                     // useMoverEstadoFunil rejeita. Mantém visível pra orientação,
                     // mas só clicável se for o estado atual (sem efeito).
-                    // 'agendado_futuro' não é destino pela grid: estocar é decisão
-                    // explícita feita pelo drag (pra forçar o concierge a escolher
-                    // uma data no modal de snooze). Aqui no detalhe só editamos.
-                    const desabilitado =
-                      (col.id === 'aguardando_atendimento' && !isAtual) ||
-                      (col.id === 'agendado_futuro' && !isAtual)
+                    const desabilitado = col.id === 'aguardando_atendimento' && !isAtual
                     return (
                       <button
                         key={col.id}
                         type="button"
                         onClick={() => {
                           if (desabilitado || isAtual) return
+                          // Estocar em "Agendados para o futuro": abre prompt
+                          // de data direto (igual o drag pra coluna faz).
+                          if (col.id === 'agendado_futuro') {
+                            setDestinoSelecionado(null)
+                            setSnoozePromptOpen(true)
+                            return
+                          }
                           setDestinoSelecionado(col.id)
                         }}
                         disabled={desabilitado || isAtual}
                         title={
                           isAtual ? 'Coluna atual' :
-                          col.id === 'agendado_futuro' ? 'Pra estocar em Futuro, arraste o card pra coluna' :
                           desabilitado ? 'Estado inicial — não dá pra voltar' :
+                          col.id === 'agendado_futuro' ? 'Escolher quando volta pra fila' :
                           `Mover para ${col.label}`
                         }
                         className={cn(
@@ -588,6 +592,20 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
           )}
         </div>
       </div>
+
+      <SnoozeAtendimentoModal
+        open={snoozePromptOpen}
+        onClose={() => setSnoozePromptOpen(false)}
+        isSubmitting={isSnoozing}
+        onConfirm={(dataIso) => {
+          snoozeAsync({ tarefaId: item.tarefa_id, data: dataIso })
+            .then(() => {
+              setSnoozePromptOpen(false)
+              onClose()
+            })
+            .catch(() => { /* toast via hook */ })
+        }}
+      />
     </div>
   )
 }
