@@ -851,3 +851,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-13T12:56:33Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260513c_sdr_scoring_max_per_exclusion_group.sql | applied_to_prod
 2026-05-13T13:55:55Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260513a_briefing_images_bucket.sql | applied_to_prod
 2026-05-13T14:43:09Z | supabase/migrations/20260513e_ai_agents_scheduling_config.sql | applied_to_prod
+2026-05-13T18:05:54Z | supabase/migrations/20260516_tarefas_checklist.sql | applied_to_prod

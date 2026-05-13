@@ -7,7 +7,10 @@ import { useMarcarOutcome, useReatribuirAtendimento } from '../../hooks/concierg
 import { useMoverEstadoFunil } from '../../hooks/concierge/useMoverEstadoFunil'
 import { useToggleEmFuturoConcierge } from '../../hooks/concierge/useToggleEmFuturoConcierge'
 import { useEditarPrazoTarefa } from '../../hooks/concierge/useEditarPrazoTarefa'
+import { useChecklistTarefa } from '../../hooks/concierge/useChecklistTarefa'
 import { EstocarFuturoModal } from './kanban/EstocarFuturoModal'
+import { ChecklistEditor } from './atendimento-form/ChecklistEditor'
+import type { ChecklistItem } from '../../hooks/concierge/types'
 import { useToggleTarefaCritica } from '../../hooks/concierge/useToggleCritical'
 import { useConciergeProfilesLookup } from '../../hooks/concierge/useConciergeProfilesLookup'
 import { useConciergeUsers } from '../../hooks/concierge/useConciergeUsers'
@@ -81,6 +84,7 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   const { mutateAsync: moverEstadoAsync, isPending: isMovingEstado } = useMoverEstadoFunil()
   const { mutateAsync: toggleEmFuturoAsync, isPending: isTogglingFuturo } = useToggleEmFuturoConcierge()
   const { mutate: editarPrazo, isPending: isEditingPrazo } = useEditarPrazoTarefa()
+  const { mutate: salvarChecklist } = useChecklistTarefa()
   const { mutate: toggleCritica, isPending: togglingCritica } = useToggleTarefaCritica()
   const { mutate: reatribuir, isPending: isReatribuindo } = useReatribuirAtendimento()
   const profilesLookup = useConciergeProfilesLookup()
@@ -137,6 +141,29 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
     try {
       await toggleEmFuturoAsync({ tarefaId: item.tarefa_id, emFuturo: true, avisoDias })
       setEditarAvisoOpen(false)
+    } catch { /* toast via hook */ }
+  }
+
+  const handleChecklistChange = (proximos: ChecklistItem[]) => {
+    salvarChecklist({ tarefaId: item.tarefa_id, itens: proximos })
+  }
+
+  const checklistItens: ChecklistItem[] = Array.isArray(item.checklist) ? item.checklist : []
+  const checklistTodosFeitos = checklistItens.length > 0 && checklistItens.every(i => i.feito)
+
+  const handleMarcarComoFeito = async () => {
+    try {
+      const kanbanItem: KanbanTarefaItem = {
+        ...item,
+        concierge_em_futuro: false,
+        estado_funil: estadoAtual ?? 'aguardando_atendimento',
+        janela_embarque: 'embarca_futuro',
+      }
+      if (estadoAtual === 'agendado_futuro' && item.concierge_em_futuro) {
+        await toggleEmFuturoAsync({ tarefaId: item.tarefa_id, emFuturo: false })
+      }
+      await moverEstadoAsync({ atendimento: kanbanItem, destino: 'feito' })
+      onClose()
     } catch { /* toast via hook */ }
   }
 
@@ -394,6 +421,29 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
               </div>
             )
           })()}
+
+          <ChecklistEditor
+            itens={checklistItens}
+            readOnly={!!item.outcome}
+            onChange={handleChecklistChange}
+          />
+
+          {checklistTodosFeitos && !item.outcome && (
+            <div className="flex items-center justify-between gap-2 px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-lg">
+              <div className="text-[12.5px] text-emerald-800">
+                <span className="font-semibold">Tudo do checklist tá feito.</span>{' '}
+                <span className="text-emerald-700">Marcar a tarefa como concluída?</span>
+              </div>
+              <Button
+                size="sm"
+                onClick={handleMarcarComoFeito}
+                disabled={isMovingEstado || isTogglingFuturo}
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                {isMovingEstado || isTogglingFuturo ? 'Salvando…' : 'Marcar como feito'}
+              </Button>
+            </div>
+          )}
 
           {!item.outcome ? (
             <div className="space-y-3">
