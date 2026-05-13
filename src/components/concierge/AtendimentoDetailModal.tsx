@@ -6,6 +6,7 @@ import { ptBR } from 'date-fns/locale'
 import { useMarcarOutcome, useReatribuirAtendimento } from '../../hooks/concierge/useAtendimentoMutations'
 import { useMoverEstadoFunil } from '../../hooks/concierge/useMoverEstadoFunil'
 import { useSnoozeAtendimento } from '../../hooks/concierge/useSnoozeAtendimento'
+import { useEditarPrazoTarefa } from '../../hooks/concierge/useEditarPrazoTarefa'
 import { useToggleTarefaCritica } from '../../hooks/concierge/useToggleCritical'
 import { useConciergeProfilesLookup } from '../../hooks/concierge/useConciergeProfilesLookup'
 import { useConciergeUsers } from '../../hooks/concierge/useConciergeUsers'
@@ -83,9 +84,20 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
     )
   }, [item?.atendimento_id, item?.concierge_futuro_em]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Prazo da tarefa (data_vencimento). Editável a qualquer momento —
+  // quem cria a tarefa nem sempre acerta o prazo.
+  const [prazoDate, setPrazoDate] = useState<string>(() =>
+    item?.data_vencimento ? isoToDateInput(item.data_vencimento) : ''
+  )
+  useEffect(() => {
+    if (!item) return
+    setPrazoDate(item.data_vencimento ? isoToDateInput(item.data_vencimento) : '')
+  }, [item?.atendimento_id, item?.data_vencimento]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const { mutate: marcarOutcome, isPending: isMarkingOutcome } = useMarcarOutcome()
   const { mutateAsync: moverEstadoAsync, isPending: isMovingEstado } = useMoverEstadoFunil()
   const { mutateAsync: snoozeAsync, isPending: isSnoozing } = useSnoozeAtendimento()
+  const { mutate: editarPrazo, isPending: isEditingPrazo } = useEditarPrazoTarefa()
   const { mutate: toggleCritica, isPending: togglingCritica } = useToggleTarefaCritica()
   const { mutate: reatribuir, isPending: isReatribuindo } = useReatribuirAtendimento()
   const profilesLookup = useConciergeProfilesLookup()
@@ -124,6 +136,12 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
     && destinoSelecionado !== 'aguardando_atendimento'
     && (destinoSelecionado !== 'agendado_futuro' || !!snoozeIso)
   const isPendingMove = isMarkingOutcome || isMovingEstado || isSnoozing
+
+  const handleSalvarPrazoTarefa = () => {
+    const iso = dateInputToIso(prazoDate)
+    if (!iso) return
+    editarPrazo({ tarefaId: item.tarefa_id, data: iso })
+  }
 
   const handleSalvarPrazoFuturo = async () => {
     if (!snoozeIso) return
@@ -314,6 +332,17 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
                 <span className="text-red-700 ml-1">há {formatDistanceToNow(new Date(item.data_vencimento), { locale: ptBR })}</span>
               </div>
             </div>
+          )}
+
+          {!item.outcome && (
+            <PrazoTarefaEditor
+              dataVencimento={item.data_vencimento}
+              prazoDate={prazoDate}
+              onChangePrazoDate={setPrazoDate}
+              onSalvar={handleSalvarPrazoTarefa}
+              isPending={isEditingPrazo}
+              canSalvar={!!dateInputToIso(prazoDate) && (isoToDateInput(item.data_vencimento) !== prazoDate)}
+            />
           )}
 
           {item.concierge_futuro_em && !item.outcome && (
@@ -601,6 +630,63 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+interface PrazoTarefaEditorProps {
+  dataVencimento: string | null
+  prazoDate: string
+  onChangePrazoDate: (value: string) => void
+  onSalvar: () => void
+  isPending: boolean
+  canSalvar: boolean
+}
+
+function PrazoTarefaEditor({ dataVencimento, prazoDate, onChangePrazoDate, onSalvar, isPending, canSalvar }: PrazoTarefaEditorProps) {
+  let toneClasses = 'bg-slate-50 border-slate-200 text-slate-700'
+  let label = 'Prazo da tarefa'
+
+  if (dataVencimento) {
+    const target = new Date(dataVencimento).getTime()
+    const now = Date.now()
+    const diffD = Math.round((target - now) / (1000 * 60 * 60 * 24))
+    if (diffD < 0) {
+      toneClasses = 'bg-red-50 border-red-200 text-red-700'
+      label = `Prazo passou há ${-diffD}d`
+    } else if (diffD === 0) {
+      toneClasses = 'bg-amber-50 border-amber-200 text-amber-800'
+      label = 'Prazo é hoje'
+    } else if (diffD <= 7) {
+      toneClasses = 'bg-amber-50 border-amber-200 text-amber-800'
+      label = `Prazo em ${diffD}d`
+    } else {
+      toneClasses = 'bg-slate-50 border-slate-200 text-slate-700'
+      label = `Prazo em ${diffD}d`
+    }
+  }
+
+  return (
+    <div className={cn('border rounded-lg p-3 space-y-2', toneClasses)}>
+      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide font-semibold">
+        <Calendar className="w-3.5 h-3.5" />
+        {label}
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          type="date"
+          value={prazoDate}
+          onChange={(e) => onChangePrazoDate(e.target.value)}
+          disabled={isPending}
+          className="h-8 px-2 text-sm bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 disabled:opacity-50"
+        />
+        <Button size="sm" onClick={onSalvar} disabled={!canSalvar || isPending}>
+          {isPending ? 'Salvando…' : 'Salvar prazo'}
+        </Button>
+      </div>
+      <p className="text-[10.5px] opacity-75">
+        Ajuste se quem criou a tarefa deu uma data sem noção do prazo real.
+      </p>
     </div>
   )
 }
