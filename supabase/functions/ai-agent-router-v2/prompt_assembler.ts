@@ -647,6 +647,74 @@ Este resultado é fonte de verdade. Use-o pra decidir o desfecho. O \`turn_polic
  * LLM deve apresentar verbatim na mensagem final, oferecendo escolha ao casal.
  */
 /**
+ * Agrupa slots pelo dia (weekday + date), preservando ordem cronológica.
+ * Ex: [qui 14/05 10:00, qui 14/05 14:00, sex 15/05 10:00] →
+ *     [{weekday: qui, date: 14/05, times: [10:00, 14:00]},
+ *      {weekday: sex, date: 15/05, times: [10:00]}]
+ */
+type GroupedSlot = { weekday: string; date: string; times: string[] };
+
+function groupSlotsByDay(
+  slots: Array<{ date: string; time: string; weekday: string }>,
+): GroupedSlot[] {
+  const map = new Map<string, GroupedSlot>();
+  for (const s of slots) {
+    const key = `${s.weekday}|${s.date}`;
+    const g = map.get(key);
+    if (g) g.times.push(s.time);
+    else map.set(key, { weekday: s.weekday, date: s.date, times: [s.time] });
+  }
+  return Array.from(map.values());
+}
+
+/**
+ * Formata uma lista de horários com bold WhatsApp + conector natural.
+ * ["10:00"] → "*10:00*"
+ * ["10:00", "14:00"] → "*10:00* ou *14:00*"
+ * ["10:00", "14:00", "16:00"] → "*10:00*, *14:00* ou *16:00*"
+ */
+function formatGroupedTimes(times: string[]): string {
+  const bold = times.map((t) => `*${t}*`);
+  if (bold.length <= 1) return bold[0] || "";
+  if (bold.length === 2) return `${bold[0]} ou ${bold[1]}`;
+  const last = bold[bold.length - 1];
+  return `${bold.slice(0, -1).join(", ")} ou ${last}`;
+}
+
+/**
+ * Renderiza slots agrupados por dia. Retorna duas formas:
+ *   - asList: linhas separadas pra bullet/numbered list
+ *   - asInline: frase única pra substituir placeholder em anchor_text
+ *
+ * Exemplo (3 horários em 2 dias):
+ *   asList:
+ *     - "*qui 14/05* às *10:00*, *14:00* ou *16:00*"
+ *     - "*sex 15/05* às *10:00*, *14:00* ou *16:00*"
+ *   asInline:
+ *     "*qui 14/05* às *10:00*, *14:00* ou *16:00* ou *sex 15/05* às *10:00*, *14:00* ou *16:00*"
+ */
+function formatSlotsGrouped(
+  slots: Array<{ date: string; time: string; weekday: string }>,
+): { asList: string[]; asInline: string } {
+  const groups = groupSlotsByDay(slots);
+  const asList = groups.map((g) =>
+    `*${g.weekday} ${g.date}* às ${formatGroupedTimes(g.times)}`
+  );
+  let asInline: string;
+  if (asList.length === 0) {
+    asInline = "";
+  } else if (asList.length === 1) {
+    asInline = asList[0];
+  } else if (asList.length === 2) {
+    asInline = `${asList[0]} ou ${asList[1]}`;
+  } else {
+    const last = asList[asList.length - 1];
+    asInline = `${asList.slice(0, -1).join(", ")} ou ${last}`;
+  }
+  return { asList, asInline };
+}
+
+/**
  * Renderiza resultados de tools executadas pelo router antes desta chamada
  * do LLM (agentic loop curto). Quando presente, o LLM DEVE basear sua
  * resposta nesses resultados, sem inventar.
@@ -669,12 +737,13 @@ function renderToolResults(
         if (note) lines.push(`- Motivo: ${note}`);
         lines.push(`- ⚠️ Explique honestamente ao lead (use o motivo acima) e ofereça outra data próxima. NÃO re-ofereça os mesmos slots originais de \`<proposed_slots>\`.`);
       } else {
-        lines.push(`- Horários reais encontrados pela agenda da Wedding Planner:`);
-        for (const s of slots) {
-          lines.push(`  - *${s.weekday} ${s.date}* às *${s.time}*`);
+        lines.push(`- Horários reais encontrados pela agenda da Wedding Planner (agrupados por dia — quando há vários horários no mesmo dia, apresente todos juntos sem repetir o dia):`);
+        const { asList } = formatSlotsGrouped(slots);
+        for (const line of asList) {
+          lines.push(`  - ${line}`);
         }
         if (note) lines.push(`- Observação: ${note}`);
-        lines.push(`- ✅ Apresente estes horários ao lead. Eles SUBSTITUEM os de \`<proposed_slots>\` agora. Quando o lead escolher um deles, chame \`confirm_meeting_slot\` com a date+time correspondente.`);
+        lines.push(`- ✅ Apresente estes horários ao lead EXATAMENTE no formato agrupado acima (não repita o dia da semana várias vezes). Eles SUBSTITUEM os de \`<proposed_slots>\` agora. Quando o lead escolher um deles, chame \`confirm_meeting_slot\` com a date+time correspondente.`);
       }
     } else {
       // Outras tools: render genérico
@@ -693,17 +762,17 @@ function renderProposedSlots(
 ): string {
   if (!slots || slots.length === 0) return "";
   // Formato bold WhatsApp: *texto* (asterisco simples). WhatsApp não renderiza
-  // Markdown **texto**. Padronizar aqui evita LLM ter que traduzir formato
-  // (que vinha embolando — bug 2026-05-13: *qui... ,**sex...*).
-  const lines = slots
-    .map((s, i) => `  ${i + 1}. *${s.weekday} ${s.date}* às *${s.time}*`)
-    .join("\n");
+  // Markdown **texto**. Padronizar aqui evita LLM ter que traduzir formato.
+  // Slots agrupados por dia: quando há vários horários no mesmo dia, sai
+  // como "*qui 14/05* às *10:00*, *14:00* ou *16:00*" (não repete o dia).
+  const { asList } = formatSlotsGrouped(slots);
+  const lines = asList.map((line, i) => `  ${i + 1}. ${line}`).join("\n");
   return `<proposed_slots>
 📅 HORÁRIOS DA WEDDING PLANNER (pré-buscados pelo router, use verbatim)
 
 ${lines}
 
-Apresente os 3 horários ao casal exatamente como acima e peça pra escolher um. NÃO invente outras opções. NÃO mude o formato dos dias/horários. Os asteriscos simples (\`*texto*\`) são a sintaxe de bold do WhatsApp — preserve EXATAMENTE assim, sem dobrar pra \`**\` e sem remover. Se o casal pedir alternativa, diga que vai checar e siga.
+Apresente os horários ao casal EXATAMENTE no formato agrupado acima — quando há vários horários no mesmo dia (ex: "*qui 14/05* às *10:00*, *14:00* ou *16:00*"), NÃO repita o dia da semana e a data várias vezes. NÃO invente outras opções. NÃO mude o formato dos dias/horários. Os asteriscos simples (\`*texto*\`) são a sintaxe de bold do WhatsApp — preserve EXATAMENTE assim, sem dobrar pra \`**\` e sem remover. Se o casal pedir alternativa, chame \`check_calendar\` em vez de repetir os mesmos horários.
 </proposed_slots>`;
 }
 
@@ -735,15 +804,13 @@ function renderTurnPolicy(
     if (forced) {
       const parts = resolveMomentParts(forced);
       let baseText = parts[0] || forced.anchor_text || "";
-      // Substitui placeholder {slots_disponiveis} pela lista formatada
-      // dos horários reais. Sem isso, LLM tenta interpretar o placeholder
-      // como variável literal e às vezes colava "<proposed_slots>" na
-      // resposta. Formato WhatsApp: *qui 14/05 às 10:00*, *qui 14/05 às 14:00*…
+      // Substitui placeholder {slots_disponiveis} pela frase com horários
+      // agrupados por dia. Quando há vários horários no mesmo dia, sai
+      // "*qui 14/05* às *10:00*, *14:00* ou *16:00*" sem repetir o dia.
+      // Múltiplos dias são unidos com " ou ": "... ou *sex 15/05* às *10:00*, *14:00* ou *16:00*".
       if (baseText.includes("{slots_disponiveis}") && state.proposed_slots && state.proposed_slots.length > 0) {
-        const formattedSlots = state.proposed_slots
-          .map((s) => `*${s.weekday} ${s.date}* às *${s.time}*`)
-          .join(", ");
-        baseText = baseText.replaceAll("{slots_disponiveis}", formattedSlots);
+        const { asInline } = formatSlotsGrouped(state.proposed_slots);
+        baseText = baseText.replaceAll("{slots_disponiveis}", asInline);
       }
       const isLiteral = forced.message_mode === "literal";
       const isFaithful = forced.message_mode === "faithful";
