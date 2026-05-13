@@ -46,6 +46,37 @@ function isoToDateInput(iso: string | null | undefined): string {
   return `${yyyy}-${mm}-${dd}`
 }
 
+// --- Rascunho da observação (localStorage por atendimento) ---
+// Resolve dois problemas: (1) bug do state local vazando entre cards
+// quando o usuário trocava sem fechar; (2) perder texto digitado se
+// fechar o modal sem confirmar. Cada atendimento tem sua chave
+// dedicada; quando confirma com sucesso, a chave é limpa.
+const RASCUNHO_PREFIX = 'welcomecrm:concierge:obs-rascunho:'
+
+function lerRascunhoObs(atendimentoId: string | undefined): string {
+  if (!atendimentoId || typeof window === 'undefined') return ''
+  try {
+    return window.localStorage.getItem(`${RASCUNHO_PREFIX}${atendimentoId}`) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+function escreverRascunhoObs(atendimentoId: string | undefined, texto: string): void {
+  if (!atendimentoId || typeof window === 'undefined') return
+  try {
+    const key = `${RASCUNHO_PREFIX}${atendimentoId}`
+    if (texto) window.localStorage.setItem(key, texto)
+    else window.localStorage.removeItem(key)
+  } catch {
+    // localStorage cheio/desabilitado — silenciar
+  }
+}
+
+function limparRascunhoObs(atendimentoId: string | undefined): void {
+  escreverRascunhoObs(atendimentoId, '')
+}
+
 function dateInputToIso(value: string): string | null {
   if (!value) return null
   const d = new Date(`${value}T09:00:00`)
@@ -79,6 +110,26 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
     if (!item) return
     setPrazoDate(item.data_vencimento ? isoToDateInput(item.data_vencimento) : '')
   }, [item?.atendimento_id, item?.data_vencimento]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reseta states locais quando troca de atendimento — sem isso, o que
+  // o usuário digitou/selecionou no card A vazava para o card B (o modal
+  // não desmonta, só recebe novo `item`). A observação puxa o rascunho
+  // por atendimento, se existir.
+  useEffect(() => {
+    if (!item) return
+    setDestinoSelecionado(null)
+    setComoAceito(false)
+    setValorFinal(item.valor?.toString() ?? '')
+    setCobradoDe(item.cobrado_de ?? '')
+    setObservacao(lerRascunhoObs(item.atendimento_id))
+  }, [item?.atendimento_id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persiste rascunho enquanto o usuário digita. Some quando confirma
+  // com sucesso (handleConfirmar limpa) ou quando texto vira vazio.
+  useEffect(() => {
+    if (!item) return
+    escreverRascunhoObs(item.atendimento_id, observacao)
+  }, [observacao, item?.atendimento_id])
 
   const { mutate: marcarOutcome, isPending: isMarkingOutcome } = useMarcarOutcome()
   const { mutateAsync: moverEstadoAsync, isPending: isMovingEstado } = useMoverEstadoFunil()
@@ -185,7 +236,7 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
         valor_final: valorFinal ? parseFloat(valorFinal) : null,
         cobrado_de: cobradoDe ? (cobradoDe as CobradoDe) : null,
         observacao: observacao || undefined,
-      }, { onSuccess: () => onClose() })
+      }, { onSuccess: () => { limparRascunhoObs(item.atendimento_id); onClose() } })
       return
     }
 
@@ -213,6 +264,7 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
         outcomeEncerramento: destinoSelecionado === 'encerrado' ? outcomeEncerramento : undefined,
         observacao: observacao || undefined,
       })
+      limparRascunhoObs(item.atendimento_id)
       onClose()
     } catch {
       // Toast de erro já é exibido pelo onError do hook.
