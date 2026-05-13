@@ -78,6 +78,22 @@ function detectDataMode(value: string | null | undefined): DataMode {
     return 'periodo'
 }
 
+const MESES_PT = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+] as const
+
+function parseMesAno(value: string | undefined | null): { mes: string; ano: string } {
+    if (!value || !/^\d{4}-\d{2}$/.test(value)) return { mes: '', ano: '' }
+    const [ano, mes] = value.split('-')
+    return { mes, ano }
+}
+
+function buildMesAno(mes: string, ano: string): string | undefined {
+    if (!mes || !ano) return undefined
+    return `${ano}-${mes.padStart(2, '0')}`
+}
+
 export function SdrQualificationSheet({ open, onOpenChange, qualificationId, contatoId, cardId, telefone, initialDados, onFinalized }: Props) {
     const { data: scoringData, isLoading: rulesLoading } = useEstelaScoringRules()
     const finalizar = useFinalizarPontuacao()
@@ -365,13 +381,40 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                                                     onChange={(e) => handleDadoChange('data_casamento', e.target.value || undefined)}
                                                 />
                                             )}
-                                            {dataMode === 'mes_ano' && (
-                                                <Input
-                                                    type="month"
-                                                    value={session.dadosLead.data_casamento ?? ''}
-                                                    onChange={(e) => handleDadoChange('data_casamento', e.target.value || undefined)}
-                                                />
-                                            )}
+                                            {dataMode === 'mes_ano' && (() => {
+                                                const { mes, ano } = parseMesAno(session.dadosLead.data_casamento)
+                                                const anoAtual = new Date().getFullYear()
+                                                const anosOpcoes: number[] = []
+                                                for (let a = anoAtual; a <= anoAtual + 8; a++) anosOpcoes.push(a)
+                                                return (
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <select
+                                                            value={mes}
+                                                            onChange={(e) => handleDadoChange('data_casamento', buildMesAno(e.target.value, ano))}
+                                                            className="h-9 px-3 rounded-md border border-slate-200 bg-white text-sm text-slate-900"
+                                                        >
+                                                            <option value="">Mês</option>
+                                                            {MESES_PT.map((nome, idx) => (
+                                                                <option key={nome} value={String(idx + 1).padStart(2, '0')}>
+                                                                    {nome}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                        <select
+                                                            value={ano}
+                                                            onChange={(e) => handleDadoChange('data_casamento', buildMesAno(mes, e.target.value))}
+                                                            className="h-9 px-3 rounded-md border border-slate-200 bg-white text-sm text-slate-900"
+                                                        >
+                                                            <option value="">Ano</option>
+                                                            {anosOpcoes.map((a) => (
+                                                                <option key={a} value={String(a)}>
+                                                                    {a}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                )
+                                            })()}
                                             {dataMode === 'periodo' && (
                                                 <div className="space-y-1.5">
                                                     <Input
@@ -387,9 +430,10 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                                                 </div>
                                             )}
                                             {dataMode === 'indefinido' && (
-                                                <p className="text-sm text-slate-500 px-3 py-2 bg-white border border-slate-200 rounded-md">
-                                                    Casal ainda não definiu a data.
-                                                </p>
+                                                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 text-sm text-slate-600">
+                                                    <Info className="w-3.5 h-3.5 text-slate-500" />
+                                                    <span>Casal ainda não definiu a data.</span>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
