@@ -8,7 +8,6 @@ import { useConciergePreferences, type Modo } from '../../hooks/concierge/useCon
 import { useCardTagsLookup } from '../../hooks/concierge/useCardTagsLookup'
 import { ConciergeKanbanBoard } from '../../components/concierge/kanban/ConciergeKanbanBoard'
 import { ConciergeViagensBoard } from '../../components/concierge/kanban/ConciergeViagensBoard'
-import { ConciergeFutureThresholdControl } from '../../components/concierge/kanban/ConciergeFutureThresholdControl'
 import { KanbanFiltersBar } from '../../components/concierge/kanban/KanbanFiltersBar'
 import { cn } from '../../lib/utils'
 
@@ -114,10 +113,6 @@ export default function KanbanPage() {
           {produtoAtual && (
             <span className="text-[10.5px] text-slate-400 font-mono uppercase tracking-wide">{produtoAtual}</span>
           )}
-
-          <div className="ml-auto">
-            <ConciergeFutureThresholdControl />
-          </div>
         </div>
 
         <KanbanFiltersBar

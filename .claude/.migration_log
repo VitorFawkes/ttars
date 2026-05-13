@@ -846,3 +846,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-12T20:41:28Z | supabase/migrations/20260512j_sdr_editar_sobrescrevendo_e_excluir.sql | applied_to_prod
 2026-05-12T20:43:57Z | supabase/migrations/20260512p_search_contatos_fuzzy.sql | applied_to_prod
 2026-05-12T20:49:23Z | supabase/migrations/20260512p_search_contatos_fuzzy.sql | applied_to_prod
+2026-05-13T12:34:56Z | supabase/migrations/20260514_remove_concierge_future_threshold.sql | applied_to_prod

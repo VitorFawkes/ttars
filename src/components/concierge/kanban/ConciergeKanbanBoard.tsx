@@ -13,12 +13,10 @@ import { ChevronLeft, ChevronRight, Loader2, Zap } from 'lucide-react'
 import { useHorizontalScroll } from '../../../hooks/useHorizontalScroll'
 import { useKanbanTarefas, ESTADO_FUNIL_COLUMNS, type EstadoFunil, type KanbanTarefaItem, type KanbanTarefasFilters } from '../../../hooks/concierge/useKanbanTarefas'
 import { useMoverEstadoFunil } from '../../../hooks/concierge/useMoverEstadoFunil'
-import { useReagendarConciergeAtendimento } from '../../../hooks/concierge/useReagendarConciergeAtendimento'
 import { useExecutarEmLote } from '../../../hooks/concierge/useAtendimentoMutations'
 import { ConciergeKanbanColumn } from './ConciergeKanbanColumn'
 import { AtendimentoCard } from './AtendimentoCard'
 import { EncerrarAtendimentoModal } from './EncerrarAtendimentoModal'
-import { ReagendarConciergeDateModal, type ReagendarMode } from './ReagendarConciergeDateModal'
 import { AtendimentoDetailModal } from '../AtendimentoDetailModal'
 import { SelectionActionBar } from './SelectionActionBar'
 
@@ -27,22 +25,19 @@ interface ConciergeKanbanBoardProps {
 }
 
 export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
-  const { groupedByEstado, isLoading, data, thresholdDays } = useKanbanTarefas(filters)
+  const { groupedByEstado, isLoading, data } = useKanbanTarefas(filters)
   const moverFunil = useMoverEstadoFunil()
-  const reagendar = useReagendarConciergeAtendimento()
   const executarEmLote = useExecutarEmLote()
 
   const [activeItem, setActiveItem] = useState<KanbanTarefaItem | null>(null)
   const [selected, setSelected] = useState<KanbanTarefaItem | null>(null)
   const [pendingEncerrar, setPendingEncerrar] = useState<KanbanTarefaItem | null>(null)
   const [pendingBulkEncerrar, setPendingBulkEncerrar] = useState<KanbanTarefaItem[] | null>(null)
-  const [pendingReagendar, setPendingReagendar] = useState<{ item: KanbanTarefaItem; mode: ReagendarMode } | null>(null)
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  // Colunas retraídas — "agendado_futuro" e "encerrado" começam fechadas por default
-  // (estoque distante e recusados/cancelados raramente precisam de atenção, mas
-  // continuam acessíveis com 1 clique).
-  const [collapsedCols, setCollapsedCols] = useState<Set<EstadoFunil>>(new Set(['agendado_futuro', 'encerrado']))
+  // Colunas retraídas — "encerrado" começa fechado por default (recusados/cancelados
+  // raramente precisam de atenção, mas continuam acessíveis com 1 clique).
+  const [collapsedCols, setCollapsedCols] = useState<Set<EstadoFunil>>(new Set(['encerrado']))
   const toggleCol = (id: EstadoFunil) => {
     setCollapsedCols(prev => {
       const next = new Set(prev)
@@ -88,18 +83,6 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
     const destino = event.over?.id as EstadoFunil | undefined
     if (!item || !destino) return
     if (item.estado_funil === destino) return
-
-    // Indo para "Agendados para o futuro" — pede data distante
-    if (destino === 'agendado_futuro') {
-      setPendingReagendar({ item, mode: 'to_future' })
-      return
-    }
-
-    // Saindo de "Agendados para o futuro" para qualquer coluna ativa — pede data próxima
-    if (item.estado_funil === 'agendado_futuro') {
-      setPendingReagendar({ item, mode: 'to_active' })
-      return
-    }
 
     if (destino === 'encerrado') {
       setPendingEncerrar(item)
@@ -256,21 +239,6 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
               onSuccess: () => { clearSelection(); setPendingBulkEncerrar(null) },
               onError: () => setPendingBulkEncerrar(null),
             }
-          )
-        }}
-      />
-
-      <ReagendarConciergeDateModal
-        open={!!pendingReagendar}
-        mode={pendingReagendar?.mode ?? 'to_active'}
-        thresholdDays={thresholdDays}
-        isSubmitting={reagendar.isPending}
-        onClose={() => setPendingReagendar(null)}
-        onConfirm={(novaDataIso) => {
-          if (!pendingReagendar) return
-          reagendar.mutate(
-            { atendimento: pendingReagendar.item, nova_data: novaDataIso },
-            { onSettled: () => setPendingReagendar(null) }
           )
         }}
       />

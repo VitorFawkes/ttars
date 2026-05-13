@@ -24,7 +24,6 @@ export interface Organization {
     onboarding_step: number
     onboarding_completed_at: string | null
     force_relogin_after: string | null
-    concierge_future_threshold_days: number
 }
 
 interface OrgContextType {
@@ -56,7 +55,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
             if (!effectiveOrgId) return null
             const { data, error } = await supabase
                 .from('organizations')
-                .select('id, name, slug, logo_url, branding, settings, onboarding_step, onboarding_completed_at, force_relogin_after, concierge_future_threshold_days')
+                .select('id, name, slug, logo_url, branding, settings, onboarding_step, onboarding_completed_at, force_relogin_after')
                 .eq('id', effectiveOrgId)
                 .single()
             if (error) throw error

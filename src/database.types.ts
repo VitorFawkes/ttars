@@ -10420,7 +10420,6 @@ export type Database = {
           active: boolean
           branding: Json | null
           business_hours: Json | null
-          concierge_future_threshold_days: number
           created_at: string
           force_relogin_after: string | null
           id: string
@@ -10441,7 +10440,6 @@ export type Database = {
           active?: boolean
           branding?: Json | null
           business_hours?: Json | null
-          concierge_future_threshold_days?: number
           created_at?: string
           force_relogin_after?: string | null
           id?: string
@@ -10462,7 +10460,6 @@ export type Database = {
           active?: boolean
           branding?: Json | null
           business_hours?: Json | null
-          concierge_future_threshold_days?: number
           created_at?: string
           force_relogin_after?: string | null
           id?: string
@@ -20451,36 +20448,6 @@ export type Database = {
         Args: { p_contact_ids: string[] }
         Returns: number
       }
-      rpc_update_concierge_future_threshold: {
-        Args: { p_dias: number }
-        Returns: {
-          active: boolean
-          branding: Json | null
-          business_hours: Json | null
-          concierge_future_threshold_days: number
-          created_at: string
-          force_relogin_after: string | null
-          id: string
-          logo_url: string | null
-          name: string
-          onboarding_completed_at: string | null
-          onboarding_step: number
-          parent_org_id: string | null
-          settings: Json | null
-          shares_contacts_with_children: boolean
-          slug: string
-          status: string
-          suspended_at: string | null
-          suspended_reason: string | null
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "organizations"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       run_card_alerts_daily: { Args: never; Returns: Json }
       safe_log_trigger_error: {
         Args: {
@@ -20556,6 +20523,10 @@ export type Database = {
       sdr_reabrir_pontuacao: { Args: { p_id: string }; Returns: Json }
       sdr_vincular_a_card: {
         Args: { p_card_id: string; p_qualification_id: string }
+        Returns: Json
+      }
+      sdr_voltar_para_rascunho: {
+        Args: { p_qualification_id: string }
         Returns: Json
       }
       search_agent_knowledge_bases: {
