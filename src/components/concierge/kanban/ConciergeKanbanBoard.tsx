@@ -193,6 +193,14 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
           {ESTADO_FUNIL_COLUMNS.map(col => {
             const items = groupedByEstado.get(col.id) ?? []
             const isCollapsed = collapsedCols.has(col.id)
+            // Pulsa amarelo na coluna Futuro quando tem card cujo prazo
+            // planejado de retorno está em ≤7 dias (incluindo passados).
+            // Esse é o sinal pra concierge abrir e decidir.
+            const pulsarUrgente = col.id === 'agendado_futuro' && items.some(it => {
+              if (!it.concierge_futuro_em) return false
+              const t = new Date(it.concierge_futuro_em).getTime()
+              return Number.isFinite(t) && t <= Date.now() + 7 * 24 * 60 * 60 * 1000
+            })
             return (
               <ConciergeKanbanColumn
                 key={col.id}
@@ -203,6 +211,7 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
                 tone={col.tone}
                 collapsed={isCollapsed}
                 onToggleCollapsed={() => toggleCol(col.id)}
+                pulsarUrgente={pulsarUrgente}
               >
                 {items.length === 0 ? (
                   <div className="text-[10.5px] text-slate-400 italic py-6 text-center">

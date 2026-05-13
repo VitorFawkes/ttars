@@ -368,26 +368,12 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
             if (!hasAny) return null
             return (
               <div className="space-y-2">
-                {item.descricao && (() => {
-                  const criadorNome = item.tarefa_criada_por
-                    ? profilesLookup?.get(item.tarefa_criada_por)
-                    : null
-                  return (
-                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="text-[10.5px] uppercase tracking-wide font-semibold text-slate-500">
-                          Descrição da tarefa
-                        </div>
-                        {criadorNome && (
-                          <div className="text-[10.5px] text-slate-500" title={`Criado por ${criadorNome}`}>
-                            por <span className="font-medium text-slate-700">{criadorNome}</span>
-                          </div>
-                        )}
-                      </div>
-                      <p className="text-[13px] text-slate-700 leading-relaxed whitespace-pre-wrap">{item.descricao}</p>
-                    </div>
-                  )
-                })()}
+                {item.descricao && (
+                  <DescricaoColapsavel
+                    descricao={item.descricao}
+                    criadorNome={item.tarefa_criada_por ? (profilesLookup?.get(item.tarefa_criada_por) ?? null) : null}
+                  />
+                )}
                 {observacaoConciergeStr && (
                   <div className="bg-emerald-50/60 border border-emerald-200 rounded-lg p-3">
                     <div className="flex items-center justify-between mb-1">
@@ -606,6 +592,60 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
             .catch(() => { /* toast via hook */ })
         }}
       />
+    </div>
+  )
+}
+
+function DescricaoColapsavel({ descricao, criadorNome }: { descricao: string; criadorNome: string | null }) {
+  const [expandida, setExpandida] = useState(false)
+  const [transbordou, setTransbordou] = useState(false)
+  const pRef = useRef<HTMLParagraphElement>(null)
+
+  useEffect(() => {
+    const el = pRef.current
+    if (!el) return
+    // Mede com o clamp aplicado (no estado colapsado). Se o conteúdo
+    // real ultrapassa a altura visível, mostra o botão "Ver tudo".
+    setTransbordou(el.scrollHeight > el.clientHeight + 1)
+  }, [descricao])
+
+  return (
+    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+      <div className="flex items-center justify-between mb-1">
+        <div className="text-[10.5px] uppercase tracking-wide font-semibold text-slate-500">
+          Descrição da tarefa
+        </div>
+        {criadorNome && (
+          <div className="text-[10.5px] text-slate-500" title={`Criado por ${criadorNome}`}>
+            por <span className="font-medium text-slate-700">{criadorNome}</span>
+          </div>
+        )}
+      </div>
+      <p
+        ref={pRef}
+        className="text-[13px] text-slate-700 leading-relaxed whitespace-pre-wrap"
+        style={
+          !expandida
+            ? {
+                display: '-webkit-box',
+                WebkitLineClamp: 10,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }
+            : undefined
+        }
+      >
+        {descricao}
+      </p>
+      {transbordou && (
+        <button
+          type="button"
+          onClick={() => setExpandida(v => !v)}
+          className="mt-1.5 text-[11.5px] font-medium text-indigo-600 hover:text-indigo-700"
+        >
+          {expandida ? 'Ver menos' : 'Ver tudo'}
+        </button>
+      )}
     </div>
   )
 }
