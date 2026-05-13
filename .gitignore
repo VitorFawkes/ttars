@@ -114,4 +114,23 @@ scripts/capture-gif.sh
 # Plans locais do Claude Code (por sessão)
 .claude/plans/
 .claude/agent-memory/
-/handoff    
+/handoff
+
+# Pastas de referência local (não são código do CRM)
+clone-base/
+_claude-design-brief/
+automations-knowledge/
+.superpowers/
+
+# Avaliações ad-hoc (não suite oficial)
+tests/patricia-eval/
+
+# Relatórios efêmeros de sessão Claude
+relatorio-*.md
+relatorio-*.pdf
+
+# Deno lock solto na raiz (lock real fica em supabase/functions/)
+/deno.lock
+
+# Worktrees do Claude Code
+.claude/worktrees/
