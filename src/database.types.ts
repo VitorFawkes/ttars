@@ -14285,6 +14285,7 @@ export type Database = {
         Row: {
           card_id: string
           categoria_outro: string | null
+          checklist: Json
           concierge_aviso_dias: number
           concierge_em_futuro: boolean
           concluida: boolean
@@ -14321,6 +14322,7 @@ export type Database = {
         Insert: {
           card_id: string
           categoria_outro?: string | null
+          checklist?: Json
           concierge_aviso_dias?: number
           concierge_em_futuro?: boolean
           concluida?: boolean
@@ -14357,6 +14359,7 @@ export type Database = {
         Update: {
           card_id?: string
           categoria_outro?: string | null
+          checklist?: Json
           concierge_aviso_dias?: number
           concierge_em_futuro?: boolean
           concluida?: boolean
@@ -16890,6 +16893,7 @@ export type Database = {
           card_valor_estimado: number | null
           card_valor_final: number | null
           categoria: string | null
+          checklist: Json | null
           cobrado_de: string | null
           concierge_aviso_dias: number | null
           concierge_em_futuro: boolean | null

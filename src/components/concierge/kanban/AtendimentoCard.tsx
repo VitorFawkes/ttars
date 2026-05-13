@@ -1,5 +1,5 @@
 import { useDraggable } from '@dnd-kit/core'
-import { Check, Flame, User } from 'lucide-react'
+import { Check, Flame, User, ListChecks } from 'lucide-react'
 import { TIPO_LABEL, CATEGORIAS_CONCIERGE, SOURCE_LABEL } from '../../../hooks/concierge/types'
 import type { KanbanTarefaItem } from '../../../hooks/concierge/useKanbanTarefas'
 import { useToggleTarefaCritica } from '../../../hooks/concierge/useToggleCritical'
@@ -46,6 +46,10 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
   const catLabel = cat?.label ?? item.categoria
   const prazo = relPrazo(item.data_vencimento)
   const valor = fmtBRL(item.valor)
+  const checklist = Array.isArray(item.checklist) ? item.checklist : []
+  const checklistTotal = checklist.length
+  const checklistFeitos = checklist.filter(i => i.feito).length
+  const checklistCompleto = checklistTotal > 0 && checklistFeitos === checklistTotal
   const isVencido = item.status_apresentacao === 'vencido'
   // Dentro da coluna Futuro, "prazo chegando" = data_vencimento dentro
   // da antecedência configurada POR CARD (concierge_aviso_dias, default 7).
@@ -164,7 +168,7 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
           </div>
         )}
 
-        {(showCatPill || donoFirstNames) && (
+        {(showCatPill || donoFirstNames || checklistTotal > 0) && (
           <div className="mb-2 flex items-center gap-1.5 flex-wrap">
             {showCatPill && (
               <span className={cn('inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold', meta.bgColor, meta.color)}>
@@ -178,6 +182,22 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
               >
                 <User className="w-2.5 h-2.5" />
                 {donoFirstNames}
+              </span>
+            )}
+            {checklistTotal > 0 && (
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold',
+                  checklistCompleto
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : 'bg-slate-100 text-slate-700'
+                )}
+                title={checklistCompleto
+                  ? 'Checklist completo'
+                  : `${checklistFeitos} de ${checklistTotal} itens do checklist feitos`}
+              >
+                <ListChecks className="w-2.5 h-2.5" />
+                {checklistFeitos}/{checklistTotal}
               </span>
             )}
           </div>
