@@ -34,8 +34,10 @@ export type DadosLead = {
     nome_parceiro?: string
     telefone?: string
     email?: string
-    /** Aceita data ISO (yyyy-mm-dd), mês ISO (yyyy-mm) ou texto livre em PT (ex: "Segundo semestre 2027"). */
+    /** Aceita data ISO (yyyy-mm-dd), mês ISO (yyyy-mm) ou texto humano em PT gerado pelo picker (ex: "Janeiro ou Fevereiro de 2027"). */
     data_casamento?: string
+    /** Quando modo é "Período/múltiplas", lista estruturada de meses no formato "YYYY-MM" — usada pra reconstituir os chips marcados. */
+    data_casamento_meses?: string[]
     num_convidados?: number
     investimento_total?: number
     destino_desejado?: string

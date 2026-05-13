@@ -18,6 +18,7 @@ import {
     type SdrScoreResult,
 } from '../../hooks/useSdrQualification'
 import { ProximoPassoModal } from './ProximoPassoModal'
+import { PeriodoMesesPicker } from './PeriodoMesesPicker'
 import { maskBRLInput, formatBRL, parseBRLDigits } from '../../utils/currencyMask'
 import { supabase } from '../../lib/supabase'
 import { toast } from 'sonner'
@@ -70,28 +71,13 @@ function findValorFaixaRule(rules: ScoringRule[], investimentoTotal: number, num
     return null
 }
 
-function detectDataMode(value: string | null | undefined): DataMode {
+function detectDataMode(value: string | null | undefined, meses?: string[] | null): DataMode {
+    if (meses && meses.length > 0) return 'periodo'
     if (!value) return 'exata'
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return 'exata'
     if (/^\d{4}-\d{2}$/.test(value)) return 'mes_ano'
     if (value === 'indefinido' || value === '__indefinido__') return 'indefinido'
     return 'periodo'
-}
-
-const MESES_PT = [
-    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
-] as const
-
-function parseMesAno(value: string | undefined | null): { mes: string; ano: string } {
-    if (!value || !/^\d{4}-\d{2}$/.test(value)) return { mes: '', ano: '' }
-    const [ano, mes] = value.split('-')
-    return { mes, ano }
-}
-
-function buildMesAno(mes: string, ano: string): string | undefined {
-    if (!mes || !ano) return undefined
-    return `${ano}-${mes.padStart(2, '0')}`
 }
 
 export function SdrQualificationSheet({ open, onOpenChange, qualificationId, contatoId, cardId, telefone, initialDados, onFinalized }: Props) {
@@ -104,7 +90,6 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
     const [finalizedScore, setFinalizedScore] = useState<SdrScoreResult | null>(null)
     const [investimentoText, setInvestimentoText] = useState('')
     const [dataMode, setDataMode] = useState<DataMode>('exata')
-    const [mesAnoLocal, setMesAnoLocal] = useState<{ mes: string; ano: string }>({ mes: '', ano: '' })
     const [showVincular, setShowVincular] = useState(false)
 
     const session = useSdrQualificationSession({
@@ -120,8 +105,8 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
             if (initialDados.investimento_total) {
                 setInvestimentoText(formatBRL(initialDados.investimento_total))
             }
-            if (initialDados.data_casamento) {
-                setDataMode(detectDataMode(initialDados.data_casamento))
+            if (initialDados.data_casamento || (initialDados.data_casamento_meses && initialDados.data_casamento_meses.length > 0)) {
+                setDataMode(detectDataMode(initialDados.data_casamento, initialDados.data_casamento_meses))
                 setMesAnoLocal(parseMesAno(initialDados.data_casamento))
             }
         } else if (session.qualificationId && session.dadosLead) {
@@ -129,8 +114,8 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
             if (session.dadosLead.investimento_total) {
                 setInvestimentoText(formatBRL(session.dadosLead.investimento_total))
             }
-            if (session.dadosLead.data_casamento) {
-                setDataMode(detectDataMode(session.dadosLead.data_casamento))
+            if (session.dadosLead.data_casamento || (session.dadosLead.data_casamento_meses && session.dadosLead.data_casamento_meses.length > 0)) {
+                setDataMode(detectDataMode(session.dadosLead.data_casamento, session.dadosLead.data_casamento_meses))
                 setMesAnoLocal(parseMesAno(session.dadosLead.data_casamento))
             }
         }
@@ -363,7 +348,13 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                                                             type="button"
                                                             onClick={() => {
                                                                 setDataMode(mode)
-                                                                handleDadoChange('data_casamento', mode === 'indefinido' ? 'indefinido' : undefined)
+                                                                // Trocar de modo limpa o que era do modo anterior pra evitar dado inconsistente.
+                                                                const novoDados = {
+                                                                    ...session.dadosLead,
+                                                                    data_casamento: mode === 'indefinido' ? 'indefinido' : undefined,
+                                                                    data_casamento_meses: undefined,
+                                                                }
+                                                                session.setDados(novoDados)
                                                             }}
                                                             className={
                                                                 'px-2 py-0.5 rounded text-[11px] font-medium transition ' +
@@ -384,59 +375,26 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                                                     onChange={(e) => handleDadoChange('data_casamento', e.target.value || undefined)}
                                                 />
                                             )}
-                                            {dataMode === 'mes_ano' && (() => {
-                                                const anoAtual = new Date().getFullYear()
-                                                const anosOpcoes: number[] = []
-                                                for (let a = anoAtual; a <= anoAtual + 8; a++) anosOpcoes.push(a)
-                                                const aplicar = (mes: string, ano: string) => {
-                                                    setMesAnoLocal({ mes, ano })
-                                                    const valor = buildMesAno(mes, ano)
-                                                    // Só persiste em data_casamento quando mês E ano preenchidos.
-                                                    // Se um faltar, limpa a string salva mas mantém escolha visual.
-                                                    handleDadoChange('data_casamento', valor)
-                                                }
-                                                return (
-                                                    <div className="grid grid-cols-2 gap-2">
-                                                        <select
-                                                            value={mesAnoLocal.mes}
-                                                            onChange={(e) => aplicar(e.target.value, mesAnoLocal.ano)}
-                                                            className="h-9 px-3 rounded-md border border-slate-200 bg-white text-sm text-slate-900"
-                                                        >
-                                                            <option value="">Mês</option>
-                                                            {MESES_PT.map((nome, idx) => (
-                                                                <option key={nome} value={String(idx + 1).padStart(2, '0')}>
-                                                                    {nome}
-                                                                </option>
-                                                            ))}
-                                                        </select>
-                                                        <select
-                                                            value={mesAnoLocal.ano}
-                                                            onChange={(e) => aplicar(mesAnoLocal.mes, e.target.value)}
-                                                            className="h-9 px-3 rounded-md border border-slate-200 bg-white text-sm text-slate-900"
-                                                        >
-                                                            <option value="">Ano</option>
-                                                            {anosOpcoes.map((a) => (
-                                                                <option key={a} value={String(a)}>
-                                                                    {a}
-                                                                </option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
-                                                )
-                                            })()}
-                                            {dataMode === 'periodo' && (
-                                                <div className="space-y-1.5">
-                                                    <Input
-                                                        type="text"
-                                                        value={session.dadosLead.data_casamento ?? ''}
-                                                        onChange={(e) => handleDadoChange('data_casamento', e.target.value || undefined)}
-                                                        placeholder="Ex: Segundo semestre de 2027"
-                                                    />
-                                                    <p className="text-[11px] text-slate-500 leading-snug">
-                                                        Escreva em português, do jeito que o casal falou. Exemplos:
-                                                        <span className="text-slate-600"> "Segundo semestre de 2027", "Janeiro ou Fevereiro de 2027", "Final de 2027", "Entre março e maio de 2027".</span>
-                                                    </p>
-                                                </div>
+                                            {dataMode === 'mes_ano' && (
+                                                <PeriodoMesesPicker
+                                                    selecionados={(() => {
+                                                        // Prioriza array estruturado de meses; senão tenta extrair de "yyyy-mm"
+                                                        if (session.dadosLead.data_casamento_meses && session.dadosLead.data_casamento_meses.length > 0) {
+                                                            return session.dadosLead.data_casamento_meses
+                                                        }
+                                                        const v = session.dadosLead.data_casamento
+                                                        if (v && /^\d{4}-\d{2}$/.test(v)) return [v]
+                                                        return []
+                                                    })()}
+                                                    onChange={(meses, textoHumano) => {
+                                                        const novoDados = {
+                                                            ...session.dadosLead,
+                                                            data_casamento_meses: meses.length > 0 ? meses : undefined,
+                                                            data_casamento: textoHumano || (meses.length === 1 ? meses[0] : undefined),
+                                                        }
+                                                        session.setDados(novoDados)
+                                                    }}
+                                                />
                                             )}
                                             {dataMode === 'indefinido' && (
                                                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 text-sm text-slate-600">
