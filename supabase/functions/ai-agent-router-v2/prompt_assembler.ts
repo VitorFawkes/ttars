@@ -702,7 +702,8 @@ ${baseText}
 - Marque \`current_moment_key\` = "${forced.moment_key}".
 - NÃO chame a tool \`calculate_qualification_score\` — o router já calculou e o resultado está em \`<qualification_result>\`.
 ${state.proposed_slots && state.proposed_slots.length > 0
-  ? `- Apresente os 3 horários de \`<proposed_slots>\` verbatim e peça pro casal escolher um.`
+  ? `- Apresente os 3 horários de \`<proposed_slots>\` verbatim e peça pro casal escolher um.
+- Quando o casal escolher um dos 3 horários, chame a tool \`confirm_meeting_slot\` com a date/time exata escolhida — isso cria a reunião na agenda real da Wedding Planner. NÃO confirme verbalmente o agendamento sem chamar a tool.`
   : ""}
 ${forced.must_cover && forced.must_cover.length > 0
   ? `- Cubra todos os pontos de \`must_cover\` do momento.`
@@ -804,6 +805,8 @@ function renderTools(tools: string[]): string {
       "Busca na base de conhecimento (FAQ, destinos, processo Welcome). Args: { query: string }. Retorna { results: [...] }. Use quando lead pergunta algo factual.",
     check_calendar:
       "Verifica agenda da Wedding Planner. Args: { responsavel_id, data_inicio, data_fim }. Retorna { slots_disponiveis: [...] }. Use só em desfecho_qualificado.",
+    confirm_meeting_slot:
+      "[OBRIGATÓRIA NO DESFECHO] CRIA a reunião na agenda real da Wedding Planner. SEMPRE chame esta tool (NÃO chame `create_task` pra isso!) quando o casal escolher/aceitar um dos 3 horários oferecidos em <proposed_slots>. Args: { date: 'DD/MM/YYYY', time: 'HH:MM' } — use EXATAMENTE a data e hora que o casal escolheu. Retorna { reuniao_id, status }. Se retornar erro de conflito, peça pro casal escolher outro horário entre os disponíveis. Esta é a ÚNICA forma de a reunião realmente entrar na agenda da Wedding Planner.",
     request_handoff:
       "Pede transferência pra humano (handoff_actions roda automaticamente). Args: { motivo: string }. Use em loop_incompreensao, alta_intencao_bloqueada, pedido_humano explícito.",
     update_contact:
@@ -811,7 +814,7 @@ function renderTools(tools: string[]): string {
     assign_tag:
       "Aplica tag no card. Args: { card_id, tag_name, color? }. Use em sinais indiretos, momentos especiais, desfechos.",
     create_task:
-      "Cria reunião/tarefa. Args: { titulo, descricao, data_inicio, assignee_id, tipo }. Use em desfecho_qualificado.",
+      "Cria TAREFA genérica do CRM (lembrete interno, follow-up administrativo). Args: { titulo, descricao, data_inicio, assignee_id, tipo }. NÃO use pra reunião com a Wedding Planner — pra isso use `confirm_meeting_slot`.",
   };
 
   return `<tools_available>

@@ -331,6 +331,113 @@ export async function executePatriciaToolCall(
         };
       }
 
+      case "confirm_meeting_slot": {
+        // Cria reunião real na agenda da Wedding Planner. Chamada quando o
+        // casal escolhe um dos slots oferecidos no desfecho_qualificado.
+        //
+        // Args esperados: { date: "DD/MM/YYYY", time: "HH:MM" } OU
+        //                 { iso: "YYYY-MM-DDTHH:MM:00" }
+        //
+        // Idempotência: se já existe reunião agendada/confirmada para a
+        // mesma WP no horário exato, retorna sucesso sem criar duplicata.
+        if (!cardId) {
+          return { tool_name: call.tool_name, ok: false, error: "card_id ausente — Patricia precisa estar vinculada a um card pra agendar reunião", duration_ms: Date.now() - startedAt };
+        }
+        if (!agent.wedding_planner_profile_id) {
+          return { tool_name: call.tool_name, ok: false, error: "Wedding Planner não configurada no agente. Configure ai_agents.wedding_planner_profile_id.", duration_ms: Date.now() - startedAt };
+        }
+
+        // Parse data/hora → ISO local
+        let isoLocal: string | null = null;
+        if (typeof call.args.iso === "string") {
+          isoLocal = call.args.iso;
+        } else if (typeof call.args.date === "string" && typeof call.args.time === "string") {
+          // "DD/MM/YYYY" + "HH:MM" → "YYYY-MM-DDTHH:MM:00"
+          const dateMatch = call.args.date.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+          const timeMatch = call.args.time.match(/^(\d{2}):(\d{2})$/);
+          if (dateMatch && timeMatch) {
+            isoLocal = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}T${timeMatch[1]}:${timeMatch[2]}:00`;
+          }
+        }
+        if (!isoLocal) {
+          return { tool_name: call.tool_name, ok: false, error: "formato inválido. Esperado { date: 'DD/MM/YYYY', time: 'HH:MM' } ou { iso: 'YYYY-MM-DDTHH:MM:00' }", duration_ms: Date.now() - startedAt };
+        }
+
+        // Re-checa disponibilidade ANTES de criar (entre sugestão e
+        // confirmação alguém pode ter agendado outra coisa).
+        const { data: existing, error: chkErr } = await supabase
+          .from("reunioes")
+          .select("id")
+          .eq("responsavel_id", agent.wedding_planner_profile_id)
+          .eq("data_inicio", isoLocal)
+          .in("status", ["agendada", "confirmada", "agendado", "confirmado"])
+          .limit(1);
+        if (chkErr) {
+          console.warn("[tool confirm_meeting_slot] check conflito falhou:", chkErr.message);
+        }
+        if (Array.isArray(existing) && existing.length > 0) {
+          // Já existe — verifica se é do mesmo card (idempotência) ou de outro
+          const { data: sameCard } = await supabase
+            .from("reunioes")
+            .select("id,card_id")
+            .eq("responsavel_id", agent.wedding_planner_profile_id)
+            .eq("data_inicio", isoLocal)
+            .eq("card_id", cardId)
+            .maybeSingle();
+          if (sameCard) {
+            return {
+              tool_name: call.tool_name,
+              ok: true,
+              result: { reuniao_id: sameCard.id, status: "already_scheduled", iso: isoLocal },
+              duration_ms: Date.now() - startedAt,
+            };
+          }
+          return {
+            tool_name: call.tool_name,
+            ok: false,
+            error: "horário não disponível — outra reunião foi agendada nesse slot entre a sugestão e a confirmação. Peça pro casal escolher outro horário.",
+            duration_ms: Date.now() - startedAt,
+          };
+        }
+
+        // Pega titulo do card pra usar no titulo da reunião
+        const { data: cardRow } = await supabase
+          .from("cards")
+          .select("titulo")
+          .eq("id", cardId)
+          .maybeSingle();
+        const meetingTitle = cardRow?.titulo
+          ? `Reunião Wedding Planner — ${cardRow.titulo}`
+          : "Reunião Wedding Planner";
+
+        const { data: inserted, error: insErr } = await supabase
+          .from("reunioes")
+          .insert({
+            card_id: cardId,
+            org_id: agent.org_id,
+            responsavel_id: agent.wedding_planner_profile_id,
+            data_inicio: isoLocal,
+            status: "agendada",
+            titulo: meetingTitle,
+          })
+          .select("id")
+          .single();
+        if (insErr) {
+          return {
+            tool_name: call.tool_name,
+            ok: false,
+            error: `falha ao criar reunião: ${insErr.message}`,
+            duration_ms: Date.now() - startedAt,
+          };
+        }
+        return {
+          tool_name: call.tool_name,
+          ok: true,
+          result: { reuniao_id: inserted.id, status: "scheduled", iso: isoLocal },
+          duration_ms: Date.now() - startedAt,
+        };
+      }
+
       case "request_handoff": {
         // Aplica handoff_actions do agente (similar a v1, simplificado)
         if (!cardId) {

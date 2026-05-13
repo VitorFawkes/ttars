@@ -127,7 +127,7 @@ Deno.serve(async (req) => {
           test_mode_phone_whitelist, validator_rules, pipeline_models,
           identity_config, voice_config, boundaries_config, listening_config,
           handoff_actions, handoff_signals, intelligent_decisions, context_fields_config,
-          engine, timings, multimodal_config
+          engine, timings, multimodal_config, wedding_planner_profile_id
         )
       `)
       .eq("phone_line_id", lineRow.id)
@@ -355,6 +355,20 @@ Deno.serve(async (req) => {
       cardId,
       phone_number_id,
     );
+
+    // Fallback: se a linha não cria card (criar_card=false) mas a conversa
+    // já tem card_id vinculado por outro fluxo, usa esse pra que tools
+    // dependentes (confirm_meeting_slot, request_handoff, etc) funcionem.
+    if (!cardId) {
+      const { data: convRow } = await supabase
+        .from("ai_conversations")
+        .select("card_id")
+        .eq("id", conversationId)
+        .maybeSingle();
+      if (convRow?.card_id) {
+        cardId = convRow.card_id as string;
+      }
+    }
 
     // ------------------------------------------------------------------
     // 6. Inserir turno do usuário
@@ -817,18 +831,25 @@ Deno.serve(async (req) => {
               }
 
               // Coleta horários ocupados de reuniões no mesmo org nas próximas 2 semanas.
+              // Quando há Wedding Planner configurada no agente, filtra apenas as
+              // reuniões dela (responsavel_id) — evita marcar como conflito uma
+              // reunião de outro consultor da org.
               const occupied = new Set<string>();
               try {
                 const horizonStart = new Date(today);
                 const horizonEnd = new Date(today);
                 horizonEnd.setDate(today.getDate() + 14);
-                const { data: meetings, error: meetErr } = await supabase
+                let meetingsQuery = supabase
                   .from("reunioes")
                   .select("data_inicio,status")
                   .eq("org_id", agent.org_id)
                   .gte("data_inicio", horizonStart.toISOString())
                   .lt("data_inicio", horizonEnd.toISOString())
                   .in("status", ["agendada", "confirmada", "agendado", "confirmado"]);
+                if (agent.wedding_planner_profile_id) {
+                  meetingsQuery = meetingsQuery.eq("responsavel_id", agent.wedding_planner_profile_id);
+                }
+                const { data: meetings, error: meetErr } = await meetingsQuery;
                 if (meetErr) {
                   console.warn("[v2] trigger: erro lendo reunioes:", meetErr.message);
                 } else if (Array.isArray(meetings)) {
@@ -939,11 +960,18 @@ Deno.serve(async (req) => {
     const availableTools: string[] = [
       "search_knowledge_base",
       "check_calendar",
+      "confirm_meeting_slot",
       "request_handoff",
       "update_contact",
       "assign_tag",
-      "create_task",
     ];
+    // create_task fica disponível EXCETO no desfecho_qualificado com slots
+    // pré-buscados — nesse contexto, a tool correta é confirm_meeting_slot,
+    // e expor create_task junto induz o LLM a chamar a errada (observado
+    // 2026-05-13).
+    if (!(forcedMomentKey === "desfecho_qualificado" && proposedSlots && proposedSlots.length > 0)) {
+      availableTools.push("create_task");
+    }
     // Só expor calculate_qualification_score se o router NÃO já calculou.
     // Quando o trigger determinístico rodou, o resultado já está em
     // qualificationResult — LLM não precisa (e não deve) chamar a tool de novo.
