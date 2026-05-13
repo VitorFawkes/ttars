@@ -462,6 +462,17 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                 })
             }
 
+            // Monde Venda Num Filter (client-side — match exato no produto_data->>numero_venda_monde)
+            if ((filters.mondeVendaNums?.length ?? 0) > 0) {
+                const wanted = new Set(filters.mondeVendaNums!.map(v => String(v).trim()))
+                filteredData = filteredData.filter(card => {
+                    const pd = card.produto_data as Record<string, unknown> | null
+                    const num = pd?.numero_venda_monde
+                    if (typeof num !== 'string' || num.trim() === '') return false
+                    return wanted.has(num.trim())
+                })
+            }
+
             // Task Status Filter (client-side — usa proxima_tarefa JSON da view)
             if ((filters.taskStatus?.length ?? 0) > 0) {
                 const now = new Date()

@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { X, Filter, ChevronDown, Target, Calendar, DollarSign, Clock, Users as UsersIcon, Building2, Search } from 'lucide-react'
+import { X, Filter, ChevronDown, Target, Calendar, DollarSign, Clock, Users as UsersIcon, Building2, Search, Hash } from 'lucide-react'
 import { usePipelineFilters } from '../../../hooks/usePipelineFilters'
 import { useFilterOptions } from '../../../hooks/useFilterOptions'
 import { useCardTags } from '../../../hooks/useCardTags'
+import { useCurrentProductMeta } from '../../../hooks/useCurrentProductMeta'
 import type { ArrayFilterField, FilterState } from '../../../hooks/usePipelineFilters'
 import { FilterSectionStatus } from './FilterSectionStatus'
 import { FilterSectionDates } from './FilterSectionDates'
@@ -11,6 +12,7 @@ import { FilterSectionUrgency } from './FilterSectionUrgency'
 import { FilterSectionPeople } from './FilterSectionPeople'
 import { FilterSectionOrganization } from './FilterSectionOrganization'
 import { FilterSectionSmartFields } from './FilterSectionSmartFields'
+import { FilterSectionIdentifiers } from './FilterSectionIdentifiers'
 import { cn } from '../../../lib/utils'
 
 interface FilterDrawerProps {
@@ -24,7 +26,7 @@ interface SectionDef {
     icon: React.ReactNode
 }
 
-const SECTIONS: SectionDef[] = [
+const ALL_SECTIONS: SectionDef[] = [
     { id: 'status', label: 'Status & Prioridade', icon: <Target className="h-4 w-4" /> },
     { id: 'dates', label: 'Datas', icon: <Calendar className="h-4 w-4" /> },
     { id: 'financial', label: 'Valores & Financeiro', icon: <DollarSign className="h-4 w-4" /> },
@@ -32,15 +34,20 @@ const SECTIONS: SectionDef[] = [
     { id: 'people', label: 'Pessoas', icon: <UsersIcon className="h-4 w-4" /> },
     { id: 'organization', label: 'Origem & Organização', icon: <Building2 className="h-4 w-4" /> },
     { id: 'fields', label: 'Preenchimento de Campos', icon: <Search className="h-4 w-4" /> },
+    { id: 'identifiers', label: 'Identificadores', icon: <Hash className="h-4 w-4" /> },
 ]
 
 export function FilterDrawer({ isOpen, onClose }: FilterDrawerProps) {
     const { filters, setFilters, toggleFilterValue, updateFilter } = usePipelineFilters()
     const { data: options } = useFilterOptions()
     const { tags: availableTags } = useCardTags()
+    const { slug: productSlug } = useCurrentProductMeta()
     const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['status']))
 
     if (!isOpen) return null
+
+    // Identificadores (n° venda Monde) só aparece em TRIPS — WEDDING não usa Monde
+    const SECTIONS = ALL_SECTIONS.filter(s => s.id !== 'identifiers' || productSlug === 'TRIPS')
 
     const profiles = options?.profiles || []
     const teams = options?.teams || []
@@ -103,6 +110,8 @@ export function FilterDrawer({ isOpen, onClose }: FilterDrawerProps) {
                 )
             case 'fields':
                 return <FilterSectionSmartFields filters={filters} onUpdate={handleUpdate} />
+            case 'identifiers':
+                return <FilterSectionIdentifiers filters={filters} onUpdate={handleUpdate} />
             default:
                 return null
         }

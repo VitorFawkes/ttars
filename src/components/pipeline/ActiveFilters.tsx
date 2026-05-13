@@ -111,6 +111,7 @@ export function ActiveFilters() {
         filters.prioridade?.length ||
         filters.statusTaxa?.length ||
         filters.clienteRecorrente ||
+        filters.mondeVendaNums?.length ||
         showWonDirect
     )
 
@@ -306,6 +307,18 @@ export function ActiveFilters() {
                         onRemove={() => {
                             const updated = filters.emptyFields!.filter(x => x !== f)
                             updateFilter({ emptyFields: updated.length ? updated : undefined })
+                        }}
+                    />
+                ))}
+
+                {/* N° Venda Monde */}
+                {filters.mondeVendaNums?.map(num => (
+                    <Chip
+                        key={`monde-${num}`}
+                        label={`Venda Monde: ${num}`}
+                        onRemove={() => {
+                            const updated = filters.mondeVendaNums!.filter(x => x !== num)
+                            updateFilter({ mondeVendaNums: updated.length ? updated : undefined })
                         }}
                     />
                 ))}
