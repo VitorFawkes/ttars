@@ -21,7 +21,19 @@ function ordenado(itens: ChecklistItem[]): ChecklistItem[] {
 }
 
 export function ChecklistEditor({ itens, readOnly = false, onChange }: ChecklistEditorProps) {
-  const lista = ordenado(itens)
+  // State local pra UI reagir imediatamente sem esperar refetch do React Query.
+  // Sincroniza com `itens` (prop) quando vier um update externo.
+  const [localItens, setLocalItens] = useState<ChecklistItem[]>(itens)
+  useEffect(() => {
+    setLocalItens(itens)
+  }, [itens])
+
+  const update = (proximos: ChecklistItem[]) => {
+    setLocalItens(proximos)
+    onChange(proximos)
+  }
+
+  const lista = ordenado(localItens)
   const total = lista.length
   const feitos = lista.filter(i => i.feito).length
   const tudoFeito = total > 0 && feitos === total
@@ -48,9 +60,9 @@ export function ChecklistEditor({ itens, readOnly = false, onChange }: Checklist
     const textoLimpo = textoEdicao.trim()
     if (!textoLimpo) {
       // texto vazio = remove o item (a menos que seja o único caso de criação)
-      onChange(lista.filter(i => i.id !== editandoId))
+      update(lista.filter(i => i.id !== editandoId))
     } else {
-      onChange(lista.map(i => i.id === editandoId ? { ...i, texto: textoLimpo } : i))
+      update(lista.map(i => i.id === editandoId ? { ...i, texto: textoLimpo } : i))
     }
     setEditandoId(null)
     setTextoEdicao('')
@@ -60,7 +72,7 @@ export function ChecklistEditor({ itens, readOnly = false, onChange }: Checklist
     // Se era um item novo (texto vazio), remove
     const item = lista.find(i => i.id === editandoId)
     if (item && !item.texto.trim()) {
-      onChange(lista.filter(i => i.id !== editandoId))
+      update(lista.filter(i => i.id !== editandoId))
     }
     setEditandoId(null)
     setTextoEdicao('')
@@ -68,7 +80,7 @@ export function ChecklistEditor({ itens, readOnly = false, onChange }: Checklist
 
   const toggleItem = (id: string) => {
     if (readOnly) return
-    onChange(lista.map(i => i.id === id ? { ...i, feito: !i.feito } : i))
+    update(lista.map(i => i.id === id ? { ...i, feito: !i.feito } : i))
   }
 
   const removerItem = (id: string) => {
@@ -76,7 +88,7 @@ export function ChecklistEditor({ itens, readOnly = false, onChange }: Checklist
     const item = lista.find(i => i.id === id)
     if (!item) return
     if (item.texto.trim() && !window.confirm('Remover este item?')) return
-    onChange(lista.filter(i => i.id !== id))
+    update(lista.filter(i => i.id !== id))
   }
 
   const adicionarItem = () => {
@@ -88,7 +100,7 @@ export function ChecklistEditor({ itens, readOnly = false, onChange }: Checklist
       feito: false,
       ordem: maxOrdem + 1,
     }
-    onChange([...lista, novo])
+    update([...lista, novo])
     setEditandoId(novo.id)
     setTextoEdicao('')
   }
