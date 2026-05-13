@@ -737,13 +737,13 @@ function renderToolResults(
         if (note) lines.push(`- Motivo: ${note}`);
         lines.push(`- ⚠️ Explique honestamente ao lead (use o motivo acima) e ofereça outra data próxima. NÃO re-ofereça os mesmos slots originais de \`<proposed_slots>\`.`);
       } else {
-        lines.push(`- Horários reais encontrados pela agenda da Wedding Planner (agrupados por dia — quando há vários horários no mesmo dia, apresente todos juntos sem repetir o dia):`);
+        lines.push(`- Horários DISPONÍVEIS na agenda da Wedding Planner agora (fonte de verdade — não invente fora dessa lista):`);
         const { asList } = formatSlotsGrouped(slots);
         for (const line of asList) {
           lines.push(`  - ${line}`);
         }
-        if (note) lines.push(`- Observação: ${note}`);
-        lines.push(`- ✅ Apresente estes horários ao lead EXATAMENTE no formato agrupado acima (não repita o dia da semana várias vezes). Eles SUBSTITUEM os de \`<proposed_slots>\` agora. Quando o lead escolher um deles, chame \`confirm_meeting_slot\` com a date+time correspondente.`);
+        if (note) lines.push(`- Observação do sistema: ${note}`);
+        lines.push(`- Use essa lista como verdade da agenda. Responda ao lead com naturalidade — pode apresentar, pode dizer que um horário específico não tem (oferecendo os próximos), pode confirmar diretamente o que ele aceitou. NÃO invente horários fora dessa lista, NÃO repita ela inteira se você já mostrou antes. Quando o lead confirmar um horário, chame \`confirm_meeting_slot\` com date+time correspondente.`);
       }
     } else {
       // Outras tools: render genérico
