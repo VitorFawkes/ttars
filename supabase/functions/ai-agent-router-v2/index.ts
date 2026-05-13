@@ -127,7 +127,7 @@ Deno.serve(async (req) => {
           test_mode_phone_whitelist, validator_rules, pipeline_models,
           identity_config, voice_config, boundaries_config, listening_config,
           handoff_actions, handoff_signals, intelligent_decisions, context_fields_config,
-          engine, timings, multimodal_config
+          engine, timings, multimodal_config, wedding_planner_profile_id, scheduling_config
         )
       `)
       .eq("phone_line_id", lineRow.id)
@@ -355,6 +355,20 @@ Deno.serve(async (req) => {
       cardId,
       phone_number_id,
     );
+
+    // Fallback: se a linha não cria card (criar_card=false) mas a conversa
+    // já tem card_id vinculado por outro fluxo, usa esse pra que tools
+    // dependentes (confirm_meeting_slot, request_handoff, etc) funcionem.
+    if (!cardId) {
+      const { data: convRow } = await supabase
+        .from("ai_conversations")
+        .select("card_id")
+        .eq("id", conversationId)
+        .maybeSingle();
+      if (convRow?.card_id) {
+        cardId = convRow.card_id as string;
+      }
+    }
 
     // ------------------------------------------------------------------
     // 6. Inserir turno do usuário
@@ -707,22 +721,56 @@ Deno.serve(async (req) => {
 
             // Soma pesos das ai_subjective resolvidas como true (a RPC não
             // contemplou essas regras). Disqualify subjective força !qualificado.
+            //
+            // Regras de destino (dimension `destino_pref_*`) NÃO somam entre si:
+            // casal pode mencionar múltiplos destinos ("Caribe ou Nordeste"),
+            // mas pontuação considera o de MAIOR peso (decisão de negócio
+            // 2026-05-13). Demais famílias (família, viagem, valor/convidado,
+            // bonus) somam normal.
+            const MAX_GROUP_PREFIXES = ['destino_pref_'];
+            type ResolvedRule = typeof scoringRules[number];
+            const maxGroupBest: Record<string, ResolvedRule> = {};
+            const directSum: ResolvedRule[] = [];
+
             for (const r of scoringRules) {
               if (r.condition_type !== 'ai_subjective') continue;
               if (subjectiveResolved[r.id] !== true) continue;
               if (r.rule_type === 'disqualify') {
                 disqualified = true;
-              } else {
-                score += Number(r.weight ?? 0);
-                breakdown.push({
-                  dimension: r.dimension,
-                  label: r.label ?? r.dimension,
-                  weight: r.weight ?? 0,
-                  rule_id: r.id,
-                  rule_type: r.rule_type ?? 'qualify',
-                  source: 'ai_subjective',
-                });
+                continue;
               }
+              const prefix = MAX_GROUP_PREFIXES.find((p) => r.dimension.startsWith(p));
+              if (prefix) {
+                const cur = maxGroupBest[prefix];
+                if (!cur || Number(r.weight ?? 0) > Number(cur.weight ?? 0)) {
+                  maxGroupBest[prefix] = r;
+                }
+              } else {
+                directSum.push(r);
+              }
+            }
+
+            for (const r of directSum) {
+              score += Number(r.weight ?? 0);
+              breakdown.push({
+                dimension: r.dimension,
+                label: r.label ?? r.dimension,
+                weight: r.weight ?? 0,
+                rule_id: r.id,
+                rule_type: r.rule_type ?? 'qualify',
+                source: 'ai_subjective',
+              });
+            }
+            for (const r of Object.values(maxGroupBest)) {
+              score += Number(r.weight ?? 0);
+              breakdown.push({
+                dimension: r.dimension,
+                label: r.label ?? r.dimension,
+                weight: r.weight ?? 0,
+                rule_id: r.id,
+                rule_type: r.rule_type ?? 'qualify',
+                source: 'ai_subjective_max',
+              });
             }
 
             const threshold = Number(sd.threshold ?? scoringThreshold) || scoringThreshold;
@@ -748,31 +796,43 @@ Deno.serve(async (req) => {
                 : "desfecho_nao_qualificado";
             }
 
-            // Buscar 3 horários disponíveis. Estratégia em camadas:
-            //   1. Geramos até 9 slots candidatos (3 dias úteis × 3 horários).
-            //   2. Buscamos reuniões agendadas/confirmadas no mesmo org nos
-            //      próximos 14 dias.
-            //   3. Excluímos candidatos que conflitam com reunião existente
-            //      (mesmo dia e hora).
-            //   4. Retornamos os 3 primeiros livres. Se mesmo após exclusão
-            //      não sobra 3, completamos com candidatos brutos.
-            // Tolerante a falhas: se a query SQL erra, mantém o mock antigo.
+            // Buscar horários disponíveis. Configurável via
+            // `ai_agents.scheduling_config` (Studio). Defaults seguros mantêm
+            // comportamento legado quando config é null.
             if (qualificationResult?.qualificado) {
+              const sc = agent.scheduling_config ?? {};
+              const availableHours = (Array.isArray(sc.available_hours) && sc.available_hours.length > 0)
+                ? sc.available_hours
+                : ["10:00", "14:00", "16:00"];
+              const maxPerDay = Number(sc.max_slots_per_day ?? 1);
+              const maxDays = Number(sc.max_days ?? 3);
+              const totalSlots = Number(sc.total_slots ?? Math.max(maxDays * maxPerDay, 3));
+              const skipWeekends = sc.skip_weekends !== false; // default true
+              const windowDays = Number(sc.search_window_days ?? 14);
+              const dateFormat = (sc.date_format === "full") ? "full" : "short"; // default short
+
               const today = new Date();
               const weekdays = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
-              const horarios = ["10:00", "14:00", "16:00"];
               type Slot = { date: string; time: string; weekday: string; iso: string };
               const candidates: Slot[] = [];
-              for (let i = 1; i < 14 && candidates.length < 9; i++) {
+              const formatDate = (d: Date): string => {
+                const dd = String(d.getDate()).padStart(2, "0");
+                const mm = String(d.getMonth() + 1).padStart(2, "0");
+                if (dateFormat === "full") {
+                  return `${dd}/${mm}/${d.getFullYear()}`;
+                }
+                return `${dd}/${mm}`;
+              };
+              for (let i = 1; i < windowDays; i++) {
                 const d = new Date(today);
                 d.setDate(today.getDate() + i);
                 const wd = d.getDay();
-                if (wd === 0 || wd === 6) continue;
+                if (skipWeekends && (wd === 0 || wd === 6)) continue;
                 const yyyy = d.getFullYear();
                 const mm = String(d.getMonth() + 1).padStart(2, "0");
                 const dd = String(d.getDate()).padStart(2, "0");
-                const dStr = d.toLocaleDateString("pt-BR");
-                for (const h of horarios) {
+                const dStr = formatDate(d);
+                for (const h of availableHours) {
                   candidates.push({
                     date: dStr,
                     time: h,
@@ -782,27 +842,30 @@ Deno.serve(async (req) => {
                 }
               }
 
-              // Coleta horários ocupados de reuniões no mesmo org nas próximas 2 semanas.
+              // Coleta horários ocupados de reuniões no mesmo org nas próximas N semanas.
+              // Quando há Wedding Planner configurada, filtra apenas as reuniões dela.
               const occupied = new Set<string>();
               try {
                 const horizonStart = new Date(today);
                 const horizonEnd = new Date(today);
-                horizonEnd.setDate(today.getDate() + 14);
-                const { data: meetings, error: meetErr } = await supabase
+                horizonEnd.setDate(today.getDate() + windowDays);
+                let meetingsQuery = supabase
                   .from("reunioes")
                   .select("data_inicio,status")
                   .eq("org_id", agent.org_id)
                   .gte("data_inicio", horizonStart.toISOString())
                   .lt("data_inicio", horizonEnd.toISOString())
                   .in("status", ["agendada", "confirmada", "agendado", "confirmado"]);
+                if (agent.wedding_planner_profile_id) {
+                  meetingsQuery = meetingsQuery.eq("responsavel_id", agent.wedding_planner_profile_id);
+                }
+                const { data: meetings, error: meetErr } = await meetingsQuery;
                 if (meetErr) {
                   console.warn("[v2] trigger: erro lendo reunioes:", meetErr.message);
                 } else if (Array.isArray(meetings)) {
                   for (const m of meetings) {
                     const di = m.data_inicio as string | null;
                     if (!di) continue;
-                    // Converte para o mesmo formato dos candidatos:
-                    // "YYYY-MM-DDTHH:MM:00" em horário local do server (UTC do edge).
                     const md = new Date(di);
                     const yyyy = md.getFullYear();
                     const mm = String(md.getMonth() + 1).padStart(2, "0");
@@ -816,36 +879,45 @@ Deno.serve(async (req) => {
                 console.warn("[v2] trigger: exception lendo reunioes:", (e as Error).message);
               }
 
-              // Filtra conflitos
               const free = candidates.filter((c) => !occupied.has(c.iso));
               slotsConflictsExcluded = candidates.length - free.length;
 
-              // Pega 3 slots distribuindo entre dias diferentes (UX melhor —
-              // 3 dias com 1 horário cada > 1 dia com 3 horários).
+              // Distribui slots: até `maxPerDay` por dia, até `maxDays` dias,
+              // total <= `totalSlots`. Ordem cronológica preservada (candidates
+              // já vem ordenado).
+              const freeByDate = new Map<string, Slot[]>();
+              for (const c of free) {
+                const arr = freeByDate.get(c.date);
+                if (arr) arr.push(c);
+                else freeByDate.set(c.date, [c]);
+              }
               const finalSlots: Slot[] = [];
-              const usedDates = new Set<string>();
-              for (const slot of free) {
-                if (usedDates.has(slot.date)) continue;
-                finalSlots.push(slot);
-                usedDates.add(slot.date);
-                if (finalSlots.length === 3) break;
-              }
-              // Se não atingiu 3 (poucos dias livres), completa permitindo
-              // mais de um horário por dia.
-              if (finalSlots.length < 3) {
-                for (const slot of free) {
-                  if (finalSlots.includes(slot)) continue;
+              let daysUsed = 0;
+              for (const [, slotsThisDate] of freeByDate) {
+                if (finalSlots.length >= totalSlots) break;
+                if (daysUsed >= maxDays) break;
+                let pickedThisDay = 0;
+                for (const slot of slotsThisDate) {
+                  if (pickedThisDay >= maxPerDay) break;
+                  if (finalSlots.length >= totalSlots) break;
                   finalSlots.push(slot);
-                  if (finalSlots.length === 3) break;
+                  pickedThisDay++;
                 }
+                if (pickedThisDay > 0) daysUsed++;
               }
-              // Fallback final: se filtro deixou < 3, usa candidatos brutos
-              // (mantém comportamento antigo — nunca pior que antes).
-              if (finalSlots.length < 3) {
-                for (const slot of candidates) {
-                  if (finalSlots.includes(slot)) continue;
-                  finalSlots.push(slot);
-                  if (finalSlots.length === 3) break;
+              // Fallback: se filtrou tudo, usa candidatos brutos (nunca pior
+              // que antes).
+              if (finalSlots.length === 0 && candidates.length > 0) {
+                let pickedDays = 0;
+                const seenDates = new Set<string>();
+                for (const c of candidates) {
+                  if (finalSlots.length >= totalSlots) break;
+                  if (!seenDates.has(c.date)) {
+                    if (pickedDays >= maxDays) continue;
+                    seenDates.add(c.date);
+                    pickedDays++;
+                  }
+                  finalSlots.push(c);
                 }
               }
 
@@ -871,11 +943,16 @@ Deno.serve(async (req) => {
     const availableTools: string[] = [
       "search_knowledge_base",
       "check_calendar",
+      "confirm_meeting_slot",
       "request_handoff",
       "update_contact",
       "assign_tag",
-      "create_task",
     ];
+    // create_task é exposta SÓ fora do desfecho_qualificado com slots
+    // (confunde LLM, observado 2026-05-13).
+    if (!(forcedMomentKey === "desfecho_qualificado" && proposedSlots && proposedSlots.length > 0)) {
+      availableTools.push("create_task");
+    }
     // Só expor calculate_qualification_score se o router NÃO já calculou.
     // Quando o trigger determinístico rodou, o resultado já está em
     // qualificationResult — LLM não precisa (e não deve) chamar a tool de novo.
@@ -988,9 +1065,92 @@ Deno.serve(async (req) => {
 
     // ------------------------------------------------------------------
     // 12. Executar tool_calls
+    //
+    // Defesa em camadas:
+    //   1. Auto-rotear create_task → confirm_meeting_slot quando estamos
+    //      em desfecho_qualificado com slots (LLM tem viés forte de chamar
+    //      create_task mesmo instruído contrário — observado 2026-05-13).
+    //   2. Filtrar pra só executar tools em availableTools (LLM pode
+    //      alucinar nomes de tools).
     // ------------------------------------------------------------------
-    const toolResults: Array<{ tool: string; ok: boolean; error?: string }> = [];
-    for (const tc of singleAgentResult.output.tool_calls) {
+    const availableToolsSet = new Set(availableTools);
+    const toolResults: Array<{ tool: string; ok: boolean; error?: string; rerouted_from?: string }> = [];
+    const inDesfechoComSlots = forcedMomentKey === "desfecho_qualificado" && !!(proposedSlots && proposedSlots.length > 0);
+
+    // Defesa pré-loop: se LLM está em desfecho com slots E NÃO chamou
+    // confirm_meeting_slot E o lead acabou de escolher um horário, injetamos
+    // a chamada da tool baseada em parsing da mensagem do lead + slots
+    // oferecidos. Sem isso, LLM diz "fica marcado" sem agendar de verdade.
+    const llmCalledConfirm = singleAgentResult.output.tool_calls.some((tc) => tc.tool_name === "confirm_meeting_slot");
+    if (inDesfechoComSlots && !llmCalledConfirm && processedText) {
+      const userMsg = processedText.toLowerCase();
+      // Tenta achar dia+hora na mensagem do lead matching algum slot oferecido
+      let matched: { date: string; time: string } | null = null;
+      for (const slot of proposedSlots!) {
+        // Slot date pode ser "14/05" ou "14/05/2026". Time é "HH:MM".
+        const [dd, mm] = slot.date.split("/");
+        const hh = slot.time.split(":")[0];
+        // Patterns aceitos pra dia: "14/05", "14/5", "dia 14", "14"
+        // Patterns aceitos pra hora: "14h", "14:00", "às 14", "14 horas"
+        const dayPatterns = [
+          slot.date.toLowerCase(),
+          `${parseInt(dd, 10)}/${parseInt(mm, 10)}`,
+          `dia ${parseInt(dd, 10)}`,
+          slot.weekday.toLowerCase(),
+        ];
+        const hourPatterns = [
+          slot.time,
+          `${hh}h`,
+          `${parseInt(hh, 10)}h`,
+          `às ${parseInt(hh, 10)}`,
+          ` ${parseInt(hh, 10)} `,
+        ];
+        const dayHit = dayPatterns.some((p) => p.length >= 2 && userMsg.includes(p));
+        const hourHit = hourPatterns.some((p) => userMsg.includes(p));
+        if (dayHit && hourHit) {
+          matched = { date: slot.date, time: slot.time };
+          break;
+        }
+      }
+      if (matched) {
+        console.warn(`[v2] LLM não chamou confirm_meeting_slot em desfecho — injetando chamada baseada em escolha do lead { date: ${matched.date}, time: ${matched.time} }`);
+        singleAgentResult.output.tool_calls.unshift({
+          tool_name: "confirm_meeting_slot",
+          args: matched,
+        });
+      }
+    }
+
+    for (let tc of singleAgentResult.output.tool_calls) {
+      // (1) Auto-rotear create_task em contexto de agendamento
+      if (
+        inDesfechoComSlots &&
+        tc.tool_name === "create_task"
+      ) {
+        const args = tc.args || {};
+        // Tenta extrair date/time dos vários formatos comuns: data_inicio,
+        // data_vencimento, scheduled_at — tudo pode ser ISO ou string livre.
+        const dt = args.data_inicio || args.data_vencimento || args.scheduled_at || args.start_at;
+        let rerouted: { date: string; time: string } | null = null;
+        if (typeof dt === "string") {
+          // ISO "YYYY-MM-DDTHH:MM..." ou "YYYY-MM-DD HH:MM"
+          const m = dt.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})/);
+          if (m) {
+            rerouted = { date: `${m[3]}/${m[2]}/${m[1]}`, time: `${m[4]}:${m[5]}` };
+          }
+        }
+        if (rerouted) {
+          console.warn(`[v2] LLM chamou create_task em desfecho com slots — auto-rotando pra confirm_meeting_slot { date: ${rerouted.date}, time: ${rerouted.time} }`);
+          tc = { tool_name: "confirm_meeting_slot", args: rerouted };
+        }
+      }
+
+      if (!availableToolsSet.has(tc.tool_name)) {
+        const original = tc.tool_name;
+        console.warn(`[v2] tool '${original}' não está em availableTools — ignorando`);
+        toolResults.push({ tool: original, ok: false, error: "tool não disponível neste contexto" });
+        continue;
+      }
       const result = await executePatriciaToolCall(supabase, agent, cardId, contactId, tc);
       toolResults.push({ tool: tc.tool_name, ok: result.ok, error: result.error });
       if (!result.ok) {

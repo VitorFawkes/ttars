@@ -836,12 +836,9 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-12T16:12:46Z | supabase/migrations/20260512t_meeting_duration_default_backfill.sql | applied_to_prod
 2026-05-12T17:03:31Z | supabase/migrations/20260512_view_meu_dia_concierge_full_name.sql | applied_to_prod
 2026-05-12T17:03:55Z | supabase/migrations/20260512_find_duplicate_tasks_full_name.sql | applied_to_prod
-<<<<<<< Updated upstream
 2026-05-12T17:49:00Z | supabase/migrations/20260513_org_concierge_future_threshold.sql | applied_to_prod
 2026-05-12T17:55:36Z | supabase/migrations/20260513b_rpc_update_concierge_future_threshold.sql | applied_to_prod
-=======
 2026-05-12T18:51:06Z | supabase/migrations/20260512i_sdr_desvincular_de_card.sql | applied_to_prod
->>>>>>> Stashed changes
 2026-05-12T20:05:20Z | supabase/migrations/20260512y_estela_slots_v2_clean.sql | applied_to_prod
 2026-05-12T20:41:28Z | supabase/migrations/20260512j_sdr_editar_sobrescrevendo_e_excluir.sql | applied_to_prod
 2026-05-12T20:43:57Z | supabase/migrations/20260512p_search_contatos_fuzzy.sql | applied_to_prod
@@ -851,3 +848,6 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-13T13:06:09Z | supabase/migrations/20260514c_view_meu_dia_concierge_futuro.sql | applied_to_prod
 2026-05-13T14:32:09Z | supabase/migrations/20260515_tarefas_concierge_em_futuro_boolean.sql | applied_to_prod
 2026-05-13T14:35:01Z | supabase/migrations/20260515_concierge_em_futuro.sql | applied_to_prod
+2026-05-13T12:56:33Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260513c_sdr_scoring_max_per_exclusion_group.sql | applied_to_prod
+2026-05-13T13:55:55Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260513a_briefing_images_bucket.sql | applied_to_prod
+2026-05-13T14:43:09Z | supabase/migrations/20260513e_ai_agents_scheduling_config.sql | applied_to_prod

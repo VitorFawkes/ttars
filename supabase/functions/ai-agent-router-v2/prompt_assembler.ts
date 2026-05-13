@@ -636,15 +636,18 @@ function renderProposedSlots(
   slots: BuildSinglePromptInput["conversationState"]["proposed_slots"] | undefined,
 ): string {
   if (!slots || slots.length === 0) return "";
+  // Formato bold WhatsApp: *texto* (asterisco simples). WhatsApp não renderiza
+  // Markdown **texto**. Padronizar aqui evita LLM ter que traduzir formato
+  // (que vinha embolando — bug 2026-05-13: *qui... ,**sex...*).
   const lines = slots
-    .map((s, i) => `  ${i + 1}. **${s.weekday} ${s.date}** às **${s.time}**`)
+    .map((s, i) => `  ${i + 1}. *${s.weekday} ${s.date}* às *${s.time}*`)
     .join("\n");
   return `<proposed_slots>
 📅 HORÁRIOS DA WEDDING PLANNER (pré-buscados pelo router, use verbatim)
 
 ${lines}
 
-Apresente os 3 horários ao casal exatamente como acima e peça pra escolher um. NÃO invente outras opções. NÃO mude o formato dos dias/horários. Se o casal pedir alternativa, diga que vai checar e siga.
+Apresente os 3 horários ao casal exatamente como acima e peça pra escolher um. NÃO invente outras opções. NÃO mude o formato dos dias/horários. Os asteriscos simples (\`*texto*\`) são a sintaxe de bold do WhatsApp — preserve EXATAMENTE assim, sem dobrar pra \`**\` e sem remover. Se o casal pedir alternativa, diga que vai checar e siga.
 </proposed_slots>`;
 }
 
@@ -675,7 +678,17 @@ function renderTurnPolicy(
     const forced = moments.find((m) => m.moment_key === forcedKey);
     if (forced) {
       const parts = resolveMomentParts(forced);
-      const baseText = parts[0] || forced.anchor_text || "";
+      let baseText = parts[0] || forced.anchor_text || "";
+      // Substitui placeholder {slots_disponiveis} pela lista formatada
+      // dos horários reais. Sem isso, LLM tenta interpretar o placeholder
+      // como variável literal e às vezes colava "<proposed_slots>" na
+      // resposta. Formato WhatsApp: *qui 14/05 às 10:00*, *qui 14/05 às 14:00*…
+      if (baseText.includes("{slots_disponiveis}") && state.proposed_slots && state.proposed_slots.length > 0) {
+        const formattedSlots = state.proposed_slots
+          .map((s) => `*${s.weekday} ${s.date}* às *${s.time}*`)
+          .join(", ");
+        baseText = baseText.replaceAll("{slots_disponiveis}", formattedSlots);
+      }
       const isLiteral = forced.message_mode === "literal";
       const isFaithful = forced.message_mode === "faithful";
       const modeNote = isLiteral
@@ -699,7 +712,9 @@ ${baseText}
 - Marque \`current_moment_key\` = "${forced.moment_key}".
 - NÃO chame a tool \`calculate_qualification_score\` — o router já calculou e o resultado está em \`<qualification_result>\`.
 ${state.proposed_slots && state.proposed_slots.length > 0
-  ? `- Apresente os 3 horários de \`<proposed_slots>\` verbatim e peça pro casal escolher um.`
+  ? `- Apresente TODOS os ${state.proposed_slots.length} horários de \`<proposed_slots>\` verbatim e peça pro casal escolher um. Cada slot tem date+time exatos — não omita nenhum.
+- ⚠️ AGENDAMENTO: quando o casal escolher/aceitar um dos horários, a ÚNICA tool válida é \`confirm_meeting_slot\` com { date, time } da escolha exata. NUNCA use \`create_task\` pra agendar reunião com a Wedding Planner — \`create_task\` é só pra tarefas internas administrativas. Se \`confirm_meeting_slot\` não estiver listada em \`<tools_available>\`, o agendamento real foi desabilitado e você só confirma verbalmente (sem chamar nenhuma tool).
+- Sem chamar a tool, a reunião NÃO entra na agenda real da Wedding Planner — só você sabe. Sempre chame a tool ao confirmar.`
   : ""}
 ${forced.must_cover && forced.must_cover.length > 0
   ? `- Cubra todos os pontos de \`must_cover\` do momento.`
@@ -801,6 +816,8 @@ function renderTools(tools: string[]): string {
       "Busca na base de conhecimento (FAQ, destinos, processo Welcome). Args: { query: string }. Retorna { results: [...] }. Use quando lead pergunta algo factual.",
     check_calendar:
       "Verifica agenda da Wedding Planner. Args: { responsavel_id, data_inicio, data_fim }. Retorna { slots_disponiveis: [...] }. Use só em desfecho_qualificado.",
+    confirm_meeting_slot:
+      "[OBRIGATÓRIA NO DESFECHO] CRIA a reunião na agenda real da Wedding Planner. SEMPRE chame esta tool (NÃO chame `create_task` pra isso!) quando o casal escolher/aceitar um dos 3 horários oferecidos em <proposed_slots>. Args: { date: 'DD/MM/YYYY', time: 'HH:MM' } — use EXATAMENTE a data e hora que o casal escolheu. Retorna { reuniao_id, status }. Se retornar erro de conflito, peça pro casal escolher outro horário entre os disponíveis. Esta é a ÚNICA forma de a reunião realmente entrar na agenda da Wedding Planner.",
     request_handoff:
       "Pede transferência pra humano (handoff_actions roda automaticamente). Args: { motivo: string }. Use em loop_incompreensao, alta_intencao_bloqueada, pedido_humano explícito.",
     update_contact:
@@ -808,7 +825,7 @@ function renderTools(tools: string[]): string {
     assign_tag:
       "Aplica tag no card. Args: { card_id, tag_name, color? }. Use em sinais indiretos, momentos especiais, desfechos.",
     create_task:
-      "Cria reunião/tarefa. Args: { titulo, descricao, data_inicio, assignee_id, tipo }. Use em desfecho_qualificado.",
+      "Cria TAREFA genérica do CRM (lembrete interno, follow-up administrativo). Args: { titulo, descricao, data_inicio, assignee_id, tipo }. NÃO use pra reunião com a Wedding Planner — pra isso use `confirm_meeting_slot`.",
   };
 
   return `<tools_available>

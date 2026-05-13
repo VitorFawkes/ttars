@@ -18,6 +18,8 @@ import {
     type SdrScoreResult,
 } from '../../hooks/useSdrQualification'
 import { ProximoPassoModal } from './ProximoPassoModal'
+import { PeriodoMesesPicker } from './PeriodoMesesPicker'
+import { DatasExatasPicker } from './DatasExatasPicker'
 import { maskBRLInput, formatBRL, parseBRLDigits } from '../../utils/currencyMask'
 import { supabase } from '../../lib/supabase'
 import { toast } from 'sonner'
@@ -47,28 +49,37 @@ function findRuleByType(rules: ScoringRule[], ruleType: 'disqualify' | 'qualify'
     return rules.find((r) => r.rule_type === ruleType && (!dimension || r.dimension === dimension))
 }
 
+type ValorFaixa = { rule: ScoringRule; min: number | null; max: number | null }
+
+function getValorFaixas(rules: ScoringRule[]): ValorFaixa[] {
+    return rules
+        .filter((r) => r.exclusion_group === 'valor_convidado' && typeof r.condition_value === 'object' && r.condition_value !== null)
+        .map((r) => {
+            const cv = r.condition_value as { min?: number; max?: number | null }
+            return { rule: r, min: cv.min ?? null, max: cv.max ?? null }
+        })
+        .sort((a, b) => (a.min ?? 0) - (b.min ?? 0))
+}
+
 function findValorFaixaRule(rules: ScoringRule[], investimentoTotal: number, numConvidados: number): ScoringRule | null {
     if (!numConvidados || numConvidados <= 0 || !investimentoTotal) return null
     const perGuest = investimentoTotal / numConvidados
-    const faixas = rules.filter(
-        (r) => r.exclusion_group === 'valor_convidado' && typeof r.condition_value === 'object' && r.condition_value !== null,
-    )
-    for (const r of faixas) {
-        const cv = r.condition_value as { min?: number; max?: number | null }
-        const min = cv.min ?? null
-        const max = cv.max ?? null
-        const okMin = min == null || perGuest >= min
-        const okMax = max == null || perGuest < max
-        if (okMin && okMax) return r
+    for (const f of getValorFaixas(rules)) {
+        const okMin = f.min == null || perGuest >= f.min
+        const okMax = f.max == null || perGuest < f.max
+        if (okMin && okMax) return f.rule
     }
     return null
 }
 
-function detectDataMode(value: string | null | undefined): DataMode {
+function detectDataMode(value: string | null | undefined, meses?: string[] | null, datas?: string[] | null): DataMode {
+    if (datas && datas.length > 0) return 'exata'
+    if (meses && meses.length > 0) return 'mes_ano'
     if (!value) return 'exata'
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return 'exata'
     if (/^\d{4}-\d{2}$/.test(value)) return 'mes_ano'
-    return 'indefinido'
+    if (value === 'indefinido' || value === '__indefinido__') return 'indefinido'
+    return 'mes_ano'
 }
 
 export function SdrQualificationSheet({ open, onOpenChange, qualificationId, contatoId, cardId, telefone, initialDados, onFinalized }: Props) {
@@ -96,16 +107,16 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
             if (initialDados.investimento_total) {
                 setInvestimentoText(formatBRL(initialDados.investimento_total))
             }
-            if (initialDados.data_casamento) {
-                setDataMode(detectDataMode(initialDados.data_casamento))
+            if (initialDados.data_casamento || (initialDados.data_casamento_meses && initialDados.data_casamento_meses.length > 0) || (initialDados.data_casamento_datas && initialDados.data_casamento_datas.length > 0)) {
+                setDataMode(detectDataMode(initialDados.data_casamento, initialDados.data_casamento_meses, initialDados.data_casamento_datas))
             }
         } else if (session.qualificationId && session.dadosLead) {
             // Quando retoma rascunho, popula state local visual (mascara R$, modo data)
             if (session.dadosLead.investimento_total) {
                 setInvestimentoText(formatBRL(session.dadosLead.investimento_total))
             }
-            if (session.dadosLead.data_casamento) {
-                setDataMode(detectDataMode(session.dadosLead.data_casamento))
+            if (session.dadosLead.data_casamento || (session.dadosLead.data_casamento_meses && session.dadosLead.data_casamento_meses.length > 0) || (session.dadosLead.data_casamento_datas && session.dadosLead.data_casamento_datas.length > 0)) {
+                setDataMode(detectDataMode(session.dadosLead.data_casamento, session.dadosLead.data_casamento_meses, session.dadosLead.data_casamento_datas))
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -119,30 +130,45 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
     const qualificado = scoreResult?.qualificado ?? false
     const disqualified = scoreResult?.disqualified ?? false
 
-    const destinoSelecionado = useMemo(() => {
-        const destinoRule = findRulesByGroup(rules, 'destino').find((r) => session.scoringInputs[r.id] === true)
-        if (destinoRule) return destinoRule.id
-        const disqualifyRule = findRuleByType(rules, 'disqualify', 'destino_fora_catalogo_sem_flex')
-        if (disqualifyRule && session.scoringInputs[disqualifyRule.id] === true) return 'outro_sem_flex'
-        const isOutroLocal = session.scoringInputs['__outro_destino__'] === true
-        if (isOutroLocal) return 'outro_com_flex'
-        return null
+    const destinosSelecionados = useMemo(() => {
+        const catalogo = findRulesByGroup(rules, 'destino')
+            .filter((r) => session.scoringInputs[r.id] === true)
+            .map((r) => r.id)
+        return new Set(catalogo)
     }, [rules, session.scoringInputs])
 
-    const handleDestino = (ruleId: string | 'outro_com_flex' | 'outro_sem_flex') => {
+    const outroDestinoMode: 'nenhum' | 'com_flex' | 'sem_flex' = useMemo(() => {
+        const disqualifyRule = findRuleByType(rules, 'disqualify', 'destino_fora_catalogo_sem_flex')
+        if (disqualifyRule && session.scoringInputs[disqualifyRule.id] === true) return 'sem_flex'
+        if (session.scoringInputs['__outro_destino__'] === true) return 'com_flex'
+        return 'nenhum'
+    }, [rules, session.scoringInputs])
+
+    const toggleDestinoCatalogo = (ruleId: string) => {
         const next: Record<string, boolean> = { ...session.scoringInputs }
-        for (const r of findRulesByGroup(rules, 'destino')) delete next[r.id]
+        if (next[ruleId] === true) {
+            delete next[ruleId]
+        } else {
+            // Marcar destino do catálogo desativa "sem_flex" (mutuamente exclusivos)
+            const disqualifyRule = findRuleByType(rules, 'disqualify', 'destino_fora_catalogo_sem_flex')
+            if (disqualifyRule) delete next[disqualifyRule.id]
+            next[ruleId] = true
+        }
+        session.setInputs(next)
+    }
+
+    const setOutroDestino = (mode: 'nenhum' | 'com_flex' | 'sem_flex') => {
+        const next: Record<string, boolean> = { ...session.scoringInputs }
         const disqualifyRule = findRuleByType(rules, 'disqualify', 'destino_fora_catalogo_sem_flex')
         if (disqualifyRule) delete next[disqualifyRule.id]
         delete next['__outro_destino__']
 
-        if (ruleId === 'outro_com_flex') {
+        if (mode === 'com_flex') {
             next['__outro_destino__'] = true
-        } else if (ruleId === 'outro_sem_flex') {
+        } else if (mode === 'sem_flex') {
+            // sem_flex desqualifica e desmarca destinos do catálogo
+            for (const r of findRulesByGroup(rules, 'destino')) delete next[r.id]
             if (disqualifyRule) next[disqualifyRule.id] = true
-            next['__outro_destino__'] = true
-        } else {
-            next[ruleId] = true
         }
         session.setInputs(next)
     }
@@ -226,6 +252,19 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
     const sinalPesquisou = findRule(rules, 'planejamento_avancado')
     const subjetivoPremium = findRule(rules, 'referencia_casamento_premium')
 
+    const valorFaixas = useMemo(() => getValorFaixas(rules), [rules])
+    const faixaAtual = useMemo(() => {
+        if (!session.dadosLead.investimento_total || !session.dadosLead.num_convidados) return null
+        return findValorFaixaRule(rules, session.dadosLead.investimento_total, session.dadosLead.num_convidados)
+    }, [rules, session.dadosLead.investimento_total, session.dadosLead.num_convidados])
+    const valorPorConvidado = useMemo(() => {
+        const inv = session.dadosLead.investimento_total
+        const conv = session.dadosLead.num_convidados
+        if (!inv || !conv) return null
+        return inv / conv
+    }, [session.dadosLead.investimento_total, session.dadosLead.num_convidados])
+    const [showFaixasModal, setShowFaixasModal] = useState(false)
+
     return (
         <>
             <Sheet open={open} onOpenChange={handleClose}>
@@ -293,9 +332,9 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                                             />
                                         </div>
                                         <div className="col-span-2">
-                                            <div className="flex items-center justify-between mb-1">
+                                            <div className="flex items-center justify-between mb-1 flex-wrap gap-1">
                                                 <Label className="text-xs text-slate-600">Data prevista do casamento</Label>
-                                                <div className="flex gap-1">
+                                                <div className="flex gap-1 flex-wrap">
                                                     {(
                                                         [
                                                             ['exata', 'Data exata'],
@@ -308,7 +347,14 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                                                             type="button"
                                                             onClick={() => {
                                                                 setDataMode(mode)
-                                                                handleDadoChange('data_casamento', undefined)
+                                                                // Trocar de modo limpa o que era do modo anterior pra evitar dado inconsistente.
+                                                                const novoDados = {
+                                                                    ...session.dadosLead,
+                                                                    data_casamento: mode === 'indefinido' ? 'indefinido' : undefined,
+                                                                    data_casamento_meses: undefined,
+                                                                    data_casamento_datas: undefined,
+                                                                }
+                                                                session.setDados(novoDados)
                                                             }}
                                                             className={
                                                                 'px-2 py-0.5 rounded text-[11px] font-medium transition ' +
@@ -323,23 +369,51 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                                                 </div>
                                             </div>
                                             {dataMode === 'exata' && (
-                                                <Input
-                                                    type="date"
-                                                    value={session.dadosLead.data_casamento ?? ''}
-                                                    onChange={(e) => handleDadoChange('data_casamento', e.target.value || undefined)}
+                                                <DatasExatasPicker
+                                                    selecionadas={(() => {
+                                                        if (session.dadosLead.data_casamento_datas && session.dadosLead.data_casamento_datas.length > 0) {
+                                                            return session.dadosLead.data_casamento_datas
+                                                        }
+                                                        const v = session.dadosLead.data_casamento
+                                                        if (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) return [v]
+                                                        return []
+                                                    })()}
+                                                    onChange={(datas, textoHumano) => {
+                                                        const novoDados = {
+                                                            ...session.dadosLead,
+                                                            data_casamento_datas: datas.length > 0 ? datas : undefined,
+                                                            data_casamento: textoHumano || (datas.length === 1 ? datas[0] : undefined),
+                                                        }
+                                                        session.setDados(novoDados)
+                                                    }}
                                                 />
                                             )}
                                             {dataMode === 'mes_ano' && (
-                                                <Input
-                                                    type="month"
-                                                    value={session.dadosLead.data_casamento ?? ''}
-                                                    onChange={(e) => handleDadoChange('data_casamento', e.target.value || undefined)}
+                                                <PeriodoMesesPicker
+                                                    selecionados={(() => {
+                                                        // Prioriza array estruturado de meses; senão tenta extrair de "yyyy-mm"
+                                                        if (session.dadosLead.data_casamento_meses && session.dadosLead.data_casamento_meses.length > 0) {
+                                                            return session.dadosLead.data_casamento_meses
+                                                        }
+                                                        const v = session.dadosLead.data_casamento
+                                                        if (v && /^\d{4}-\d{2}$/.test(v)) return [v]
+                                                        return []
+                                                    })()}
+                                                    onChange={(meses, textoHumano) => {
+                                                        const novoDados = {
+                                                            ...session.dadosLead,
+                                                            data_casamento_meses: meses.length > 0 ? meses : undefined,
+                                                            data_casamento: textoHumano || (meses.length === 1 ? meses[0] : undefined),
+                                                        }
+                                                        session.setDados(novoDados)
+                                                    }}
                                                 />
                                             )}
                                             {dataMode === 'indefinido' && (
-                                                <p className="text-sm text-slate-500 px-3 py-2 bg-white border border-slate-200 rounded-md">
-                                                    Casal ainda não definiu a data.
-                                                </p>
+                                                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 text-sm text-slate-600">
+                                                    <Info className="w-3.5 h-3.5 text-slate-500" />
+                                                    <span>Casal ainda não definiu a data.</span>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
@@ -347,7 +421,18 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
 
                                 {/* B. Os dois drivers do score: investimento + convidados */}
                                 <section>
-                                    <h3 className="text-sm font-semibold text-slate-900 mb-3">Investimento e convidados</h3>
+                                    <div className="flex items-baseline justify-between mb-3">
+                                        <h3 className="text-sm font-semibold text-slate-900">Investimento e convidados</h3>
+                                        {valorFaixas.length > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowFaixasModal(true)}
+                                                className="text-xs text-indigo-600 hover:underline"
+                                            >
+                                                Ver faixas de pontuação
+                                            </button>
+                                        )}
+                                    </div>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
                                             <Label className="text-xs text-slate-600">Investimento total</Label>
@@ -372,41 +457,65 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                                                 placeholder="0"
                                             />
                                         </div>
-                                        {session.dadosLead.investimento_total && session.dadosLead.num_convidados ? (
-                                            <p className="col-span-2 text-xs text-slate-500">
-                                                Valor por convidado:{' '}
-                                                <span className="font-semibold text-slate-700">
-                                                    {formatBRL(
-                                                        session.dadosLead.investimento_total /
-                                                            session.dadosLead.num_convidados,
-                                                    )}
+                                        {valorPorConvidado != null && (
+                                            <div className="col-span-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                                                <span className="text-slate-500">
+                                                    Custo por convidado:{' '}
+                                                    <span className="font-semibold text-slate-800">
+                                                        {formatBRL(valorPorConvidado)}
+                                                    </span>
                                                 </span>
-                                            </p>
-                                        ) : null}
+                                                {faixaAtual ? (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
+                                                        +{faixaAtual.weight} pts ({faixaAtual.label?.replace('Valor por convidado: ', '') ?? 'faixa atual'})
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-slate-400">
+                                                        Fora das faixas pontuadas
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </section>
 
                                 {/* C. Destino */}
                                 <section>
-                                    <h3 className="text-sm font-semibold text-slate-900 mb-3">Destino pretendido</h3>
+                                    <div className="flex items-baseline justify-between mb-3">
+                                        <h3 className="text-sm font-semibold text-slate-900">Destino pretendido</h3>
+                                        <span className="text-xs text-slate-500">
+                                            Marque todos que o casal aceita — conta a maior pontuação.
+                                        </span>
+                                    </div>
                                     <div className="grid grid-cols-2 gap-2">
                                         {destinoRules.map((r) => {
-                                            const selected = destinoSelecionado === r.id
+                                            const selected = destinosSelecionados.has(r.id)
                                             return (
                                                 <button
                                                     key={r.id}
                                                     type="button"
-                                                    onClick={() => handleDestino(r.id)}
+                                                    onClick={() => toggleDestinoCatalogo(r.id)}
                                                     data-rpc-key={r.dimension}
                                                     className={
-                                                        'text-left px-3 py-2 rounded-lg border text-sm transition ' +
+                                                        'text-left px-3 py-2 rounded-lg border text-sm transition flex items-start gap-2 ' +
                                                         (selected
                                                             ? 'bg-indigo-50 border-indigo-300 text-indigo-900'
                                                             : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300')
                                                     }
                                                 >
-                                                    <span className="block font-medium">{r.label}</span>
-                                                    <span className="text-xs text-slate-500">+{r.weight} pts</span>
+                                                    <span
+                                                        className={
+                                                            'mt-0.5 inline-flex w-4 h-4 shrink-0 rounded border items-center justify-center text-[10px] ' +
+                                                            (selected ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-300 text-transparent')
+                                                        }
+                                                        aria-hidden
+                                                    >
+                                                        ✓
+                                                    </span>
+                                                    <span className="flex-1">
+                                                        <span className="block font-medium">{r.label}</span>
+                                                        <span className="text-xs text-slate-500">+{r.weight} pts</span>
+                                                    </span>
                                                 </button>
                                             )
                                         })}
@@ -415,18 +524,52 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                                         <label className="flex items-center gap-2 text-sm cursor-pointer">
                                             <input
                                                 type="radio"
-                                                checked={destinoSelecionado === 'outro_com_flex'}
-                                                onChange={() => handleDestino('outro_com_flex')}
+                                                name="outro-destino"
+                                                checked={outroDestinoMode === 'com_flex'}
+                                                onChange={() => setOutroDestino('com_flex')}
                                             />
                                             <span>Outro destino — casal aberto a considerar do catálogo</span>
                                         </label>
+                                        {outroDestinoMode === 'com_flex' && (
+                                            <div className="ml-6 grid grid-cols-1 gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                                <p className="text-xs text-amber-800">
+                                                    Anote o destino original e o que ele aceita do catálogo.
+                                                </p>
+                                                <div>
+                                                    <Label className="text-xs text-slate-600">Qual destino o casal queria?</Label>
+                                                    <Input
+                                                        value={session.dadosLead.destino_outro_queria ?? ''}
+                                                        onChange={(e) => handleDadoChange('destino_outro_queria', e.target.value)}
+                                                        placeholder="Ex: Bali, Bora Bora, Tailândia..."
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <Label className="text-xs text-slate-600">Está aberto a quais destinos?</Label>
+                                                    <Input
+                                                        value={session.dadosLead.destino_outro_aberto_a ?? ''}
+                                                        onChange={(e) => handleDadoChange('destino_outro_aberto_a', e.target.value)}
+                                                        placeholder="Ex: Caribe e Nordeste"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
                                         <label className="flex items-center gap-2 text-sm cursor-pointer text-rose-700">
                                             <input
                                                 type="radio"
-                                                checked={destinoSelecionado === 'outro_sem_flex'}
-                                                onChange={() => handleDestino('outro_sem_flex')}
+                                                name="outro-destino"
+                                                checked={outroDestinoMode === 'sem_flex'}
+                                                onChange={() => setOutroDestino('sem_flex')}
                                             />
                                             <span>Outro destino — casal NÃO aceita considerar (desqualifica)</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 text-sm cursor-pointer text-slate-600">
+                                            <input
+                                                type="radio"
+                                                name="outro-destino"
+                                                checked={outroDestinoMode === 'nenhum'}
+                                                onChange={() => setOutroDestino('nenhum')}
+                                            />
+                                            <span>Nenhuma das opções acima</span>
                                         </label>
                                     </div>
                                 </section>
@@ -596,7 +739,99 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                     }}
                 />
             )}
+
+            {showFaixasModal && (
+                <FaixasValorModal
+                    open={showFaixasModal}
+                    onClose={() => setShowFaixasModal(false)}
+                    faixas={valorFaixas}
+                    faixaAtualId={faixaAtual?.id ?? null}
+                    valorPorConvidado={valorPorConvidado}
+                />
+            )}
         </>
+    )
+}
+
+function FaixasValorModal({
+    open,
+    onClose,
+    faixas,
+    faixaAtualId,
+    valorPorConvidado,
+}: {
+    open: boolean
+    onClose: () => void
+    faixas: ValorFaixa[]
+    faixaAtualId: string | null
+    valorPorConvidado: number | null
+}) {
+    const formatFaixa = (f: ValorFaixa) => {
+        const min = f.min != null ? formatBRL(f.min) : null
+        const max = f.max != null ? formatBRL(f.max) : null
+        if (min && max) return `${min} a ${max}/convidado`
+        if (min) return `${min} ou mais/convidado`
+        if (max) return `Até ${max}/convidado`
+        return '(faixa sem limites)'
+    }
+    return (
+        <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
+            <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col">
+                <div className="px-6 pt-6 pb-3 border-b border-slate-200">
+                    <SheetTitle className="text-lg font-semibold text-slate-900">Faixas de pontuação por valor por convidado</SheetTitle>
+                    <SheetDescription className="text-sm text-slate-500 mt-1">
+                        São as mesmas regras que a Estela usa. A faixa atual aparece destacada.
+                    </SheetDescription>
+                </div>
+                <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
+                    {valorPorConvidado != null && (
+                        <div className="mb-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm">
+                            <span className="text-slate-600">Valor por convidado calculado:</span>{' '}
+                            <span className="font-semibold text-slate-900">{formatBRL(valorPorConvidado)}</span>
+                        </div>
+                    )}
+                    {faixas.length === 0 ? (
+                        <p className="text-sm text-slate-500 text-center py-8">
+                            Nenhuma faixa configurada.
+                        </p>
+                    ) : (
+                        <ul className="space-y-1.5">
+                            {faixas.map((f) => {
+                                const isAtual = f.rule.id === faixaAtualId
+                                return (
+                                    <li
+                                        key={f.rule.id}
+                                        className={
+                                            'flex items-center justify-between gap-3 px-3 py-2 rounded-lg border ' +
+                                            (isAtual
+                                                ? 'bg-emerald-50 border-emerald-300 ring-1 ring-emerald-200'
+                                                : 'bg-white border-slate-200')
+                                        }
+                                    >
+                                        <span className={'text-sm ' + (isAtual ? 'font-semibold text-emerald-900' : 'text-slate-700')}>
+                                            {formatFaixa(f)}
+                                        </span>
+                                        <span className={'text-sm font-semibold ' + (isAtual ? 'text-emerald-700' : 'text-slate-500')}>
+                                            +{f.rule.weight} pts
+                                            {isAtual && <span className="ml-1 text-xs font-normal">(atual)</span>}
+                                        </span>
+                                    </li>
+                                )
+                            })}
+                        </ul>
+                    )}
+                    <p className="text-xs text-slate-500 pt-3 leading-snug">
+                        Caso o casal tenha indicado mais de um destino, a Estela considera a pontuação do destino de maior peso.
+                        Aqui também: a faixa de valor por convidado é única por pontuação.
+                    </p>
+                </div>
+                <div className="border-t border-slate-200 bg-white px-6 py-3">
+                    <Button variant="outline" onClick={onClose} className="w-full">
+                        Fechar
+                    </Button>
+                </div>
+            </SheetContent>
+        </Sheet>
     )
 }
 
@@ -681,12 +916,16 @@ function ScoreHeader({
                 <div className={`h-full transition-all duration-300 ${status.barColor}`} style={{ width: `${pct}%` }} />
             </div>
 
-            {saving && (
-                <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    Salvando...
-                </p>
-            )}
+            <div className="h-5 mt-2 flex items-center" aria-live="polite">
+                {saving ? (
+                    <p className="text-xs text-slate-500 flex items-center gap-1">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Salvando...
+                    </p>
+                ) : (
+                    <span className="text-xs text-transparent select-none">.</span>
+                )}
+            </div>
         </div>
     )
 }

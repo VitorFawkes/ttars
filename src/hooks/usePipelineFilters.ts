@@ -47,6 +47,8 @@ export interface FilterState {
     // Financeiro
     statusTaxa?: string[] // paga, pendente, cortesia, nao_aplicavel, nao_ativa
     clienteRecorrente?: 'sim' | 'nao'
+    // Identificadores externos
+    mondeVendaNums?: string[] // Filtra cards por produto_data->>numero_venda_monde (match exato, OR entre valores)
 }
 
 export type ArrayFilterField = Exclude<{

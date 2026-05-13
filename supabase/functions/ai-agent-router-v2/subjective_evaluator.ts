@@ -141,7 +141,15 @@ export async function evaluateSubjectiveRules(input: SubjectiveEvalInput): Promi
   //      = prefixo sem as faixas (ex: "valor_convidado_1500_2000" → grupo
   //      "valor_convidado"). Mantida pra retrocompat com regras criadas
   //      antes da coluna existir.
+  //
+  // Exceção (2026-05-13): regras de destino (dimension começa com
+  // `destino_pref_`) NÃO são mutuamente exclusivas — casal pode mencionar
+  // múltiplos destinos ("Caribe ou Nordeste") e o LLM deve marcar todos
+  // que se aplicarem. O router agrega via MAX (pega o de maior peso) em vez
+  // de somar, em outra camada. Aqui só garantimos que o LLM não vai ficar
+  // limitado a escolher 1.
   const getGroupForRule = (r: ScoringRule): string | null => {
+    if (r.dimension.startsWith('destino_pref_')) return null;
     if (r.exclusion_group && r.exclusion_group.trim().length > 0) {
       return r.exclusion_group;
     }
