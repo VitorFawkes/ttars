@@ -19,6 +19,7 @@ import {
 } from '../../hooks/useSdrQualification'
 import { ProximoPassoModal } from './ProximoPassoModal'
 import { PeriodoMesesPicker } from './PeriodoMesesPicker'
+import { DatasExatasPicker } from './DatasExatasPicker'
 import { maskBRLInput, formatBRL, parseBRLDigits } from '../../utils/currencyMask'
 import { supabase } from '../../lib/supabase'
 import { toast } from 'sonner'
@@ -71,7 +72,8 @@ function findValorFaixaRule(rules: ScoringRule[], investimentoTotal: number, num
     return null
 }
 
-function detectDataMode(value: string | null | undefined, meses?: string[] | null): DataMode {
+function detectDataMode(value: string | null | undefined, meses?: string[] | null, datas?: string[] | null): DataMode {
+    if (datas && datas.length > 0) return 'exata'
     if (meses && meses.length > 0) return 'mes_ano'
     if (!value) return 'exata'
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return 'exata'
@@ -105,16 +107,16 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
             if (initialDados.investimento_total) {
                 setInvestimentoText(formatBRL(initialDados.investimento_total))
             }
-            if (initialDados.data_casamento || (initialDados.data_casamento_meses && initialDados.data_casamento_meses.length > 0)) {
-                setDataMode(detectDataMode(initialDados.data_casamento, initialDados.data_casamento_meses))
+            if (initialDados.data_casamento || (initialDados.data_casamento_meses && initialDados.data_casamento_meses.length > 0) || (initialDados.data_casamento_datas && initialDados.data_casamento_datas.length > 0)) {
+                setDataMode(detectDataMode(initialDados.data_casamento, initialDados.data_casamento_meses, initialDados.data_casamento_datas))
             }
         } else if (session.qualificationId && session.dadosLead) {
             // Quando retoma rascunho, popula state local visual (mascara R$, modo data)
             if (session.dadosLead.investimento_total) {
                 setInvestimentoText(formatBRL(session.dadosLead.investimento_total))
             }
-            if (session.dadosLead.data_casamento || (session.dadosLead.data_casamento_meses && session.dadosLead.data_casamento_meses.length > 0)) {
-                setDataMode(detectDataMode(session.dadosLead.data_casamento, session.dadosLead.data_casamento_meses))
+            if (session.dadosLead.data_casamento || (session.dadosLead.data_casamento_meses && session.dadosLead.data_casamento_meses.length > 0) || (session.dadosLead.data_casamento_datas && session.dadosLead.data_casamento_datas.length > 0)) {
+                setDataMode(detectDataMode(session.dadosLead.data_casamento, session.dadosLead.data_casamento_meses, session.dadosLead.data_casamento_datas))
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -350,6 +352,7 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                                                                     ...session.dadosLead,
                                                                     data_casamento: mode === 'indefinido' ? 'indefinido' : undefined,
                                                                     data_casamento_meses: undefined,
+                                                                    data_casamento_datas: undefined,
                                                                 }
                                                                 session.setDados(novoDados)
                                                             }}
@@ -366,10 +369,23 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                                                 </div>
                                             </div>
                                             {dataMode === 'exata' && (
-                                                <Input
-                                                    type="date"
-                                                    value={session.dadosLead.data_casamento ?? ''}
-                                                    onChange={(e) => handleDadoChange('data_casamento', e.target.value || undefined)}
+                                                <DatasExatasPicker
+                                                    selecionadas={(() => {
+                                                        if (session.dadosLead.data_casamento_datas && session.dadosLead.data_casamento_datas.length > 0) {
+                                                            return session.dadosLead.data_casamento_datas
+                                                        }
+                                                        const v = session.dadosLead.data_casamento
+                                                        if (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) return [v]
+                                                        return []
+                                                    })()}
+                                                    onChange={(datas, textoHumano) => {
+                                                        const novoDados = {
+                                                            ...session.dadosLead,
+                                                            data_casamento_datas: datas.length > 0 ? datas : undefined,
+                                                            data_casamento: textoHumano || (datas.length === 1 ? datas[0] : undefined),
+                                                        }
+                                                        session.setDados(novoDados)
+                                                    }}
                                                 />
                                             )}
                                             {dataMode === 'mes_ano' && (
@@ -900,12 +916,16 @@ function ScoreHeader({
                 <div className={`h-full transition-all duration-300 ${status.barColor}`} style={{ width: `${pct}%` }} />
             </div>
 
-            {saving && (
-                <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    Salvando...
-                </p>
-            )}
+            <div className="h-5 mt-2 flex items-center" aria-live="polite">
+                {saving ? (
+                    <p className="text-xs text-slate-500 flex items-center gap-1">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Salvando...
+                    </p>
+                ) : (
+                    <span className="text-xs text-transparent select-none">.</span>
+                )}
+            </div>
         </div>
     )
 }
