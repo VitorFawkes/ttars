@@ -81,7 +81,7 @@ export const ESTADO_FUNIL_COLUMNS: KanbanColumnSpec[] = [
   { id: 'agendado_futuro',        label: 'Agendados para o futuro', hint: 'Estocados manualmente — voltam quando você arrastar de volta', tone: { bg: 'bg-violet-50',  text: 'text-violet-700',  border: 'border-violet-200',  accent: 'bg-violet-400'  } },
   { id: 'aguardando_atendimento', label: 'Aguardando atendimento', hint: 'Não iniciado ainda',           tone: { bg: 'bg-slate-50',   text: 'text-slate-700',   border: 'border-slate-200',   accent: 'bg-slate-300'   } },
   { id: 'em_contato',             label: 'Em contato',             hint: 'Você está cuidando agora',     tone: { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200',    accent: 'bg-blue-500'    } },
-  { id: 'aguardando_retorno',     label: 'Aguardando retorno',     hint: 'Cliente notificado, esperando',tone: { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200',   accent: 'bg-amber-500'   } },
+  { id: 'aguardando_retorno',     label: 'Aguardando retorno',     hint: 'Esperando resposta do cliente',  tone: { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200',   accent: 'bg-amber-500'   } },
   { id: 'feito',                  label: 'Feito',                  hint: 'Atendimento concluído',        tone: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', accent: 'bg-emerald-500' } },
   { id: 'encerrado',              label: 'Encerrado',              hint: 'Recusado ou cancelado',        tone: { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200',     accent: 'bg-red-500'     } },
 ]

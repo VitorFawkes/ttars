@@ -597,7 +597,7 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
             {item.notificou_cliente_em && (
               <>
                 <span className="text-slate-300">·</span>
-                <span>Cliente notificado {formatDistanceToNow(new Date(item.notificou_cliente_em), { locale: ptBR, addSuffix: true })}</span>
+                <span>Aguardando retorno {formatDistanceToNow(new Date(item.notificou_cliente_em), { locale: ptBR, addSuffix: true })}</span>
               </>
             )}
           </div>
