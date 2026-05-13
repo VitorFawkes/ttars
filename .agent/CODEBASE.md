@@ -7,30 +7,30 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-13
 > **Trigger:** ALWAYS ON
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
-> **Stats:** 195 tabelas | 155 paginas | 276 hooks | 22 views | 729 components
-> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 742 components
-> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 742 components
-> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 742 components
-> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 742 components
-> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 742 components
-> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 742 components
-> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 742 components
-> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 742 components
-> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 742 components
-> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 742 components
-> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 742 components
-> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 742 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
+> **Stats:** 195 tabelas | 157 paginas | 282 hooks | 22 views | 741 components
 
 ---
 
@@ -192,7 +192,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **276 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 > **282 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
@@ -346,7 +345,9 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useEditarPrazoTarefa()` | `useEditarPrazoTarefa.ts` |
 | `useEmpresaPessoas()` | `useEmpresaPessoas.ts` |
 | `useEmpresas()` | `useEmpresas.ts` |
+| `useEmpresas 2()` | `useEmpresas 2.ts` |
 | `useEstelaScoringRules()` | `useEstelaScoringRules.ts` |
+| `useEstelaScoringRules 2()` | `useEstelaScoringRules 2.ts` |
 | `useFlightLookup()` | `useFlightLookup.ts` |
 | `useFotos()` | `useFotos.ts` |
 | `useFutureOpportunities()` | `useFutureOpportunities.ts` |
@@ -406,6 +407,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useTasksList()` | `useTasksList.ts` |
 | `useTemplateUsages()` | `useTemplateUsages.ts` |
 | `useToggleCritical()` | `useToggleCritical.ts` |
+| `useToggleCritical 2()` | `useToggleCritical 2.ts` |
 | `useToggleEmFuturoConcierge()` | `useToggleEmFuturoConcierge.ts` |
 | `useTripComments()` | `useTripComments.ts` |
 | `useTripItemHistory()` | `useTripItemHistory.ts` |
@@ -454,6 +456,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useFilterOptions()` | `useFilterOptions.ts` |
 | `useKanbanTarefas()` | `useKanbanTarefas.ts` |
 | `useKanbanViagens()` | `useKanbanViagens.ts` |
+| `useKanbanViagens 2()` | `useKanbanViagens 2.ts` |
 | `useLeadsFilters()` | `useLeadsFilters.ts` |
 | `useMyAssistCardIds()` | `useMyAssistCardIds.ts` |
 | `usePipelineCards()` | `usePipelineCards.ts` |
@@ -553,7 +556,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **155 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 > **157 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
@@ -577,6 +579,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `CardViagem` | `src/pages/CardViagem.tsx` |
 | `Cards` | `src/pages/Cards.tsx` |
 | `CreateCardFromEcho` | `src/pages/CreateCardFromEcho.tsx` |
+| `Empresas 2` | `src/pages/Empresas 2.tsx` |
 | `Empresas` | `src/pages/Empresas.tsx` |
 | `ForgotPassword` | `src/pages/ForgotPassword.tsx` |
 | `GroupsPage` | `src/pages/GroupsPage.tsx` |

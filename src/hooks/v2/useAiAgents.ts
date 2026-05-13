@@ -38,6 +38,17 @@ export interface AiAgent {
   context_fields_config?: { visible_fields?: string[]; updatable_fields?: string[]; evidence_level?: Record<string, 'low' | 'medium' | 'high'> } | null
   handoff_actions?: { change_stage_id?: string | null; apply_tag?: { color: string; name: string } | null; notify_responsible?: boolean; transition_message?: string | null; pause_permanently?: boolean } | null
   prompts_extra?: { context?: string; data_update?: string; formatting?: string; validator?: string } | null
+  // Configs de agendamento (Patricia / single_agent_v2). Migrações 2026-05-13.
+  wedding_planner_profile_id?: string | null
+  scheduling_config?: {
+    available_hours?: string[]
+    max_slots_per_day?: number
+    max_days?: number
+    total_slots?: number
+    skip_weekends?: boolean
+    search_window_days?: number
+    date_format?: 'short' | 'full'
+  } | null
   created_by: string | null
   created_at: string
   updated_at: string

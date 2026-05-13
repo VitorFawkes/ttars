@@ -135,6 +135,39 @@ export interface OutboundTriggerConfig {
   max_outbound_per_contact?: number
 }
 
+/**
+ * Configuração de oferta de horários no desfecho_qualificado.
+ * Lida pelo router (ai-agent-router-v2) ao montar `proposed_slots` e pela
+ * tool `check_calendar`. NULL no banco = defaults seguros (3 dias × 1
+ * horário, formato curto). Editável pela UI desde 2026-05-13.
+ */
+export interface SchedulingConfig {
+  /** Horários do dia que a WP atende. Ex: ["10:00", "14:00", "16:00"]. */
+  available_hours: string[]
+  /** Até quantos horários do MESMO dia oferecer ao casal. */
+  max_slots_per_day: number
+  /** Quantos dias distintos cobrir nos slots oferecidos. */
+  max_days: number
+  /** Cap total de slots a oferecer numa única mensagem. */
+  total_slots: number
+  /** true = pula sábado e domingo na busca de horários disponíveis. */
+  skip_weekends: boolean
+  /** Janela máxima (em dias) que o router busca slots à frente de hoje. */
+  search_window_days: number
+  /** "short" = "14/05" | "full" = "14/05/2026". */
+  date_format: 'short' | 'full'
+}
+
+export const DEFAULT_SCHEDULING_CONFIG: SchedulingConfig = {
+  available_hours: ['10:00', '14:00', '16:00'],
+  max_slots_per_day: 3,
+  max_days: 2,
+  total_slots: 6,
+  skip_weekends: true,
+  search_window_days: 14,
+  date_format: 'short',
+}
+
 export interface AgentEditorForm {
   nome: string
   descricao: string
@@ -176,6 +209,20 @@ export interface AgentEditorForm {
 
   // Playbook v2 (Marco 3) — feature flag por agente
   playbook_enabled: boolean
+
+  /**
+   * Profile da Wedding Planner (ou T.Planner) responsável. Quando setado,
+   * o router filtra a agenda apenas pelas reuniões dessa pessoa e usa esse
+   * profile como responsavel_id ao criar reunião via confirm_meeting_slot.
+   * null = comportamento legado (lê reuniões da org inteira).
+   */
+  wedding_planner_profile_id: string | null
+
+  /**
+   * Configuração de oferta de horários no desfecho qualificado.
+   * null = defaults seguros (3 dias × 1 horário, formato curto).
+   */
+  scheduling_config: SchedulingConfig | null
 }
 
 export const HANDOFF_SIGNALS_CATALOG: Array<{ slug: string; label: string; defaultDescription: string }> = [

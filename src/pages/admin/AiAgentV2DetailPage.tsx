@@ -80,6 +80,8 @@ const DEFAULT_FORM: AgentEditorForm = {
   first_message_config: { ...DEFAULT_FIRST_MESSAGE },
   outbound_trigger_config: { ...DEFAULT_OUTBOUND_TRIGGER },
   playbook_enabled: false,
+  wedding_planner_profile_id: null,
+  scheduling_config: null,
 }
 
 function formatRelative(iso: string): string {
@@ -184,6 +186,8 @@ export default function AiAgentDetailPage() {
         ...DEFAULT_OUTBOUND_TRIGGER,
         ...((a.outbound_trigger_config ?? {}) as Partial<AgentEditorForm['outbound_trigger_config']>),
       },
+      wedding_planner_profile_id: (a as { wedding_planner_profile_id?: string | null }).wedding_planner_profile_id ?? null,
+      scheduling_config: (a as { scheduling_config?: AgentEditorForm['scheduling_config'] }).scheduling_config ?? null,
     })
     setDirty(false)
   }, [existingAgent])
@@ -247,6 +251,8 @@ export default function AiAgentDetailPage() {
               turn_limit: form.escalation_turn_limit,
             }]
           : [],
+        wedding_planner_profile_id: form.wedding_planner_profile_id,
+        scheduling_config: form.scheduling_config,
       }
 
       let agentId = id

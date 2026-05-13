@@ -8,6 +8,7 @@ import { HANDOFF_SIGNALS_CATALOG, type AgentEditorForm, type BookMeetingConfig }
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
 import { useFilterProfiles } from '@/hooks/analytics/useFilterOptions'
+import { SchedulingConfigEditor } from './SchedulingConfigEditor'
 import { cn } from '@/lib/utils'
 
 const DEFAULT_BOOK_MEETING: BookMeetingConfig = {
@@ -84,6 +85,11 @@ export function TabHandoff({ form, setForm }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* Agenda da reunião (Patricia / single_agent_v2):
+          Wedding Planner responsável + scheduling_config (horários, dias, formato).
+          Migration 20260513d-e adicionou as colunas; agora a UI permite editar. */}
+      <SchedulingConfigEditor form={form} setForm={setForm} />
+
       <section className="bg-white border border-slate-200 shadow-sm rounded-xl p-6 space-y-4">
         <header className="flex items-center gap-2">
           <Handshake className="w-5 h-5 text-orange-500" />
