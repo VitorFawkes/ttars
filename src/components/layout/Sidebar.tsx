@@ -46,7 +46,7 @@ export default function Sidebar() {
 
     const filteredNavigation = useMemo(() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const isAdminOrGestor = profile?.is_admin === true || (profile as any)?.role_info?.name === 'gestor'
+        const isAdminOrGestor = profile?.is_admin === true || ['gestor', 'manager'].includes((profile as any)?.role_info?.name)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const phaseSlug = (profile as any)?.team?.phase?.slug as string | undefined
         const profileRole = profile?.role as string | undefined

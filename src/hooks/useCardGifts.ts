@@ -359,6 +359,84 @@ export function useCardGifts(cardId: string) {
         },
     })
 
+    /** Add a single item targeting one or more contacts.
+     *  For each contact: reuses existing assignment (status != cancelado) or creates a new one,
+     *  then inserts the item and registers stock movement (if product). */
+    const addItemToContacts = useMutation({
+        mutationFn: async (input: {
+            productId: string | null
+            customName?: string
+            quantity: number
+            unitPrice: number
+            contacts: { id: string; name: string }[]
+        }) => {
+            const results: { contactId: string; assignmentId: string; itemId: string }[] = []
+
+            for (const contact of input.contacts) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data: existing } = await (supabase as any).from('card_gift_assignments')
+                    .select('id, status')
+                    .eq('card_id', cardId)
+                    .eq('contato_id', contact.id)
+                    .maybeSingle()
+
+                let assignmentId: string
+                if (existing && existing.status !== 'cancelado') {
+                    assignmentId = existing.id
+                } else {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const { data: newAssignment, error: aErr } = await (supabase as any).from('card_gift_assignments')
+                        .insert({
+                            card_id: cardId,
+                            contato_id: contact.id,
+                            gift_type: 'trip',
+                            assigned_by: profile?.id,
+                        })
+                        .select('id')
+                        .single()
+                    if (aErr) throw aErr
+                    assignmentId = newAssignment.id
+                }
+
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data: giftItem, error: iErr } = await (supabase as any).from('card_gift_items')
+                    .insert({
+                        assignment_id: assignmentId,
+                        product_id: input.productId,
+                        custom_name: input.customName || null,
+                        quantity: input.quantity,
+                        unit_price_snapshot: input.unitPrice,
+                    })
+                    .select('id')
+                    .single()
+                if (iErr) throw iErr
+
+                if (input.productId) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const { error: movErr } = await (supabase as any).from('inventory_movements')
+                        .insert({
+                            product_id: input.productId,
+                            quantity: -input.quantity,
+                            movement_type: 'saida_gift',
+                            reason: `Presente para card ${cardId} — ${contact.name}`,
+                            reference_id: giftItem.id,
+                            performed_by: profile?.id,
+                        })
+                    if (movErr) throw movErr
+                }
+
+                results.push({ contactId: contact.id, assignmentId, itemId: giftItem.id })
+            }
+
+            return results
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey })
+            queryClient.invalidateQueries({ queryKey: ['inventory-products'] })
+            queryClient.invalidateQueries({ queryKey: ['inventory-stats'] })
+        },
+    })
+
     const updateShipDate = useMutation({
         mutationFn: async ({ assignmentId, date, contatoName, currentTarefaId }: { assignmentId: string; date: string | null; contatoName: string; currentTarefaId: string | null }) => {
             const updates: Record<string, unknown> = {
@@ -474,6 +552,7 @@ export function useCardGifts(cardId: string) {
         isLoading,
         createAssignment,
         createBulkAssignments,
+        addItemToContacts,
         updateShipDate,
         updateStatus,
         deleteAssignment,

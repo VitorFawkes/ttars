@@ -12,6 +12,7 @@ import GiftItemPicker from './gifts/GiftItemPicker'
 import GiftItemRow from './gifts/GiftItemRow'
 import GiftDeliveryInfo from './gifts/GiftDeliveryInfo'
 import GiftBudgetSummary from './gifts/GiftBudgetSummary'
+import IndividualGiftAdder from './gifts/IndividualGiftAdder'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
@@ -58,6 +59,7 @@ export default function GiftsWidget({ cardId, card, isExpanded, onToggleCollapse
         assignments,
         isLoading,
         createBulkAssignments,
+        addItemToContacts,
         updateShipDate,
         updateStatus,
         deleteAssignment,
@@ -70,6 +72,7 @@ export default function GiftsWidget({ cardId, card, isExpanded, onToggleCollapse
 
     const [expandedId, setExpandedId] = useState<string | null>(null)
     const [showKitBuilder, setShowKitBuilder] = useState(false)
+    const [showIndividualAdder, setShowIndividualAdder] = useState(false)
 
     // Contacts that already have a gift
     const contactsWithGift = new Set(assignments.map(a => a.contato_id).filter(Boolean))
@@ -196,15 +199,49 @@ export default function GiftsWidget({ cardId, card, isExpanded, onToggleCollapse
                             />
                         ))}
 
-                        {/* Add gift button — only when there are contacts without gift and kit builder is hidden */}
-                        {!showKitBuilder && contactsWithoutGift.length > 0 && (
-                            <button
-                                onClick={() => setShowKitBuilder(true)}
-                                className="w-full flex items-center justify-center gap-2 py-2.5 border border-dashed border-pink-300 rounded-lg text-sm font-medium text-pink-600 hover:bg-pink-50/50 transition-colors"
-                            >
-                                <Plus className="h-4 w-4" />
-                                Montar Kit de Presentes
-                            </button>
+                        {/* Individual gift adder — 1 presente para N viajantes selecionados */}
+                        {showIndividualAdder && people && people.length > 0 && (
+                            <IndividualGiftAdder
+                                contacts={people}
+                                onSubmit={async (input) => {
+                                    try {
+                                        await addItemToContacts.mutateAsync(input)
+                                        const n = input.contacts.length
+                                        toast.success(
+                                            n === 1
+                                                ? `Presente adicionado para ${input.contacts[0].name}`
+                                                : `Presente adicionado para ${n} pessoas`
+                                        )
+                                        setShowIndividualAdder(false)
+                                    } catch {
+                                        toast.error('Erro ao adicionar presente')
+                                    }
+                                }}
+                                onCancel={() => setShowIndividualAdder(false)}
+                                isSubmitting={addItemToContacts.isPending}
+                            />
+                        )}
+
+                        {/* Add gift buttons */}
+                        {!showKitBuilder && !showIndividualAdder && people && people.length > 0 && (
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <button
+                                    onClick={() => setShowIndividualAdder(true)}
+                                    className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-dashed border-indigo-300 rounded-lg text-sm font-medium text-indigo-600 hover:bg-indigo-50/50 transition-colors"
+                                >
+                                    <Plus className="h-4 w-4" />
+                                    Adicionar presente
+                                </button>
+                                {contactsWithoutGift.length > 0 && (
+                                    <button
+                                        onClick={() => setShowKitBuilder(true)}
+                                        className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-dashed border-pink-300 rounded-lg text-sm font-medium text-pink-600 hover:bg-pink-50/50 transition-colors"
+                                    >
+                                        <Package className="h-4 w-4" />
+                                        Montar kit pra todos
+                                    </button>
+                                )}
+                            </div>
                         )}
 
                         {/* Empty state when no people at all */}
@@ -213,11 +250,6 @@ export default function GiftsWidget({ cardId, card, isExpanded, onToggleCollapse
                                 <Gift className="h-8 w-8 text-slate-300 mx-auto mb-2" />
                                 <p className="text-sm text-slate-500">Adicione contatos ao card para configurar presentes</p>
                             </div>
-                        )}
-
-                        {/* All contacts already have gifts */}
-                        {people && people.length > 0 && contactsWithoutGift.length === 0 && assignments.length > 0 && !showKitBuilder && (
-                            <p className="text-xs text-slate-400 text-center">Todos os contatos já possuem presente</p>
                         )}
                     </>
                 )}

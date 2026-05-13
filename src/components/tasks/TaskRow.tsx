@@ -34,7 +34,7 @@ function TaskRowImpl({
     isCompleting, selected, onToggleSelect, showSelector,
 }: Props) {
     const { profile } = useAuth()
-    const isManager = !!profile?.is_admin || profile?.role_info?.name === 'manager'
+    const isManager = !!profile?.is_admin || ['gestor', 'manager'].includes(profile?.role_info?.name ?? '')
     const config = getTaskTypeConfig(task.tipo)
     const Icon = config.icon
     const prioridadeCfg = task.prioridade ? PRIORIDADE_CONFIG[task.prioridade] : null

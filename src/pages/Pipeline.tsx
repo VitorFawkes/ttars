@@ -65,7 +65,7 @@ export default function Pipeline() {
     // Flag _phaseAutoApplied persiste no Zustand entre navegações, evitando re-aplicação
     const isAdmin = profile?.is_admin === true
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const isGestor = (profile as any)?.role_info?.name === 'gestor'
+    const isGestor = ['gestor', 'manager'].includes((profile as any)?.role_info?.name)
     const canViewTeam = isAdmin || isGestor || !!profile?.team_id
     const canViewAll = isAdmin || isGestor
 

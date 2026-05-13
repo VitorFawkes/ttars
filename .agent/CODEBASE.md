@@ -5,7 +5,7 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-05-13
+> **Last Updated:** 2026-05-13 (presentes individuais)
 > **Trigger:** ALWAYS ON
 > **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
 > **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components

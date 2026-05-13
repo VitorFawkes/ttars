@@ -493,7 +493,7 @@ export default function VendasMondePage() {
 
     const isAdmin = profile?.is_admin === true
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const isGestor = (profile as any)?.role_info?.name === 'gestor'
+    const isGestor = ['gestor', 'manager'].includes((profile as any)?.role_info?.name)
 
     // ─── Pending / Matched sales ────────────────────────────
     const { data: pendingSales = [], isLoading: pendingLoading } = useMondePendingSales()

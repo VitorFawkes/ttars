@@ -109,7 +109,7 @@ export default function SettingsSidebar() {
     const { org } = useOrg();
     const isAdmin = true;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const isWorkspaceAdmin = profile?.is_admin === true || (profile as any)?.role_info?.name === 'gestor';
+    const isWorkspaceAdmin = profile?.is_admin === true || ['gestor', 'manager'].includes((profile as any)?.role_info?.name);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const phaseSlug = (profile as any)?.team?.phase?.slug as string | undefined;
     const isTrips = org?.slug === 'welcome-trips';
