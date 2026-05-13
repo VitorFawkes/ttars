@@ -49,16 +49,61 @@ export interface AgentRow {
   /**
    * Config de oferta de horários no desfecho_qualificado (editável via Studio).
    * NULL = defaults seguros (3 dias × 1 horário, formato curto).
+   *
+   * Modelos de horários (em ordem de prioridade):
+   *   1. `available_windows` + `slot_duration_minutes` (janelas com step) —
+   *      modelo padrão de calendário. Ex: "atende manhã 9-12 e tarde 14-18
+   *      a cada 1h" → gera 09:00, 10:00, 11:00, 14:00, 15:00, 16:00, 17:00.
+   *   2. `available_hours` (lista discreta) — fallback legado.
+   *   3. Default seguro [10:00, 14:00, 16:00] quando nenhum dos dois.
    */
   scheduling_config: {
-    available_hours?: string[];        // ex: ["10:00", "14:00", "16:00"]
-    max_slots_per_day?: number;         // quantos horários por dia
-    max_days?: number;                  // quantos dias distintos cobrir
-    total_slots?: number;               // cap total de slots a oferecer
+    available_hours?: string[];                                     // ex: ["10:00", "14:00", "16:00"]
+    available_windows?: Array<{ from: string; to: string }>;        // ex: [{from:"09:00", to:"12:00"}, {from:"14:00", to:"18:00"}]
+    slot_duration_minutes?: number;                                  // step em minutos (default 60)
+    max_slots_per_day?: number;                                      // quantos horários por dia
+    max_days?: number;                                               // quantos dias distintos cobrir
+    total_slots?: number;                                            // cap total de slots a oferecer
     skip_weekends?: boolean;
-    search_window_days?: number;        // janela de busca
-    date_format?: "short" | "full";    // "14/05" vs "14/05/2026"
+    search_window_days?: number;                                     // janela de busca
+    date_format?: "short" | "full";                                 // "14/05" vs "14/05/2026"
   } | null;
+}
+
+/**
+ * Expande a configuração de horários disponíveis em uma lista discreta de
+ * "HH:MM". Prioriza `available_windows` + `slot_duration_minutes` (modelo
+ * padrão calendário). Cai pra `available_hours` (lista) se windows ausente.
+ * Cai pro default seguro se nada.
+ */
+export function expandAvailableHours(sc: AgentRow["scheduling_config"]): string[] {
+  if (sc?.available_windows && sc.available_windows.length > 0) {
+    const stepRaw = Number(sc.slot_duration_minutes ?? 60);
+    const step = Math.max(15, stepRaw); // mínimo 15min pra evitar listas absurdas
+    const hours: string[] = [];
+    const seen = new Set<string>();
+    for (const w of sc.available_windows) {
+      const [fH, fM] = (w.from || "00:00").split(":").map((s: string) => Number(s) || 0);
+      const [tH, tM] = (w.to || "00:00").split(":").map((s: string) => Number(s) || 0);
+      const fromMin = fH * 60 + fM;
+      const toMin = tH * 60 + tM;
+      if (toMin <= fromMin) continue; // janela inválida (to <= from)
+      for (let m = fromMin; m < toMin; m += step) {
+        const h = Math.floor(m / 60);
+        const mm = m % 60;
+        const key = `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          hours.push(key);
+        }
+      }
+    }
+    if (hours.length > 0) return hours;
+  }
+  if (sc?.available_hours && sc.available_hours.length > 0) {
+    return sc.available_hours;
+  }
+  return ["10:00", "14:00", "16:00"];
 }
 
 export interface BusinessConfigRow {
@@ -340,9 +385,7 @@ export async function executePatriciaToolCall(
         }
 
         const sc = agent.scheduling_config ?? {};
-        const availableHours = (Array.isArray(sc.available_hours) && sc.available_hours.length > 0)
-          ? sc.available_hours
-          : ["10:00", "14:00", "16:00"];
+        const availableHours = expandAvailableHours(sc);
         const skipWeekends = sc.skip_weekends !== false;
         const windowDays = Number(sc.search_window_days ?? 14);
         const dateFormat = sc.date_format === "full" ? "full" : "short";

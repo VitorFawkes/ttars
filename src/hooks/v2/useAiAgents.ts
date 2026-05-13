@@ -42,6 +42,8 @@ export interface AiAgent {
   wedding_planner_profile_id?: string | null
   scheduling_config?: {
     available_hours?: string[]
+    available_windows?: Array<{ from: string; to: string }>
+    slot_duration_minutes?: number
     max_slots_per_day?: number
     max_days?: number
     total_slots?: number

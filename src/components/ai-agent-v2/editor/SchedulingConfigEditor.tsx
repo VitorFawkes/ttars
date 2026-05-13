@@ -9,9 +9,37 @@ import { useFilterProfiles } from '@/hooks/analytics/useFilterOptions'
 import {
   type AgentEditorForm,
   type SchedulingConfig,
+  type SchedulingWindow,
   DEFAULT_SCHEDULING_CONFIG,
 } from './types'
 import { cn } from '@/lib/utils'
+
+/**
+ * Expande janelas em lista de horários. Usado pra preview na UI —
+ * espelha a lógica do backend (expandAvailableHours em _utils.ts).
+ */
+function expandWindowsPreview(windows: SchedulingWindow[], stepMinutes: number): string[] {
+  const step = Math.max(15, stepMinutes)
+  const result: string[] = []
+  const seen = new Set<string>()
+  for (const w of windows) {
+    const [fH, fM] = (w.from || '00:00').split(':').map((s) => Number(s) || 0)
+    const [tH, tM] = (w.to || '00:00').split(':').map((s) => Number(s) || 0)
+    const fromMin = fH * 60 + fM
+    const toMin = tH * 60 + tM
+    if (toMin <= fromMin) continue
+    for (let m = fromMin; m < toMin; m += step) {
+      const h = Math.floor(m / 60)
+      const mm = m % 60
+      const key = `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+      if (!seen.has(key)) {
+        seen.add(key)
+        result.push(key)
+      }
+    }
+  }
+  return result
+}
 
 interface Props {
   form: AgentEditorForm
@@ -77,6 +105,45 @@ export function SchedulingConfigEditor({ form, setForm }: Props) {
     updateConfig({ available_hours: config.available_hours.filter((x) => x !== h) })
   }
 
+  // Modo de configuração de horários: janelas (padrão) ou lista discreta.
+  // Detecta o modo ativo: se há windows, é "windows"; senão "list".
+  const hoursMode: 'windows' | 'list' = (config.available_windows && config.available_windows.length > 0)
+    ? 'windows'
+    : 'list'
+
+  const setHoursMode = (mode: 'windows' | 'list') => {
+    if (mode === 'windows') {
+      updateConfig({
+        available_windows: config.available_windows.length > 0
+          ? config.available_windows
+          : DEFAULT_SCHEDULING_CONFIG.available_windows,
+        slot_duration_minutes: config.slot_duration_minutes || 60,
+      })
+    } else {
+      updateConfig({ available_windows: [], available_hours: config.available_hours.length > 0 ? config.available_hours : ['10:00', '14:00', '16:00'] })
+    }
+  }
+
+  const addWindow = () => {
+    updateConfig({
+      available_windows: [...config.available_windows, { from: '09:00', to: '12:00' }],
+    })
+  }
+  const updateWindow = (idx: number, patch: Partial<SchedulingWindow>) => {
+    updateConfig({
+      available_windows: config.available_windows.map((w, i) => (i === idx ? { ...w, ...patch } : w)),
+    })
+  }
+  const removeWindow = (idx: number) => {
+    updateConfig({
+      available_windows: config.available_windows.filter((_, i) => i !== idx),
+    })
+  }
+
+  const generatedHours = hoursMode === 'windows'
+    ? expandWindowsPreview(config.available_windows, config.slot_duration_minutes || 60)
+    : config.available_hours
+
   const selectedProfile = profiles.find((p) => p.id === form.wedding_planner_profile_id)
 
   return (
@@ -124,54 +191,150 @@ export function SchedulingConfigEditor({ form, setForm }: Props) {
 
         {isCustom && (
           <div className="space-y-5 mt-4 pl-3 border-l-2 border-indigo-100">
-            {/* Horários disponíveis */}
+            {/* Horários disponíveis — toggle Janelas vs Lista */}
             <div>
-              <Label className="text-xs text-slate-700 mb-1.5 block">
-                Horários disponíveis na agenda
-              </Label>
-              <p className="text-[11px] text-slate-500 mb-2">
-                Lista de horários do dia em que a Wedding Planner atende. O router gera candidatos só nesses horários.
-              </p>
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {config.available_hours.map((h) => (
-                  <span
-                    key={h}
-                    className="inline-flex items-center gap-1 bg-indigo-100 text-indigo-800 rounded-md px-2 py-0.5 text-xs font-medium"
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-xs text-slate-700">Horários disponíveis na agenda</Label>
+                <div className="inline-flex rounded-md border border-slate-200 bg-slate-50 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setHoursMode('windows')}
+                    className={cn(
+                      'px-2.5 py-1 text-[11px] font-medium rounded',
+                      hoursMode === 'windows' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    )}
                   >
-                    {h}
-                    <button
-                      type="button"
-                      onClick={() => removeHour(h)}
-                      className="hover:text-indigo-950"
-                      aria-label={`Remover ${h}`}
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                ))}
-                {config.available_hours.length === 0 && (
-                  <span className="text-[11px] text-rose-700">
-                    ⚠ Sem horários — o router vai cair em defaults.
-                  </span>
-                )}
+                    Janelas (recomendado)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHoursMode('list')}
+                    className={cn(
+                      'px-2.5 py-1 text-[11px] font-medium rounded',
+                      hoursMode === 'list' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    )}
+                  >
+                    Lista
+                  </button>
+                </div>
               </div>
-              <div className="flex gap-2 max-w-xs">
-                <Input
-                  value={newHour}
-                  onChange={(e) => setNewHour(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      addHour()
-                    }
-                  }}
-                  placeholder="14:00"
-                  className="text-xs"
-                />
-                <Button size="sm" variant="outline" onClick={addHour}>
-                  <Plus className="w-3.5 h-3.5" />
-                </Button>
-              </div>
+
+              {hoursMode === 'windows' ? (
+                <>
+                  <p className="text-[11px] text-slate-500 mb-2">
+                    Faixas contínuas de atendimento + duração de cada slot. Ex: manhã 09:00–12:00 e tarde 14:00–18:00 a cada 1h gera 09, 10, 11, 14, 15, 16, 17.
+                  </p>
+                  <div className="space-y-1.5">
+                    {config.available_windows.map((w, i) => (
+                      <div key={i} className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-md p-2">
+                        <span className="text-[11px] text-slate-600">De</span>
+                        <Input
+                          value={w.from}
+                          onChange={(e) => updateWindow(i, { from: e.target.value })}
+                          placeholder="09:00"
+                          className="w-20 text-xs"
+                        />
+                        <span className="text-[11px] text-slate-600">até</span>
+                        <Input
+                          value={w.to}
+                          onChange={(e) => updateWindow(i, { to: e.target.value })}
+                          placeholder="12:00"
+                          className="w-20 text-xs"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeWindow(i)}
+                          className="ml-auto text-slate-400 hover:text-rose-600"
+                          aria-label="Remover janela"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    {config.available_windows.length === 0 && (
+                      <p className="text-[11px] text-rose-700">⚠ Sem janelas — adicione pelo menos uma.</p>
+                    )}
+                  </div>
+                  <Button size="sm" variant="outline" onClick={addWindow} className="mt-2 gap-1">
+                    <Plus className="w-3.5 h-3.5" /> Adicionar janela
+                  </Button>
+
+                  <div className="mt-3 max-w-[220px]">
+                    <Label className="text-[11px] text-slate-700 mb-1 block">Duração de cada slot</Label>
+                    <Select
+                      value={String(config.slot_duration_minutes || 60)}
+                      onChange={(v: string) => updateConfig({ slot_duration_minutes: Number(v) })}
+                      options={[
+                        { value: '15', label: '15 minutos' },
+                        { value: '30', label: '30 minutos' },
+                        { value: '45', label: '45 minutos' },
+                        { value: '60', label: '1 hora' },
+                        { value: '90', label: '1h30' },
+                        { value: '120', label: '2 horas' },
+                      ]}
+                    />
+                  </div>
+
+                  <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                    <p className="text-[11px] text-slate-600 mb-1">
+                      <strong>Horários gerados:</strong> {generatedHours.length === 0 ? '(nenhum)' : ''}
+                    </p>
+                    {generatedHours.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {generatedHours.map((h) => (
+                          <span key={h} className="bg-indigo-100 text-indigo-800 rounded px-1.5 py-0.5 text-[10px] font-mono">
+                            {h}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-[11px] text-slate-500 mb-2">
+                    Lista discreta de horários. Use quando as faixas não forem contínuas (ex: só 10h, 14h e 16h).
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {config.available_hours.map((h) => (
+                      <span
+                        key={h}
+                        className="inline-flex items-center gap-1 bg-indigo-100 text-indigo-800 rounded-md px-2 py-0.5 text-xs font-medium"
+                      >
+                        {h}
+                        <button
+                          type="button"
+                          onClick={() => removeHour(h)}
+                          className="hover:text-indigo-950"
+                          aria-label={`Remover ${h}`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                    {config.available_hours.length === 0 && (
+                      <span className="text-[11px] text-rose-700">⚠ Sem horários — o router vai cair em defaults.</span>
+                    )}
+                  </div>
+                  <div className="flex gap-2 max-w-xs">
+                    <Input
+                      value={newHour}
+                      onChange={(e) => setNewHour(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          addHour()
+                        }
+                      }}
+                      placeholder="14:00"
+                      className="text-xs"
+                    />
+                    <Button size="sm" variant="outline" onClick={addHour}>
+                      <Plus className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Distribuição: max_slots_per_day, max_days, total_slots */}

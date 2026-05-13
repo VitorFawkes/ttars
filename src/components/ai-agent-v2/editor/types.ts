@@ -136,13 +136,29 @@ export interface OutboundTriggerConfig {
 }
 
 /**
+ * Janela contínua de atendimento (modelo de calendário). Múltiplas janelas
+ * cobrem intervalos (ex: manhã 9-12 + tarde 14-18 com almoço entre).
+ */
+export interface SchedulingWindow {
+  from: string  // "HH:MM"
+  to: string    // "HH:MM"
+}
+
+/**
  * Configuração de oferta de horários no desfecho_qualificado.
  * Lida pelo router (ai-agent-router-v2) ao montar `proposed_slots` e pela
- * tool `check_calendar`. NULL no banco = defaults seguros (3 dias × 1
- * horário, formato curto). Editável pela UI desde 2026-05-13.
+ * tool `check_calendar`. NULL no banco = defaults seguros.
+ *
+ * Modelos de horários (prioridade):
+ *   1. `available_windows` + `slot_duration_minutes` (janelas com step)
+ *   2. `available_hours` (lista discreta) — fallback legado
  */
 export interface SchedulingConfig {
-  /** Horários do dia que a WP atende. Ex: ["10:00", "14:00", "16:00"]. */
+  /** Janelas de atendimento (modelo padrão). Vazio = usa available_hours. */
+  available_windows: SchedulingWindow[]
+  /** Step entre slots em minutos. Default 60. */
+  slot_duration_minutes: number
+  /** Lista discreta de horários (legado). Ignorado quando windows preenchidas. */
   available_hours: string[]
   /** Até quantos horários do MESMO dia oferecer ao casal. */
   max_slots_per_day: number
@@ -159,7 +175,12 @@ export interface SchedulingConfig {
 }
 
 export const DEFAULT_SCHEDULING_CONFIG: SchedulingConfig = {
-  available_hours: ['10:00', '14:00', '16:00'],
+  available_windows: [
+    { from: '09:00', to: '12:00' },
+    { from: '14:00', to: '18:00' },
+  ],
+  slot_duration_minutes: 60,
+  available_hours: [],
   max_slots_per_day: 3,
   max_days: 2,
   total_slots: 6,

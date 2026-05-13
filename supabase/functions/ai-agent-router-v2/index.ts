@@ -23,6 +23,7 @@ import {
   type BusinessConfigRow,
   compactConversationHistory,
   executePatriciaToolCall,
+  expandAvailableHours,
   formatWhatsAppMessagesHeuristic,
   type IncomingMessageInput,
   isPhoneInWhitelist,
@@ -801,9 +802,7 @@ Deno.serve(async (req) => {
             // comportamento legado quando config é null.
             if (qualificationResult?.qualificado) {
               const sc = agent.scheduling_config ?? {};
-              const availableHours = (Array.isArray(sc.available_hours) && sc.available_hours.length > 0)
-                ? sc.available_hours
-                : ["10:00", "14:00", "16:00"];
+              const availableHours = expandAvailableHours(sc);
               const maxPerDay = Number(sc.max_slots_per_day ?? 1);
               const maxDays = Number(sc.max_days ?? 3);
               const totalSlots = Number(sc.total_slots ?? Math.max(maxDays * maxPerDay, 3));
