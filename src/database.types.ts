@@ -1638,6 +1638,7 @@ export type Database = {
           updated_at: string | null
           validator_rules: Json | null
           voice_config: Json | null
+          wedding_planner_profile_id: string | null
         }
         Insert: {
           ativa?: boolean | null
@@ -1688,6 +1689,7 @@ export type Database = {
           updated_at?: string | null
           validator_rules?: Json | null
           voice_config?: Json | null
+          wedding_planner_profile_id?: string | null
         }
         Update: {
           ativa?: boolean | null
@@ -1738,6 +1740,7 @@ export type Database = {
           updated_at?: string | null
           validator_rules?: Json | null
           voice_config?: Json | null
+          wedding_planner_profile_id?: string | null
         }
         Relationships: [
           {
@@ -1808,6 +1811,27 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agents_wedding_planner_profile_id_fkey"
+            columns: ["wedding_planner_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agents_wedding_planner_profile_id_fkey"
+            columns: ["wedding_planner_profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_team_proposal_performance"
+            referencedColumns: ["consultant_id"]
+          },
+          {
+            foreignKeyName: "ai_agents_wedding_planner_profile_id_fkey"
+            columns: ["wedding_planner_profile_id"]
+            isOneToOne: false
+            referencedRelation: "view_profiles_complete"
             referencedColumns: ["id"]
           },
           {
@@ -14258,6 +14282,7 @@ export type Database = {
         Row: {
           card_id: string
           categoria_outro: string | null
+          concierge_em_futuro: boolean
           concluida: boolean
           concluida_em: string | null
           concluido_por: string | null
@@ -14292,6 +14317,7 @@ export type Database = {
         Insert: {
           card_id: string
           categoria_outro?: string | null
+          concierge_em_futuro?: boolean
           concluida?: boolean
           concluida_em?: string | null
           concluido_por?: string | null
@@ -14326,6 +14352,7 @@ export type Database = {
         Update: {
           card_id?: string
           categoria_outro?: string | null
+          concierge_em_futuro?: boolean
           concluida?: boolean
           concluida_em?: string | null
           concluido_por?: string | null
@@ -16858,6 +16885,7 @@ export type Database = {
           card_valor_final: number | null
           categoria: string | null
           cobrado_de: string | null
+          concierge_em_futuro: boolean | null
           concluida: boolean | null
           concluida_em: string | null
           data_vencimento: string | null
@@ -16934,13 +16962,6 @@ export type Database = {
           },
           {
             foreignKeyName: "cards_etapa_funil_id_fkey"
-            columns: ["root_pipeline_stage_id"]
-            isOneToOne: false
-            referencedRelation: "pipeline_stages"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "cards_etapa_funil_id_fkey"
             columns: ["pipeline_stage_id"]
             isOneToOne: false
             referencedRelation: "pipeline_stages"
@@ -16949,13 +16970,20 @@ export type Database = {
           {
             foreignKeyName: "cards_etapa_funil_id_fkey"
             columns: ["root_pipeline_stage_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cards_etapa_funil_id_fkey"
+            columns: ["pipeline_stage_id"]
             isOneToOne: false
             referencedRelation: "view_dashboard_funil"
             referencedColumns: ["stage_id"]
           },
           {
             foreignKeyName: "cards_etapa_funil_id_fkey"
-            columns: ["pipeline_stage_id"]
+            columns: ["root_pipeline_stage_id"]
             isOneToOne: false
             referencedRelation: "view_dashboard_funil"
             referencedColumns: ["stage_id"]
@@ -20451,36 +20479,6 @@ export type Database = {
         Args: { p_contact_ids: string[] }
         Returns: number
       }
-      rpc_update_concierge_future_threshold: {
-        Args: { p_dias: number }
-        Returns: {
-          active: boolean
-          branding: Json | null
-          business_hours: Json | null
-          concierge_future_threshold_days: number
-          created_at: string
-          force_relogin_after: string | null
-          id: string
-          logo_url: string | null
-          name: string
-          onboarding_completed_at: string | null
-          onboarding_step: number
-          parent_org_id: string | null
-          settings: Json | null
-          shares_contacts_with_children: boolean
-          slug: string
-          status: string
-          suspended_at: string | null
-          suspended_reason: string | null
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "organizations"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       run_card_alerts_daily: { Args: never; Returns: Json }
       safe_log_trigger_error: {
         Args: {
@@ -20556,6 +20554,10 @@ export type Database = {
       sdr_reabrir_pontuacao: { Args: { p_id: string }; Returns: Json }
       sdr_vincular_a_card: {
         Args: { p_card_id: string; p_qualification_id: string }
+        Returns: Json
+      }
+      sdr_voltar_para_rascunho: {
+        Args: { p_qualification_id: string }
         Returns: Json
       }
       search_agent_knowledge_bases: {

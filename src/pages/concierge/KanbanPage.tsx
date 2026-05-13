@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ListChecks, Plane } from 'lucide-react'
+import { ListChecks, Plane, AlarmClock } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
 import { useKanbanTarefas } from '../../hooks/concierge/useKanbanTarefas'
@@ -8,7 +8,6 @@ import { useConciergePreferences, type Modo } from '../../hooks/concierge/useCon
 import { useCardTagsLookup } from '../../hooks/concierge/useCardTagsLookup'
 import { ConciergeKanbanBoard } from '../../components/concierge/kanban/ConciergeKanbanBoard'
 import { ConciergeViagensBoard } from '../../components/concierge/kanban/ConciergeViagensBoard'
-import { ConciergeFutureThresholdControl } from '../../components/concierge/kanban/ConciergeFutureThresholdControl'
 import { KanbanFiltersBar } from '../../components/concierge/kanban/KanbanFiltersBar'
 import { cn } from '../../lib/utils'
 
@@ -70,6 +69,19 @@ export default function KanbanPage() {
   const totalViagens = viagens?.length ?? 0
   const count = prefs.modo === 'tarefas' ? totalTarefas : totalViagens
 
+  // Conta cards estocados em "Agendados para o futuro" cujo prazo da tarefa
+  // (data_vencimento) chega em <=7d (inclui as que já passaram — esses são
+  // o sinal mais forte). O concierge_em_futuro é o flag sticky.
+  const chegandoEssaSemana = useMemo(() => {
+    if (prefs.modo !== 'tarefas' || !tarefas) return 0
+    const limite = Date.now() + 7 * 24 * 60 * 60 * 1000
+    return tarefas.filter(t => {
+      if (!t.concierge_em_futuro || !t.data_vencimento) return false
+      const data = new Date(t.data_vencimento).getTime()
+      return Number.isFinite(data) && data <= limite
+    }).length
+  }, [tarefas, prefs.modo])
+
   const setModo = (m: Modo) => setPref('modo', m)
 
   const handleClearAll = () => {
@@ -111,13 +123,19 @@ export default function KanbanPage() {
             {count} {count === 1 ? (prefs.modo === 'tarefas' ? 'tarefa' : 'viagem') : (prefs.modo === 'tarefas' ? 'tarefas' : 'viagens')}
           </div>
 
+          {chegandoEssaSemana > 0 && (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200"
+              title="Atendimentos estocados em 'Agendados para o futuro' com prazo planejado essa semana (inclui as datas que já passaram)"
+            >
+              <AlarmClock className="w-3 h-3" />
+              {chegandoEssaSemana} com prazo chegando
+            </span>
+          )}
+
           {produtoAtual && (
             <span className="text-[10.5px] text-slate-400 font-mono uppercase tracking-wide">{produtoAtual}</span>
           )}
-
-          <div className="ml-auto">
-            <ConciergeFutureThresholdControl />
-          </div>
         </div>
 
         <KanbanFiltersBar

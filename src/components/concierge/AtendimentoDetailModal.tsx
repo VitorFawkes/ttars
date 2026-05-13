@@ -5,6 +5,8 @@ import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useMarcarOutcome, useReatribuirAtendimento } from '../../hooks/concierge/useAtendimentoMutations'
 import { useMoverEstadoFunil } from '../../hooks/concierge/useMoverEstadoFunil'
+import { useToggleEmFuturoConcierge } from '../../hooks/concierge/useToggleEmFuturoConcierge'
+import { useEditarPrazoTarefa } from '../../hooks/concierge/useEditarPrazoTarefa'
 import { useToggleTarefaCritica } from '../../hooks/concierge/useToggleCritical'
 import { useConciergeProfilesLookup } from '../../hooks/concierge/useConciergeProfilesLookup'
 import { useConciergeUsers } from '../../hooks/concierge/useConciergeUsers'
@@ -30,6 +32,22 @@ function fmtBRL(v: number | null | undefined) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
 }
 
+function isoToDateInput(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (!Number.isFinite(d.getTime())) return ''
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+function dateInputToIso(value: string): string | null {
+  if (!value) return null
+  const d = new Date(`${value}T09:00:00`)
+  return Number.isFinite(d.getTime()) ? d.toISOString() : null
+}
+
 export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   const item = (props.item ?? props.atendimento) as MeuDiaItem | undefined
   const isOpen = props.open ?? props.isOpen ?? false
@@ -38,7 +56,7 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   // started_at / notificou_cliente_em / outcome).
   const estadoAtual: EstadoFunil | null = item ? computeEstadoFunil(item) : null
   const [destinoSelecionado, setDestinoSelecionado] = useState<EstadoFunil | null>(null)
-  const [outcomeEncerramento, setOutcomeEncerramento] = useState<'recusado' | 'cancelado'>('cancelado')
+  const outcomeEncerramento = 'cancelado' as const
   // Quando o atendimento é uma oferta E o usuário escolhe "Feito", pode marcar
   // adicionalmente como "Aceito" (cliente fechou). Outcome no banco vira 'aceito'.
   const [comoAceito, setComoAceito] = useState(false)
@@ -46,8 +64,20 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   const [cobradoDe, setCobradoDe] = useState<CobradoDe | ''>(item?.cobrado_de ?? '')
   const [observacao, setObservacao] = useState('')
 
+  // Prazo da tarefa (data_vencimento). Editável a qualquer momento —
+  // quem cria a tarefa nem sempre acerta o prazo.
+  const [prazoDate, setPrazoDate] = useState<string>(() =>
+    item?.data_vencimento ? isoToDateInput(item.data_vencimento) : ''
+  )
+  useEffect(() => {
+    if (!item) return
+    setPrazoDate(item.data_vencimento ? isoToDateInput(item.data_vencimento) : '')
+  }, [item?.atendimento_id, item?.data_vencimento]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const { mutate: marcarOutcome, isPending: isMarkingOutcome } = useMarcarOutcome()
   const { mutateAsync: moverEstadoAsync, isPending: isMovingEstado } = useMoverEstadoFunil()
+  const { mutateAsync: toggleEmFuturoAsync, isPending: isTogglingFuturo } = useToggleEmFuturoConcierge()
+  const { mutate: editarPrazo, isPending: isEditingPrazo } = useEditarPrazoTarefa()
   const { mutate: toggleCritica, isPending: togglingCritica } = useToggleTarefaCritica()
   const { mutate: reatribuir, isPending: isReatribuindo } = useReatribuirAtendimento()
   const profilesLookup = useConciergeProfilesLookup()
@@ -80,8 +110,31 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   const donoNome = item.dono_id ? profilesLookup?.get(item.dono_id) : null
 
   const isOferta = item.tipo_concierge === 'oferta'
-  const podeConfirmar = !!destinoSelecionado && destinoSelecionado !== estadoAtual && destinoSelecionado !== 'aguardando_atendimento'
-  const isPendingMove = isMarkingOutcome || isMovingEstado
+  const podeConfirmar = !!destinoSelecionado
+    && destinoSelecionado !== estadoAtual
+    && destinoSelecionado !== 'aguardando_atendimento'
+    && destinoSelecionado !== 'agendado_futuro'
+  const isPendingMove = isMarkingOutcome || isMovingEstado || isTogglingFuturo
+
+  const handleSalvarPrazoTarefa = () => {
+    const iso = dateInputToIso(prazoDate)
+    if (!iso) return
+    editarPrazo({ tarefaId: item.tarefa_id, data: iso })
+  }
+
+  const handleEstocarFuturo = async () => {
+    try {
+      await toggleEmFuturoAsync({ tarefaId: item.tarefa_id, emFuturo: true })
+      onClose()
+    } catch { /* toast via hook */ }
+  }
+
+  const handleTirarDoFuturo = async () => {
+    try {
+      await toggleEmFuturoAsync({ tarefaId: item.tarefa_id, emFuturo: false })
+      onClose()
+    } catch { /* toast via hook */ }
+  }
 
   const handleConfirmar = async () => {
     if (!destinoSelecionado || !podeConfirmar) return
@@ -100,9 +153,15 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
 
     // Demais casos delegam ao useMoverEstadoFunil (em_contato → started_at,
     // aguardando_retorno → rpc_notificar_cliente, feito/encerrado → rpc_marcar_outcome).
+    // Se o atendimento estava em Futuro, antes precisamos limpar o flag sticky
+    // pra que computeEstadoFunil não force ele a continuar lá.
     try {
+      if (estadoAtual === 'agendado_futuro' && item.concierge_em_futuro) {
+        await toggleEmFuturoAsync({ tarefaId: item.tarefa_id, emFuturo: false })
+      }
       const kanbanItem: KanbanTarefaItem = {
         ...item,
+        concierge_em_futuro: false,
         estado_funil: estadoAtual ?? 'aguardando_atendimento',
         janela_embarque: 'embarca_futuro',
         // Pra "feito" em oferta, pré-popular valor/cobrado_de no item passado
@@ -244,6 +303,34 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
             </div>
           )}
 
+          {!item.outcome && (
+            <PrazoTarefaEditor
+              dataVencimento={item.data_vencimento}
+              prazoDate={prazoDate}
+              onChangePrazoDate={setPrazoDate}
+              onSalvar={handleSalvarPrazoTarefa}
+              isPending={isEditingPrazo}
+              canSalvar={!!dateInputToIso(prazoDate) && (isoToDateInput(item.data_vencimento) !== prazoDate)}
+            />
+          )}
+
+          {item.concierge_em_futuro && !item.outcome && (
+            <div className="flex items-center justify-between gap-2 px-3 py-2 bg-violet-50 border border-violet-200 rounded-lg text-[12px] text-violet-800">
+              <span className="flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-violet-600" />
+                Estocado em "Agendados para o futuro"
+              </span>
+              <button
+                type="button"
+                onClick={handleTirarDoFuturo}
+                disabled={isTogglingFuturo}
+                className="text-[11.5px] font-medium text-violet-700 hover:text-violet-900 disabled:opacity-50"
+              >
+                {isTogglingFuturo ? 'tirando…' : 'tirar do Futuro'}
+              </button>
+            </div>
+          )}
+
           <ViagemBlock item={item} onClose={onClose} />
 
           <CardContextBlocks
@@ -262,26 +349,12 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
             if (!hasAny) return null
             return (
               <div className="space-y-2">
-                {item.descricao && (() => {
-                  const criadorNome = item.tarefa_criada_por
-                    ? profilesLookup?.get(item.tarefa_criada_por)
-                    : null
-                  return (
-                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="text-[10.5px] uppercase tracking-wide font-semibold text-slate-500">
-                          Descrição da tarefa
-                        </div>
-                        {criadorNome && (
-                          <div className="text-[10.5px] text-slate-500" title={`Criado por ${criadorNome}`}>
-                            por <span className="font-medium text-slate-700">{criadorNome}</span>
-                          </div>
-                        )}
-                      </div>
-                      <p className="text-[13px] text-slate-700 leading-relaxed whitespace-pre-wrap">{item.descricao}</p>
-                    </div>
-                  )
-                })()}
+                {item.descricao && (
+                  <DescricaoColapsavel
+                    descricao={item.descricao}
+                    criadorNome={item.tarefa_criada_por ? (profilesLookup?.get(item.tarefa_criada_por) ?? null) : null}
+                  />
+                )}
                 {observacaoConciergeStr && (
                   <div className="bg-emerald-50/60 border border-emerald-200 rounded-lg p-3">
                     <div className="flex items-center justify-between mb-1">
@@ -319,12 +392,22 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
                         type="button"
                         onClick={() => {
                           if (desabilitado || isAtual) return
+                          // Estocar em "Agendados para o futuro": só marca a
+                          // flag sticky direto. O prazo da tarefa (que define
+                          // o aviso de proximidade) já fica editável aqui em
+                          // cima, no PrazoTarefaEditor.
+                          if (col.id === 'agendado_futuro') {
+                            setDestinoSelecionado(null)
+                            handleEstocarFuturo()
+                            return
+                          }
                           setDestinoSelecionado(col.id)
                         }}
                         disabled={desabilitado || isAtual}
                         title={
                           isAtual ? 'Coluna atual' :
                           desabilitado ? 'Estado inicial — não dá pra voltar' :
+                          col.id === 'agendado_futuro' ? 'Estocar na coluna Futuro (sticky)' :
                           `Mover para ${col.label}`
                         }
                         className={cn(
@@ -394,25 +477,10 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
               )}
 
               {destinoSelecionado === 'encerrado' && (
-                <div className="bg-red-50/40 border border-red-100 rounded-lg p-3 space-y-2">
-                  <div className="text-[11.5px] font-semibold text-slate-700">Como encerrar?</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(['recusado', 'cancelado'] as const).map(opt => (
-                      <button
-                        key={opt}
-                        type="button"
-                        onClick={() => setOutcomeEncerramento(opt)}
-                        className={cn(
-                          'p-2 rounded-lg border-2 text-[12px] font-semibold capitalize transition-all',
-                          outcomeEncerramento === opt
-                            ? 'border-red-300 bg-white text-red-700'
-                            : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
-                        )}
-                      >
-                        {opt}
-                      </button>
-                    ))}
-                  </div>
+                <div className="bg-red-50/40 border border-red-100 rounded-lg p-3">
+                  <p className="text-[12px] text-slate-700">
+                    Vai marcar como <span className="font-semibold">cancelado</span>. Use a observação abaixo se quiser explicar o porquê.
+                  </p>
                 </div>
               )}
 
@@ -478,6 +546,119 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
           )}
         </div>
       </div>
+
+    </div>
+  )
+}
+
+function DescricaoColapsavel({ descricao, criadorNome }: { descricao: string; criadorNome: string | null }) {
+  const [expandida, setExpandida] = useState(false)
+  const [transbordou, setTransbordou] = useState(false)
+  const pRef = useRef<HTMLParagraphElement>(null)
+
+  useEffect(() => {
+    const el = pRef.current
+    if (!el) return
+    // Mede com o clamp aplicado (no estado colapsado). Se o conteúdo
+    // real ultrapassa a altura visível, mostra o botão "Ver tudo".
+    setTransbordou(el.scrollHeight > el.clientHeight + 1)
+  }, [descricao])
+
+  return (
+    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+      <div className="flex items-center justify-between mb-1">
+        <div className="text-[10.5px] uppercase tracking-wide font-semibold text-slate-500">
+          Descrição da tarefa
+        </div>
+        {criadorNome && (
+          <div className="text-[10.5px] text-slate-500" title={`Criado por ${criadorNome}`}>
+            por <span className="font-medium text-slate-700">{criadorNome}</span>
+          </div>
+        )}
+      </div>
+      <p
+        ref={pRef}
+        className="text-[13px] text-slate-700 leading-relaxed whitespace-pre-wrap"
+        style={
+          !expandida
+            ? {
+                display: '-webkit-box',
+                WebkitLineClamp: 10,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }
+            : undefined
+        }
+      >
+        {descricao}
+      </p>
+      {transbordou && (
+        <button
+          type="button"
+          onClick={() => setExpandida(v => !v)}
+          className="mt-1.5 text-[11.5px] font-medium text-indigo-600 hover:text-indigo-700"
+        >
+          {expandida ? 'Ver menos' : 'Ver tudo'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+interface PrazoTarefaEditorProps {
+  dataVencimento: string | null
+  prazoDate: string
+  onChangePrazoDate: (value: string) => void
+  onSalvar: () => void
+  isPending: boolean
+  canSalvar: boolean
+}
+
+function PrazoTarefaEditor({ dataVencimento, prazoDate, onChangePrazoDate, onSalvar, isPending, canSalvar }: PrazoTarefaEditorProps) {
+  let toneText = 'text-slate-600'
+  let label = 'sem prazo'
+
+  if (dataVencimento) {
+    const target = new Date(dataVencimento).getTime()
+    const now = Date.now()
+    const diffD = Math.round((target - now) / (1000 * 60 * 60 * 24))
+    if (diffD < 0) {
+      toneText = 'text-red-600'
+      label = `venceu há ${-diffD}d`
+    } else if (diffD === 0) {
+      toneText = 'text-amber-700'
+      label = 'hoje'
+    } else if (diffD <= 7) {
+      toneText = 'text-amber-700'
+      label = `em ${diffD}d`
+    } else {
+      toneText = 'text-slate-600'
+      label = `em ${diffD}d`
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2 text-[12px]">
+      <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+      <span className="text-slate-500">Prazo</span>
+      <input
+        type="date"
+        value={prazoDate}
+        onChange={(e) => onChangePrazoDate(e.target.value)}
+        disabled={isPending}
+        className="h-6 px-1.5 text-[12px] bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 focus:border-indigo-300 disabled:opacity-50"
+      />
+      <span className={cn('font-medium', toneText)}>({label})</span>
+      {canSalvar && (
+        <button
+          type="button"
+          onClick={onSalvar}
+          disabled={isPending}
+          className="ml-auto text-[11px] font-medium text-indigo-600 hover:text-indigo-700 disabled:opacity-50"
+        >
+          {isPending ? 'salvando…' : 'salvar'}
+        </button>
+      )}
     </div>
   )
 }

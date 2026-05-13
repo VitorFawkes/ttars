@@ -47,6 +47,15 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
   const prazo = relPrazo(item.data_vencimento)
   const valor = fmtBRL(item.valor)
   const isVencido = item.status_apresentacao === 'vencido'
+  // Dentro da coluna Futuro, "prazo chegando" = data_vencimento em ≤7 dias.
+  // O card destaca em amber (chegando) ou vermelho (passou) — o pulse da
+  // coluna avisa o concierge antes mesmo dele abrir.
+  const futuroAtivo = item.estado_funil === 'agendado_futuro'
+  const futuroChegando = futuroAtivo && !!prazo && (prazo.overdue || (
+    !!item.data_vencimento &&
+    new Date(item.data_vencimento).getTime() <= Date.now() + 7 * 24 * 60 * 60 * 1000
+  ))
+  const futuroOverdue = futuroAtivo && !!prazo?.overdue
   const isCritical = item.prioridade === 'critica'
   /** Crítica efetiva: se a tarefa é crítica direta OU a viagem (root) é crítica */
   const isCriticalEffective = isCritical || !!(item.root_is_critical ?? item.card_is_critical)
@@ -74,7 +83,8 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
       className={cn(
         'group relative bg-white border rounded-lg shadow-sm cursor-grab active:cursor-grabbing transition-all hover:shadow-md',
         isCriticalEffective && !selected && 'border-red-400 ring-2 ring-red-100',
-        selected ? 'border-indigo-400 ring-2 ring-indigo-200' : !isCriticalEffective && 'border-slate-200',
+        futuroOverdue && !selected && 'border-red-400 ring-2 ring-red-100',
+        selected ? 'border-indigo-400 ring-2 ring-indigo-200' : (!isCriticalEffective && !futuroOverdue) && 'border-slate-200',
         isDragging && !isOverlay && 'opacity-40',
         isOverlay && 'shadow-xl ring-2 ring-indigo-400 cursor-grabbing rotate-1'
       )}
@@ -175,7 +185,12 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
           {prazo ? (
             <div className="min-w-0">
               <div className="text-[9.5px] text-slate-400 uppercase tracking-wide leading-none">Prazo</div>
-              <div className={cn('font-mono font-semibold text-[11px] mt-0.5', prazo.overdue || isVencido ? 'text-red-600' : 'text-slate-700')}>
+              <div className={cn(
+                'font-mono font-semibold text-[11px] mt-0.5',
+                (prazo.overdue || isVencido) ? 'text-red-600' :
+                futuroChegando ? 'text-amber-700' :
+                'text-slate-700'
+              )}>
                 {prazo.label}
               </div>
             </div>

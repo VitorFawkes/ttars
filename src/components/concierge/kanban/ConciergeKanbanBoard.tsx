@@ -13,12 +13,11 @@ import { ChevronLeft, ChevronRight, Loader2, Zap } from 'lucide-react'
 import { useHorizontalScroll } from '../../../hooks/useHorizontalScroll'
 import { useKanbanTarefas, ESTADO_FUNIL_COLUMNS, type EstadoFunil, type KanbanTarefaItem, type KanbanTarefasFilters } from '../../../hooks/concierge/useKanbanTarefas'
 import { useMoverEstadoFunil } from '../../../hooks/concierge/useMoverEstadoFunil'
-import { useReagendarConciergeAtendimento } from '../../../hooks/concierge/useReagendarConciergeAtendimento'
 import { useExecutarEmLote } from '../../../hooks/concierge/useAtendimentoMutations'
+import { useToggleEmFuturoConcierge } from '../../../hooks/concierge/useToggleEmFuturoConcierge'
 import { ConciergeKanbanColumn } from './ConciergeKanbanColumn'
 import { AtendimentoCard } from './AtendimentoCard'
 import { EncerrarAtendimentoModal } from './EncerrarAtendimentoModal'
-import { ReagendarConciergeDateModal, type ReagendarMode } from './ReagendarConciergeDateModal'
 import { AtendimentoDetailModal } from '../AtendimentoDetailModal'
 import { SelectionActionBar } from './SelectionActionBar'
 
@@ -27,21 +26,19 @@ interface ConciergeKanbanBoardProps {
 }
 
 export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
-  const { groupedByEstado, isLoading, data, thresholdDays } = useKanbanTarefas(filters)
+  const { groupedByEstado, isLoading, data } = useKanbanTarefas(filters)
   const moverFunil = useMoverEstadoFunil()
-  const reagendar = useReagendarConciergeAtendimento()
   const executarEmLote = useExecutarEmLote()
+  const toggleEmFuturo = useToggleEmFuturoConcierge()
 
   const [activeItem, setActiveItem] = useState<KanbanTarefaItem | null>(null)
   const [selected, setSelected] = useState<KanbanTarefaItem | null>(null)
   const [pendingEncerrar, setPendingEncerrar] = useState<KanbanTarefaItem | null>(null)
   const [pendingBulkEncerrar, setPendingBulkEncerrar] = useState<KanbanTarefaItem[] | null>(null)
-  const [pendingReagendar, setPendingReagendar] = useState<{ item: KanbanTarefaItem; mode: ReagendarMode } | null>(null)
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  // Colunas retraídas — "agendado_futuro" e "encerrado" começam fechadas por default
-  // (estoque distante e recusados/cancelados raramente precisam de atenção, mas
-  // continuam acessíveis com 1 clique).
+  // Colunas retraídas por default. "Futuro" é estoque (não fluxo ativo) e
+  // "Encerrado" é o cemitério — ambos começam fechados.
   const [collapsedCols, setCollapsedCols] = useState<Set<EstadoFunil>>(new Set(['agendado_futuro', 'encerrado']))
   const toggleCol = (id: EstadoFunil) => {
     setCollapsedCols(prev => {
@@ -89,15 +86,32 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
     if (!item || !destino) return
     if (item.estado_funil === destino) return
 
-    // Indo para "Agendados para o futuro" — pede data distante
+    // Estocar na coluna Futuro: seta flag sticky direto. O prazo da tarefa
+    // (data_vencimento) é editado pelo PrazoTarefaEditor no modal de detalhe
+    // — não pede data aqui pra não atrasar o estoque.
     if (destino === 'agendado_futuro') {
-      setPendingReagendar({ item, mode: 'to_future' })
+      toggleEmFuturo.mutate({ tarefaId: item.tarefa_id, emFuturo: true })
       return
     }
 
-    // Saindo de "Agendados para o futuro" para qualquer coluna ativa — pede data próxima
+    // Puxar de volta da coluna Futuro: limpa flag sticky, deixa o
+    // computeEstadoFunil recalcular o destino baseado em started_at/notificou.
+    // Se o destino for diferente de 'aguardando_atendimento', em seguida
+    // aplicamos a transição normal (em_contato, retorno, feito, encerrado).
     if (item.estado_funil === 'agendado_futuro') {
-      setPendingReagendar({ item, mode: 'to_active' })
+      toggleEmFuturo.mutate(
+        { tarefaId: item.tarefa_id, emFuturo: false },
+        {
+          onSuccess: () => {
+            if (destino === 'aguardando_atendimento') return
+            if (destino === 'encerrado') {
+              setPendingEncerrar(item)
+              return
+            }
+            moverFunil.mutate({ atendimento: item, destino })
+          },
+        }
+      )
       return
     }
 
@@ -179,6 +193,14 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
           {ESTADO_FUNIL_COLUMNS.map(col => {
             const items = groupedByEstado.get(col.id) ?? []
             const isCollapsed = collapsedCols.has(col.id)
+            // Pulsa amarelo na coluna Futuro quando tem card estocado cujo
+            // prazo (data_vencimento) está em ≤7 dias (incluindo passados).
+            // Esse é o sinal pra concierge abrir e decidir.
+            const pulsarUrgente = col.id === 'agendado_futuro' && items.some(it => {
+              if (!it.data_vencimento) return false
+              const t = new Date(it.data_vencimento).getTime()
+              return Number.isFinite(t) && t <= Date.now() + 7 * 24 * 60 * 60 * 1000
+            })
             return (
               <ConciergeKanbanColumn
                 key={col.id}
@@ -189,6 +211,7 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
                 tone={col.tone}
                 collapsed={isCollapsed}
                 onToggleCollapsed={() => toggleCol(col.id)}
+                pulsarUrgente={pulsarUrgente}
               >
                 {items.length === 0 ? (
                   <div className="text-[10.5px] text-slate-400 italic py-6 text-center">
@@ -256,21 +279,6 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
               onSuccess: () => { clearSelection(); setPendingBulkEncerrar(null) },
               onError: () => setPendingBulkEncerrar(null),
             }
-          )
-        }}
-      />
-
-      <ReagendarConciergeDateModal
-        open={!!pendingReagendar}
-        mode={pendingReagendar?.mode ?? 'to_active'}
-        thresholdDays={thresholdDays}
-        isSubmitting={reagendar.isPending}
-        onClose={() => setPendingReagendar(null)}
-        onConfirm={(novaDataIso) => {
-          if (!pendingReagendar) return
-          reagendar.mutate(
-            { atendimento: pendingReagendar.item, nova_data: novaDataIso },
-            { onSettled: () => setPendingReagendar(null) }
           )
         }}
       />

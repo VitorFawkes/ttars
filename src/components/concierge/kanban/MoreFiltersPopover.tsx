@@ -82,8 +82,6 @@ export function MoreFiltersPopover({
     : cardsPresentes
 
   const totalActive = categoriasFilter.length + tagFilter.length + (cardFilter ? 1 : 0)
-  // Filtro implícito ativo: por padrão estamos escondendo concluídos antigos.
-  const hasImplicitFilter = !mostrarConcluidosAntigos
 
   return (
     <div ref={ref} className="relative">
@@ -96,18 +94,11 @@ export function MoreFiltersPopover({
             ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
             : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
         )}
-        title={hasImplicitFilter ? 'Concluídos antigos (>2 dias) escondidos — abra pra ajustar' : undefined}
       >
         <Filter className="w-3 h-3" />
         Mais filtros
         {totalActive > 0 && (
           <span className="font-mono text-[10px] bg-indigo-600 text-white px-1.5 rounded-full">{totalActive}</span>
-        )}
-        {totalActive === 0 && hasImplicitFilter && (
-          <span
-            className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400 ring-2 ring-white"
-            aria-hidden
-          />
         )}
       </button>
 
