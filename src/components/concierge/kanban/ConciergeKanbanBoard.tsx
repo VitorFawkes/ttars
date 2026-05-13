@@ -18,6 +18,7 @@ import { useToggleEmFuturoConcierge } from '../../../hooks/concierge/useToggleEm
 import { ConciergeKanbanColumn } from './ConciergeKanbanColumn'
 import { AtendimentoCard } from './AtendimentoCard'
 import { EncerrarAtendimentoModal } from './EncerrarAtendimentoModal'
+import { EstocarFuturoModal } from './EstocarFuturoModal'
 import { AtendimentoDetailModal } from '../AtendimentoDetailModal'
 import { SelectionActionBar } from './SelectionActionBar'
 
@@ -35,6 +36,7 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
   const [selected, setSelected] = useState<KanbanTarefaItem | null>(null)
   const [pendingEncerrar, setPendingEncerrar] = useState<KanbanTarefaItem | null>(null)
   const [pendingBulkEncerrar, setPendingBulkEncerrar] = useState<KanbanTarefaItem[] | null>(null)
+  const [pendingEstocar, setPendingEstocar] = useState<KanbanTarefaItem | null>(null)
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   // Colunas retraídas por default. "Futuro" é estoque (não fluxo ativo) e
@@ -86,11 +88,11 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
     if (!item || !destino) return
     if (item.estado_funil === destino) return
 
-    // Estocar na coluna Futuro: seta flag sticky direto. O prazo da tarefa
-    // (data_vencimento) é editado pelo PrazoTarefaEditor no modal de detalhe
-    // — não pede data aqui pra não atrasar o estoque.
+    // Estocar na coluna Futuro: abre modal pra escolher em quantos dias
+    // antes do prazo o card vai piscar/destacar. Cada tarefa tem antece-
+    // dência diferente (check-in pode ser 3d, reserva de restaurante 30d).
     if (destino === 'agendado_futuro') {
-      toggleEmFuturo.mutate({ tarefaId: item.tarefa_id, emFuturo: true })
+      setPendingEstocar(item)
       return
     }
 
@@ -193,13 +195,16 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
           {ESTADO_FUNIL_COLUMNS.map(col => {
             const items = groupedByEstado.get(col.id) ?? []
             const isCollapsed = collapsedCols.has(col.id)
-            // Pulsa amarelo na coluna Futuro quando tem card estocado cujo
-            // prazo (data_vencimento) está em ≤7 dias (incluindo passados).
-            // Esse é o sinal pra concierge abrir e decidir.
+            // Pulsa amarelo na coluna Futuro quando tem card cujo prazo
+            // (data_vencimento) está dentro da antecedência configurada
+            // POR CARD em concierge_aviso_dias (default 7). Inclui as
+            // datas que já passaram — esses são o sinal mais forte.
             const pulsarUrgente = col.id === 'agendado_futuro' && items.some(it => {
               if (!it.data_vencimento) return false
               const t = new Date(it.data_vencimento).getTime()
-              return Number.isFinite(t) && t <= Date.now() + 7 * 24 * 60 * 60 * 1000
+              if (!Number.isFinite(t)) return false
+              const aviso = (it.concierge_aviso_dias ?? 7) * 24 * 60 * 60 * 1000
+              return t <= Date.now() + aviso
             })
             return (
               <ConciergeKanbanColumn
@@ -262,6 +267,21 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
           moverFunil.mutate(
             { atendimento: pendingEncerrar, destino: 'encerrado', outcomeEncerramento: motivo, observacao },
             { onSettled: () => setPendingEncerrar(null) }
+          )
+        }}
+      />
+
+      <EstocarFuturoModal
+        open={!!pendingEstocar}
+        avisoDiasAtual={pendingEstocar?.concierge_aviso_dias ?? 7}
+        modo="estocar"
+        onClose={() => setPendingEstocar(null)}
+        isSubmitting={toggleEmFuturo.isPending}
+        onConfirm={(avisoDias) => {
+          if (!pendingEstocar) return
+          toggleEmFuturo.mutate(
+            { tarefaId: pendingEstocar.tarefa_id, emFuturo: true, avisoDias },
+            { onSettled: () => setPendingEstocar(null) }
           )
         }}
       />

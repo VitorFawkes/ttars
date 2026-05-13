@@ -1628,6 +1628,7 @@ export type Database = {
           produto: Database["public"]["Enums"]["app_product"]
           prompts_extra: Json
           routing_criteria: Json | null
+          scheduling_config: Json | null
           system_prompt: string
           system_prompt_version: number | null
           temperature: number | null
@@ -1679,6 +1680,7 @@ export type Database = {
           produto: Database["public"]["Enums"]["app_product"]
           prompts_extra?: Json
           routing_criteria?: Json | null
+          scheduling_config?: Json | null
           system_prompt: string
           system_prompt_version?: number | null
           temperature?: number | null
@@ -1730,6 +1732,7 @@ export type Database = {
           produto?: Database["public"]["Enums"]["app_product"]
           prompts_extra?: Json
           routing_criteria?: Json | null
+          scheduling_config?: Json | null
           system_prompt?: string
           system_prompt_version?: number | null
           temperature?: number | null
@@ -14282,6 +14285,7 @@ export type Database = {
         Row: {
           card_id: string
           categoria_outro: string | null
+          concierge_aviso_dias: number
           concierge_em_futuro: boolean
           concluida: boolean
           concluida_em: string | null
@@ -14317,6 +14321,7 @@ export type Database = {
         Insert: {
           card_id: string
           categoria_outro?: string | null
+          concierge_aviso_dias?: number
           concierge_em_futuro?: boolean
           concluida?: boolean
           concluida_em?: string | null
@@ -14352,6 +14357,7 @@ export type Database = {
         Update: {
           card_id?: string
           categoria_outro?: string | null
+          concierge_aviso_dias?: number
           concierge_em_futuro?: boolean
           concluida?: boolean
           concluida_em?: string | null
@@ -16885,6 +16891,7 @@ export type Database = {
           card_valor_final: number | null
           categoria: string | null
           cobrado_de: string | null
+          concierge_aviso_dias: number | null
           concierge_em_futuro: boolean | null
           concluida: boolean | null
           concluida_em: string | null
@@ -16990,13 +16997,6 @@ export type Database = {
           },
           {
             foreignKeyName: "cards_pessoa_principal_id_fkey"
-            columns: ["root_pessoa_principal_id"]
-            isOneToOne: false
-            referencedRelation: "contatos"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "cards_pessoa_principal_id_fkey"
             columns: ["pessoa_principal_id"]
             isOneToOne: false
             referencedRelation: "contatos"
@@ -17006,8 +17006,8 @@ export type Database = {
             foreignKeyName: "cards_pessoa_principal_id_fkey"
             columns: ["root_pessoa_principal_id"]
             isOneToOne: false
-            referencedRelation: "v_contact_proposals"
-            referencedColumns: ["contact_id"]
+            referencedRelation: "contatos"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "cards_pessoa_principal_id_fkey"
@@ -17019,13 +17019,20 @@ export type Database = {
           {
             foreignKeyName: "cards_pessoa_principal_id_fkey"
             columns: ["root_pessoa_principal_id"]
+            isOneToOne: false
+            referencedRelation: "v_contact_proposals"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "cards_pessoa_principal_id_fkey"
+            columns: ["pessoa_principal_id"]
             isOneToOne: false
             referencedRelation: "view_deleted_contacts"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "cards_pessoa_principal_id_fkey"
-            columns: ["pessoa_principal_id"]
+            columns: ["root_pessoa_principal_id"]
             isOneToOne: false
             referencedRelation: "view_deleted_contacts"
             referencedColumns: ["id"]

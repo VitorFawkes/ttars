@@ -128,6 +128,10 @@ export interface MeuDiaItem {
    *  kanban /concierge indefinidamente. FALSE = fluxo normal. Nada move
    *  sozinho. O aviso visual de "prazo chegando" usa data_vencimento. */
   concierge_em_futuro?: boolean
+  /** Quantos dias antes do data_vencimento o card estocado em Futuro
+   *  comec,a a piscar/destacar. Default 7. So usado quando
+   *  concierge_em_futuro = TRUE. */
+  concierge_aviso_dias?: number
   dono_id: string | null
   card_id: string
   tarefa_criada_por: string | null
