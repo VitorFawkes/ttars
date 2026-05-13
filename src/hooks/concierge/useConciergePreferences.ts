@@ -17,6 +17,9 @@ export interface ConciergePreferences {
   /** Mostrar atendimentos com outcome (Feito/Encerrado) com mais de 2 dias.
    *  Default false: o Kanban esconde por padrão pra reduzir ruído. */
   mostrarConcluidosAntigos: boolean
+  /** Renderiza a lista do checklist diretamente nos cards do kanban, com
+   *  checkboxes clicáveis (marca/desmarca sem abrir o modal). Default true. */
+  mostrarChecklists: boolean
 }
 
 const DEFAULT_PREFS: ConciergePreferences = {
@@ -28,6 +31,7 @@ const DEFAULT_PREFS: ConciergePreferences = {
   categorias: [],
   tagIds: [],
   mostrarConcluidosAntigos: false,
+  mostrarChecklists: true,
 }
 
 const STORAGE_PREFIX = 'welcomecrm:concierge:kanban:v1'
@@ -57,6 +61,9 @@ function readPrefs(key: string | null): ConciergePreferences {
       mostrarConcluidosAntigos: typeof parsed.mostrarConcluidosAntigos === 'boolean'
         ? parsed.mostrarConcluidosAntigos
         : false,
+      mostrarChecklists: typeof parsed.mostrarChecklists === 'boolean'
+        ? parsed.mostrarChecklists
+        : true,
     }
   } catch {
     return DEFAULT_PREFS

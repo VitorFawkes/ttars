@@ -1,8 +1,9 @@
 import { useDraggable } from '@dnd-kit/core'
 import { Check, Flame, User, ListChecks } from 'lucide-react'
-import { TIPO_LABEL, CATEGORIAS_CONCIERGE, SOURCE_LABEL } from '../../../hooks/concierge/types'
+import { TIPO_LABEL, CATEGORIAS_CONCIERGE, SOURCE_LABEL, type ChecklistItem } from '../../../hooks/concierge/types'
 import type { KanbanTarefaItem } from '../../../hooks/concierge/useKanbanTarefas'
 import { useToggleTarefaCritica } from '../../../hooks/concierge/useToggleCritical'
+import { useChecklistTarefa } from '../../../hooks/concierge/useChecklistTarefa'
 import { useConciergeProfilesLookup } from '../../../hooks/concierge/useConciergeProfilesLookup'
 import { SourceIcon } from '../Badges'
 import { cn } from '../../../lib/utils'
@@ -32,9 +33,12 @@ interface AtendimentoCardProps {
   selected?: boolean
   onToggleSelect?: () => void
   selectionMode?: boolean
+  /** Renderiza a lista do checklist inline no card quando true e o card
+   *  tem itens. Default false. Marcação direta sem abrir o modal. */
+  mostrarChecklist?: boolean
 }
 
-export function AtendimentoCard({ item, onClick, isOverlay = false, selected = false, onToggleSelect, selectionMode = false }: AtendimentoCardProps) {
+export function AtendimentoCard({ item, onClick, isOverlay = false, selected = false, onToggleSelect, selectionMode = false, mostrarChecklist = false }: AtendimentoCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: item.atendimento_id,
     data: { item },
@@ -75,6 +79,14 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
   const showCatPill = !!catLabel
 
   const { mutate: toggleCritica, isPending: togglingCritica } = useToggleTarefaCritica()
+  const { mutate: salvarChecklist } = useChecklistTarefa()
+
+  const handleToggleChecklistItem = (itemId: string) => {
+    const proximos = checklist.map(c =>
+      c.id === itemId ? { ...c, feito: !c.feito } : c
+    )
+    salvarChecklist({ tarefaId: item.tarefa_id, itens: proximos })
+  }
 
   const profilesLookup = useConciergeProfilesLookup()
   const donoNome = item.dono_id ? profilesLookup?.get(item.dono_id) : null
@@ -201,6 +213,36 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
               </span>
             )}
           </div>
+        )}
+
+        {mostrarChecklist && checklistTotal > 0 && (
+          <ul className="mb-2 space-y-0.5">
+            {[...checklist].sort((a, b) => a.ordem - b.ordem).map((ci: ChecklistItem) => (
+              <li key={ci.id} className="flex items-start gap-1.5 text-[11px] leading-tight">
+                <button
+                  type="button"
+                  data-no-drag
+                  onClick={(e) => { e.stopPropagation(); handleToggleChecklistItem(ci.id) }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className={cn(
+                    'shrink-0 mt-0.5 w-3 h-3 rounded border flex items-center justify-center transition-colors',
+                    ci.feito
+                      ? 'bg-emerald-600 border-emerald-600 text-white'
+                      : 'bg-white border-slate-300 hover:border-indigo-400'
+                  )}
+                  aria-label={ci.feito ? 'Desmarcar item' : 'Marcar item como feito'}
+                >
+                  {ci.feito && <Check className="w-2 h-2" strokeWidth={3} />}
+                </button>
+                <span className={cn(
+                  'truncate min-w-0 flex-1',
+                  ci.feito ? 'line-through text-slate-400' : 'text-slate-700'
+                )}>
+                  {ci.texto || <span className="italic text-slate-400">(sem descrição)</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
 
         <div className="flex items-center justify-between gap-2 text-[10.5px]">

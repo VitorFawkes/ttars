@@ -24,9 +24,13 @@ import { SelectionActionBar } from './SelectionActionBar'
 
 interface ConciergeKanbanBoardProps {
   filters: KanbanTarefasFilters
+  /** Quando true, cards renderizam a lista do checklist inline pra marcar
+   *  sem abrir o modal de detalhe. Default true (vem da preferência do
+   *  usuário no KanbanPage). */
+  mostrarChecklists?: boolean
 }
 
-export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
+export function ConciergeKanbanBoard({ filters, mostrarChecklists = true }: ConciergeKanbanBoardProps) {
   const { groupedByEstado, isLoading, data } = useKanbanTarefas(filters)
   const moverFunil = useMoverEstadoFunil()
   const executarEmLote = useExecutarEmLote()
@@ -231,6 +235,7 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
                       selected={selectedIds.has(item.atendimento_id)}
                       onToggleSelect={() => toggleSelect(item.atendimento_id)}
                       selectionMode={selectionMode}
+                      mostrarChecklist={mostrarChecklists}
                     />
                   ))
                 )}
