@@ -14,9 +14,11 @@ import { useHorizontalScroll } from '../../../hooks/useHorizontalScroll'
 import { useKanbanTarefas, ESTADO_FUNIL_COLUMNS, type EstadoFunil, type KanbanTarefaItem, type KanbanTarefasFilters } from '../../../hooks/concierge/useKanbanTarefas'
 import { useMoverEstadoFunil } from '../../../hooks/concierge/useMoverEstadoFunil'
 import { useExecutarEmLote } from '../../../hooks/concierge/useAtendimentoMutations'
+import { useSnoozeAtendimento } from '../../../hooks/concierge/useSnoozeAtendimento'
 import { ConciergeKanbanColumn } from './ConciergeKanbanColumn'
 import { AtendimentoCard } from './AtendimentoCard'
 import { EncerrarAtendimentoModal } from './EncerrarAtendimentoModal'
+import { SnoozeAtendimentoModal } from './SnoozeAtendimentoModal'
 import { AtendimentoDetailModal } from '../AtendimentoDetailModal'
 import { SelectionActionBar } from './SelectionActionBar'
 
@@ -28,16 +30,18 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
   const { groupedByEstado, isLoading, data } = useKanbanTarefas(filters)
   const moverFunil = useMoverEstadoFunil()
   const executarEmLote = useExecutarEmLote()
+  const snoozeAtendimento = useSnoozeAtendimento()
 
   const [activeItem, setActiveItem] = useState<KanbanTarefaItem | null>(null)
   const [selected, setSelected] = useState<KanbanTarefaItem | null>(null)
   const [pendingEncerrar, setPendingEncerrar] = useState<KanbanTarefaItem | null>(null)
   const [pendingBulkEncerrar, setPendingBulkEncerrar] = useState<KanbanTarefaItem[] | null>(null)
+  const [pendingSnooze, setPendingSnooze] = useState<KanbanTarefaItem | null>(null)
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  // Colunas retraídas — "encerrado" começa fechado por default (recusados/cancelados
-  // raramente precisam de atenção, mas continuam acessíveis com 1 clique).
-  const [collapsedCols, setCollapsedCols] = useState<Set<EstadoFunil>>(new Set(['encerrado']))
+  // Colunas retraídas por default. "Futuro" é estoque (não fluxo ativo) e
+  // "Encerrado" é o cemitério — ambos começam fechados.
+  const [collapsedCols, setCollapsedCols] = useState<Set<EstadoFunil>>(new Set(['agendado_futuro', 'encerrado']))
   const toggleCol = (id: EstadoFunil) => {
     setCollapsedCols(prev => {
       const next = new Set(prev)
@@ -83,6 +87,33 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
     const destino = event.over?.id as EstadoFunil | undefined
     if (!item || !destino) return
     if (item.estado_funil === destino) return
+
+    // Estocar na coluna Futuro: pede data via modal. Nada se move antes do confirm.
+    if (destino === 'agendado_futuro') {
+      setPendingSnooze(item)
+      return
+    }
+
+    // Puxar de volta da coluna Futuro: limpa flag sticky, deixa o
+    // computeEstadoFunil recalcular o destino baseado em started_at/notificou.
+    // Se o destino for diferente de 'aguardando_atendimento', em seguida
+    // aplicamos a transição normal (em_contato, retorno, feito, encerrado).
+    if (item.estado_funil === 'agendado_futuro') {
+      snoozeAtendimento.mutate(
+        { tarefaId: item.tarefa_id, data: null },
+        {
+          onSuccess: () => {
+            if (destino === 'aguardando_atendimento') return
+            if (destino === 'encerrado') {
+              setPendingEncerrar(item)
+              return
+            }
+            moverFunil.mutate({ atendimento: item, destino })
+          },
+        }
+      )
+      return
+    }
 
     if (destino === 'encerrado') {
       setPendingEncerrar(item)
@@ -222,6 +253,19 @@ export function ConciergeKanbanBoard({ filters }: ConciergeKanbanBoardProps) {
           moverFunil.mutate(
             { atendimento: pendingEncerrar, destino: 'encerrado', outcomeEncerramento: motivo, observacao },
             { onSettled: () => setPendingEncerrar(null) }
+          )
+        }}
+      />
+
+      <SnoozeAtendimentoModal
+        open={!!pendingSnooze}
+        onClose={() => setPendingSnooze(null)}
+        isSubmitting={snoozeAtendimento.isPending}
+        onConfirm={(dataIso) => {
+          if (!pendingSnooze) return
+          snoozeAtendimento.mutate(
+            { tarefaId: pendingSnooze.tarefa_id, data: dataIso },
+            { onSettled: () => setPendingSnooze(null) }
           )
         }}
       />

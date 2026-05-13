@@ -3,7 +3,13 @@ import { useQuery } from '@tanstack/react-query'
 import { sbAny } from './_supabaseUntyped'
 import type { MeuDiaItem, TipoConcierge, SourceConcierge } from './types'
 
-export type EstadoFunil = 'aguardando_atendimento' | 'em_contato' | 'aguardando_retorno' | 'feito' | 'encerrado'
+export type EstadoFunil =
+  | 'agendado_futuro'
+  | 'aguardando_atendimento'
+  | 'em_contato'
+  | 'aguardando_retorno'
+  | 'feito'
+  | 'encerrado'
 
 export type JanelaEmbarque =
   | 'sem_data'
@@ -72,6 +78,7 @@ export interface KanbanColumnSpec {
 }
 
 export const ESTADO_FUNIL_COLUMNS: KanbanColumnSpec[] = [
+  { id: 'agendado_futuro',        label: 'Agendados para o futuro', hint: 'Estocados manualmente — voltam quando você arrastar de volta', tone: { bg: 'bg-violet-50',  text: 'text-violet-700',  border: 'border-violet-200',  accent: 'bg-violet-400'  } },
   { id: 'aguardando_atendimento', label: 'Aguardando atendimento', hint: 'Não iniciado ainda',           tone: { bg: 'bg-slate-50',   text: 'text-slate-700',   border: 'border-slate-200',   accent: 'bg-slate-300'   } },
   { id: 'em_contato',             label: 'Em contato',             hint: 'Você está cuidando agora',     tone: { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200',    accent: 'bg-blue-500'    } },
   { id: 'aguardando_retorno',     label: 'Aguardando retorno',     hint: 'Cliente notificado, esperando',tone: { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200',   accent: 'bg-amber-500'   } },
@@ -80,6 +87,10 @@ export const ESTADO_FUNIL_COLUMNS: KanbanColumnSpec[] = [
 ]
 
 export function computeEstadoFunil(item: MeuDiaItem): EstadoFunil {
+  // Flag sticky: se o concierge estocou o atendimento na coluna Futuro, ele
+  // fica lá indefinidamente — INDEPENDENTE de outcome/started_at/notificação.
+  // Sair só por ação manual do concierge (drag pra outra coluna).
+  if (item.concierge_futuro_em)                                       return 'agendado_futuro'
   // Outcome decide o destino — 'aceito' (legado, oferta aceita) entra junto com 'feito'.
   if (item.outcome === 'aceito' || item.outcome === 'feito')          return 'feito'
   if (item.outcome === 'recusado' || item.outcome === 'cancelado')    return 'encerrado'

@@ -14255,6 +14255,7 @@ export type Database = {
         Row: {
           card_id: string
           categoria_outro: string | null
+          concierge_futuro_em: string | null
           concluida: boolean
           concluida_em: string | null
           concluido_por: string | null
@@ -14289,6 +14290,7 @@ export type Database = {
         Insert: {
           card_id: string
           categoria_outro?: string | null
+          concierge_futuro_em?: string | null
           concluida?: boolean
           concluida_em?: string | null
           concluido_por?: string | null
@@ -14323,6 +14325,7 @@ export type Database = {
         Update: {
           card_id?: string
           categoria_outro?: string | null
+          concierge_futuro_em?: string | null
           concluida?: boolean
           concluida_em?: string | null
           concluido_por?: string | null
@@ -16855,6 +16858,7 @@ export type Database = {
           card_valor_final: number | null
           categoria: string | null
           cobrado_de: string | null
+          concierge_futuro_em: string | null
           concluida: boolean | null
           concluida_em: string | null
           data_vencimento: string | null
@@ -16931,13 +16935,6 @@ export type Database = {
           },
           {
             foreignKeyName: "cards_etapa_funil_id_fkey"
-            columns: ["root_pipeline_stage_id"]
-            isOneToOne: false
-            referencedRelation: "pipeline_stages"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "cards_etapa_funil_id_fkey"
             columns: ["pipeline_stage_id"]
             isOneToOne: false
             referencedRelation: "pipeline_stages"
@@ -16946,13 +16943,20 @@ export type Database = {
           {
             foreignKeyName: "cards_etapa_funil_id_fkey"
             columns: ["root_pipeline_stage_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cards_etapa_funil_id_fkey"
+            columns: ["pipeline_stage_id"]
             isOneToOne: false
             referencedRelation: "view_dashboard_funil"
             referencedColumns: ["stage_id"]
           },
           {
             foreignKeyName: "cards_etapa_funil_id_fkey"
-            columns: ["pipeline_stage_id"]
+            columns: ["root_pipeline_stage_id"]
             isOneToOne: false
             referencedRelation: "view_dashboard_funil"
             referencedColumns: ["stage_id"]

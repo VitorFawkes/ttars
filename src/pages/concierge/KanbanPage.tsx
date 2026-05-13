@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ListChecks, Plane } from 'lucide-react'
+import { ListChecks, Plane, AlarmClock } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
 import { useKanbanTarefas } from '../../hooks/concierge/useKanbanTarefas'
@@ -69,6 +69,18 @@ export default function KanbanPage() {
   const totalViagens = viagens?.length ?? 0
   const count = prefs.modo === 'tarefas' ? totalTarefas : totalViagens
 
+  // Conta cards estocados em "Agendados para o futuro" cuja data planejada
+  // chega em <=7d (inclui as que já passaram — esses são o sinal mais forte).
+  const chegandoEssaSemana = useMemo(() => {
+    if (prefs.modo !== 'tarefas' || !tarefas) return 0
+    const limite = Date.now() + 7 * 24 * 60 * 60 * 1000
+    return tarefas.filter(t => {
+      if (!t.concierge_futuro_em) return false
+      const data = new Date(t.concierge_futuro_em).getTime()
+      return Number.isFinite(data) && data <= limite
+    }).length
+  }, [tarefas, prefs.modo])
+
   const setModo = (m: Modo) => setPref('modo', m)
 
   const handleClearAll = () => {
@@ -109,6 +121,16 @@ export default function KanbanPage() {
           <div className="text-[12px] text-slate-500 font-mono">
             {count} {count === 1 ? (prefs.modo === 'tarefas' ? 'tarefa' : 'viagem') : (prefs.modo === 'tarefas' ? 'tarefas' : 'viagens')}
           </div>
+
+          {chegandoEssaSemana > 0 && (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200"
+              title="Atendimentos estocados em 'Agendados para o futuro' com prazo planejado essa semana (inclui as datas que já passaram)"
+            >
+              <AlarmClock className="w-3 h-3" />
+              {chegandoEssaSemana} com prazo chegando
+            </span>
+          )}
 
           {produtoAtual && (
             <span className="text-[10.5px] text-slate-400 font-mono uppercase tracking-wide">{produtoAtual}</span>
