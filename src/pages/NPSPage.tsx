@@ -14,7 +14,7 @@ import {
 import AdminPageHeader from '../components/admin/ui/AdminPageHeader'
 import { useNPSKpis, type NPSKpis, type NPSPeriod } from '../hooks/useNPSKpis'
 import { useNPSResponses, type NPSResponseRow } from '../hooks/useNPSResponses'
-import { useNPSMonthlyTrend } from '../hooks/useNPSMonthlyTrend'
+import { useNPSMonthlyTrend, type TrendGranularity } from '../hooks/useNPSMonthlyTrend'
 import { cn } from '../lib/utils'
 
 type StatColor = 'indigo' | 'green' | 'red' | 'amber' | 'blue' | 'purple' | 'slate' | 'emerald' | 'rose'
@@ -276,8 +276,11 @@ function NPSResponseCard({
     )
 }
 
-function MonthlyTrendChart() {
-    const { data: buckets = [], isLoading } = useNPSMonthlyTrend()
+function TrendChart({ period }: { period: NPSPeriod }) {
+    const { data, isLoading } = useNPSMonthlyTrend(period)
+    const buckets = data?.buckets ?? []
+    const granularity: TrendGranularity = data?.granularity ?? 'month'
+    const subtitle = data?.subtitle ?? 'Últimos 12 meses'
     const hasAnyData = buckets.some((b) => b.npsScore !== null)
 
     if (isLoading) {
@@ -292,12 +295,16 @@ function MonthlyTrendChart() {
         return null
     }
 
+    // Com muitos pontos (filtro custom longo) o eixo X fica apertado — esconder uns labels
+    const tickInterval = buckets.length > 16 ? Math.ceil(buckets.length / 12) : 0
+    const title = granularity === 'week' ? 'NPS Score por semana' : 'NPS Score por mês'
+
     return (
         <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
                 <div>
-                    <h3 className="text-sm font-medium text-slate-900 tracking-tight">NPS Score por mês</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">Últimos 12 meses</p>
+                    <h3 className="text-sm font-medium text-slate-900 tracking-tight">{title}</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
                 </div>
             </div>
             <div className="h-48">
@@ -309,6 +316,7 @@ function MonthlyTrendChart() {
                             tick={{ fontSize: 11, fill: '#64748b' }}
                             axisLine={{ stroke: '#cbd5e1' }}
                             tickLine={false}
+                            interval={tickInterval as never}
                         />
                         <YAxis
                             domain={[-100, 100]}
@@ -337,7 +345,7 @@ function MonthlyTrendChart() {
                             dataKey="npsScore"
                             stroke="#4f46e5"
                             strokeWidth={2}
-                            dot={{ r: 3, fill: '#4f46e5' }}
+                            dot={{ r: granularity === 'week' && buckets.length > 16 ? 2 : 3, fill: '#4f46e5' }}
                             activeDot={{ r: 5 }}
                             connectNulls={false}
                         />
@@ -504,9 +512,9 @@ export default function NPSPage() {
                     />
                 </div>
 
-                {/* Gráfico — sempre últimos 12 meses (independente do filtro) */}
+                {/* Gráfico — granularidade automática (dia vs mês) com base no período */}
                 <div className="mb-6">
-                    <MonthlyTrendChart />
+                    <TrendChart period={period} />
                 </div>
 
                 {/* Lista filtrada */}
