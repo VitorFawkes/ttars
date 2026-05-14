@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Gauge, Loader2, MessageSquare, Percent, Plane, Search, Send, Smile, X } from 'lucide-react'
 import {
     CartesianGrid,
@@ -200,13 +199,7 @@ function NPSEmptyState({ kpis, hasFilters }: { kpis: NPSKpis | undefined; hasFil
     )
 }
 
-function NPSResponseCard({
-    row,
-    onOpenCard,
-}: {
-    row: NPSResponseRow
-    onOpenCard: (cardId: string) => void
-}) {
+function NPSResponseCard({ row }: { row: NPSResponseRow }) {
     const segment = segmentOf(row.score)
     const hasCard = row.card_id !== null
     const headerLabel = row.card_titulo || row.original_name || row.contato_nome || 'Resposta sem card vinculado'
@@ -216,64 +209,76 @@ function NPSResponseCard({
             ? row.contato_nome
             : null
 
-    return (
-        <div
-            onClick={hasCard ? () => onOpenCard(row.card_id!) : undefined}
-            className={cn(
-                'bg-white rounded-xl border border-slate-200 shadow-sm transition-all duration-200',
-                hasCard
-                    ? 'hover:shadow-md hover:border-indigo-200 cursor-pointer'
-                    : 'cursor-default'
-            )}
-        >
-            <div className="p-4 flex items-start gap-4">
-                <div className={cn('flex flex-col items-center justify-center w-14 h-14 rounded-xl border', segment.container)}>
-                    <span className="text-2xl font-bold leading-none tracking-tight">{row.score}</span>
-                    <span className="text-[10px] font-medium opacity-80 mt-0.5">/10</span>
-                </div>
+    const containerClass = cn(
+        'block bg-white rounded-xl border border-slate-200 shadow-sm transition-all duration-200',
+        hasCard
+            ? 'hover:shadow-md hover:border-indigo-200 cursor-pointer'
+            : 'cursor-default',
+    )
 
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                        <div className="min-w-0">
-                            <h3 className="font-medium text-slate-900 truncate">
-                                {headerLabel}
-                            </h3>
-                            {subLabel && (
-                                <p className="text-xs text-slate-500 mt-0.5">{subLabel}</p>
-                            )}
-                            {!hasCard && (
-                                <p className="text-xs text-slate-400 mt-0.5 italic">Sem card vinculado</p>
-                            )}
-                        </div>
-                        <span className={cn('shrink-0 px-2 py-0.5 rounded-full text-xs font-medium', segment.badge)}>
-                            {segment.label}
-                        </span>
-                    </div>
+    const content = (
+        <div className="p-4 flex items-start gap-4">
+            <div className={cn('flex flex-col items-center justify-center w-14 h-14 rounded-xl border', segment.container)}>
+                <span className="text-2xl font-bold leading-none tracking-tight">{row.score}</span>
+                <span className="text-[10px] font-medium opacity-80 mt-0.5">/10</span>
+            </div>
 
-                    {row.comment && (
-                        <p className="text-sm text-slate-600 whitespace-pre-wrap mt-2">
-                            “{row.comment}”
-                        </p>
-                    )}
-
-                    {row.proximo_destino && (
-                        <div className="flex items-start gap-1.5 mt-2 text-xs text-slate-600">
-                            <Plane className="w-3.5 h-3.5 text-indigo-500 shrink-0 mt-0.5" />
-                            <span className="text-slate-500 shrink-0">Próximo destino:</span>
-                            <span className="font-medium text-slate-700 whitespace-pre-wrap break-words">{row.proximo_destino}</span>
-                        </div>
-                    )}
-
-                    <div className="flex items-center gap-3 mt-3 text-xs text-slate-500">
-                        <span>{formatDate(row.responded_at)}</span>
-                        {row.channel && row.channel !== 'unknown' && (
-                            <span className="capitalize">via {row.channel}</span>
+            <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2 mb-1">
+                    <div className="min-w-0">
+                        <h3 className="font-medium text-slate-900 truncate">
+                            {headerLabel}
+                        </h3>
+                        {subLabel && (
+                            <p className="text-xs text-slate-500 mt-0.5">{subLabel}</p>
+                        )}
+                        {!hasCard && (
+                            <p className="text-xs text-slate-400 mt-0.5 italic">Sem card vinculado</p>
                         )}
                     </div>
+                    <span className={cn('shrink-0 px-2 py-0.5 rounded-full text-xs font-medium', segment.badge)}>
+                        {segment.label}
+                    </span>
+                </div>
+
+                {row.comment && (
+                    <p className="text-sm text-slate-600 whitespace-pre-wrap mt-2">
+                        “{row.comment}”
+                    </p>
+                )}
+
+                {row.proximo_destino && (
+                    <div className="flex items-start gap-1.5 mt-2 text-xs text-slate-600">
+                        <Plane className="w-3.5 h-3.5 text-indigo-500 shrink-0 mt-0.5" />
+                        <span className="text-slate-500 shrink-0">Próximo destino:</span>
+                        <span className="font-medium text-slate-700 whitespace-pre-wrap break-words">{row.proximo_destino}</span>
+                    </div>
+                )}
+
+                <div className="flex items-center gap-3 mt-3 text-xs text-slate-500">
+                    <span>{formatDate(row.responded_at)}</span>
+                    {row.channel && row.channel !== 'unknown' && (
+                        <span className="capitalize">via {row.channel}</span>
+                    )}
                 </div>
             </div>
         </div>
     )
+
+    if (hasCard) {
+        return (
+            <a
+                href={`/cards/${row.card_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={containerClass}
+            >
+                {content}
+            </a>
+        )
+    }
+
+    return <div className={containerClass}>{content}</div>
 }
 
 function TrendChart({ period }: { period: NPSPeriod }) {
@@ -360,7 +365,6 @@ const PAGE_SIZE_OPTIONS = [6, 12, 24, 50] as const
 const DEFAULT_PAGE_SIZE = 6
 
 export default function NPSPage() {
-    const navigate = useNavigate()
     const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('all')
     const [customStart, setCustomStart] = useState<string>('')
     const [customEnd, setCustomEnd] = useState<string>('')
@@ -528,11 +532,7 @@ export default function NPSPage() {
                     <>
                         <div className="space-y-3">
                             {pagedResponses.map((row) => (
-                                <NPSResponseCard
-                                    key={row.id}
-                                    row={row}
-                                    onOpenCard={(cardId) => navigate(`/cards/${cardId}`)}
-                                />
+                                <NPSResponseCard key={row.id} row={row} />
                             ))}
                         </div>
 
