@@ -168,6 +168,50 @@ Deno.serve(async (req) => {
     }
 
     // ------------------------------------------------------------------
+    // 1a. Comando especial /reset — testador pode zerar a própria conversa
+    // pelo WhatsApp (mesma RPC do botão "Zerar conversa" do Studio).
+    // Curtocircuita antes do debounce/LLM. Filtra por contact_phone, então
+    // cada testador só apaga o que é dele.
+    // ------------------------------------------------------------------
+    const incomingText = (message_text || "").trim().toLowerCase();
+    if (incomingText === "/reset") {
+      console.log(`[v2 reset] solicitado agent=${agent.id} phone=${contact_phone}`);
+      const { data: resetResult, error: resetErr } = await supabase.rpc(
+        "reset_agent_conversations_with_phone",
+        { p_agent_id: agent.id, p_phone: contact_phone },
+      );
+      if (resetErr) {
+        console.error(`[v2 reset] RPC falhou:`, resetErr.message);
+      } else {
+        console.log(`[v2 reset] OK ${JSON.stringify(resetResult)}`);
+      }
+
+      // Confirmação via Echo. Não inserimos em ai_conversation_turns porque
+      // o reset acabou de apagar tudo — qualquer insert aqui ressuscitaria
+      // estado limpo. Também não criamos card/contato.
+      if (ECHO_API_URL && ECHO_API_KEY) {
+        try {
+          await sendEchoMessage(
+            ECHO_API_URL,
+            ECHO_API_KEY,
+            phone_number_id,
+            contact_phone,
+            "Conversa zerada. Manda 'oi' pra começar de novo.",
+          );
+        } catch (e) {
+          console.warn(`[v2 reset] envio echo falhou:`, (e as Error).message);
+        }
+      }
+
+      return jsonResponse({
+        ok: true,
+        action: "reset",
+        result: resetResult ?? null,
+        duration_ms: Date.now() - startedAt,
+      });
+    }
+
+    // ------------------------------------------------------------------
     // 1b. Debounce + claim atômico do ai_message_buffer
     //
     // Lógica replicada do router v1 (sem import, engines isoladas por desenho).
