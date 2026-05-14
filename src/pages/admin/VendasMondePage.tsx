@@ -630,6 +630,7 @@ export default function VendasMondePage() {
             const matchedNums = new Set<string>()
 
             // 1. Match primário em batch: produto_data->>numero_venda_monde via .in()
+            // Cards arquivados são ignorados — tratados como inexistentes (regra de negócio).
             const primaryChunks = chunked(uniqueVendaNums, 50)
             const primaryResults = await Promise.all(
                 primaryChunks.map(chunk =>
@@ -637,6 +638,7 @@ export default function VendasMondePage() {
                         .from('cards')
                         .select('id, titulo, produto_data')
                         .in('produto_data->>numero_venda_monde', chunk)
+                        .is('archived_at', null)
                 )
             )
 
