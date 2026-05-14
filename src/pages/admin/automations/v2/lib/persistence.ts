@@ -440,13 +440,25 @@ export async function loadWorkflow(templateId: string): Promise<LoadResult> {
 
     if (trigger) {
         const triggerType = EVENT_TYPE_TO_NODE[trigger.event_type as string] || 'trigger.card_created'
+        const baseEventConfig = (trigger.event_config as Record<string, unknown>) || {}
+        const config: Record<string, unknown> = { ...baseEventConfig }
+        if (Array.isArray(trigger.applicable_stage_ids) && trigger.applicable_stage_ids.length > 0) {
+            config.applicable_stage_ids = trigger.applicable_stage_ids
+        } else if (typeof baseEventConfig.initial_stage_id === 'string' && baseEventConfig.initial_stage_id) {
+            // Triggers gravados pelo editor pré-PR#26 guardam o filtro em
+            // event_config.initial_stage_id. saveWorkflow normaliza para
+            // applicable_stage_ids no save; espelhamos no load pra que registros
+            // legados ainda não re-salvos hidratem corretamente.
+            config.applicable_stage_ids = [baseEventConfig.initial_stage_id]
+            delete config.initial_stage_id
+        }
         nodes.push({
             id: `trg_${trigger.id}`,
             type: triggerType,
             position: { x: X, y: 0 },
             data: {
                 label: trigger.name || 'Gatilho',
-                config: trigger.event_config || {},
+                config,
             },
         })
     }
