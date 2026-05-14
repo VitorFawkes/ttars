@@ -136,13 +136,73 @@ export function normalizePhone(phone: string): string {
   return phone.replace(/[^\d]/g, "");
 }
 
+/**
+ * Gera o conjunto de variantes equivalentes de um telefone brasileiro.
+ * Cobre as 4 dimensões em que admin e provedor podem divergir:
+ *   - Com/sem DDI 55
+ *   - Celular com/sem o 9 obrigatório (vigente desde 2012; números
+ *     antigos/VoIP podem chegar sem)
+ *   - Formatação livre (parênteses, traços, espaços, +) — ignorada
+ *
+ * Ex: "554198839193" gera { "554198839193", "4198839193",
+ *                          "5541998839193", "41998839193" }
+ *
+ * Isso permite que admin cadastre o telefone em qualquer um dos formatos
+ * e o match funcione contra qualquer outro formato equivalente.
+ */
+export function phoneVariants(phone: string): Set<string> {
+  const digits = (phone || "").replace(/\D/g, "");
+  const out = new Set<string>();
+  if (!digits) return out;
+  out.add(digits);
+
+  // Versão sem DDI 55 (Brasil)
+  let stripped = digits;
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith("55")) {
+    stripped = digits.substring(2);
+    out.add(stripped);
+  }
+
+  // Variantes com/sem o "9" obrigatório do celular brasileiro
+  if (stripped.length === 11) {
+    // Formato com 9 (DDD + 9 + 8 dígitos): gera variante sem o 9
+    const ddd = stripped.substring(0, 2);
+    const rest = stripped.substring(2);
+    if (rest.startsWith("9")) {
+      out.add(ddd + rest.substring(1)); // 10 dígitos
+    }
+  } else if (stripped.length === 10) {
+    // Formato sem 9 (DDD + 8 dígitos): gera variante com o 9 obrigatório
+    // (só faz sentido pra celulares antigos; pra fixo é falso positivo
+    // inofensivo porque admin controla a whitelist)
+    const ddd = stripped.substring(0, 2);
+    const rest = stripped.substring(2);
+    out.add(ddd + "9" + rest); // 11 dígitos
+  }
+
+  // Adiciona versão COM DDI 55 pra cada variante BR
+  for (const v of Array.from(out)) {
+    if (v.length === 10 || v.length === 11) {
+      out.add("55" + v);
+    }
+  }
+
+  return out;
+}
+
 export function isPhoneInWhitelist(
   phone: string,
   whitelist: string[] | null,
 ): boolean {
   if (!whitelist || whitelist.length === 0) return true; // sem whitelist = todos permitidos
-  const normalized = normalizePhone(phone);
-  return whitelist.some((w) => normalizePhone(w) === normalized);
+  const phoneSet = phoneVariants(phone);
+  for (const w of whitelist) {
+    const wSet = phoneVariants(w);
+    for (const v of phoneSet) {
+      if (wSet.has(v)) return true;
+    }
+  }
+  return false;
 }
 
 // ============================================================================
