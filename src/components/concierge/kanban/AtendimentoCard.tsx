@@ -73,6 +73,19 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
   // criado num sub-card, queremos a viagem real, não "Sub-card: alteração X".
   const tituloViagem = item.root_card_titulo ?? item.card_titulo
   const pessoaPrincipalNome = item.root_pessoa_principal_nome ?? item.pessoa_principal_nome
+  const viagemInicio = item.root_data_viagem_inicio ?? item.data_viagem_inicio
+  const viagemFim = item.root_data_viagem_fim ?? item.data_viagem_fim
+  const fmtDia = (iso: string | null | undefined) =>
+    iso ? new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : null
+  const viagemInicioLabel = fmtDia(viagemInicio)
+  const viagemFimLabel = fmtDia(viagemFim)
+  const viagemLabel = viagemInicioLabel && viagemFimLabel
+    ? `${viagemInicioLabel} – ${viagemFimLabel}`
+    : viagemInicioLabel
+      ? viagemInicioLabel
+      : viagemFimLabel
+        ? `até ${viagemFimLabel}`
+        : null
   // Sempre mostra a pill da categoria — confirma classificação visual mesmo
   // quando o título da tarefa repete o nome da categoria (ex: "Check-in").
   const showCatPill = !!catLabel
@@ -256,11 +269,11 @@ export function AtendimentoCard({ item, onClick, isOverlay = false, selected = f
             </div>
           ) : <div />}
 
-          {item.dias_pra_embarque != null && (
+          {viagemLabel && (
             <div className="min-w-0 text-center">
-              <div className="text-[9.5px] text-slate-400 uppercase tracking-wide leading-none">Embarque</div>
+              <div className="text-[9.5px] text-slate-400 uppercase tracking-wide leading-none">Viagem</div>
               <div className="font-mono font-semibold text-[11px] text-slate-700 mt-0.5">
-                {item.dias_pra_embarque < 0 ? `+${-item.dias_pra_embarque}d` : `${item.dias_pra_embarque}d`}
+                {viagemLabel}
               </div>
             </div>
           )}
