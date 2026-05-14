@@ -12,6 +12,11 @@ export interface NPSKpis {
     detractors: number
 }
 
+export interface NPSPeriod {
+    start: Date | null
+    end: Date | null
+}
+
 function computeNps(scores: number[]): {
     npsScore: number
     promoters: number
@@ -26,27 +31,38 @@ function computeNps(scores: number[]): {
     return { npsScore, promoters, passives, detractors }
 }
 
-export function useNPSKpis() {
+export function useNPSKpis(period: NPSPeriod = { start: null, end: null }) {
     const { org } = useOrg()
     const activeOrgId = org?.id
+    const startIso = period.start?.toISOString() ?? null
+    const endIso = period.end?.toISOString() ?? null
 
     return useQuery<NPSKpis>({
-        queryKey: ['nps-kpis', activeOrgId],
+        queryKey: ['nps-kpis', activeOrgId, startIso, endIso],
         queryFn: async () => {
             if (!activeOrgId) {
                 return { sent: 0, responded: 0, responseRate: 0, npsScore: null, promoters: 0, passives: 0, detractors: 0 }
             }
 
-            const [sentResult, responsesResult] = await Promise.all([
-                supabase
-                    .from('nps_surveys' as never)
-                    .select('id', { count: 'exact', head: true })
-                    .eq('org_id', activeOrgId),
-                supabase
-                    .from('nps_responses' as never)
-                    .select('score')
-                    .eq('org_id', activeOrgId),
-            ])
+            let surveysQuery = supabase
+                .from('nps_surveys' as never)
+                .select('id', { count: 'exact', head: true })
+                .eq('org_id', activeOrgId)
+            let responsesQuery = supabase
+                .from('nps_responses' as never)
+                .select('score')
+                .eq('org_id', activeOrgId)
+
+            if (startIso) {
+                surveysQuery = surveysQuery.gte('sent_at', startIso)
+                responsesQuery = responsesQuery.gte('responded_at', startIso)
+            }
+            if (endIso) {
+                surveysQuery = surveysQuery.lt('sent_at', endIso)
+                responsesQuery = responsesQuery.lt('responded_at', endIso)
+            }
+
+            const [sentResult, responsesResult] = await Promise.all([surveysQuery, responsesQuery])
 
             if (sentResult.error) throw sentResult.error
             if (responsesResult.error) throw responsesResult.error

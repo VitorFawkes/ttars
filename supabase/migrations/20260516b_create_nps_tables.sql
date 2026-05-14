@@ -48,15 +48,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS uniq_nps_surveys_source_external
 -- Tabela 2: nps_responses (resposta recebida)
 -- ------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.nps_responses (
-  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  survey_id    UUID NOT NULL REFERENCES public.nps_surveys(id) ON DELETE CASCADE,
-  org_id       UUID NOT NULL DEFAULT requesting_org_id() REFERENCES public.organizations(id) ON DELETE CASCADE,
-  card_id      UUID REFERENCES public.cards(id) ON DELETE CASCADE,
-  score        INT  NOT NULL CHECK (score BETWEEN 0 AND 10),
-  comment      TEXT,
-  responded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  raw_payload  JSONB DEFAULT '{}'::jsonb,
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  survey_id       UUID NOT NULL REFERENCES public.nps_surveys(id) ON DELETE CASCADE,
+  org_id          UUID NOT NULL DEFAULT requesting_org_id() REFERENCES public.organizations(id) ON DELETE CASCADE,
+  card_id         UUID REFERENCES public.cards(id) ON DELETE CASCADE,
+  score           INT  NOT NULL CHECK (score BETWEEN 0 AND 10),
+  comment         TEXT,
+  proximo_destino TEXT,
+  responded_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  raw_payload     JSONB DEFAULT '{}'::jsonb,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_nps_response_per_survey ON public.nps_responses(survey_id);

@@ -1,11 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useOrg } from '@/contexts/OrgContext'
+import type { NPSPeriod } from './useNPSKpis'
 
 export interface NPSResponseRow {
     id: string
     score: number
     comment: string | null
+    proximo_destino: string | null
     responded_at: string
     card_id: string | null
     card_titulo: string | null
@@ -18,6 +20,7 @@ interface RawRow {
     id: string
     score: number
     comment: string | null
+    proximo_destino: string | null
     responded_at: string
     card_id: string | null
     raw_payload: { original_name?: string; proximo_destino?: string } | null
@@ -28,21 +31,27 @@ interface RawRow {
     } | null
 }
 
-export function useNPSResponses(limit = 200) {
+export function useNPSResponses(
+    period: NPSPeriod = { start: null, end: null },
+    limit = 500,
+) {
     const { org } = useOrg()
     const activeOrgId = org?.id
+    const startIso = period.start?.toISOString() ?? null
+    const endIso = period.end?.toISOString() ?? null
 
     return useQuery<NPSResponseRow[]>({
-        queryKey: ['nps-responses', activeOrgId, limit],
+        queryKey: ['nps-responses', activeOrgId, startIso, endIso, limit],
         queryFn: async () => {
             if (!activeOrgId) return []
 
-            const { data, error } = await supabase
+            let query = supabase
                 .from('nps_responses' as never)
                 .select(`
                     id,
                     score,
                     comment,
+                    proximo_destino,
                     responded_at,
                     card_id,
                     raw_payload,
@@ -56,6 +65,11 @@ export function useNPSResponses(limit = 200) {
                 .order('responded_at', { ascending: false })
                 .limit(limit)
 
+            if (startIso) query = query.gte('responded_at', startIso)
+            if (endIso) query = query.lt('responded_at', endIso)
+
+            const { data, error } = await query
+
             if (error) throw error
 
             return ((data as unknown as RawRow[]) ?? []).map((row) => {
@@ -67,6 +81,7 @@ export function useNPSResponses(limit = 200) {
                     id: row.id,
                     score: row.score,
                     comment: row.comment,
+                    proximo_destino: row.proximo_destino ?? row.raw_payload?.proximo_destino ?? null,
                     responded_at: row.responded_at,
                     card_id: row.card_id,
                     card_titulo: row.cards?.titulo ?? null,
