@@ -79,9 +79,10 @@ Deno.serve(async (req) => {
 
   const isDrain = (body as { _drain?: boolean })._drain === true;
 
-  // Patricia aceita TEXT, ÁUDIO (Whisper), IMAGEM (Vision gpt-5.1) e DOCUMENTO (file API gpt-5.1).
-  // Outros tipos (sticker, location, contact_card, etc) ainda são descartados.
-  const allowedTypes = new Set(["text", "audio", "image", "document"]);
+  // Patricia aceita TEXT, ÁUDIO (Whisper), IMAGEM (Vision gpt-5.1), DOCUMENTO (file API)
+  // e STICKER (Vision via WebP — WhatsApp envia sticker como imagem WebP).
+  // Outros tipos (location, contact_card, video, etc) ainda são descartados.
+  const allowedTypes = new Set(["text", "audio", "image", "document", "sticker"]);
   if (body.message_type && !allowedTypes.has(body.message_type)) {
     console.log(`[v2] message_type=${body.message_type} ignorado (não suportado)`);
     return jsonResponse({
@@ -294,11 +295,13 @@ Deno.serve(async (req) => {
         const mt = r.message_type || "text";
         if (mt === "text") {
           if (r.message_text && r.message_text.trim().length > 0) segments.push(r.message_text);
-        } else if (r.media_url && (mt === "audio" || mt === "image" || mt === "document")) {
+        } else if (r.media_url && (mt === "audio" || mt === "image" || mt === "document" || mt === "sticker")) {
+          // Sticker tem path próprio em processMediaToText (WebP via Vision,
+          // fallback neutro "[lead reagiu com um sticker]" quando falha).
           const processed = await processMediaToText(mt, r.media_url, OPENAI_API_KEY, mmConfig);
           if (processed) segments.push(processed);
         } else {
-          segments.push(`[lead enviou ${mt} — conteúdo não processado]`);
+          segments.push(`[lead enviou ${mt}]`);
         }
       }
       const combined = segments.join("\n");

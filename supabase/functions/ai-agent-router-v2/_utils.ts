@@ -982,10 +982,18 @@ export async function processMediaToText(
   if (!mediaUrl) return "";
   if (!apiKey) return `[${messageType} recebido — processamento indisponível]`;
 
-  // Respeitar toggle do agent (se admin desligou processamento de algum tipo)
+  // Sticker é WebP — usa mesmo path do image (OpenAI Vision aceita WebP).
+  // Mensagens de fallback são NEUTRAS (descrevem a ação do lead, não erro
+  // técnico) pra Patricia responder com naturalidade quando Vision falha.
+  const isSticker = messageType === "sticker";
+
+  // Respeitar toggle do agent (se admin desligou processamento de algum tipo).
+  // Sticker reusa o toggle de image — ambos são imagens.
   if (multimodalConfig) {
     if (messageType === "audio" && multimodalConfig.audio === false) return `[áudio recebido — processamento desabilitado pelo admin]`;
-    if (messageType === "image" && multimodalConfig.image === false) return `[imagem recebida — processamento desabilitado pelo admin]`;
+    if ((messageType === "image" || isSticker) && multimodalConfig.image === false) {
+      return isSticker ? `[lead reagiu com um sticker]` : `[imagem recebida — processamento desabilitado pelo admin]`;
+    }
     if (messageType === "document" && multimodalConfig.pdf === false) return `[documento recebido — processamento desabilitado pelo admin]`;
   }
 
@@ -995,8 +1003,13 @@ export async function processMediaToText(
       const text = await transcribeAudio(base64, mimeType, apiKey);
       return text ? `[transcrição de áudio]: ${text}` : `[áudio recebido — sem fala detectada]`;
     }
-    if (messageType === "image") {
+    if (messageType === "image" || isSticker) {
       const text = await analyzeImage(base64, mimeType, apiKey);
+      if (isSticker) {
+        // Sticker → fallback NEUTRO se Vision não conseguiu descrever.
+        // Patricia responde naturalmente sem soar como erro técnico.
+        return text ? `[descrição do sticker]: ${text}` : `[lead reagiu com um sticker]`;
+      }
       return text ? `[análise de imagem]: ${text}` : `[imagem recebida — não consegui descrever]`;
     }
     if (messageType === "document") {
@@ -1006,6 +1019,8 @@ export async function processMediaToText(
     return `[${messageType} recebido — tipo não suportado]`;
   } catch (err) {
     console.error(`[processMediaToText] erro processando ${messageType}:`, err);
+    // Sticker: fallback NEUTRO mesmo no catch (rede caiu, Giphy 403, etc).
+    if (isSticker) return `[lead reagiu com um sticker]`;
     return `[${messageType} recebido — falha no processamento]`;
   }
 }
