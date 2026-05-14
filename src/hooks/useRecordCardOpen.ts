@@ -30,8 +30,10 @@ export function useRecordCardOpen(cardId: string | undefined) {
                     return
                 }
                 // Se criou alertas novos, invalida notifications pra mostrar no sininho
+                // e card-alerts pra exibir o overlay/widget na tela do card
                 if (data?.alerts_triggered && data.alerts_triggered > 0) {
                     queryClient.invalidateQueries({ queryKey: ['notifications', user.id] })
+                    queryClient.invalidateQueries({ queryKey: ['card-alerts', cardId] })
                 }
             })
     }, [cardId, user?.id, queryClient])

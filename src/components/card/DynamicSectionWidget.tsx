@@ -429,8 +429,26 @@ function CollapsibleWidgetSection({ section, card, lockedPhaseSlug }: Collapsibl
     const cwsPipelineId = useProductPipelineId(card.produto)
     const { isSectionCollapsed: isStageCollapsed } = useStageSectionConfig(cwsPipelineId)
     const stageCollapsed = isStageCollapsed(card.pipeline_stage_id as string, section.key)
-    const [isExpanded, setIsExpanded] = useState(!(stageCollapsed || section.default_collapsed))
-    const onToggleCollapse = useCallback(() => setIsExpanded(prev => !prev), [])
+
+    // Unread alerts count for alertas collapsed bar
+    const isAlertas = section.widget_component === 'alertas'
+    const { unreadCount: alertUnread = 0 } = useCardAlerts(isAlertas ? card.id! : undefined)
+
+    // Estado base e regra de "auto-expandir quando tem alerta não lido"
+    const baseExpanded = !(stageCollapsed || section.default_collapsed)
+    const forceExpand = isAlertas && alertUnread > 0
+
+    // User override por card: enquanto o usuário ficar no mesmo card, vale o último toggle dele.
+    // Ao trocar de card (card.id muda), o override deixa de bater e voltamos pra regra automática.
+    const [userOverride, setUserOverride] = useState<{ cardId: string | null; expanded: boolean } | null>(null)
+    const overrideActive = userOverride && userOverride.cardId === (card.id ?? null)
+    const isExpanded = overrideActive ? userOverride!.expanded : (forceExpand || baseExpanded)
+    const setIsExpanded = useCallback((value: boolean) => {
+        setUserOverride({ cardId: card.id ?? null, expanded: value })
+    }, [card.id])
+    const onToggleCollapse = useCallback(() => {
+        setUserOverride({ cardId: card.id ?? null, expanded: !isExpanded })
+    }, [card.id, isExpanded])
 
     // Obs count for financeiro collapsed bar (shares React Query cache with FinanceiroWidget)
     const isFinanceiro = section.widget_component === 'financeiro'
@@ -448,10 +466,6 @@ function CollapsibleWidgetSection({ section, card, lockedPhaseSlug }: Collapsibl
         enabled: isFinanceiro && !isExpanded,
         select: (items: { observacoes: string | null }[]) => items.filter(i => i.observacoes).length,
     })
-
-    // Unread alerts count for alertas collapsed bar
-    const isAlertas = section.widget_component === 'alertas'
-    const { unreadCount: alertUnread = 0 } = useCardAlerts(isAlertas ? card.id! : undefined)
 
     if (!isExpanded) {
         let extras: React.ReactNode | undefined
