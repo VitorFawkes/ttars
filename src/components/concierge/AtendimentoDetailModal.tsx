@@ -79,6 +79,17 @@ function limparRascunhoObs(atendimentoId: string | undefined): void {
   escreverRascunhoObs(atendimentoId, '')
 }
 
+// Trata strings DATE (ex: "2026-05-15" ou "2026-05-15T...") como meia-noite
+// LOCAL, não UTC. Sem isso, browsers em UTC-3 leem "2026-05-15" como
+// 14/05 21:00 BR e tudo derivado fica off-by-one.
+function parseLocalDate(iso: string | null | undefined): Date | null {
+  if (!iso) return null
+  const datePart = iso.slice(0, 10)
+  const [y, m, d] = datePart.split('-').map(Number)
+  if (!y || !m || !d) return null
+  return new Date(y, m - 1, d)
+}
+
 function dateInputToIso(value: string): string | null {
   if (!value) return null
   const d = new Date(`${value}T09:00:00`)
@@ -1005,11 +1016,33 @@ function ViagemBlock({ item, onClose }: { item: MeuDiaItem; onClose: () => void 
   const valorEstimado  = item.root_valor_estimado     ?? item.card_valor_estimado
   const valor          = valorFinal ?? valorEstimado
 
-  // dias_pra_embarque é derivado de data_viagem_inicio na view — quando
-  // recalcular vale a pena fazer client-side a partir da data raiz.
-  const diasPraEmbarque = dataInicio
-    ? Math.floor((new Date(dataInicio).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-    : null
+  // Datas de viagem vêm como DATE puro do banco ("2026-05-15"). new Date(...)
+  // disso interpreta como UTC midnight, o que em UTC-3 vira o dia anterior às
+  // 21h — causa off-by-one tanto no display quanto na contagem de dias.
+  // Tratar como meia-noite LOCAL resolve.
+  const inicioLocal = parseLocalDate(dataInicio)
+  const fimLocal = parseLocalDate(dataFim)
+  const hojeLocal = new Date()
+  hojeLocal.setHours(0, 0, 0, 0)
+
+  // Status em 3 fases comparando por DIA (não instante). Quando dataFim é null
+  // e a viagem já começou, assume "em_viagem" (conservador — não dá pra afirmar
+  // volta).
+  let viagemStatus: 'antes' | 'em_viagem' | 'depois' | null = null
+  let viagemDias = 0
+  if (inicioLocal) {
+    const diasParaInicio = Math.round((inicioLocal.getTime() - hojeLocal.getTime()) / 86_400_000)
+    const diasDesdeFim = fimLocal ? Math.round((hojeLocal.getTime() - fimLocal.getTime()) / 86_400_000) : null
+    if (diasParaInicio > 0) {
+      viagemStatus = 'antes'
+      viagemDias = diasParaInicio
+    } else if (diasDesdeFim != null && diasDesdeFim > 0) {
+      viagemStatus = 'depois'
+      viagemDias = diasDesdeFim
+    } else {
+      viagemStatus = 'em_viagem'
+    }
+  }
 
   return (
     <div className="bg-indigo-50/40 border border-indigo-100 rounded-lg overflow-hidden">
@@ -1029,28 +1062,28 @@ function ViagemBlock({ item, onClose }: { item: MeuDiaItem; onClose: () => void 
         <div className="font-semibold text-slate-900 leading-snug">{cardTitulo}</div>
         <div className="flex items-center gap-x-3 gap-y-1 text-[12.5px] text-slate-700 flex-wrap">
           <span className="font-mono uppercase tracking-wide text-[11px] text-slate-500">{produto?.toUpperCase()}</span>
-          {dataInicio && (
+          {inicioLocal && (
             <span className="inline-flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-slate-400" />
               <span className="font-mono">
-                {new Date(dataInicio).toLocaleDateString('pt-BR')}
-                {dataFim && ` – ${new Date(dataFim).toLocaleDateString('pt-BR')}`}
+                {inicioLocal.toLocaleDateString('pt-BR')}
+                {fimLocal && ` – ${fimLocal.toLocaleDateString('pt-BR')}`}
               </span>
             </span>
           )}
-          {diasPraEmbarque !== null && (
+          {viagemStatus && (
             <span className={cn(
               'inline-flex items-center px-2 py-0.5 rounded font-mono text-[11.5px] font-semibold',
-              diasPraEmbarque < 0 ? 'bg-slate-100 text-slate-600' :
-              diasPraEmbarque <= 2 ? 'bg-red-50 text-red-700' :
-              diasPraEmbarque <= 7 ? 'bg-amber-50 text-amber-700' :
-              'bg-slate-50 text-slate-600'
+              viagemStatus === 'em_viagem' ? 'bg-emerald-50 text-emerald-700' :
+              viagemStatus === 'depois'    ? 'bg-slate-100 text-slate-600' :
+              viagemDias <= 2              ? 'bg-red-50 text-red-700' :
+              viagemDias <= 7              ? 'bg-amber-50 text-amber-700' :
+                                             'bg-slate-50 text-slate-600'
             )}>
-              {diasPraEmbarque < 0
-                ? `Já voltou há ${-diasPraEmbarque}d`
-                : diasPraEmbarque === 0
-                ? 'Embarca hoje'
-                : `Embarca em ${diasPraEmbarque}d`}
+              {viagemStatus === 'em_viagem' ? 'Em viagem'
+                : viagemStatus === 'depois' ? `Já voltou há ${viagemDias}d`
+                : viagemDias === 0          ? 'Embarca hoje'
+                :                             `Embarca em ${viagemDias}d`}
             </span>
           )}
           {valor != null && valor > 0 && (

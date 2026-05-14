@@ -161,6 +161,15 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
     )
     const [selectedAtendimento, setSelectedAtendimento] = useState<MeuDiaItem | null>(null)
 
+    // Ressincroniza o snapshot do atendimento aberto quando a query refetcha
+    // (ex: após editar título/descrição direto pelo modal). Sem isso, o modal
+    // mostra o item congelado no momento do click e exige F5.
+    useEffect(() => {
+        if (!selectedAtendimento) return
+        const fresh = atendimentos?.find(a => a.tarefa_id === selectedAtendimento.tarefa_id)
+        if (fresh && fresh !== selectedAtendimento) setSelectedAtendimento(fresh)
+    }, [atendimentos, selectedAtendimento])
+
     // Realtime: invalidar lista de atendimentos quando algo muda no concierge
     // deste card OU dos sub-cards (quando estamos no principal).
     useEffect(() => {

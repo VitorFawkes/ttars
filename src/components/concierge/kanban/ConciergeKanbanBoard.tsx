@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react'
+import { useState, useRef, useMemo, useEffect } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -41,6 +41,15 @@ export function ConciergeKanbanBoard({ filters, mostrarChecklists = true }: Conc
   const [pendingEncerrar, setPendingEncerrar] = useState<KanbanTarefaItem | null>(null)
   const [pendingBulkEncerrar, setPendingBulkEncerrar] = useState<KanbanTarefaItem[] | null>(null)
   const [pendingEstocar, setPendingEstocar] = useState<KanbanTarefaItem | null>(null)
+
+  // Ressincroniza o snapshot de `selected` quando a query refetcha (ex: após
+  // editar título/descrição). Sem isso, o modal mostra o item congelado no
+  // momento do click e exige F5 pra refletir mudanças.
+  useEffect(() => {
+    if (!selected) return
+    const fresh = data?.find(it => it.tarefa_id === selected.tarefa_id)
+    if (fresh && fresh !== selected) setSelected(fresh)
+  }, [data, selected])
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   // Colunas retraídas por default. "Futuro" é estoque (não fluxo ativo) e

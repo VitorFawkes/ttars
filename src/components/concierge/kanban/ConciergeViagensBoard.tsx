@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Loader2, Plane } from 'lucide-react'
 import { useHorizontalScroll } from '../../../hooks/useHorizontalScroll'
 import { useKanbanViagens, type KanbanViagensFilters, type ViagemKanbanItem } from '../../../hooks/concierge/useKanbanViagens'
@@ -16,6 +16,15 @@ export function ConciergeViagensBoard({ filters }: ConciergeViagensBoardProps) {
   const { groupedByStage, visibleColumns, isLoading, data } = useKanbanViagens(filters)
   const [selectedViagem, setSelectedViagem] = useState<ViagemKanbanItem | null>(null)
   const [selectedTask, setSelectedTask] = useState<MeuDiaItem | null>(null)
+
+  // Ressincroniza o snapshot do task aberto quando a query refetcha. As tasks
+  // vivem dentro de `viagem.abertos` — varrer todas viagens. Sem isso, editar
+  // título/descrição no modal só reflete na UI após F5.
+  useEffect(() => {
+    if (!selectedTask) return
+    const fresh = data?.flatMap(v => v.abertos).find(t => t.tarefa_id === selectedTask.tarefa_id)
+    if (fresh && fresh !== selectedTask) setSelectedTask(fresh)
+  }, [data, selectedTask])
 
   const containerRef = useRef<HTMLDivElement>(null)
   const { showLeftArrow, showRightArrow, scrollLeft, scrollRight } = useHorizontalScroll(containerRef, {
