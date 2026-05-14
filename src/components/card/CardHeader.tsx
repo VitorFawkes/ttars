@@ -57,6 +57,7 @@ import { useArchiveCard } from '../../hooks/useArchiveCard'
 import { SdrQualificationSheet } from '../sdr-qualification/SdrQualificationSheet'
 import { Target, CheckCircle2 } from 'lucide-react'
 import FieldConfirmationModal from './FieldConfirmationModal'
+import CardFinancialKpiBar from './CardFinancialKpiBar'
 import AutoMergeOnMoveModal from './AutoMergeOnMoveModal'
 import { detectAutoMergePreflight, type AutoMergePreflightInfo } from '../../hooks/useAutoMergePreflight'
 import { useStageFieldConfirmations, type StageFieldConfirmation } from '../../hooks/useStageFieldConfirmations'
@@ -1439,6 +1440,9 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                     </div>
                 </div>
 
+                {/* Faixa financeira: 4 KPIs (Orçamento Previsto, Fechado, Falta, Receita) */}
+                <CardFinancialKpiBar card={card} />
+
                 {/* Main Content: Title & Actions */}
                 <div className="px-4 py-1.5 flex flex-col gap-1.5">
                     {/* Row 1: Title + Status Actions */}
@@ -1698,8 +1702,12 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                                 </>
                             )}
 
-                            {/* Value - Always show when data exists */}
+                            {/* Value - escondido em TRIPS com orçamento (CardFinancialKpiBar cuida) */}
                             {(() => {
+                                const valorEstimado = Number(card.valor_estimado) || 0
+                                const isTripsCard = card.produto === 'TRIPS' || !card.produto
+                                if (isTripsCard && valorEstimado > 0) return null
+
                                 // Parse both produto_data and briefing_inicial - priority to produto_data
                                 const productData = (typeof card.produto_data === 'string' ? JSON.parse(card.produto_data || '{}') : card.produto_data || {}) as TripsProdutoData
                                 const briefingData = (typeof card.briefing_inicial === 'string' ? JSON.parse(card.briefing_inicial || '{}') : card.briefing_inicial || {}) as TripsProdutoData
@@ -1775,8 +1783,8 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                                 return null
                             })()}
 
-                            {/* Receita - Visível para todos */}
-                            {card.receita != null && (
+                            {/* Receita - escondido em TRIPS com orçamento (CardFinancialKpiBar cuida) */}
+                            {card.receita != null && !((card.produto === 'TRIPS' || !card.produto) && (Number(card.valor_estimado) || 0) > 0) && (
                                 <>
                                     <div className="h-3.5 w-px bg-gray-300" />
                                     <div

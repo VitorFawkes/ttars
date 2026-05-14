@@ -9,6 +9,7 @@ import { useAutoCalcTripDate } from '@/hooks/useAutoCalcTripDate'
 import { useFinancialItemPassengers } from '@/hooks/useFinancialItemPassengers'
 import { useDeleteFinancialItem } from '@/hooks/useDeleteFinancialItem'
 import type { FinancialItemPassenger } from '@/hooks/useFinancialItemPassengers'
+import { useCardFinancialSummary, type FinancialItem } from '@/hooks/useCardFinancialSummary'
 import type { Database } from '@/database.types'
 
 type Card = Database['public']['Tables']['cards']['Row']
@@ -56,23 +57,6 @@ function useCardPhaseInfo(stageId: string | null): CardPhaseInfo {
 const formatBRL = (value: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 
-interface FinancialItem {
-    id: string
-    description: string | null
-    sale_value: number
-    supplier_cost: number
-    is_ready: boolean
-    notes: string | null
-    fornecedor: string | null
-    representante: string | null
-    documento: string | null
-    data_inicio: string | null
-    data_fim: string | null
-    observacoes: string | null
-    last_change_summary: string | null
-    last_change_at: string | null
-}
-
 export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCollapse }: FinanceiroWidgetProps) {
     const { slug: phaseSlug, isTerminalPhase } = useCardPhaseInfo(card.pipeline_stage_id)
     // Terminal phases (e.g. Pós-Venda, Resolução) are in execution mode — use isTerminalPhase from DB,
@@ -94,38 +78,12 @@ export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCol
         }
     }
 
-    const { data: items = [], isLoading } = useQuery({
-        queryKey: ['financial-items', cardId],
-        queryFn: async () => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data, error } = await (supabase.from('card_financial_items') as any)
-                .select('id, description, sale_value, supplier_cost, is_ready, notes, fornecedor, representante, documento, data_inicio, data_fim, observacoes, last_change_summary, last_change_at')
-                .eq('card_id', cardId)
-                .is('archived_at', null)
-                .order('created_at')
-            if (error) throw error
-            return (data || []) as FinancialItem[]
-        },
-        enabled: !!cardId,
-    })
-
-    const totalVenda = items.reduce((sum, i) => sum + (Number(i.sale_value) || 0), 0)
-    const totalReceita = items.reduce((sum, i) => {
-        const sv = Number(i.sale_value) || 0
-        const sc = Number(i.supplier_cost) || 0
-        return sum + (sv - sc)
-    }, 0)
-    const marginPercent = totalVenda > 0 ? (totalReceita / totalVenda) * 100 : 0
-    const readyCount = items.filter(i => i.is_ready).length
-    const obsCount = items.filter(i => i.observacoes).length
-
-    // Comparativo Previsto vs Fechado — só faz sentido quando o card já tem Orçamento
-    // Previsto (campo obrigatório a partir da etapa "Proposta Enviada" pra TRIPS).
-    // valor_estimado é sincronizado automaticamente de produto_data.orcamento via
-    // mutation em TripInformation.tsx.
-    const valorPrevisto = Number(card.valor_estimado) || 0
-    const showComparativo = valorPrevisto > 0
-    const delta = totalVenda - valorPrevisto
+    const summary = useCardFinancialSummary(cardId, card)
+    const { items, isLoading, readyCount, obsCount } = summary
+    const totalVenda = summary.fechado
+    const valorPrevisto = summary.orcamentoPrevisto
+    const showComparativo = summary.hasOrcamento
+    const delta = -summary.falta
     const percentAtingido = valorPrevisto > 0
         ? Math.min((totalVenda / valorPrevisto) * 100, 100)
         : 0
@@ -253,12 +211,12 @@ export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCol
                                         Venda <span className="font-semibold text-gray-900">{formatBRL(totalVenda)}</span>
                                     </span>
                                     <span className="text-gray-500">
-                                        Receita <span className={cn("font-semibold", totalReceita >= 0 ? "text-emerald-600" : "text-red-600")}>{formatBRL(totalReceita)}</span>
+                                        Receita <span className={cn("font-semibold", summary.receitaFechada >= 0 ? "text-emerald-600" : "text-red-600")}>{formatBRL(summary.receitaFechada)}</span>
                                     </span>
                                     {totalVenda > 0 && (
                                         <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
                                             <TrendingUp className="h-3 w-3" />
-                                            {marginPercent.toFixed(0)}%
+                                            {summary.marginPercent.toFixed(0)}%
                                         </span>
                                     )}
                                 </div>
