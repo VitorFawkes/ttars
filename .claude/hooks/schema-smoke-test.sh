@@ -339,6 +339,23 @@ if [ "$STAGING_MODE" = "false" ]; then
   fi
 fi
 
+# ── NPS feature (nps_surveys + nps_responses) ──
+# Tabelas criadas em 20260516b_create_nps_tables.sql. Aba /nps no sidebar
+# depende destas tabelas para listar pesquisas enviadas e respostas recebidas.
+NPS_CHECK=$(curl -s -o /dev/null -w "%{http_code}" \
+  "${URL}/rest/v1/nps_surveys?select=id&limit=1" \
+  -H "apikey: ${ANON}" \
+  -H "Authorization: Bearer ${KEY}" \
+  --max-time 10)
+
+if [ "$NPS_CHECK" = "200" ] || [ "$NPS_CHECK" = "206" ]; then
+  test_query "nps_surveys table" \
+    "nps_surveys?select=id,org_id,card_id,contact_id,channel,token,sent_at&limit=1"
+
+  test_query "nps_responses table" \
+    "nps_responses?select=id,survey_id,org_id,card_id,score,comment,responded_at&limit=1"
+fi
+
 # ── M1: Travel Planner tables (só após promoção para produção) ──
 # Detectar se viagens existe antes de testar todo o grupo
 VIAGENS_CHECK=$(curl -s -o /dev/null -w "%{http_code}" \

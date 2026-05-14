@@ -51,6 +51,7 @@ import SLAView from './pages/analytics-new/SLAView'
 import ExplorarPage from './pages/analytics-new/ExplorarPage'
 import CalendarPage from './pages/CalendarPage'
 import Tasks from './pages/Tasks'
+import NPSPage from './pages/NPSPage'
 import ReactivationPage from './pages/ReactivationPage'
 import PontuacoesPage from './pages/sdr/PontuacoesPage'
 import ConciergeLayout from './pages/concierge/ConciergeLayout'
@@ -255,6 +256,7 @@ function App() {
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/proposals" element={<ProposalsPage />} />
                   <Route path="/reactivation" element={<ReactivationPage />} />
+                  <Route path="/nps" element={<NPSPage />} />
                   <Route path="/sdr/pontuacoes" element={<PontuacoesPage />} />
                   <Route path="/concierge" element={<ConciergeLayout />}>
                     <Route index element={<KanbanPage />} />

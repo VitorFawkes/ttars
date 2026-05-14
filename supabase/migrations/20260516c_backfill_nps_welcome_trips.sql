@@ -1,0 +1,371 @@
+-- ============================================================================
+-- MIGRATION: backfill NPS responses (Welcome Trips) — Forms histórico
+-- Date: 2026-05-14
+--
+-- Importa 201 respostas históricas do formulário "Avaliando sua
+-- experiência Welcome Trips" coletadas entre dez/2024 e 31/mar/2026.
+--
+-- Comportamento:
+--   • Toda linha é inserida (mesmo sem card vinculado).
+--   • Tenta matching por nome normalizado (lower + unaccent + trim + colapsa
+--     espaços) contra cards de Welcome Trips → contatos (pessoa_principal_id).
+--   • Empate: pega o card mais recente (created_at DESC).
+--   • Sem match: card_id e contact_id ficam NULL; org_id é Welcome Trips
+--     mesmo assim. UI renderiza essas linhas como "Sem card vinculado".
+--
+-- Idempotência: ON CONFLICT (source_external_id) DO NOTHING. Rodar 2x = mesma
+-- coisa que 1x.
+--
+-- Channel = 'form' (formulário externo, não disparado pelo CRM).
+-- ============================================================================
+
+BEGIN;
+
+CREATE EXTENSION IF NOT EXISTS unaccent;
+
+DO $$
+DECLARE
+  v_org_id        UUID;
+  v_matched_count INT := 0;
+  v_unlinked_count INT := 0;
+  r_row           RECORD;
+  v_card_id       UUID;
+  v_contact_id    UUID;
+  v_survey_id     UUID;
+BEGIN
+  SELECT id INTO v_org_id FROM public.organizations WHERE slug = 'welcome-trips' LIMIT 1;
+  IF v_org_id IS NULL THEN
+    RAISE NOTICE 'Welcome Trips org não encontrada — backfill abortado';
+    RETURN;
+  END IF;
+
+  FOR r_row IN
+    WITH source (source_external_id, responded_at, full_name, score, comment, raw_payload) AS (
+      VALUES
+  ('forms_welcome_trips_1', TIMESTAMPTZ '2024-12-06 13:07:40', 'Carine Cardoso', 10, 'Teste', '{"original_name": "Carine Cardoso", "proximo_destino": "Teste"}'::jsonb),
+  ('forms_welcome_trips_3', TIMESTAMPTZ '2025-01-10 17:15:04', 'Marcelo Gregio de Aveiro', 10, 'Fui muito bem atendido.', '{"original_name": "Marcelo Gregio de Aveiro", "proximo_destino": "Ainda não sei. Como usamos esses dados?"}'::jsonb),
+  ('forms_welcome_trips_4', TIMESTAMPTZ '2025-01-10 17:21:25', 'Ana Julia Bertollo Poiani', 10, 'Sem palavras pra expressar o quanto vocês foram essenciais pra nossa viagem dar certo! Mudamos todo o roteiro sem custo adicional e foi maravilhoso! Todo o suporte durante a viagem nos fez sentir super seguros e os hoteis foram maravilhosos!! Ainda tivemos um voo cancelado e remarcamos um tour sem problemas. Único ponto importante para viagens futuras: nos enviaram impressos o application do visto indiano, mas o correto deveria ter sido o visto mesmo. Imprimimos no aeroporto mesmo e deu certo, mas só fica esse ponto de atenção pras próximas', '{"original_name": "Ana Julia Bertollo Poiani", "proximo_destino": "Fiji"}'::jsonb),
+  ('forms_welcome_trips_5', TIMESTAMPTZ '2025-01-10 17:25:35', 'Fernanda Cristina Sanchez Machado', 10, 'Nossa experiência com vocês foi maravilhosa .
+Correu tudo certinho 😉', '{"original_name": "Fernanda Cristina Sanchez Machado", "proximo_destino": "Inglaterra"}'::jsonb),
+  ('forms_welcome_trips_6', TIMESTAMPTZ '2025-01-10 20:34:42', 'Maria Goreti Rudolfo Hang', 10, 'Tudo maravilhoso, ótimas indicações de hotel. E o transfer na hora certa é muito educados, o aplicativo é maravilhoso. Parabéns  a todos', '{"original_name": "Maria Goreti Rudolfo Hang"}'::jsonb),
+  ('forms_welcome_trips_7', TIMESTAMPTZ '2025-01-10 23:11:02', 'Tamara Zugman Knopfholz', 10, NULL, '{"original_name": "Tamara Zugman Knopfholz"}'::jsonb),
+  ('forms_welcome_trips_8', TIMESTAMPTZ '2025-01-11 00:37:18', 'Tiago Abdul Hak', 10, 'Excelente', '{"original_name": "Tiago Abdul Hak", "proximo_destino": "Atacama"}'::jsonb),
+  ('forms_welcome_trips_9', TIMESTAMPTZ '2025-01-11 09:42:11', 'Luciane Maria Schmaedecke Güntzel', 10, 'Sempre muito satisfeita com o atendimento da agência. Dani muito querida e prestativa.', '{"original_name": "Luciane Maria Schmaedecke Güntzel", "proximo_destino": "Suíça"}'::jsonb),
+  ('forms_welcome_trips_10', TIMESTAMPTZ '2025-01-14 10:15:48', 'Marcia Burgel', 10, 'Deu tudo certo, única coisa poderiam dar mais tempo para o Transfer, qdo chegamos em Orlando tínhamos 45 min. para pegar e como atrasou o voo e também a entrega de bagagem perdemos o Transfer e tivemos que pagar um outro para levarmos no hotel.', '{"original_name": "Marcia Burgel", "proximo_destino": "Cruzeiro Antártida"}'::jsonb),
+  ('forms_welcome_trips_11', TIMESTAMPTZ '2025-01-14 15:29:36', 'Janaina Adamo de Andrade', 10, 'Oiee sou a Jana, passando para agradecer a toda equipe tivemos ótimo atendimento e suporte! Em especial a Dani não mediu esforços para que tudo desse certo! Gratidão a todos 🙏🏻😘', '{"original_name": "Janaina Adamo de Andrade", "proximo_destino": "Itália, Portugal, Orlando"}'::jsonb),
+  ('forms_welcome_trips_12', TIMESTAMPTZ '2025-01-31 16:25:03', 'Leonardo Weihermann', 10, 'Ótimo atendimento, sistema AXUS muito bom. Fui atendido pela Júlia que foi muito prestativa e simpática. Nota 1000!', '{"original_name": "Leonardo Weihermann"}'::jsonb),
+  ('forms_welcome_trips_13', TIMESTAMPTZ '2025-01-31 17:36:38', 'Maria Regina Tenório de Souza Calado', 10, 'Muito boa. Não tivemos nenhum contratempo.Aina', '{"original_name": "Maria Regina Tenório de Souza Calado", "proximo_destino": "Ainda não pensei."}'::jsonb),
+  ('forms_welcome_trips_14', TIMESTAMPTZ '2025-02-01 22:02:59', 'Carla Miranda Rosa', 7, 'O pré vendas foi maravilhoso, a Camila foi espetacular e toda a parte de organização da viagem me deixou encantada, mas tivemos problemas de cancelamento de voo e também da minha mãe não conseguir embarcar por não ter levado o passaporte com o visto e senti um pouco de falta de acolhimento neste momento de stress e tensão. Durante a viagem a agência nos apoiou com a remarcação do hotel para não perdermos a diária ( o que foi ótimo) mas não tivemos acompanhamento se os voos de volta estavam certo e acabamos tendo que resolver o problema do cancelamento e remarcação sozinhos e acabamos tendo assentos todos separados em quase todos os voos,
+fora a perda total do valor investido na viagem da minha mãe sem sequer alguma tentativa de reembolso junto a Cia Aérea ou ao Hotel.', '{"original_name": "Carla Miranda Rosa", "proximo_destino": "Maldivas e Dubai"}'::jsonb),
+  ('forms_welcome_trips_15', TIMESTAMPTZ '2025-02-21 17:46:30', 'Elizabeth Santos', 10, 'Agência muito boa com boa agente de viagem Bárbara', '{"original_name": "Elizabeth Santos"}'::jsonb),
+  ('forms_welcome_trips_16', TIMESTAMPTZ '2025-02-21 17:54:09', 'Wander Jesus', 9, 'A experiência foi muito boa! Superou as expectativas! 
+Um ponto de melhoria é o acompanhamento e suporte quando estamos na viagem!', '{"original_name": "Wander Jesus"}'::jsonb),
+  ('forms_welcome_trips_17', TIMESTAMPTZ '2025-02-21 17:57:40', 'Roberta pires', 10, 'São super atenciosas, tiraram todas as nossas dúvidas e fizeram indicações de vários lugares!', '{"original_name": "Roberta pires", "proximo_destino": "Ainda não sei"}'::jsonb),
+  ('forms_welcome_trips_18', TIMESTAMPTZ '2025-02-21 18:56:17', 'Marco Mendia', 6, 'Já viajei varias vezes com a Welcome Trips, porém essa vez não foi uma experiência 100%', '{"original_name": "Marco Mendia", "proximo_destino": "Estados Unidos em setembro/25"}'::jsonb),
+  ('forms_welcome_trips_19', TIMESTAMPTZ '2025-02-21 19:42:11', 'Carolina Schlachta Parreira da Silva', 10, 'Tudo perfeito!', '{"original_name": "Carolina Schlachta Parreira da Silva"}'::jsonb),
+  ('forms_welcome_trips_20', TIMESTAMPTZ '2025-02-21 22:18:36', 'Eduardo Rodrigues', 10, 'Foi maravilhoso, meu voo, estadia , passeios, uma experiência incrível, obrigado!', '{"original_name": "Eduardo Rodrigues", "proximo_destino": "Indonesia"}'::jsonb),
+  ('forms_welcome_trips_21', TIMESTAMPTZ '2025-02-22 10:33:51', 'Agata Rebeca Alves Cordeiro', 10, 'Fomos super bem atendidas pela Barbara. Desde o início ela entendeu direitinho como queríamos que fosse nossa viagem e ela trouxe opções ótimas que super atenderam nossas expectativas. Não temos nenhuma crítica mesmo, pois tudo ocorreu da melhor maneira possível. Ficamos encantadas com o carinho de vocês antes e depois da viagem! Foi minha terceira vez viajando com a Welcome e já estamos pensando para onde iremos ano que vem com vocês de novo.', '{"original_name": "Agata Rebeca Alves Cordeiro", "proximo_destino": "África ou Finlândia."}'::jsonb),
+  ('forms_welcome_trips_22', TIMESTAMPTZ '2025-02-22 15:57:54', 'Vania Paula Winnikes Bunick', 10, 'Foi tudo perfeito!', '{"original_name": "Vania Paula Winnikes Bunick", "proximo_destino": "Ainda não definido"}'::jsonb),
+  ('forms_welcome_trips_23', TIMESTAMPTZ '2025-02-22 23:54:16', 'Raquel Pires Sasaki', 10, 'Que experiência incrível! ✨ Das águas cristalinas das Maldivas ao luxo e grandiosidade de Dubai, cada instante dessa viagem foi inesquecível! 🏝️🏙️ Sou imensamente grata à @welcometrips por todo o cuidado e dedicação em cada detalhe, transformando esse sonho em realidade! Já contando os dias para a próxima aventura! ✈️💙 #Maldivas #Dubai #WelcomeTrips #ViagemInesquecível', '{"original_name": "Raquel Pires Sasaki", "proximo_destino": "Ainda estou analisando"}'::jsonb),
+  ('forms_welcome_trips_24', TIMESTAMPTZ '2025-02-24 20:07:34', 'Margareth Teixeira Grochevits', 10, 'Vocês estão de parabéns, muitos atenciosas!', '{"original_name": "Margareth Teixeira Grochevits"}'::jsonb),
+  ('forms_welcome_trips_25', TIMESTAMPTZ '2025-03-24 13:20:48', 'Carine', 10, 'Teste', '{"original_name": "Carine", "proximo_destino": "Teste"}'::jsonb),
+  ('forms_welcome_trips_26', TIMESTAMPTZ '2025-03-28 06:49:00', 'Claudio José Barros de Carvalho', 10, 'Gostamos muito', '{"original_name": "Claudio José Barros de Carvalho", "proximo_destino": "Ainda não decidimos"}'::jsonb),
+  ('forms_welcome_trips_27', TIMESTAMPTZ '2025-04-01 06:40:56', 'Maria Helena Venetikides Durigan', 10, 'Tudo 10', '{"original_name": "Maria Helena Venetikides Durigan"}'::jsonb),
+  ('forms_welcome_trips_28', TIMESTAMPTZ '2025-04-01 06:55:04', 'Leandro Cavallim', 10, 'Exceptional', '{"original_name": "Leandro Cavallim", "proximo_destino": "Europa ou Australia"}'::jsonb),
+  ('forms_welcome_trips_29', TIMESTAMPTZ '2025-04-01 11:11:29', 'SUELI TERESINHA MORAES MUNIZ DA SILVA', 10, 'Ótimo, e recebemos  o maior  da Camila', '{"original_name": "SUELI TERESINHA MORAES MUNIZ DA SILVA", "proximo_destino": "México"}'::jsonb),
+  ('forms_welcome_trips_30', TIMESTAMPTZ '2025-04-02 06:29:33', 'Diego Alves da Cruz', 10, 'Foi simplesmente incrível, todos os hotéis reservado foram sensacionais, pensado em cada detalhe, não sofremos nada em nenhuma hospedagem ou vôo, tudo que queríamos foi considerado e feito da melhor forma para que tivéssemos a melhor experiência possível, vocês realmente conseguiriam isso e eu deixo aqui o meu agradecimento especial para a Barbara que foi sensacional em tudo, pensando em todos os detalhes para que a nossa lua de mel fosse incrível.', '{"original_name": "Diego Alves da Cruz", "proximo_destino": "Queremos ir para a África, ficamos com isso na cabeça de conhecer melhor os países de lá, fazer um safari com as crianças. Este será o nosso próximo destino 🙏"}'::jsonb),
+  ('forms_welcome_trips_31', TIMESTAMPTZ '2025-04-02 06:29:33', 'Diego Alves da Cruz', 10, 'Foi simplesmente incrível, todos os hotéis reservado foram sensacionais, pensado em cada detalhe, não sofremos nada em nenhuma hospedagem ou vôo, tudo que queríamos foi considerado e feito da melhor forma para que tivéssemos a melhor experiência possível, vocês realmente conseguiriam isso e eu deixo aqui o meu agradecimento especial para a Barbara que foi sensacional em tudo, pensando em todos os detalhes para que a nossa lua de mel fosse incrível.', '{"original_name": "Diego Alves da Cruz", "proximo_destino": "Queremos ir para a África, ficamos com isso na cabeça de conhecer melhor os países de lá, fazer um safari com as crianças. Este será o nosso próximo destino 🙏"}'::jsonb),
+  ('forms_welcome_trips_32', TIMESTAMPTZ '2025-04-02 19:36:47', 'Juliana Santana', 10, NULL, '{"original_name": "Juliana Santana", "proximo_destino": "França"}'::jsonb),
+  ('forms_welcome_trips_33', TIMESTAMPTZ '2025-04-02 20:09:54', 'Ludimila fernandes', 9, 'Foi incrível! A Camila faz um trabalho fantástico
+Já estamos sonhando com nossa próxima viagem', '{"original_name": "Ludimila fernandes", "proximo_destino": "Vamos em setembro para o Canadá! Mas quero mto ir para África do Sul com a welcome trips"}'::jsonb),
+  ('forms_welcome_trips_34', TIMESTAMPTZ '2025-04-02 20:22:29', 'Lucia Massutti de Almeida', 10, 'Conheci através de uns amigos.', '{"original_name": "Lucia Massutti de Almeida", "proximo_destino": "Buenos Aires é Mendoza"}'::jsonb),
+  ('forms_welcome_trips_35', TIMESTAMPTZ '2025-04-02 20:39:12', 'Danniela Terleski dos Santos', 10, 'Atendimento de excelência da Bárbara. Simpatia, experiente, disponível para sanar dúvidas, me auxiliando da melhor forma! Adorei!', '{"original_name": "Danniela Terleski dos Santos", "proximo_destino": "Ushuaia"}'::jsonb),
+  ('forms_welcome_trips_36', TIMESTAMPTZ '2025-04-02 21:59:48', 'Franciele Bonato Muraro', 10, 'A experiência de maneira geral foi muito boa, dando destaque ao atendimento da Barbara. Infelizmente tivemos alguns imprevistos em nossa viagem, e ela prontamente se mobilizou a nos ajudar.', '{"original_name": "Franciele Bonato Muraro", "proximo_destino": "Fernando de Noronha"}'::jsonb),
+  ('forms_welcome_trips_37', TIMESTAMPTZ '2025-04-03 09:40:23', 'Jefferson Straube', 10, 'Equipe dinâmica e eficiente. Fui muito bem atendido pela Bárbara, que me auxiliou com excelência em todas as etapas, demonstrando conhecimento e profissionalismo. Por tudo, lhes somos gratos.', '{"original_name": "Jefferson Straube", "proximo_destino": "Itália."}'::jsonb),
+  ('forms_welcome_trips_38', TIMESTAMPTZ '2025-04-03 19:26:37', 'Tiago', 10, 'sensacional', '{"original_name": "Tiago", "proximo_destino": "Atacama"}'::jsonb),
+  ('forms_welcome_trips_39', TIMESTAMPTZ '2025-04-07 15:45:09', 'Sabrina Araujo de Souza', 9, 'Não é a primeira vez que viajo com a Welcome, a experiência no geral é sempre boa. Tivemos um imprevisto com as passagens de Dublin - Milão, acabou que precisamos do plantão pq foi em um final de semana e isso acarretou em um certo estresse. Precisei provar que eu estava certa inúmeras vezes mesmo em viagem, no meio da minha programação. Mas no final deu tudo certo.', '{"original_name": "Sabrina Araujo de Souza", "proximo_destino": "San Andres!"}'::jsonb),
+  ('forms_welcome_trips_40', TIMESTAMPTZ '2025-04-07 19:13:35', 'Sidnei Jorge Hee', 9, 'Como primeira experiência, satisfatória.', '{"original_name": "Sidnei Jorge Hee", "proximo_destino": "Nada previsto."}'::jsonb),
+  ('forms_welcome_trips_41', TIMESTAMPTZ '2025-04-14 20:06:35', 'Marina lada dantas da silvas', 8, NULL, '{"original_name": "Marina lada dantas da silvas", "proximo_destino": "Algum destino para ver neve final do ano!"}'::jsonb),
+  ('forms_welcome_trips_42', TIMESTAMPTZ '2025-04-15 09:37:30', 'Arthur Pequito Dias', 10, 'Sempre muito bem atendido pela Mavi e pelo Tiago. Nada a reclamar.', '{"original_name": "Arthur Pequito Dias", "proximo_destino": "Chile"}'::jsonb),
+  ('forms_welcome_trips_43', TIMESTAMPTZ '2025-04-15 19:20:32', 'Mariangela Giacon', 10, 'Viagem ótima', '{"original_name": "Mariangela Giacon", "proximo_destino": "Ainda nada"}'::jsonb),
+  ('forms_welcome_trips_44', TIMESTAMPTZ '2025-04-16 19:13:58', 'Ana Helena Pereira Gracher', 10, 'Todo o atendimento foi ótimo,  inclusive o suporte quando tivemos que alterar o itinerário por causa do atraso do voo. Mesmo sendo final de semana a Ju foi super atenciosa.', '{"original_name": "Ana Helena Pereira Gracher"}'::jsonb),
+  ('forms_welcome_trips_45', TIMESTAMPTZ '2025-04-16 19:52:18', 'Alfredo Sciarra Neto', 10, 'Atenderam todas as minhas expectativas, não tive nenhuma dificuldade durante a viagem', '{"original_name": "Alfredo Sciarra Neto", "proximo_destino": "Europa"}'::jsonb),
+  ('forms_welcome_trips_46', TIMESTAMPTZ '2025-04-17 09:13:24', 'Luísa WOLPE', 10, 'Foi ótima', '{"original_name": "Luísa WOLPE", "proximo_destino": "Atacama"}'::jsonb),
+  ('forms_welcome_trips_47', TIMESTAMPTZ '2025-04-17 22:11:39', 'Paula de Leao', 10, NULL, '{"original_name": "Paula de Leao", "proximo_destino": "ainda não sei ao certo, mas gostaria de fazer um cruzeiro"}'::jsonb),
+  ('forms_welcome_trips_48', TIMESTAMPTZ '2025-04-22 00:09:02', 'Mariana Dzierwa Martins', 10, 'A viagem foi maravilhosa! Os hotéis, passeios, guias, transfer, tudo foi perfeito! Adoramos o Peru, a viagem realmente nos surpreendeu!', '{"original_name": "Mariana Dzierwa Martins"}'::jsonb),
+  ('forms_welcome_trips_49', TIMESTAMPTZ '2025-04-22 08:52:31', 'Paula bonet khury', 10, 'Maravilhosa! 
+Hotel e passeios perfeitos para a família !!', '{"original_name": "Paula bonet khury", "proximo_destino": "Sem previsão"}'::jsonb),
+  ('forms_welcome_trips_50', TIMESTAMPTZ '2025-04-22 11:00:31', 'Vanimar Nery da Silva Junior', 10, 'Muito boa experiência, desde o início.
+Sempre muito atenciosos.
+Me ajudaram a planejar uma lua-de-mel perfeita.', '{"original_name": "Vanimar Nery da Silva Junior"}'::jsonb),
+  ('forms_welcome_trips_51', TIMESTAMPTZ '2025-05-02 23:07:44', 'Fernanda Bzuneck Jardim', 7, 'O atendimento inicial foi atencioso, mas os dois requisitos da hospedagem não foram observados (tinha pedido com café da manhã e de frente para o mar). Quanto ao café foi resolvido, mas em nenhum momento foi mencionado que o hotel ficava a uma quadra do mar. Senti falta de comunicação da agência, desejando boa viagem. Também não houve qualquer mensagem de boas-vindas no hotel. Ninguém entrou em contato para confirmar se havíamos chegado ou como foi a estadia. Recebi essa mensagem de avaliação somente 45 dias depois que voltamos. Confesso que me decepcionei bastante com a postura da agência no pós-venda do pacote.', '{"original_name": "Fernanda Bzuneck Jardim"}'::jsonb),
+  ('forms_welcome_trips_52', TIMESTAMPTZ '2025-05-06 22:54:34', 'Maria Fernanda Belloni Costa', 10, 'Maravilhosa! Experiência incrível, amamos!', '{"original_name": "Maria Fernanda Belloni Costa", "proximo_destino": "Albania, Montenegro e Sardenha em julho. Teremos viagens curtas pelo Brasil antes."}'::jsonb),
+  ('forms_welcome_trips_53', TIMESTAMPTZ '2025-05-08 06:10:11', 'Janete Batista Stolarczki Kurten', 10, 'Foi tudo ótimo e muito organizado.
+Fomos bem recebidos e auxiliados, desde a chegada no aeroporto até o retorno pra casa.
+Os guias nos passeios foram muito atencioso e prestativos.
+Translado sempre pontual.
+Para mim foi tudo perfeito.', '{"original_name": "Janete Batista Stolarczki Kurten", "proximo_destino": "Ainda não sei..."}'::jsonb),
+  ('forms_welcome_trips_54', TIMESTAMPTZ '2025-05-08 20:13:33', 'Tiago Abdul Hak', 10, 'Sensacional', '{"original_name": "Tiago Abdul Hak", "proximo_destino": "África do Sul"}'::jsonb),
+  ('forms_welcome_trips_55', TIMESTAMPTZ '2025-05-09 12:07:39', 'luciana aparecida simões da costa', 10, 'gostaria de agradescer toda a equipe principalmente a Daniela ela é fora de comum sempre pronta para nos dar apoio em tudo  em qualquer horário vocês são formidáveis', '{"original_name": "luciana aparecida simões da costa", "proximo_destino": "Londres"}'::jsonb),
+  ('forms_welcome_trips_56', TIMESTAMPTZ '2025-05-12 15:48:13', 'Luiz Perin', 9, NULL, '{"original_name": "Luiz Perin", "proximo_destino": "EUA"}'::jsonb),
+  ('forms_welcome_trips_57', TIMESTAMPTZ '2025-05-15 19:48:30', 'Marise Prosdocimo Izique', 9, 'Tudo certo! Todas as informações quer precise encountered no aplicativo', '{"original_name": "Marise Prosdocimo Izique", "proximo_destino": "Ainda não sei"}'::jsonb),
+  ('forms_welcome_trips_58', TIMESTAMPTZ '2025-05-22 04:33:26', 'Milene Troccoli', 10, 'Serviços pontuais
+Guia falando português muito gentil e com domínio do local e conteúdo 
+Carro do transfer e Tours poderia melhorar 
+Documentação fácil acesso através do aplicativo', '{"original_name": "Milene Troccoli", "proximo_destino": "Disney"}'::jsonb),
+  ('forms_welcome_trips_59', TIMESTAMPTZ '2025-05-26 19:34:57', 'Luciane Maria Schmaedecke Güntzel', 10, 'Sempre muito satisfeita com a agência. Dani sempre muito atenciosa, Júlia também,  ótimo app. E, estou só pela próxima!!!', '{"original_name": "Luciane Maria Schmaedecke Güntzel", "proximo_destino": "Portugal ou Itália"}'::jsonb),
+  ('forms_welcome_trips_60', TIMESTAMPTZ '2025-05-26 23:00:43', 'Marlene Martins de Souza', 10, 'Desculpe reclamar mas vces estão mal informados qdo perguntei se podia levar chimarão vces falaram que não  mas tinha bastante gente com chimarão  só levar a erva fechada 
+Não gostei qdo vce disseram que nosso pacote terminava sem o transporte pro aeroporto
+Vces demoraram muito pra falar sobre o avião qto ao check-in 
+Qto o restante estava muito bom hotéis maravilhosos café da manhã muito bom 
+Um guia muito eficiente', '{"original_name": "Marlene Martins de Souza", "proximo_destino": "Grécia e Turquia"}'::jsonb),
+  ('forms_welcome_trips_61', TIMESTAMPTZ '2025-05-30 19:52:27', 'Queli Lima', 10, 'Quero agradecer imensamente à WT por toda a atenção e profissionalismo! A agência foi impecável em cada detalhe da nossa viagem para Portugal. O atendimento foi excelente, sempre atenciosos e prontos para ajudar. Recebemos dicas valiosas que fizeram toda a diferença na experiência. Super recomendo a WT, uma agência que realmente se dedica a proporcionar viagens inesquecíveis! ♥️', '{"original_name": "Queli Lima", "proximo_destino": "Paris"}'::jsonb),
+  ('forms_welcome_trips_62', TIMESTAMPTZ '2025-06-02 20:53:32', 'Heloisa Mello Malucelli', 10, 'Excelente. Porém tivemos um probleminha relacionado a locação do carro!', '{"original_name": "Heloisa Mello Malucelli", "proximo_destino": "Não sabemos ainda!"}'::jsonb),
+  ('forms_welcome_trips_63', TIMESTAMPTZ '2025-06-04 19:23:33', 'Eduarda Larissa Garnica Ribeiro', 10, 'Sempre incrível!', '{"original_name": "Eduarda Larissa Garnica Ribeiro"}'::jsonb),
+  ('forms_welcome_trips_64', TIMESTAMPTZ '2025-06-09 13:55:20', 'Geyzimar Camargo', 9, 'Olá, correu tudo bem com a viagem, só como sugestão ter mais opções de hospedagem e locação de veículos mais baratos.
+Só um ponto quanto aos vôos de retorno, eu e minha esposa fomos colocados em acentos separados longe das crianças.', '{"original_name": "Geyzimar Camargo", "proximo_destino": "Itália"}'::jsonb),
+  ('forms_welcome_trips_65', TIMESTAMPTZ '2025-06-09 22:34:19', 'Carina Nalli Pancracio', 10, 'Foi tudo perfeito, desde o momento da ajuda com os passeios até o suporto durante a viagem.
+Trabalho incrível demais. Estão todos de parabéns m.', '{"original_name": "Carina Nalli Pancracio", "proximo_destino": "Argentina"}'::jsonb),
+  ('forms_welcome_trips_66', TIMESTAMPTZ '2025-06-10 06:27:38', 'Carolina Nalli Pancracio', 10, 'Foi tudo perfeito do início ao fim, tivemos suporte tanto no pré e durante a viagem, ocorreu uma intercorrência mas acionamos vocês e foi resolvido muito rápido. Nada a reclamar, só agradecer. O aplicativo é sensacional, muito informativo, todos os documentos estão ali. As mensagens que chegam informando os horários dos voos dos transferes nota 1000.', '{"original_name": "Carolina Nalli Pancracio", "proximo_destino": "Pretendo ir para Argentina, fazer a rota de Buenos Aires e Bariloche no inverno."}'::jsonb),
+  ('forms_welcome_trips_67', TIMESTAMPTZ '2025-06-16 10:06:54', 'Claudio Bergamini Mendes', 10, 'Muito bem atendido e absolutamente tudo na viagem decorreu conforme o planejado, nada saiu do percurso, receptivos sempre dentro da maior pontualidade possivel. Parabéns a toda equipe Welcome Trips em especial para Daniele', '{"original_name": "Claudio Bergamini Mendes", "proximo_destino": "Polinésia Francesa"}'::jsonb),
+  ('forms_welcome_trips_68', TIMESTAMPTZ '2025-07-10 15:26:12', 'Bruno Pasinato', 10, 'Ótima', '{"original_name": "Bruno Pasinato", "proximo_destino": "Chile"}'::jsonb),
+  ('forms_welcome_trips_69', TIMESTAMPTZ '2025-07-10 15:26:24', 'Denny G C Soares', 10, 'Tudo otimo', '{"original_name": "Denny G C Soares", "proximo_destino": "Dubai"}'::jsonb),
+  ('forms_welcome_trips_70', TIMESTAMPTZ '2025-07-10 15:26:56', 'Adriano Patrik Marmaczuk', 10, 'Excelente, só tenho elogios a fazer para a Welcome Trips.', '{"original_name": "Adriano Patrik Marmaczuk", "proximo_destino": "Estou pensando na Grécia ou cruzeiro no Mediterrâneo."}'::jsonb),
+  ('forms_welcome_trips_71', TIMESTAMPTZ '2025-07-10 16:31:33', 'Célia de Laras Ballarotti', 10, 'Ótimo
+Atendimento, tenho confiança na Simone que me atende.', '{"original_name": "Célia de Laras Ballarotti", "proximo_destino": "Itália."}'::jsonb),
+  ('forms_welcome_trips_72', TIMESTAMPTZ '2025-07-10 16:43:50', 'Lislane Dequech  Dequech Imóveis', 10, 'Agência extremamente organizado e muito gentil no atendimento. 
+Parabéns !', '{"original_name": "Lislane Dequech  Dequech Imóveis", "proximo_destino": "Tailândia !"}'::jsonb),
+  ('forms_welcome_trips_73', TIMESTAMPTZ '2025-07-10 16:54:39', 'Denise Bernardino', 8, 'Todas as pessoas que me atenderam são extremamente atenciosas e educadas', '{"original_name": "Denise Bernardino", "proximo_destino": "Ainda não sei"}'::jsonb),
+  ('forms_welcome_trips_74', TIMESTAMPTZ '2025-07-14 11:35:57', 'Andreia Parente da Silva', 10, 'Eu amei.. me ajudou muito a curtir o passeio.', '{"original_name": "Andreia Parente da Silva", "proximo_destino": "Ainda não sei"}'::jsonb),
+  ('forms_welcome_trips_75', TIMESTAMPTZ '2025-07-14 19:58:38', 'Eduardo Horai', 7, 'Elogios: Consultora Juliana foi muito prestativa, respondia rápido, e entendeu boa parte dos pedidos que fizemos.
+
+Pontos a melhorar: em várias ocasiões ocorria um mal entendido entre a agência e os prestadores de serviço locais, alguns exemplos:
+1) a comida para a criança que não foi provida da forma que pedimos (e a agência jura que foi feito e confirmado);
+2) pedido do transporte que eram para 4 adultos + 1 criança, mas no app do motorista local apareciam 5 adultos e no final viajamos sem a cadeira da criança.
+3) Confusao com o nome do titular das reservas. Cada reserva em um hotel estava com o nome de um titular diferente. Por exemplo, pedimos um checkout antecipado para o dia da chegada, e como não foi possível, pagamos uma diária a mais. Porém essa reserva a mais, foi feita em no nome diferente dos dias posteriores, e por conta disso o hotel praticamente nos obrigava a fazer checkout às 11h (sendo que havíamos chegado às 8h), e fazer checkin de novo às 15h. Em Sagres, o nome da reserva estava da minha sogra. Muita confusão a toa.
+4) Também acho que a sugestão de hotel em Lisboa poderia ter sido melhor, fomos no automático de ficar na parte mais turística porém era a área mais movimentada e cheia de barulho de turistas indo para a balada/bares a noite, o que perturbou o sono de todos. Dado o perfil da nossa viagem, a consultoria poderia ter nos direcionado melhor proativamente.
+5) cafés da manhã que precisavam ser agendados e confirmamos com a concierge, não estavam definidos no hotel.
+No geral, esperava mais proatividade, e menos erros nesses detalhes que causaram stresses desnecessários, que poderiam ter sido facilmente evitados.
+A agência precisa ser mais proativa, entender mais a fundo o perfil e demanda do cliente.', '{"original_name": "Eduardo Horai"}'::jsonb),
+  ('forms_welcome_trips_76', TIMESTAMPTZ '2025-07-18 19:11:06', 'Alda Maria leite prado Schutz', 10, 'Adorei', '{"original_name": "Alda Maria leite prado Schutz"}'::jsonb),
+  ('forms_welcome_trips_77', TIMESTAMPTZ '2025-07-18 20:44:11', 'Ademir Schultz', 10, 'Muito boa', '{"original_name": "Ademir Schultz", "proximo_destino": "São Luís do Maranhão"}'::jsonb),
+  ('forms_welcome_trips_78', TIMESTAMPTZ '2025-07-22 08:08:35', 'Paulo Adorno Junior', 10, 'Nota 1000, tudo perfeito!', '{"original_name": "Paulo Adorno Junior", "proximo_destino": "Nova York"}'::jsonb),
+  ('forms_welcome_trips_79', TIMESTAMPTZ '2025-07-22 21:16:25', 'Adriana Calgaro', 10, 'Ótima', '{"original_name": "Adriana Calgaro"}'::jsonb),
+  ('forms_welcome_trips_80', TIMESTAMPTZ '2025-07-29 19:55:06', 'Tamara Zugman Knopfholz', 10, 'Adoramos nossa experiência com a welcome! Nossa viagem foi perfeita!', '{"original_name": "Tamara Zugman Knopfholz", "proximo_destino": "Ainda não temos nada em mente…mas em breve surgirá algum!!"}'::jsonb),
+  ('forms_welcome_trips_81', TIMESTAMPTZ '2025-07-30 19:26:29', 'Italo Gusso', 10, 'Total suporte em todo o processo. Desde as escolhas de passagem, check-in, documentos necessários. Orçamentos de hotel, traslados e suporte durante a viagem.', '{"original_name": "Italo Gusso", "proximo_destino": "Portugal."}'::jsonb),
+  ('forms_welcome_trips_82', TIMESTAMPTZ '2025-08-01 11:06:19', 'Eleni de jesus oliveira Rayovicz', 10, 'Foi muito bom', '{"original_name": "Eleni de jesus oliveira Rayovicz", "proximo_destino": "Lençóis maranhense"}'::jsonb),
+  ('forms_welcome_trips_83', TIMESTAMPTZ '2025-08-06 16:53:36', 'Solange Fernandes Lopes', 10, 'Minha família e eu acabamos de retornar de uma viagem maravilhosa pela Itália e pela Croácia, e eu não poderia deixar de agradecer e elogiar o trabalho impecável da equipe da Welcome Trips. Desde o primeiro contato até o final da viagem, tudo foi conduzido com muita atenção, organização e profissionalismo.
+
+Os hotéis reservados eram excelentes e bem localizados, e os roteiros montados por eles foram simplesmente perfeitos: bem planejados, com ótimas sugestões de passeios e restaurantes, experiências autênticas e uma logística muito bem pensada. Cada detalhe foi cuidadosamente alinhado para tornar a nossa viagem fluida, tranquila e inesquecível.
+
+Além disso, o apoio durante toda a viagem foi excepcional. Sempre que precisei, tive retorno rápido, suporte eficiente e soluções ágeis. Isso fez toda a diferença, especialmente em uma viagem internacional, onde contar com alguém de confiança é fundamental.
+
+A Welcome Trips realmente facilitou tudo, nos permitindo aproveitar ao máximo cada momento, sem preocupações. Foi uma experiência maravilhosa, muito acima das expectativas. Recomendo com total confiança e já penso em contar com eles nas nossas próximas aventuras!
+
+Parabéns a toda a equipe pelo excelente trabalho!!', '{"original_name": "Solange Fernandes Lopes", "proximo_destino": "Ainda não sei, mas farei novo contato assim que decidir."}'::jsonb),
+  ('forms_welcome_trips_84', TIMESTAMPTZ '2025-08-09 17:07:34', 'Lanamar Cleusa Pianaro Wolpe', 10, 'Nossa viagem em julho pela Itália,  Croácia,  Grécia e Montenegro foi ótima. 
+Só não foi perfeita, pelo cancelamento do voo de saída de Curitiba. Ocasionado a perda do primeiro dia em Bari.
+A Welcome Trips acompanhou/orientou esses momentos tensos  de negociações com a companhia aérea e  assim, retomamos o roteiro de viagem.', '{"original_name": "Lanamar Cleusa Pianaro Wolpe", "proximo_destino": "Provavelmente voltaremos pra Europa."}'::jsonb),
+  ('forms_welcome_trips_85', TIMESTAMPTZ '2025-08-11 11:23:08', 'Alexis carfantan', 10, 'Atendimento muito bom e boa reatividade', '{"original_name": "Alexis carfantan", "proximo_destino": "França em projeto"}'::jsonb),
+  ('forms_welcome_trips_86', TIMESTAMPTZ '2025-08-14 19:12:20', 'Jessica Mayumi da Silva', 10, 'Sempre muito bem atendida pela Simone e equipe de concierge!!', '{"original_name": "Jessica Mayumi da Silva", "proximo_destino": "Escócia + Londres ou Italia"}'::jsonb),
+  ('forms_welcome_trips_87', TIMESTAMPTZ '2025-08-25 09:49:14', 'Mattia Manicardi', 2, 'Not good.', '{"original_name": "Mattia Manicardi"}'::jsonb),
+  ('forms_welcome_trips_88', TIMESTAMPTZ '2025-08-28 21:37:58', 'Jaqueline Ângela Miranda', 10, 'Já fiz outras viagens pela Welcome Trips, mas essa foi muito especial, pois tive problemas de cancelamento  dos meus voos de volta, pela Air Canadá,  e a Welcome foi muito eficiente ao resolver todos os problemas gerados pelo cancelamento. Fiquei muito feliz e satisfeita com o tratamento que recebi e a diligência com que vcs me trataram. Foi incrível mesmo. Sou muito grata a todos vocês da Welcome Trips 😍', '{"original_name": "Jaqueline Ângela Miranda", "proximo_destino": "Quero planejar algo com meu marido ainda, não nesse momento. Mas certamente irei ano que vem ao Canadá novamente,  pois tenho agora uma netinha lá  🥰"}'::jsonb),
+  ('forms_welcome_trips_89', TIMESTAMPTZ '2025-09-01 19:26:26', 'Simone Rocco', 10, 'Muito satisfatória!', '{"original_name": "Simone Rocco", "proximo_destino": "Qualquer destino com neve"}'::jsonb),
+  ('forms_welcome_trips_90', TIMESTAMPTZ '2025-09-01 19:49:00', 'Edna Sueli Nishino', 10, 'O acompanhamento das meninas, em especial da Cynthya foi muito assertiva e tranquila dando todo suporte necessário para mim', '{"original_name": "Edna Sueli Nishino", "proximo_destino": "Ainda não sei"}'::jsonb),
+  ('forms_welcome_trips_91', TIMESTAMPTZ '2025-09-02 19:12:03', 'Bianca D Puel', 10, 'Super atenciosos!!', '{"original_name": "Bianca D Puel"}'::jsonb),
+  ('forms_welcome_trips_92', TIMESTAMPTZ '2025-09-04 19:27:36', 'LUCIANO DE ALMEIDA', 7, 'Tive alguma dificuldade no inico, com atraso nas respostas no whats, e acabei perdendo o hotel que gostaria de ter ficado, pois qdo responderam a tarifa tinha se alterado.
+Vcs me ofereceream outa opção (Malbec Casa Hotel) que foi muito boa, excelente acomodação, atendimento, etc...', '{"original_name": "LUCIANO DE ALMEIDA", "proximo_destino": "Preparando viagem para Europa em 2026"}'::jsonb),
+  ('forms_welcome_trips_93', TIMESTAMPTZ '2025-09-05 16:23:45', 'Maria Helena Venetikides Durigan', 10, 'ExcepcionalL', '{"original_name": "Maria Helena Venetikides Durigan", "proximo_destino": "Turquia"}'::jsonb),
+  ('forms_welcome_trips_94', TIMESTAMPTZ '2025-09-06 04:40:16', 'Vera Christina Tedeschi', 10, 'Foi ótima, além de nós venderem as passagens, providenciaram nossos chek in e tiraram nossas dúvidas durarem a viagem', '{"original_name": "Vera Christina Tedeschi", "proximo_destino": "Travessia Brasil/ Copenhagem também com vocês"}'::jsonb),
+  ('forms_welcome_trips_95', TIMESTAMPTZ '2025-09-09 12:29:38', 'Carolina Pinheiro Lima Marfara', 10, 'O atendimento foi incrível,  do inicio ao fim, as férias foram maravilhosas. Queria agradecer em especial a Danieli Adamo, que entendeu exatamente o que eu queria e montou uma viagem perfeita!', '{"original_name": "Carolina Pinheiro Lima Marfara", "proximo_destino": "Gramado e Japão, já até falei com a Dani sobre!!"}'::jsonb),
+  ('forms_welcome_trips_96', TIMESTAMPTZ '2025-09-09 19:17:12', 'Igor Renato Lorenz Spinardi Pinto', 10, 'Sem qualquer preocupação com tudo! Bastou indicar o destino, tipo de viagem e gostos que nos foi proporcionado tudo com as facilidades que esperávamos!', '{"original_name": "Igor Renato Lorenz Spinardi Pinto", "proximo_destino": "Nordeste"}'::jsonb),
+  ('forms_welcome_trips_97', TIMESTAMPTZ '2025-09-10 19:17:02', 'Lislane Dequech  Dequech Imóveis', 10, 'Excelente empresa', '{"original_name": "Lislane Dequech  Dequech Imóveis", "proximo_destino": "Tailândia e Vietnã"}'::jsonb),
+  ('forms_welcome_trips_98', TIMESTAMPTZ '2025-09-11 21:02:26', 'Morana Moon Cho', 10, 'Unica , vai ficar marcado para o resto da vida', '{"original_name": "Morana Moon Cho", "proximo_destino": "Club Med"}'::jsonb),
+  ('forms_welcome_trips_99', TIMESTAMPTZ '2025-09-11 21:12:31', 'Jae Ho Lee', 10, 'Experiencia otima! Se preocuparam com todos os detalhes antes , durante e fim da nossa viagem.', '{"original_name": "Jae Ho Lee", "proximo_destino": "nao decidimos ainda"}'::jsonb),
+  ('forms_welcome_trips_100', TIMESTAMPTZ '2025-09-12 12:20:03', 'Mariana Lee', 10, 'Foi incrivel!! Me surpreendi muito com a welcome trips! Voces me ajudaram em todos os processos, nunca me deixaram na mao em nenhum momento! Foi minha primeira viagem que eu organizei, e nao poderia set melhor', '{"original_name": "Mariana Lee", "proximo_destino": "Ainda não sei heheh"}'::jsonb),
+  ('forms_welcome_trips_101', TIMESTAMPTZ '2025-09-13 12:03:43', 'Thais Perrone Pereira da Costa Brianezi', 10, 'Atendimento excelente', '{"original_name": "Thais Perrone Pereira da Costa Brianezi"}'::jsonb),
+  ('forms_welcome_trips_102', TIMESTAMPTZ '2025-09-15 02:51:57', 'Elizabeth Santos', 10, 'Foi ótima!! Tudo certinho sem nenhum imprevisto', '{"original_name": "Elizabeth Santos"}'::jsonb),
+  ('forms_welcome_trips_103', TIMESTAMPTZ '2025-09-16 12:58:45', 'Assione Santos', 10, 'Fomos bem atendidos como sempre.', '{"original_name": "Assione Santos", "proximo_destino": "Alguma cultura diferente, não aguento mais a Europa , museu, igreja etc!!!"}'::jsonb),
+  ('forms_welcome_trips_104', TIMESTAMPTZ '2025-09-16 16:36:13', 'Wellington Jose dos Santos Silva', 10, 'Excelente.', '{"original_name": "Wellington Jose dos Santos Silva"}'::jsonb),
+  ('forms_welcome_trips_105', TIMESTAMPTZ '2025-09-16 19:03:42', 'Eloa Stresser', 10, 'Experiência maravilhosa, super organizado, superou as minhas expectativas.', '{"original_name": "Eloa Stresser", "proximo_destino": "Roma"}'::jsonb),
+  ('forms_welcome_trips_106', TIMESTAMPTZ '2025-09-19 14:38:35', 'Leticia Lechuga Peixer', 10, 'Só tenho elogios do início ao fim. Organizada, atenciosa e dão todo o suporte necessário para que a experiência seja incrível.', '{"original_name": "Leticia Lechuga Peixer"}'::jsonb),
+  ('forms_welcome_trips_107', TIMESTAMPTZ '2025-09-21 17:01:34', 'Naiane Brandt', 10, 'Maravilhosa. Mari sempre muito atenciosa.', '{"original_name": "Naiane Brandt", "proximo_destino": "Patagônia"}'::jsonb),
+  ('forms_welcome_trips_108', TIMESTAMPTZ '2025-09-25 16:40:03', 'Cíntia do Amaral Dezordi Barbato', 10, 'Muito prestativos e atenciosos!', '{"original_name": "Cíntia do Amaral Dezordi Barbato"}'::jsonb),
+  ('forms_welcome_trips_109', TIMESTAMPTZ '2025-09-29 17:24:15', 'BRENDA URBANSKI', 10, 'Foi tudo muito bem organizado, incrível!!', '{"original_name": "BRENDA URBANSKI", "proximo_destino": "Aruba"}'::jsonb),
+  ('forms_welcome_trips_110', TIMESTAMPTZ '2025-09-29 17:56:22', 'Cláudia Lassance Britto Heinze Noleto', 10, 'Essa é a nossa terceira viagem internacional com a Welcome Trips e é muito por conta do excelente atendimento da Juliana, que cuida de tudo nos mínimos detalhes. Ponto de melhoria: fornecedores de transfers', '{"original_name": "Cláudia Lassance Britto Heinze Noleto"}'::jsonb),
+  ('forms_welcome_trips_111', TIMESTAMPTZ '2025-09-29 20:56:49', 'Ricardo de Queiroz Noleto', 9, 'Quase tudo funcionou perfeitamente, exceto por um transfer não executado. Sempre que entramos em contato com a Welcome fomos prontamente atendidos. As reservas de atividades foram impecáveis, a programação foi ótima e o aplicativo foi fundamental para nossa orientação.', '{"original_name": "Ricardo de Queiroz Noleto", "proximo_destino": "Itália"}'::jsonb),
+  ('forms_welcome_trips_112', TIMESTAMPTZ '2025-10-01 16:40:24', 'Caroline Souto de Melo', 10, 'É a segunda vez que viajo com a agência e gostei muito da assistência prestada. Os hotéis, os voos e o roteiro sugeridos foram perfeitos. Além disso, a comunicação durante a viagem, como dúvidas e acesso ao cartão de embarque, foi excelente.', '{"original_name": "Caroline Souto de Melo", "proximo_destino": "Copa do mundo ( quando tiverem os pacotes por favor me avisem)"}'::jsonb),
+  ('forms_welcome_trips_113', TIMESTAMPTZ '2025-10-08 16:38:42', 'Eduardo Lauand Neto', 10, 'Perfeita - tudo 100%', '{"original_name": "Eduardo Lauand Neto", "proximo_destino": "Pensando em ir para geleiras do polo sul - El calafate - terra do fogo"}'::jsonb),
+  ('forms_welcome_trips_114', TIMESTAMPTZ '2025-10-08 17:06:11', 'Luis Eduardo Reda Lauand', 10, 'Foi tudo excelente. Todos nós ficamos muito surpresos com a qualidade do serviço, não consigo pensar em sugestões.', '{"original_name": "Luis Eduardo Reda Lauand", "proximo_destino": "Paraty, RJ"}'::jsonb),
+  ('forms_welcome_trips_115', TIMESTAMPTZ '2025-10-08 17:15:02', 'Rosimeri lago', 10, 'Tive pouco contato pois quem fez tudo foi minha amiga! Mas no que dependeu do atendimento da empresa deu tudo certo! Teve um problema onde foi solucionado e ainda tivemos upgrade o que mostrou o diferencial e comprometimento da empresa com o cliente.', '{"original_name": "Rosimeri lago", "proximo_destino": "Europa"}'::jsonb),
+  ('forms_welcome_trips_116', TIMESTAMPTZ '2025-10-08 17:31:18', 'Tamara Isabela de Carvalho El Sarraf', 10, NULL, '{"original_name": "Tamara Isabela de Carvalho El Sarraf"}'::jsonb),
+  ('forms_welcome_trips_117', TIMESTAMPTZ '2025-10-08 18:10:30', 'Bruna Tocci Gonçalves', 10, 'A viagem foi muito boa, a única questão que não foi tão legal foi o hotel de Istambul que era em uma região meio feia', '{"original_name": "Bruna Tocci Gonçalves"}'::jsonb),
+  ('forms_welcome_trips_118', TIMESTAMPTZ '2025-10-08 18:48:15', 'Fatima Reda Lauand', 10, 'Ficamos muito impressionados com o profissionalismo e organização, não tivemos nenhum tipo de incomodo', '{"original_name": "Fatima Reda Lauand", "proximo_destino": "Estamos querendo ir para Elcalafate e El Chaten em março e também para a Copa do Mundo"}'::jsonb),
+  ('forms_welcome_trips_119', TIMESTAMPTZ '2025-10-09 16:46:12', 'Ademir Tetilla', 10, '10', '{"original_name": "Ademir Tetilla", "proximo_destino": "Mato Grosso do Sul"}'::jsonb),
+  ('forms_welcome_trips_120', TIMESTAMPTZ '2025-10-09 16:58:19', 'Marcia Oechsler Aguiar', 8, 'O restaurante em Morretes deixou a desejar tanto no cardapio como no atendimento. Os demais serviços estavam ok', '{"original_name": "Marcia Oechsler Aguiar"}'::jsonb),
+  ('forms_welcome_trips_121', TIMESTAMPTZ '2025-10-09 17:21:44', 'AIRTON JOSE AGUIAR', 9, 'Organização nota 10 Restaurante em Morretes deixou a desejar.', '{"original_name": "AIRTON JOSE AGUIAR", "proximo_destino": "Países nórdicos"}'::jsonb),
+  ('forms_welcome_trips_122', TIMESTAMPTZ '2025-10-09 18:48:03', 'Iara', 9, 'Muito boa, porém optei por não fazer o percurso em Vila Velha por minha mãe ser idosa e não poder locomover-se a longas distâncias e dificuldades com cadeira de rodas, fiquei sabendo depois que lá disponham de cadeira e rodas', '{"original_name": "Iara", "proximo_destino": "Talvez Italia"}'::jsonb),
+  ('forms_welcome_trips_123', TIMESTAMPTZ '2025-10-09 21:37:21', 'Ana Valeria R Tetilla', 7, 'Ocorreu tudo dentro do previsto e programado.', '{"original_name": "Ana Valeria R Tetilla"}'::jsonb),
+  ('forms_welcome_trips_124', TIMESTAMPTZ '2025-10-11 17:18:57', 'Doris Rosário', 10, NULL, '{"original_name": "Doris Rosário", "proximo_destino": "Adorei a viagem,  o hotel principalmente o horário do café da manhã 6:30, foi ótima,  muito obrigada"}'::jsonb),
+  ('forms_welcome_trips_125', TIMESTAMPTZ '2025-10-14 17:19:24', 'Paula Lorrana Oliveira', 10, 'Tive uma experiência maravilhosa com a welcome trips', '{"original_name": "Paula Lorrana Oliveira"}'::jsonb),
+  ('forms_welcome_trips_126', TIMESTAMPTZ '2025-10-15 10:53:42', 'Leonardo Ieracitano Vieira', 10, 'Tudo certo do meu lado, pessoal. Inicialmente havia desistido da viagem por motivos pessoais e por um desalinhamento entre mim e a primeira consultora. Mas posteriormente, quando tive condições de fazer a viagem, a Mari assumiu meu atendimento. Foi um segundo contato muito cordial e profissional. A viagem ocorreu perfeitamente. Foi minha primeira vez na Europa, a assistência provida foi ímpar. A concierge Sílvia foi sensacional também, sempre disponível. Obrigado e sucesso para a empresa.', '{"original_name": "Leonardo Ieracitano Vieira"}'::jsonb),
+  ('forms_welcome_trips_127', TIMESTAMPTZ '2025-10-15 23:12:03', 'Marcella Cartaxo da Silva Nogara Souza', 10, 'Minha experiência foi excelente, super indico a agência.', '{"original_name": "Marcella Cartaxo da Silva Nogara Souza"}'::jsonb),
+  ('forms_welcome_trips_128', TIMESTAMPTZ '2025-10-16 17:45:38', 'Haroldo Brun Ribeiro', 10, 'Excelente cumpriu tudo que foi combinado sem nenhuma falha super pontual.', '{"original_name": "Haroldo Brun Ribeiro"}'::jsonb),
+  ('forms_welcome_trips_129', TIMESTAMPTZ '2025-10-19 16:43:27', 'Lislane Dequech  Dequech Imóveis', 10, 'Foram extremamente profissionais , em
+Todos os detalhes, atenciosos, sempre prontos em auxiliar no decorrer da viagem.', '{"original_name": "Lislane Dequech  Dequech Imóveis", "proximo_destino": "África"}'::jsonb),
+  ('forms_welcome_trips_130', TIMESTAMPTZ '2025-10-25 11:29:46', 'Juliany Oliveira', 10, 'A viagem foi perfeita! Ficamos extremamente felizes com o suporte e todas as mensagens que recebemos nos hotéis quando chegávamos😍', '{"original_name": "Juliany Oliveira", "proximo_destino": "Pensamos em Bora Bora, mas não por agora ainda"}'::jsonb),
+  ('forms_welcome_trips_131', TIMESTAMPTZ '2025-10-27 10:07:18', 'Celia Ballarotti', 10, 'Foi ótima!', '{"original_name": "Celia Ballarotti", "proximo_destino": "Ainda não pensamos sobre isso."}'::jsonb),
+  ('forms_welcome_trips_132', TIMESTAMPTZ '2025-10-29 09:18:52', 'Andrea Sabatella Rodriguez', 10, 'Apenas faltou enviar os embarques do retorno pelo sistema . Mariana me passou qdo solicitei', '{"original_name": "Andrea Sabatella Rodriguez", "proximo_destino": "Europa em julho 2026 ( Itália/Londres )"}'::jsonb),
+  ('forms_welcome_trips_133', TIMESTAMPTZ '2025-10-29 16:54:35', 'Claudia couto straub', 10, 'Exelente', '{"original_name": "Claudia couto straub", "proximo_destino": "Talvez um resort"}'::jsonb),
+  ('forms_welcome_trips_134', TIMESTAMPTZ '2025-10-30 08:24:14', 'Doroti de Fátima Camargo Pires', 10, 'Foi maravilhoso, principalmente a companhia da Michely que nos deu todo apoio.', '{"original_name": "Doroti de Fátima Camargo Pires", "proximo_destino": "Hawaii"}'::jsonb),
+  ('forms_welcome_trips_135', TIMESTAMPTZ '2025-10-31 11:04:15', 'Andréia Machado Straub', 10, NULL, '{"original_name": "Andréia Machado Straub"}'::jsonb),
+  ('forms_welcome_trips_136', TIMESTAMPTZ '2025-10-31 17:31:16', 'Carmen Luiza Triaca Bez', 10, 'Passo kkkkk', '{"original_name": "Carmen Luiza Triaca Bez", "proximo_destino": "Croácia"}'::jsonb),
+  ('forms_welcome_trips_137', TIMESTAMPTZ '2025-11-05 18:50:46', 'Paula de Leao', 10, 'muito boa', '{"original_name": "Paula de Leao", "proximo_destino": "Amsterdan"}'::jsonb),
+  ('forms_welcome_trips_138', TIMESTAMPTZ '2025-11-10 11:57:38', 'Ana Carolina Ferreira Ratin', 8, 'Transfers ótimos e seguros. Guia de KUSADASI/ PAMULAKE/ Éfeso- simplesmente perfeito, educado, preocupado em passar o conhecimento, respeitando o nosso tempo e as vontades, salvou a viagem depois da péssima experiência na capadocia.  Guia de Istanbul bom, mas parecia que estava sempre com pressa. Sequer nos ofereceu a possibilidade de conhecer as CISTERNAS. Ficamos sabendo que tínhamos passado pelo Local das cisternas no outro dia apenas. Nos levou no mercado de especiarias bem cedo o que foi ótimo pois estava bem vazio. Guia da Capadócia horrível, parecia que estava odiando estar ali, ficou bravo pois ele era CURDO e não turco ( como se soubéssemos sobre a richa deles). Não explicava quase nada, não nos acompanhou durante o trajeto com um - se quiserem podem entrar aonde quiserem. Pedimos para ver as lojinhas na saída do goreme e ele nao nos deixou ver os artesanatos que tinham lá . Nos pressionando pra ir embora logo. Depois foi sarcástico que fomos nos artesanatos ( tapetes e cerâmicas) - CAROS- e não levamos nada. Além disso quando falamos que queríamos levar souvenirs nos levou em uma loja horrível na saída da cidade subterrânea e disse “ ué não é isso q vcs queriam” “ encheram tanto o saco pra não comprar nada “ Além disso tivemos o problema da falta de planejamento dos horários de voos na Capadócia o que nos impediu de fazer o balão no segundo dia( que teve voo de balão)  e que poderia muito bem terem colocado um voo pro período da tarde para mais esse tentativa do passeio. Pareceu muito que a empresa não quis se esforçar pois não fechamos o passeio de balão com eles e por terem nos colocado junto com um outro grupo de brasileiros ( roteiro muito semelhante de todos) para economizar em transfer até o aeroporto ( que era em outra cidade ) . Nos dispostos a mudar o voo transfere etc pra ter a experiência do balão e a empresa não foi nem um pouco receptiva. Para ele somos apenas mais UM. Ficaram falando da previsão do tempo e que não ia dar certo.Não se importaram com o sonho de viver aquela experiência, ou de no mínimo não levarem pra ver os balões saírem, sei lá. Foi muito triste .', '{"original_name": "Ana Carolina Ferreira Ratin", "proximo_destino": "Talvez Portugal"}'::jsonb),
+  ('forms_welcome_trips_139', TIMESTAMPTZ '2025-11-10 12:55:05', 'André Medeiros de Mello Nisihara', 10, 'Foi tudo ótimo, super atenciosos e prestativos, nos ajudaram em todas as etapas da viagem, desde a busca por voos e passeios, até detalhes simples.', '{"original_name": "André Medeiros de Mello Nisihara"}'::jsonb),
+  ('forms_welcome_trips_140', TIMESTAMPTZ '2025-11-16 18:54:47', 'Ricardo Antônio Kachuko Iacovenko Junior', 10, 'Equipe maravilhosa! Profissionais dedicados e atenciosos durante todo o processo da viagem! Parabéns!', '{"original_name": "Ricardo Antônio Kachuko Iacovenko Junior", "proximo_destino": "Londres"}'::jsonb),
+  ('forms_welcome_trips_141', TIMESTAMPTZ '2025-11-19 16:12:28', 'Elis Novochadlo Kluppel', 10, 'Foi otimo!', '{"original_name": "Elis Novochadlo Kluppel"}'::jsonb),
+  ('forms_welcome_trips_142', TIMESTAMPTZ '2025-11-26 18:48:22', 'Silvia hara', 10, 'Encantadora.', '{"original_name": "Silvia hara", "proximo_destino": "Curacao"}'::jsonb),
+  ('forms_welcome_trips_143', TIMESTAMPTZ '2025-11-27 19:28:47', 'Lilian Nishino', 10, 'uma experiência ótima, muito cuidadosa', '{"original_name": "Lilian Nishino"}'::jsonb),
+  ('forms_welcome_trips_144', TIMESTAMPTZ '2025-12-01 15:51:57', 'Luiz Carlos Adamo', 10, 'Fantástica , super recomendo, a Agente de viagem DANIELE , foi muito gentil , uma profissional competente, atenciosa , nós tirou todas as dúvidas , ficamos muito feliz em termos sido atendido por ela. 
+
+Já recomendei a Daniele para meu grupo de amigos. 
+
+Parabéns Welcome por ter essa profissional super competente em seu quadro de funcionários.', '{"original_name": "Luiz Carlos Adamo", "proximo_destino": "Maragogi -  AL"}'::jsonb),
+  ('forms_welcome_trips_145', TIMESTAMPTZ '2026-01-08 15:11:54', 'André Luis Coutinho', 10, 'Espetacular! Só aproveitei a viagem, vcs cuidaram de tudo.', '{"original_name": "André Luis Coutinho"}'::jsonb),
+  ('forms_welcome_trips_146', TIMESTAMPTZ '2026-01-08 15:12:43', 'Jeanette Marly Cardoso', 10, 'Foi tudo conforme previsto,Mariana e Cyntia,nota 1000', '{"original_name": "Jeanette Marly Cardoso", "proximo_destino": "Ainda não sei"}'::jsonb),
+  ('forms_welcome_trips_147', TIMESTAMPTZ '2026-01-08 15:29:54', 'Beatriz Menz Gusso', 0, 'A atendente (Daniele) foi péssima. Não nos respondia direito, fez a reserva errada dos quartos e não resolveu a situação ou sequer assumiu a culpa/responsabilidade. No quarto que eu estava era para caber três pessoas, e só tinha uma cama de casal e um sofá!! Isso mesmo, um SOFÁ. Nem um sofá-cama era! Meu irmão que estava no quarto teve que passar todos os dias dormindo no sofá, situação inaceitável!!!!! Tirando que somente o check-in da nossa família não foi feito sob argumento de que “não dava por ter uma menor de idade”. No entanto, a outra família do nosso grupo de viagem tinha DOIS menores e ela conseguiu fazer (?). A questão da licença que precisava ter para entrar na República Dominicana ela nos deixou sem resposta certa. Falou que precisávamos emitir quando na verdade já estava emitido, e parou de me responder. Jamais procuro ela novamente para outra viagem.', '{"original_name": "Beatriz Menz Gusso", "proximo_destino": "Nenhum."}'::jsonb),
+  ('forms_welcome_trips_148', TIMESTAMPTZ '2026-01-08 15:54:15', 'Guilherme Malucelli', 10, NULL, '{"original_name": "Guilherme Malucelli"}'::jsonb),
+  ('forms_welcome_trips_149', TIMESTAMPTZ '2026-01-08 15:56:42', 'Bruno Pasinato', 10, 'Ótima!', '{"original_name": "Bruno Pasinato", "proximo_destino": "Europa"}'::jsonb),
+  ('forms_welcome_trips_150', TIMESTAMPTZ '2026-01-08 16:15:19', 'Jessica Gaede', 9, NULL, '{"original_name": "Jessica Gaede"}'::jsonb),
+  ('forms_welcome_trips_151', TIMESTAMPTZ '2026-01-08 17:44:35', 'Renata Pimenta Goulart de Andrade Jacinto', 10, 'Foi tudo perfeito, tanto com relação à Welcome , como no Resort. Fomos muito bem recepcionados.', '{"original_name": "Renata Pimenta Goulart de Andrade Jacinto"}'::jsonb),
+  ('forms_welcome_trips_152', TIMESTAMPTZ '2026-01-09 16:04:05', 'Marco Antônio Gusso', 3, 'Minha experiência com a Welcome Trips em Punta Cana foi péssima. A viagem ficou muito longe do que foi prometido no momento da venda. Houve desorganização, falta de suporte e informações confusas durante todo o processo. Quando surgiam problemas, o atendimento era lento ou simplesmente não resolvia.
+O que era para ser uma viagem de descanso virou estresse e frustração. Não senti profissionalismo nem preocupação real com o cliente. Pelo valor pago e pelas expectativas criadas, a experiência foi uma decepção total.', '{"original_name": "Marco Antônio Gusso"}'::jsonb),
+  ('forms_welcome_trips_153', TIMESTAMPTZ '2026-01-11 18:14:11', 'Carolina Alves de Moraes Silva', 10, 'Não tenho nada a reclamar. Foi uma ótima viagem, uma experiência incrível.
+Agradeço por toda atenção.', '{"original_name": "Carolina Alves de Moraes Silva", "proximo_destino": "Quero me programar para a Itália."}'::jsonb),
+  ('forms_welcome_trips_154', TIMESTAMPTZ '2026-01-12 21:37:32', 'Alexis carfantan', 10, NULL, '{"original_name": "Alexis carfantan", "proximo_destino": "Colombia"}'::jsonb),
+  ('forms_welcome_trips_155', TIMESTAMPTZ '2026-01-13 16:32:17', 'Tamara Zugman Knopfholz', 10, 'Tudo perfeito', '{"original_name": "Tamara Zugman Knopfholz", "proximo_destino": "Paris"}'::jsonb),
+  ('forms_welcome_trips_156', TIMESTAMPTZ '2026-01-13 16:40:03', 'Mauritania Pereira', 7, NULL, '{"original_name": "Mauritania Pereira"}'::jsonb),
+  ('forms_welcome_trips_163', TIMESTAMPTZ '2026-01-13 18:40:10', 'Agora sim é o último', 10, 'Teste', '{"original_name": "Agora sim é o último", "proximo_destino": "teste"}'::jsonb),
+  ('forms_welcome_trips_164', TIMESTAMPTZ '2026-01-13 18:44:31', 'juro, eu juro que é o último', 10, 'to falando', '{"original_name": "juro, eu juro que é o último", "proximo_destino": "pra casa!"}'::jsonb),
+  ('forms_welcome_trips_165', TIMESTAMPTZ '2026-01-13 19:27:48', 'Naiane Brandt', 10, 'A Kissia foi muito prestativa e eficiente. Cuidou de tudo desde nossa partida até a volta. O App AXUS é excelente. Nós mantém atualizadas dos voos. Possui ótima organização de todas as atividades, transkados, hotéis, etc', '{"original_name": "Naiane Brandt", "proximo_destino": "Não sei"}'::jsonb),
+  ('forms_welcome_trips_166', TIMESTAMPTZ '2026-01-13 19:58:15', 'Ana Carolina da Rocha Lima Viana', 10, 'Ótima experiência.', '{"original_name": "Ana Carolina da Rocha Lima Viana"}'::jsonb),
+  ('forms_welcome_trips_173', TIMESTAMPTZ '2026-01-14 18:32:57', 'Gabriella Lopes Ventura', 10, 'mt bom, organizado. nossos guias no destino eram otimos e pontuais', '{"original_name": "Gabriella Lopes Ventura"}'::jsonb),
+  ('forms_welcome_trips_174', TIMESTAMPTZ '2026-01-15 09:58:14', 'Fabiola konno', 9, NULL, '{"original_name": "Fabiola konno", "proximo_destino": "Portugal"}'::jsonb),
+  ('forms_welcome_trips_175', TIMESTAMPTZ '2026-01-17 15:13:03', 'Dóris Rosário', 10, 'Foi ótima, muito obrigada.', '{"original_name": "Dóris Rosário", "proximo_destino": "Inglaterra"}'::jsonb),
+  ('forms_welcome_trips_176', TIMESTAMPTZ '2026-01-18 08:09:57', '.', 7, NULL, '{"original_name": "."}'::jsonb),
+  ('forms_welcome_trips_177', TIMESTAMPTZ '2026-01-18 19:56:41', 'Thiago Carvalho Gulin', 10, 'Foi muito boa, tivemos contato 24 horas com a Juliana que acompanhava de perto nossa viagem', '{"original_name": "Thiago Carvalho Gulin", "proximo_destino": "à decidir!"}'::jsonb),
+  ('forms_welcome_trips_178', TIMESTAMPTZ '2026-01-19 16:39:46', 'VIVIANE KAUER', 8, 'Foi a 2ª vez que viajamos com a Welcome. Foi uma boa experiência. Tivemos o problema de ficarmos sem a reserva do Glacier Express em um primeiro momento, mas depois fomos agraciados com a 1ª classe e a experiência completa. Mesmo assim, o roteiro mudou e tivemos que arcar com um hotel mais caro, sendo acordado uma carta de crédito para diferença deste valor, o que me fez ter confiança na agência. Vi seriedade e vontade de contornar o problema, mas até então não obtive a carta de crédito. 
+Penso, no geral, que na era do avanço da inteligência artificial, em que fazemos perguntas ao chat GPT e temos respostas instantâneas sobre todos os assuntos sendo viagens um deles, a agência poderia ir além de reservar hotéis, tickets, podendo dar mais detalhes, fazer mais reuniões on line com a família, estudando o seu perfil e dando dicas de melhores aproveitamentos e situações. Senti falta de não ter a informação de que a Suíça por não fazer parte da União Europeia, o tax refund precisa ocorrer lá, não tínhamos a saída de lá do aeroporto e perdemos isto já que na estação de trem não tem alfândega. Acho que muita coisa é passada por papel ao mesmo tempo, e nem sempre lemos todo o material ou assimilamos tudo de uma vez só. Então, acho que de fundamental seria fazer mais reuniões com pessoas da agência que já foram para o destino e lembram de situações interessantes, como se fosse um amigo passando as melhores dicas. Faltou isto, mas no geral, todas as reservas estavam certas e foi feito o roteiro, sem maiores imprevistos.', '{"original_name": "VIVIANE KAUER"}'::jsonb),
+  ('forms_welcome_trips_179', TIMESTAMPTZ '2026-01-19 16:41:53', 'paula borges', 10, 'tudo ótimo. Atendimento rápido e informações esclarecidas, quando solicitei alteração de data a Mariana me deu feedback todos os dias sobre a disponibilidade.', '{"original_name": "paula borges"}'::jsonb),
+  ('forms_welcome_trips_180', TIMESTAMPTZ '2026-01-21 18:04:32', 'Denise Ane Basso Lovato', 6, 'Tive problemas em relação a escolha dos assentos nas viagens e eu fiz a menção que eu gostaria de selecionar esses assentos mesmo se houvessem taxas eu as pagaria. Não fizeram o cadastro com o meu e-mail no ClubMed.', '{"original_name": "Denise Ane Basso Lovato", "proximo_destino": "Chile"}'::jsonb),
+  ('forms_welcome_trips_181', TIMESTAMPTZ '2026-01-30 12:28:06', 'Thais Alinne Candil Menz', 2, 'Decepcionada com a responsável por nossa viagem. Não resolveu nada do que precisávamos.
+Pagar uma viagem dessas para Ponta Cana para toda família e ver seu filho dormindo em Um SOFÁ ( sofá mesmo, não era sofa cama ). Decepcionante!', '{"original_name": "Thais Alinne Candil Menz", "proximo_destino": "Com vcs, acredito que nenhum"}'::jsonb),
+  ('forms_welcome_trips_182', TIMESTAMPTZ '2026-02-03 08:23:32', 'Carla M M M Rosa', 10, 'A viagem foi ótima, pensada em todos os detalhes, com guias em português e tudo muito bem organizado.', '{"original_name": "Carla M M M Rosa", "proximo_destino": "Copa do mundo e Med no inverno para esquiar."}'::jsonb),
+  ('forms_welcome_trips_183', TIMESTAMPTZ '2026-02-03 16:38:51', 'Silvia Calgaro', 10, 'Tudo perfeito! Impecável', '{"original_name": "Silvia Calgaro", "proximo_destino": "Tanzânia 🙏🙏🙏🙏"}'::jsonb),
+  ('forms_welcome_trips_184', TIMESTAMPTZ '2026-02-08 20:40:01', 'Estephania Cristina Foscarini Ferreira', 9, 'Ocorreu tudo muito bem!!', '{"original_name": "Estephania Cristina Foscarini Ferreira", "proximo_destino": "Ainda não sei."}'::jsonb),
+  ('forms_welcome_trips_185', TIMESTAMPTZ '2026-02-08 21:56:24', 'Laura Rebinski', 10, 'Foi satisfatória.', '{"original_name": "Laura Rebinski", "proximo_destino": "Fernando de Noronha"}'::jsonb),
+  ('forms_welcome_trips_186', TIMESTAMPTZ '2026-02-10 16:41:12', 'Maria Gabriela Borges Jacinto', 10, 'A experiência foi ótima! Tive todo o suporte necessário e a viagem foi muito tranquila, deu tudo certo!!', '{"original_name": "Maria Gabriela Borges Jacinto", "proximo_destino": "Ainda não tenho :("}'::jsonb),
+  ('forms_welcome_trips_187', TIMESTAMPTZ '2026-02-10 16:58:34', 'Juliano Fagundes', 9, 'Fui muito bem assessorado nessa viagem ao Club Med e também no fechamento do aéreo para minha próxima viagem de Londres e Portugal.', '{"original_name": "Juliano Fagundes", "proximo_destino": "Tenho duas viagens que estou analisando. Uma será com a equipe do Marcos Brotto para a Groenlândia em setembro e provavelmente a temporada de ski 2027."}'::jsonb),
+  ('forms_welcome_trips_188', TIMESTAMPTZ '2026-02-10 17:30:43', 'Fernanda Abud', 10, NULL, '{"original_name": "Fernanda Abud", "proximo_destino": "Bonito MS"}'::jsonb),
+  ('forms_welcome_trips_189', TIMESTAMPTZ '2026-02-11 17:56:28', 'Daniel Knoll', 10, 'Foi ótima. Sempre muito solícitos e atenciosos. 
+Os presentes foram recebidos com muito carinho.', '{"original_name": "Daniel Knoll", "proximo_destino": "Ushuaia"}'::jsonb),
+  ('forms_welcome_trips_190', TIMESTAMPTZ '2026-02-16 08:13:02', 'Raquel Pires Sasaki', 10, 'Equipe maravilhosa!', '{"original_name": "Raquel Pires Sasaki", "proximo_destino": "Ainda não sei."}'::jsonb),
+  ('forms_welcome_trips_191', TIMESTAMPTZ '2026-02-17 16:34:29', 'Lucas Tchaga Gonçalves', 10, 'Incrível!! Eu recomendo e vou com toda certeza se Deus quiser todos os anos novamente.', '{"original_name": "Lucas Tchaga Gonçalves", "proximo_destino": "Val thorens novamente"}'::jsonb),
+  ('forms_welcome_trips_192', TIMESTAMPTZ '2026-02-17 20:34:23', 'Gabriela Giaccio Bewalski', 10, 'Foi tudo otimo!! Adoramos os brindes que recebemos em casa tbm! Obrigada pela atenção e carinho', '{"original_name": "Gabriela Giaccio Bewalski", "proximo_destino": "No momento sem proximo destino!"}'::jsonb),
+  ('forms_welcome_trips_193', TIMESTAMPTZ '2026-02-18 09:11:59', 'Jessica Santos', 10, 'No meu primeiro contato que foi através da agente Camila foi incrível a atenção em procurar o voo, entender qual seria a idea da viajem e o como queria investir na mesma, foi impecável, Camila me deu todo suporte e também me indicou programas que existem dentro da agência que facilitariam na compra de passeio e organização do roteiro com dicas, que pude contar com concierges Duda e sil maravilhosas tbm sempre me respondendo com prontidão nas pequenas dúvidas as maiores', '{"original_name": "Jessica Santos", "proximo_destino": "Tenho alguns desejos: italia, Tailândia ou China"}'::jsonb),
+  ('forms_welcome_trips_194', TIMESTAMPTZ '2026-02-18 16:56:41', 'Fabiano Veiga Oliva', 9, 'Sensacional', '{"original_name": "Fabiano Veiga Oliva", "proximo_destino": "Chile"}'::jsonb),
+  ('forms_welcome_trips_195', TIMESTAMPTZ '2026-02-19 09:39:18', 'Bruno Bewalski', 10, 'Surpreendente. Muita atenção em todos os sentidos e uma surpresa muito agradável em receber os diversos mimos e presentes desde o início do fechamento do pacote Club Med.', '{"original_name": "Bruno Bewalski", "proximo_destino": "Pretendo um verão europeu com minha esposa, filha e mãe."}'::jsonb),
+  ('forms_welcome_trips_196', TIMESTAMPTZ '2026-02-19 17:13:09', 'Elton Oshiro', 10, NULL, '{"original_name": "Elton Oshiro", "proximo_destino": "Penso em europa"}'::jsonb),
+  ('forms_welcome_trips_197', TIMESTAMPTZ '2026-02-19 21:35:09', 'Marcia Luz', 10, 'Passei por vários imprevistos e a Simone não mediu esforços pra nos ajudar em pleno sábado e domingo de carnaval. Isso não tem preço .', '{"original_name": "Marcia Luz", "proximo_destino": "Tailândia"}'::jsonb),
+  ('forms_welcome_trips_198', TIMESTAMPTZ '2026-02-20 16:34:56', 'Anderson Persegona Amorim', 10, 'Fantastico', '{"original_name": "Anderson Persegona Amorim", "proximo_destino": "Barcelona"}'::jsonb),
+  ('forms_welcome_trips_199', TIMESTAMPTZ '2026-02-20 16:35:31', 'Paula Curi Reis Ribeiro do Valle', 10, 'A experiência foi impecável do início ao fim. Os hotéis eram ótimos, muito confortáveis e bem localizados, com atendimento atencioso e boa estrutura. Tudo ocorreu perfeitamente. Foi uma viagem incrível!!!', '{"original_name": "Paula Curi Reis Ribeiro do Valle", "proximo_destino": "Estamos ainda pensando, mas será lua de mel em maio de 2027 💖💖"}'::jsonb),
+  ('forms_welcome_trips_200', TIMESTAMPTZ '2026-02-22 19:02:53', 'Vanessa Alberti', 10, NULL, '{"original_name": "Vanessa Alberti"}'::jsonb),
+  ('forms_welcome_trips_201', TIMESTAMPTZ '2026-03-02 16:35:08', 'João Batista Lopes dos Santos', 10, 'Foi tudo bem confirme o combinado', '{"original_name": "João Batista Lopes dos Santos"}'::jsonb),
+  ('forms_welcome_trips_202', TIMESTAMPTZ '2026-03-04 16:49:52', 'Daphne Keller', 10, 'Kissia e o time pós venda são sensacionais...só agradecer a atenção e o profissionalismo do time aí!!!', '{"original_name": "Daphne Keller", "proximo_destino": "Amazônia"}'::jsonb),
+  ('forms_welcome_trips_203', TIMESTAMPTZ '2026-03-05 10:00:16', 'Fabiano Veiga Oliva', 10, 'Viagem foi sensacional! A cidade muito linda, muitos pontos turísticos, porém uma cidade “cara”! Hotel bem localizado, porém achei que os serviços do hotel poderiam ser melhores, pra ter ideia se recusaram a servir gelo! No mais foi tudo bem', '{"original_name": "Fabiano Veiga Oliva", "proximo_destino": "Chile"}'::jsonb),
+  ('forms_welcome_trips_204', TIMESTAMPTZ '2026-03-12 15:45:46', 'João Luiz Martins', 10, 'Otimo atendimento e disponibilidade da concierge.', '{"original_name": "João Luiz Martins", "proximo_destino": "Miami/Orlando"}'::jsonb),
+  ('forms_welcome_trips_205', TIMESTAMPTZ '2026-03-19 20:12:58', 'Leonardo Monteiro', 10, 'perfeito. toda atenção da equipe', '{"original_name": "Leonardo Monteiro", "proximo_destino": "Buenos Aires"}'::jsonb),
+  ('forms_welcome_trips_206', TIMESTAMPTZ '2026-03-21 18:26:20', 'Leandro Novello', 10, 'Tudo certo. Cronograma cumprido com excelência, e muito prestativos.', '{"original_name": "Leandro Novello", "proximo_destino": "Portugal, Marrocos"}'::jsonb),
+  ('forms_welcome_trips_207', TIMESTAMPTZ '2026-03-23 07:35:00', 'Lucas Novello', 10, 'A experiência foi ótima, sempre tivemos suporte quando precisamos.', '{"original_name": "Lucas Novello"}'::jsonb),
+  ('forms_welcome_trips_208', TIMESTAMPTZ '2026-03-30 16:52:15', 'Wanderley kampa ribas', 8, 'Ficar atento porque o tempo de conexão em bs as é muito curto. Ate fazer aduana quase perdemos o voo. Só conseguimos porque entramos numa outra fila e com muita dificuldade (muito bate boca) fomos atendidos. Descobrimos também outro passeio em el calafate que oferece 3 ou 4 glaciais no mesmo dia, seria interessante oferecer este pacote. No restante tudo certo', '{"original_name": "Wanderley kampa ribas", "proximo_destino": "Ainda nao sabemos"}'::jsonb),
+  ('forms_welcome_trips_209', TIMESTAMPTZ '2026-03-30 17:07:56', 'Ana Paula Stephanes', 10, NULL, '{"original_name": "Ana Paula Stephanes"}'::jsonb),
+  ('forms_welcome_trips_210', TIMESTAMPTZ '2026-03-30 17:12:23', 'Sueli Terezinha branco procop', 10, 'Otimo atendimento. Qlqr duvida era só ligar de onde estivesse para ser atendida.', '{"original_name": "Sueli Terezinha branco procop", "proximo_destino": "Em planejamento, talvez esse mesmo roteiro Maceio/ Porto de Galinhas. Ou nao...."}'::jsonb),
+  ('forms_welcome_trips_211', TIMESTAMPTZ '2026-03-30 18:36:57', 'Marina Roncaglio de Carvalho', 10, 'Muito boa! =)', '{"original_name": "Marina Roncaglio de Carvalho"}'::jsonb),
+  ('forms_welcome_trips_212', TIMESTAMPTZ '2026-03-30 19:00:46', 'Leandra Rubert Campos', 10, 'Fomos bem atendidos e auxiliados', '{"original_name": "Leandra Rubert Campos", "proximo_destino": "Chile"}'::jsonb),
+  ('forms_welcome_trips_213', TIMESTAMPTZ '2026-03-31 07:47:33', 'Wilson dos Santos Campos Jr', 10, 'Uma boa experiência, tudo ocorreu como planejado', '{"original_name": "Wilson dos Santos Campos Jr", "proximo_destino": "Chile"}'::jsonb),
+  ('forms_welcome_trips_214', TIMESTAMPTZ '2026-03-31 22:19:10', 'paula de campos borges', 10, NULL, '{"original_name": "paula de campos borges"}'::jsonb)
+    ),
+    normalized AS (
+      SELECT
+        s.*,
+        regexp_replace(lower(unaccent(trim(s.full_name))), '\s+', ' ', 'g') AS norm_name
+      FROM source s
+    ),
+    candidates AS (
+      SELECT
+        n.source_external_id,
+        n.responded_at,
+        n.full_name,
+        n.score,
+        n.comment,
+        n.raw_payload,
+        c.id AS card_id,
+        c.pessoa_principal_id AS contact_id,
+        ROW_NUMBER() OVER (
+          PARTITION BY n.source_external_id
+          ORDER BY c.created_at DESC NULLS LAST
+        ) AS rn
+      FROM normalized n
+      LEFT JOIN public.cards c ON c.org_id = v_org_id
+        AND c.archived_at IS NULL
+        AND EXISTS (
+          SELECT 1 FROM public.contatos co
+          WHERE co.id = c.pessoa_principal_id
+            AND regexp_replace(
+                  lower(unaccent(trim(coalesce(co.nome, '') || ' ' || coalesce(co.sobrenome, '')))),
+                  '\s+', ' ', 'g'
+                ) = n.norm_name
+        )
+    )
+    SELECT source_external_id, responded_at, full_name, score, comment, raw_payload, card_id, contact_id
+    FROM candidates
+    WHERE rn = 1
+    ORDER BY responded_at
+  LOOP
+    v_card_id := r_row.card_id;
+    v_contact_id := r_row.contact_id;
+
+    -- 1) survey (channel=form, sent_at = responded_at)
+    INSERT INTO public.nps_surveys
+      (org_id, card_id, contact_id, channel, sent_at, source_external_id, created_at)
+    VALUES
+      (v_org_id, v_card_id, v_contact_id, 'form', r_row.responded_at, r_row.source_external_id, r_row.responded_at)
+    ON CONFLICT (source_external_id) WHERE source_external_id IS NOT NULL DO NOTHING
+    RETURNING id INTO v_survey_id;
+
+    -- Se ON CONFLICT pulou, buscar pelo external id
+    IF v_survey_id IS NULL THEN
+      SELECT id INTO v_survey_id FROM public.nps_surveys
+      WHERE source_external_id = r_row.source_external_id LIMIT 1;
+    END IF;
+
+    -- 2) response (1:1 com survey, garantido pelo unique index)
+    INSERT INTO public.nps_responses
+      (survey_id, org_id, card_id, score, comment, responded_at, raw_payload, created_at)
+    VALUES
+      (v_survey_id, v_org_id, v_card_id, r_row.score, r_row.comment, r_row.responded_at, r_row.raw_payload, r_row.responded_at)
+    ON CONFLICT (survey_id) DO NOTHING;
+
+    IF v_card_id IS NULL THEN
+      v_unlinked_count := v_unlinked_count + 1;
+    ELSE
+      v_matched_count := v_matched_count + 1;
+    END IF;
+  END LOOP;
+
+  RAISE NOTICE 'NPS backfill terminado: % com card vinculado, % sem card (total %).',
+    v_matched_count, v_unlinked_count, v_matched_count + v_unlinked_count;
+END $$;
+
+COMMIT;
