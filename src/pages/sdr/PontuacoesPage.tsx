@@ -121,7 +121,8 @@ export default function PontuacoesPage() {
     const descartadas = filtered.filter((p) => p.status === 'descartado')
 
     return (
-        <div className="p-6 space-y-6 max-w-7xl mx-auto">
+        <div className="flex-1 overflow-y-auto">
+            <div className="p-6 space-y-6 max-w-7xl mx-auto">
             <header className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-semibold text-slate-900">Pontuações SDR</h1>
@@ -296,6 +297,7 @@ export default function PontuacoesPage() {
                     })
                 }}
             />
+            </div>
         </div>
     )
 }
