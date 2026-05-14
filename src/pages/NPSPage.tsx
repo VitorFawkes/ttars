@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, Gauge, Loader2, MessageSquare, Percent, Plane, Search, Send, Smile, X } from 'lucide-react'
+import { AlertTriangle, ChevronLeft, ChevronRight, Gauge, Loader2, MessageSquare, Percent, Plane, Search, Send, Smile, X } from 'lucide-react'
 import {
     CartesianGrid,
     Line,
@@ -424,6 +424,22 @@ export default function NPSPage() {
                     subtitle="Satisfação dos clientes — pesquisas enviadas, respostas recebidas e score consolidado"
                     icon={<Smile className="w-5 h-5" />}
                 />
+
+                {/* WIP banner */}
+                <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-3 mb-6">
+                    <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider text-amber-900 bg-amber-200">
+                                WIP
+                            </span>
+                            <span className="text-sm font-medium text-amber-900">Em construção</span>
+                        </div>
+                        <p className="text-sm text-amber-800">
+                            Dados aqui podem ou não estar certos — o match entre respostas e cards ainda está sendo refinado.
+                        </p>
+                    </div>
+                </div>
 
                 {/* Toolbar — período + busca */}
                 <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-3 mb-6">
