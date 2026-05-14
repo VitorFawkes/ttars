@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, ExternalLink, Calendar, Wallet, AlertCircle, Clock, CheckCircle2, Flame } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAtendimentosCard } from '../../../hooks/concierge/useAtendimentosCard'
@@ -15,9 +15,20 @@ const SAUDE_ACCENT: Record<SaudeViagem, string> = {
   concluida:    'bg-emerald-500',
 }
 
-function fmtDate(iso: string | null) {
+// Trata DATE puro ("2026-05-15") como meia-noite LOCAL, não UTC — sem isso
+// o browser em UTC-3 lê como 14/05 21:00 e o display fica off-by-one.
+function parseLocalDate(iso: string | null | undefined): Date | null {
   if (!iso) return null
-  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+  const datePart = iso.slice(0, 10)
+  const [y, m, d] = datePart.split('-').map(Number)
+  if (!y || !m || !d) return null
+  return new Date(y, m - 1, d)
+}
+
+function fmtDate(iso: string | null) {
+  const d = parseLocalDate(iso)
+  if (!d) return null
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 function fmtBRL(v: number | null | undefined) {
@@ -42,6 +53,14 @@ export function ViagemAtendimentosDrawer({ viagem, onClose }: ViagemAtendimentos
   const [selected, setSelected] = useState<MeuDiaItem | null>(null)
   const { mutate: toggleCritical, isPending: togglingCritical } = useToggleCardCritical()
 
+  // Ressincroniza o snapshot quando a query refetcha (ex: após editar
+  // título/descrição pelo modal). Sem isso, o modal mostra item congelado.
+  useEffect(() => {
+    if (!selected) return
+    const fresh = items.find(it => it.tarefa_id === selected.tarefa_id)
+    if (fresh && fresh !== selected) setSelected(fresh)
+  }, [items, selected])
+
   if (!viagem) return null
   const isManualCritical = viagem.card_is_critical
   const isCriticalEffective = isManualCritical || viagem.has_tarefa_critica
@@ -49,6 +68,29 @@ export function ViagemAtendimentosDrawer({ viagem, onClose }: ViagemAtendimentos
   const abertos = items.filter(i => !i.outcome && !i.concluida)
   const concluidos = items.filter(i => i.outcome || i.concluida)
   const valor = viagem.card_valor_final ?? viagem.card_valor_estimado
+
+  // Status da viagem em 3 fases. `viagem.dias_pra_embarque` da view só considera
+  // o início — sem isso, viagem em andamento mostrava "Voltou há Xd" indevido.
+  // Compara por DIA local (não instante UTC) pra evitar off-by-one no fuso BR.
+  const inicioLocal = parseLocalDate(viagem.data_viagem_inicio)
+  const fimLocal = parseLocalDate(viagem.data_viagem_fim)
+  const hojeLocal = new Date()
+  hojeLocal.setHours(0, 0, 0, 0)
+  let viagemStatus: 'antes' | 'em_viagem' | 'depois' | null = null
+  let viagemDias = 0
+  if (inicioLocal) {
+    const diasParaInicio = Math.round((inicioLocal.getTime() - hojeLocal.getTime()) / 86_400_000)
+    const diasDesdeFim = fimLocal ? Math.round((hojeLocal.getTime() - fimLocal.getTime()) / 86_400_000) : null
+    if (diasParaInicio > 0) {
+      viagemStatus = 'antes'
+      viagemDias = diasParaInicio
+    } else if (diasDesdeFim != null && diasDesdeFim > 0) {
+      viagemStatus = 'depois'
+      viagemDias = diasDesdeFim
+    } else {
+      viagemStatus = 'em_viagem'
+    }
+  }
 
   return (
     <>
@@ -121,19 +163,19 @@ export function ViagemAtendimentosDrawer({ viagem, onClose }: ViagemAtendimentos
                   </span>
                 </span>
               )}
-              {viagem.dias_pra_embarque !== null && (
+              {viagemStatus && (
                 <span className={cn(
                   'inline-flex items-center px-2 py-0.5 rounded font-mono text-[11.5px] font-semibold',
-                  viagem.dias_pra_embarque < 0 ? 'bg-slate-100 text-slate-600' :
-                  viagem.dias_pra_embarque <= 2 ? 'bg-red-50 text-red-700' :
-                  viagem.dias_pra_embarque <= 7 ? 'bg-amber-50 text-amber-700' :
-                  'bg-slate-50 text-slate-600'
+                  viagemStatus === 'em_viagem' ? 'bg-emerald-50 text-emerald-700' :
+                  viagemStatus === 'depois'    ? 'bg-slate-100 text-slate-600' :
+                  viagemDias <= 2              ? 'bg-red-50 text-red-700' :
+                  viagemDias <= 7              ? 'bg-amber-50 text-amber-700' :
+                                                 'bg-slate-50 text-slate-600'
                 )}>
-                  {viagem.dias_pra_embarque < 0
-                    ? `Voltou há ${-viagem.dias_pra_embarque}d`
-                    : viagem.dias_pra_embarque === 0
-                    ? 'Embarca hoje'
-                    : `Embarca em ${viagem.dias_pra_embarque}d`}
+                  {viagemStatus === 'em_viagem' ? 'Em viagem'
+                    : viagemStatus === 'depois' ? `Voltou há ${viagemDias}d`
+                    : viagemDias === 0          ? 'Embarca hoje'
+                    :                             `Embarca em ${viagemDias}d`}
                 </span>
               )}
               {valor != null && valor > 0 && (
