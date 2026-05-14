@@ -26,27 +26,22 @@ export default function CardFinancialKpiBar({ card }: CardFinancialKpiBarProps) 
         : 0
 
     return (
-        <div className="bg-white border-b border-slate-200 px-4 py-3">
+        <div className="bg-white border-b border-slate-200 px-4 py-2">
             <div className="grid grid-cols-4 gap-4">
-                <KpiCell label="Orçamento Previsto" value={formatBRL(summary.orcamentoPrevisto)} />
+                <KpiCell label="Orçamento" value={formatBRL(summary.orcamentoPrevisto)} />
                 <KpiCell label="Fechado" value={formatBRL(summary.fechado)} />
                 <KpiCell
                     label={faltaLabel}
                     value={formatBRL(faltaValue)}
-                    valueClassName={isExcedeu ? 'text-emerald-600' : 'text-amber-600'}
                 />
                 <KpiCell
-                    label="Receita Fechada"
+                    label="Receita"
                     value={formatBRL(summary.receitaFechada)}
-                    valueClassName="text-amber-700"
                 />
             </div>
-            <div className="mt-2 h-1 rounded-full bg-slate-100 overflow-hidden">
+            <div className="mt-1.5 h-px bg-slate-100 overflow-hidden">
                 <div
-                    className={cn(
-                        'h-full transition-all',
-                        isExcedeu ? 'bg-emerald-500' : 'bg-indigo-500'
-                    )}
+                    className="h-full bg-slate-300 transition-[width] duration-300 ease-out"
                     style={{ width: `${percentAtingido}%` }}
                 />
             </div>
@@ -57,16 +52,13 @@ export default function CardFinancialKpiBar({ card }: CardFinancialKpiBarProps) 
 interface KpiCellProps {
     label: string
     value: string
-    valueClassName?: string
 }
 
-function KpiCell({ label, value, valueClassName }: KpiCellProps) {
+function KpiCell({ label, value }: KpiCellProps) {
     return (
         <div className="min-w-0">
-            <div className="text-[10px] uppercase tracking-wider text-slate-500 font-medium truncate">
-                {label}
-            </div>
-            <div className={cn('text-base font-semibold text-slate-900 mt-0.5 truncate', valueClassName)}>
+            <div className="text-xs text-slate-500 truncate">{label}</div>
+            <div className={cn('text-sm font-medium text-slate-900 mt-0.5 truncate tabular-nums')}>
                 {value}
             </div>
         </div>

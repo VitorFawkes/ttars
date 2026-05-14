@@ -33,6 +33,23 @@ export default function KanbanColumn({ stage, cards, phaseColor, phaseSlug, onWi
 
     const totalValue = cards.reduce((acc, card) => acc + (card.valor_display || card.valor_estimado || 0), 0)
     const totalReceita = cards.reduce((acc, card) => acc + (card.receita || 0), 0)
+    const totalPrevisto = cards.reduce((acc, card) => acc + (card.valor_estimado || 0), 0)
+    const totalFechado = cards.reduce((acc, card) => acc + (card.valor_final || 0), 0)
+    const totalFalta = totalPrevisto - totalFechado
+
+    // 3 variantes do header de finanças:
+    // - "tp": Proposta Enviada + Reservas e Fechamento → 4 KPIs compactos
+    // - "pos": pós-venda → Fechado + Receita
+    // - "default": demais etapas → valor total + receita inline (sem laranja)
+    const stageVariant: 'tp' | 'pos' | 'default' =
+        stage.nome === 'Proposta Enviada' || stage.nome === 'Reservas e Fechamento'
+            ? 'tp'
+            : phaseSlug === 'pos_venda'
+                ? 'pos'
+                : 'default'
+
+    const formatFull = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
+    const formatCompact = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact', maximumFractionDigits: 1 }).format(v)
 
     // Robust color handling
     const isHex = phaseColor.startsWith('#') || phaseColor.startsWith('rgb')
@@ -66,19 +83,50 @@ export default function KanbanColumn({ stage, cards, phaseColor, phaseSlug, onWi
                         </span>
                     </div>
                 </div>
-                <div className="flex items-center justify-between">
-                    <div className="h-1 w-12 rounded-full bg-primary/20"></div>
-                    <div className="text-right">
-                        <p className="text-xs font-bold text-gray-400">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalValue)}
-                        </p>
-                        {receitaPerm.canView && totalReceita > 0 && (
-                            <p className="text-[10px] font-semibold text-amber-600">
-                                Rec: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact' }).format(totalReceita)}
-                            </p>
+                {stageVariant === 'tp' ? (
+                    <div
+                        className="grid grid-cols-4 gap-2 tabular-nums"
+                        title={`Previsto ${formatFull(totalPrevisto)}\nFechado ${formatFull(totalFechado)}\nFalta ${formatFull(Math.abs(totalFalta))}${receitaPerm.canView ? `\nReceita ${formatFull(totalReceita)}` : ''}`}
+                    >
+                        <ColumnKpiCell label="Prev" value={formatCompact(totalPrevisto)} />
+                        <ColumnKpiCell label="Fech" value={formatCompact(totalFechado)} />
+                        <ColumnKpiCell label={totalFalta < 0 ? 'Exced' : 'Falta'} value={formatCompact(Math.abs(totalFalta))} />
+                        {receitaPerm.canView ? (
+                            <ColumnKpiCell label="Rec" value={formatCompact(totalReceita)} />
+                        ) : (
+                            <div />
                         )}
                     </div>
-                </div>
+                ) : stageVariant === 'pos' ? (
+                    <div className="flex items-center justify-between text-xs text-slate-500 tabular-nums">
+                        <span className="h-1 w-12 rounded-full bg-primary/20" aria-hidden />
+                        <span>
+                            <span className="text-slate-400">Fechado </span>
+                            <span className="text-slate-700 font-medium">{formatFull(totalFechado)}</span>
+                            {receitaPerm.canView && totalReceita > 0 && (
+                                <>
+                                    <span className="text-slate-300 mx-1.5">·</span>
+                                    <span className="text-slate-400">Rec </span>
+                                    <span className="text-slate-700 font-medium">{formatCompact(totalReceita)}</span>
+                                </>
+                            )}
+                        </span>
+                    </div>
+                ) : (
+                    <div className="flex items-center justify-between text-xs text-slate-500 tabular-nums">
+                        <span className="h-1 w-12 rounded-full bg-primary/20" aria-hidden />
+                        <span>
+                            <span className="text-slate-700 font-medium">{formatFull(totalValue)}</span>
+                            {receitaPerm.canView && totalReceita > 0 && (
+                                <>
+                                    <span className="text-slate-300 mx-1.5">·</span>
+                                    <span className="text-slate-400">Rec </span>
+                                    <span className="text-slate-700 font-medium">{formatCompact(totalReceita)}</span>
+                                </>
+                            )}
+                        </span>
+                    </div>
+                )}
             </div>
 
             <div
@@ -105,6 +153,15 @@ export default function KanbanColumn({ stage, cards, phaseColor, phaseSlug, onWi
                 )}
             </div>
 
+        </div>
+    )
+}
+
+function ColumnKpiCell({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="min-w-0">
+            <div className="text-[10px] text-slate-400 truncate">{label}</div>
+            <div className="text-[11px] font-medium text-slate-700 truncate">{value}</div>
         </div>
     )
 }
