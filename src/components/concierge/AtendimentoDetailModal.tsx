@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { X, AlertCircle, ExternalLink, Calendar, Wallet, Flame, User, ChevronDown, Check } from 'lucide-react'
+import { X, AlertCircle, ExternalLink, Calendar, Wallet, Flame, User, ChevronDown, Check, Plus } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -7,6 +7,8 @@ import { useMarcarOutcome, useReatribuirAtendimento } from '../../hooks/concierg
 import { useMoverEstadoFunil } from '../../hooks/concierge/useMoverEstadoFunil'
 import { useToggleEmFuturoConcierge } from '../../hooks/concierge/useToggleEmFuturoConcierge'
 import { useEditarPrazoTarefa } from '../../hooks/concierge/useEditarPrazoTarefa'
+import { useEditarTituloTarefa } from '../../hooks/concierge/useEditarTituloTarefa'
+import { useEditarDescricaoTarefa } from '../../hooks/concierge/useEditarDescricaoTarefa'
 import { useChecklistTarefa } from '../../hooks/concierge/useChecklistTarefa'
 import { EstocarFuturoModal } from './kanban/EstocarFuturoModal'
 import { ChecklistEditor } from './atendimento-form/ChecklistEditor'
@@ -299,7 +301,8 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
                 </>
               )}
             </div>
-            <h2 className="text-base font-bold text-slate-900 leading-snug truncate">{titulo}</h2>
+            <TituloEditavel tarefaId={item.tarefa_id} titulo={titulo} />
+
             <div className="mt-1 relative inline-block" ref={pickerRef}>
               <button
                 type="button"
@@ -445,16 +448,13 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
             const observacaoConciergeStr = typeof observacaoConcierge === 'string' && observacaoConcierge.trim().length > 0
               ? observacaoConcierge
               : null
-            const hasAny = !!item.descricao || !!observacaoConciergeStr
-            if (!hasAny) return null
             return (
               <div className="space-y-2">
-                {item.descricao && (
-                  <DescricaoColapsavel
-                    descricao={item.descricao}
-                    criadorNome={item.tarefa_criada_por ? (profilesLookup?.get(item.tarefa_criada_por) ?? null) : null}
-                  />
-                )}
+                <DescricaoEditavel
+                  tarefaId={item.tarefa_id}
+                  descricao={item.descricao}
+                  criadorNome={item.tarefa_criada_por ? (profilesLookup?.get(item.tarefa_criada_por) ?? null) : null}
+                />
                 {observacaoConciergeStr && (
                   <div className="bg-emerald-50/60 border border-emerald-200 rounded-lg p-3">
                     <div className="flex items-center justify-between mb-1">
@@ -690,21 +690,208 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   )
 }
 
-function DescricaoColapsavel({ descricao, criadorNome }: { descricao: string; criadorNome: string | null }) {
+function TituloEditavel({ tarefaId, titulo }: { tarefaId: string; titulo: string }) {
+  const [editando, setEditando] = useState(false)
+  const [valor, setValor] = useState(titulo)
+  const [tituloAnterior, setTituloAnterior] = useState(titulo)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const { mutate: salvarTitulo, isPending } = useEditarTituloTarefa()
+
+  // Resincroniza state local quando a prop muda (ex: usuário troca de card
+  // sem fechar modal). Ajusta durante render — padrão React 19.
+  if (titulo !== tituloAnterior) {
+    setTituloAnterior(titulo)
+    if (!editando) setValor(titulo)
+  }
+
+  useEffect(() => {
+    if (editando && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [editando])
+
+  const commit = () => {
+    const trimmed = valor.trim()
+    if (!trimmed) {
+      setValor(titulo)
+      setEditando(false)
+      return
+    }
+    if (trimmed === titulo) {
+      setEditando(false)
+      return
+    }
+    salvarTitulo({ tarefaId, titulo: trimmed })
+    setEditando(false)
+  }
+
+  const cancelar = () => {
+    setValor(titulo)
+    setEditando(false)
+  }
+
+  if (editando) {
+    return (
+      <input
+        ref={inputRef}
+        type="text"
+        value={valor}
+        onChange={(e) => setValor(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            commit()
+          } else if (e.key === 'Escape') {
+            e.preventDefault()
+            cancelar()
+          }
+        }}
+        disabled={isPending}
+        aria-label="Editar título"
+        className="w-full text-base font-bold text-slate-900 leading-snug bg-white border border-indigo-300 rounded px-1 -mx-1 py-0 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:opacity-60"
+      />
+    )
+  }
+
+  return (
+    <h2
+      onClick={() => setEditando(true)}
+      title="Clique para editar"
+      className="text-base font-bold text-slate-900 leading-snug truncate cursor-text rounded px-1 -mx-1 hover:bg-slate-100 transition-colors"
+    >
+      {titulo}
+    </h2>
+  )
+}
+
+function DescricaoEditavel({
+  tarefaId,
+  descricao,
+  criadorNome,
+}: {
+  tarefaId: string
+  descricao: string | null
+  criadorNome: string | null
+}) {
+  const [editando, setEditando] = useState(false)
+  const [valor, setValor] = useState(descricao ?? '')
+  const [descricaoAnterior, setDescricaoAnterior] = useState(descricao ?? '')
   const [expandida, setExpandida] = useState(false)
   const [transbordou, setTransbordou] = useState(false)
   const pRef = useRef<HTMLParagraphElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const { mutate: salvarDescricao, isPending } = useEditarDescricaoTarefa()
+
+  // Resincroniza state local quando a prop muda (troca de card sem fechar).
+  // Ajusta durante render — padrão React 19.
+  const descricaoStr = descricao ?? ''
+  if (descricaoStr !== descricaoAnterior) {
+    setDescricaoAnterior(descricaoStr)
+    if (!editando) setValor(descricaoStr)
+  }
 
   useEffect(() => {
+    if (editando && textareaRef.current) {
+      textareaRef.current.focus()
+      const len = textareaRef.current.value.length
+      textareaRef.current.setSelectionRange(len, len)
+    }
+  }, [editando])
+
+  useEffect(() => {
+    if (editando) return
     const el = pRef.current
     if (!el) return
     // Mede com o clamp aplicado (no estado colapsado). Se o conteúdo
     // real ultrapassa a altura visível, mostra o botão "Ver tudo".
     setTransbordou(el.scrollHeight > el.clientHeight + 1)
-  }, [descricao])
+  }, [descricao, editando])
+
+  const commit = () => {
+    const trimmed = valor.trim()
+    const proximo = trimmed === '' ? null : trimmed
+    if (proximo === (descricao ?? null)) {
+      setEditando(false)
+      return
+    }
+    salvarDescricao({ tarefaId, descricao: proximo })
+    setEditando(false)
+  }
+
+  const cancelar = () => {
+    setValor(descricao ?? '')
+    setEditando(false)
+  }
+
+  if (editando) {
+    return (
+      <div className="bg-slate-50 border border-indigo-300 rounded-lg p-3">
+        <div className="flex items-center justify-between mb-1">
+          <div className="text-[10.5px] uppercase tracking-wide font-semibold text-slate-500">
+            Descrição da tarefa
+          </div>
+        </div>
+        <textarea
+          ref={textareaRef}
+          value={valor}
+          onChange={(e) => setValor(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault()
+              cancelar()
+            } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault()
+              commit()
+            }
+          }}
+          disabled={isPending}
+          aria-label="Editar descrição"
+          placeholder="Escreva a descrição da tarefa…"
+          className="w-full min-h-[80px] text-[13px] text-slate-700 leading-relaxed bg-white border border-slate-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:opacity-60 resize-y"
+        />
+        <div className="mt-2 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={cancelar}
+            disabled={isPending}
+            className="text-[11.5px] font-medium text-slate-600 hover:text-slate-800 px-2 py-1 rounded disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={commit}
+            disabled={isPending}
+            className="text-[11.5px] font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1 rounded disabled:opacity-50"
+          >
+            Salvar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (!descricao) {
+    return (
+      <button
+        type="button"
+        onClick={() => setEditando(true)}
+        className="inline-flex items-center gap-1.5 text-[12.5px] text-slate-500 hover:text-indigo-600 rounded px-1 -mx-1 py-1 transition-colors"
+      >
+        <Plus className="w-3.5 h-3.5" />
+        <span>Adicionar descrição</span>
+      </button>
+    )
+  }
 
   return (
-    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+    <div
+      onClick={() => setEditando(true)}
+      title="Clique para editar"
+      className="bg-slate-50 border border-slate-200 rounded-lg p-3 cursor-text hover:bg-slate-100 transition-colors"
+    >
       <div className="flex items-center justify-between mb-1">
         <div className="text-[10.5px] uppercase tracking-wide font-semibold text-slate-500">
           Descrição da tarefa
@@ -734,7 +921,10 @@ function DescricaoColapsavel({ descricao, criadorNome }: { descricao: string; cr
       {transbordou && (
         <button
           type="button"
-          onClick={() => setExpandida(v => !v)}
+          onClick={(e) => {
+            e.stopPropagation()
+            setExpandida(v => !v)
+          }}
           className="mt-1.5 text-[11.5px] font-medium text-indigo-600 hover:text-indigo-700"
         >
           {expandida ? 'Ver menos' : 'Ver tudo'}
