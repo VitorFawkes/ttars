@@ -5,32 +5,32 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-05-13 (presentes individuais)
+> **Last Updated:** 2026-05-14
 > **Trigger:** ALWAYS ON
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
-> **Stats:** 195 tabelas | 157 paginas | 284 hooks | 22 views | 744 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
+> **Stats:** 197 tabelas | 156 paginas | 281 hooks | 22 views | 736 components
 
 ---
 
@@ -192,7 +192,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **284 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **281 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -216,7 +216,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAiSkills()` | `useAiSkills.ts` |
 | `useAiSkills()` | `useAiSkills.ts` |
 | `useBriefingIA()` | `useBriefingIA.ts` |
-| `useBriefingImages()` | `useBriefingImages.ts` |
 | `useChatIA()` | `useChatIA.ts` |
 | `useContactSearch()` | `useContactSearch.ts` |
 | `useEmailNotificationPreferences()` | `useEmailNotificationPreferences.ts` |
@@ -346,9 +345,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useEditarPrazoTarefa()` | `useEditarPrazoTarefa.ts` |
 | `useEmpresaPessoas()` | `useEmpresaPessoas.ts` |
 | `useEmpresas()` | `useEmpresas.ts` |
-| `useEmpresas 2()` | `useEmpresas 2.ts` |
 | `useEstelaScoringRules()` | `useEstelaScoringRules.ts` |
-| `useEstelaScoringRules 2()` | `useEstelaScoringRules 2.ts` |
 | `useFlightLookup()` | `useFlightLookup.ts` |
 | `useFotos()` | `useFotos.ts` |
 | `useFutureOpportunities()` | `useFutureOpportunities.ts` |
@@ -370,6 +367,9 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useMyDayOpportunities()` | `useMyDayOpportunities.ts` |
 | `useMyDayTasks()` | `useMyDayTasks.ts` |
 | `useMyVisiblePhases()` | `useMyVisiblePhases.ts` |
+| `useNPSKpis()` | `useNPSKpis.ts` |
+| `useNPSMonthlyTrend()` | `useNPSMonthlyTrend.ts` |
+| `useNPSResponses()` | `useNPSResponses.ts` |
 | `useNetworkStatus()` | `useNetworkStatus.ts` |
 | `useNotificationConfig()` | `useNotificationConfig.ts` |
 | `useNotifications()` | `useNotifications.ts` |
@@ -408,7 +408,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useTasksList()` | `useTasksList.ts` |
 | `useTemplateUsages()` | `useTemplateUsages.ts` |
 | `useToggleCritical()` | `useToggleCritical.ts` |
-| `useToggleCritical 2()` | `useToggleCritical 2.ts` |
 | `useToggleEmFuturoConcierge()` | `useToggleEmFuturoConcierge.ts` |
 | `useTripComments()` | `useTripComments.ts` |
 | `useTripItemHistory()` | `useTripItemHistory.ts` |
@@ -438,7 +437,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useCardAttachments()` | `useCardAttachments.ts` |
 | `useCardConciergeStats()` | `useCardConciergeStats.ts` |
 | `useCardContactNames()` | `useCardContactNames.ts` |
-| `useCardCreation()` | `useCardCreation.ts` |
 | `useCardCreationRules()` | `useCardCreationRules.ts` |
 | `useCardGifts()` | `useCardGifts.ts` |
 | `useCardObservacoes()` | `useCardObservacoes.ts` |
@@ -457,7 +455,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useFilterOptions()` | `useFilterOptions.ts` |
 | `useKanbanTarefas()` | `useKanbanTarefas.ts` |
 | `useKanbanViagens()` | `useKanbanViagens.ts` |
-| `useKanbanViagens 2()` | `useKanbanViagens 2.ts` |
 | `useLeadsFilters()` | `useLeadsFilters.ts` |
 | `useMyAssistCardIds()` | `useMyAssistCardIds.ts` |
 | `usePipelineCards()` | `usePipelineCards.ts` |
@@ -558,7 +555,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **157 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **156 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -581,13 +578,13 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `CardViagem` | `src/pages/CardViagem.tsx` |
 | `Cards` | `src/pages/Cards.tsx` |
 | `CreateCardFromEcho` | `src/pages/CreateCardFromEcho.tsx` |
-| `Empresas 2` | `src/pages/Empresas 2.tsx` |
 | `Empresas` | `src/pages/Empresas.tsx` |
 | `ForgotPassword` | `src/pages/ForgotPassword.tsx` |
 | `GroupsPage` | `src/pages/GroupsPage.tsx` |
 | `InvitePage` | `src/pages/InvitePage.tsx` |
 | `Leads` | `src/pages/Leads.tsx` |
 | `Login` | `src/pages/Login.tsx` |
+| `NPSPage` | `src/pages/NPSPage.tsx` |
 | `People` | `src/pages/People.tsx` |
 | `Pipeline` | `src/pages/Pipeline.tsx` |
 | `PortalEditor` | `src/pages/PortalEditor.tsx` |
@@ -703,7 +700,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `Terms` | `src/pages/legal/Terms.tsx` |
 | `MobileCardCreate` | `src/pages/mobile/MobileCardCreate.tsx` |
 | `MobileContactPicker` | `src/pages/mobile/MobileContactPicker.tsx` |
-| `MobileOrigemDetalhePanel` | `src/pages/mobile/MobileOrigemDetalhePanel.tsx` |
 | `AuditPage` | `src/pages/platform/AuditPage.tsx` |
 | `DashboardPage` | `src/pages/platform/DashboardPage.tsx` |
 | `GlobalCatalogsPage` | `src/pages/platform/GlobalCatalogsPage.tsx` |

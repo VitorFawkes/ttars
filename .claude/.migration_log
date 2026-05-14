@@ -852,3 +852,11 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-13T13:55:55Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260513a_briefing_images_bucket.sql | applied_to_prod
 2026-05-13T14:43:09Z | supabase/migrations/20260513e_ai_agents_scheduling_config.sql | applied_to_prod
 2026-05-13T18:05:54Z | supabase/migrations/20260516_tarefas_checklist.sql | applied_to_prod
+2026-05-14T15:19:53Z | /home/pandassauro/ttars/supabase/migrations/20260516b_create_nps_tables.sql | applied_to_prod
+2026-05-14T15:20:31Z | /home/pandassauro/ttars/supabase/migrations/20260516c_backfill_nps_welcome_trips.sql | applied_to_prod
+2026-05-14T15:25:36Z | /home/pandassauro/ttars/supabase/migrations/_rollback/20260516b_nps_tables_rollback.sql | applied_to_prod
+2026-05-14T15:50:58Z | /home/pandassauro/ttars/supabase/migrations/20260516b_create_nps_tables.sql | applied_to_prod
+2026-05-14T15:51:35Z | /home/pandassauro/ttars/supabase/migrations/20260516c_backfill_nps_welcome_trips.sql | applied_to_prod
+2026-05-14T16:17:13Z | /home/pandassauro/ttars/supabase/migrations/20260516d_backfill_nps_april_whatsapp.sql | applied_to_prod
+2026-05-14T16:19:25Z | /home/pandassauro/ttars/supabase/migrations/20260516e_fix_nps_april_whatsapp.sql | applied_to_prod
+2026-05-14T16:21:52Z | supabase/migrations/20260516f_restore_phantom_nps_april.sql | applied_to_prod
