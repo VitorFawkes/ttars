@@ -54,6 +54,9 @@ import Tasks from './pages/Tasks'
 import NPSPage from './pages/NPSPage'
 import ReactivationPage from './pages/ReactivationPage'
 import PontuacoesPage from './pages/sdr/PontuacoesPage'
+import ConvidadosLayout from './pages/convidados/ConvidadosLayout'
+import ConvidadosPage from './pages/convidados/ConvidadosPage'
+import CasamentoDetailPage from './pages/convidados/CasamentoDetailPage'
 import ConciergeLayout from './pages/concierge/ConciergeLayout'
 import KanbanPage from './pages/concierge/KanbanPage'
 import PainelGestorPage from './pages/concierge/PainelGestorPage'
@@ -258,6 +261,10 @@ function App() {
                   <Route path="/reactivation" element={<ReactivationPage />} />
                   <Route path="/nps" element={<NPSPage />} />
                   <Route path="/sdr/pontuacoes" element={<PontuacoesPage />} />
+                  <Route path="/convidados" element={<ConvidadosLayout />}>
+                    <Route index element={<ConvidadosPage />} />
+                    <Route path="casamento/:id" element={<CasamentoDetailPage />} />
+                  </Route>
                   <Route path="/concierge" element={<ConciergeLayout />}>
                     <Route index element={<KanbanPage />} />
                     <Route path="meu-dia" element={<Navigate to="/concierge" replace />} />

@@ -869,3 +869,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-15T15:47:43Z | supabase/migrations/20260515d_wedding_guests.sql | applied_to_prod
 2026-05-15T16:15:31Z | supabase/migrations/20260515e_wedding_convidados_state.sql | applied_to_prod
 2026-05-15T17:11:09Z | supabase/migrations/20260515f_wedme_webhook_events.sql | applied_to_prod
+2026-05-15T17:58:10Z | supabase/migrations/20260515f_wedding_guests_link_contatos.sql | applied_to_prod
+2026-05-15T18:31:21Z | supabase/migrations/20260515g_wedding_guests_rsvp_4estados.sql | applied_to_prod
