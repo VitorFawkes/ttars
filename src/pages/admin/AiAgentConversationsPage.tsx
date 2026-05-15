@@ -80,10 +80,14 @@ export default function AiAgentConversationsPage() {
   const [search, setSearch] = useState('')
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null)
 
+  // getDateFrom usa Date.now(), então sem memo cada render gera um ISO novo
+  // → query key muda → React Query refaz a busca → loop infinito de skeleton.
+  const dateFrom = useMemo(() => getDateFrom(dateRange), [dateRange])
+
   const { data: allConversations = [], isLoading } = useAiConversations({
     agentId: agentFilter !== 'all' ? agentFilter : undefined,
     status: statusFilter !== 'all' ? statusFilter : undefined,
-    dateFrom: getDateFrom(dateRange),
+    dateFrom,
     limit: 200,
   })
 
