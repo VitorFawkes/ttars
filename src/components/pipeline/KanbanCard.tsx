@@ -13,6 +13,7 @@ import DeleteCardModal from '../card/DeleteCardModal'
 import { TagBadge } from '../card/TagBadge'
 import { useCardTags } from '../../hooks/useCardTags'
 import { useSeenCards } from '../../hooks/useSeenCards'
+import { useUnreadDelegatedTaskCards } from '../../hooks/useUnreadDelegatedTaskCards'
 import { isGanhoDireto, getPhaseOwnerName } from '../../lib/pipeline/phaseLabels'
 import { calculateExpectedPosVendaStage, isStageMismatch } from '../../lib/pipeline/posVendaStageRule'
 import { useCardTeamCounts } from '../../hooks/useCardTeamCounts'
@@ -114,6 +115,8 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
     const navigate = useNavigate()
     const { isNew, markSeen } = useSeenCards()
     const isUnseen = isNew(card.id!, card.created_at)
+    const { hasUnread } = useUnreadDelegatedTaskCards()
+    const showDelegatedDot = hasUnread(card.id)
     // Lookup O(1) no Map batched (vinda do KanbanBoard via useCardConciergeStatsBatch).
     // Antes: cada KanbanCard disparava sua própria query → N+1 em pipelines com 100+ cards.
     const conciergeStats = card.id ? conciergeStatsMap?.get(card.id) ?? null : null
@@ -656,6 +659,16 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
                         : undefined
             }
         >
+            {showDelegatedDot && (
+                <span
+                    className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5 z-30 pointer-events-none"
+                    title="Você tem uma tarefa atribuída neste card"
+                    aria-label="Tarefa nova atribuída"
+                >
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
+                </span>
+            )}
             <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2 flex-wrap">
                     <span className={cn(

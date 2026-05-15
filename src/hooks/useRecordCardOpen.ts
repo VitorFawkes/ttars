@@ -29,6 +29,8 @@ export function useRecordCardOpen(cardId: string | undefined) {
                     console.warn('[useRecordCardOpen] falhou:', error)
                     return
                 }
+                // Tarefa delegada agora foi "lida" — invalida o set de cards com dot pulsante
+                queryClient.invalidateQueries({ queryKey: ['unread-delegated-tasks', user.id] })
                 // Se criou alertas novos, invalida notifications pra mostrar no sininho
                 // e card-alerts pra exibir o overlay/widget na tela do card
                 if (data?.alerts_triggered && data.alerts_triggered > 0) {

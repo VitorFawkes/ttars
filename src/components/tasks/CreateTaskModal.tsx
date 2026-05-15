@@ -136,6 +136,7 @@ export function CreateTaskModal({
             queryClient.invalidateQueries({ queryKey: ['my-day-tasks'] })
             queryClient.invalidateQueries({ queryKey: ['cards'] })
             queryClient.invalidateQueries({ queryKey: ['concierge'] })
+            queryClient.invalidateQueries({ queryKey: ['unread-delegated-tasks'] })
             toast.success(isConciergeRequest ? 'Atendimento concierge criado' : 'Tarefa criada')
             handleClose()
         },

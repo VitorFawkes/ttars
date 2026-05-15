@@ -5,32 +5,32 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-05-14
+> **Last Updated:** 2026-05-15
 > **Trigger:** ALWAYS ON
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
-> **Stats:** 197 tabelas | 158 paginas | 292 hooks | 22 views | 745 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
 
 ---
 
@@ -192,7 +192,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **292 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **293 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -488,6 +488,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useTeamFilterMembers()` | `useTeamFilterMembers.ts` |
 | `useTransformIntoSubCard()` | `useTransformIntoSubCard.ts` |
 | `useTripsFilters()` | `useTripsFilters.ts` |
+| `useUnreadDelegatedTaskCards()` | `useUnreadDelegatedTaskCards.ts` |
 
 #### Proposals
 | Hook | File |
@@ -566,7 +567,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **158 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **171 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -610,6 +611,19 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `Tasks` | `src/pages/Tasks.tsx` |
 | `ViagemStandalone` | `src/pages/ViagemStandalone.tsx` |
 | `ViagensPage` | `src/pages/ViagensPage.tsx` |
+| `Atalhos` | `src/pages/_proto/patricia/Atalhos.tsx` |
+| `Cap1Identidade` | `src/pages/_proto/patricia/Cap1Identidade.tsx` |
+| `Cap2ComoFala` | `src/pages/_proto/patricia/Cap2ComoFala.tsx` |
+| `Cap3Conversa` | `src/pages/_proto/patricia/Cap3Conversa.tsx` |
+| `Cap4SabeNegocio` | `src/pages/_proto/patricia/Cap4SabeNegocio.tsx` |
+| `Cap5PodeFazer` | `src/pages/_proto/patricia/Cap5PodeFazer.tsx` |
+| `Cap6ChamaHumano` | `src/pages/_proto/patricia/Cap6ChamaHumano.tsx` |
+| `Cap7Linhas` | `src/pages/_proto/patricia/Cap7Linhas.tsx` |
+| `ModoAvancado` | `src/pages/_proto/patricia/ModoAvancado.tsx` |
+| `PatriciaProtoPage` | `src/pages/_proto/patricia/PatriciaProtoPage.tsx` |
+| `PatriciaShell` | `src/pages/_proto/patricia/PatriciaShell.tsx` |
+| `TrilhaHome` | `src/pages/_proto/patricia/TrilhaHome.tsx` |
+| `Ui` | `src/pages/_proto/patricia/Ui.tsx` |
 | `AiAgentAnalyticsPage` | `src/pages/admin/AiAgentAnalyticsPage.tsx` |
 | `AiAgentBuilderWizard` | `src/pages/admin/AiAgentBuilderWizard.tsx` |
 | `AiAgentConversationsPage` | `src/pages/admin/AiAgentConversationsPage.tsx` |
