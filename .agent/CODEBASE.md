@@ -7,30 +7,30 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-15
 > **Trigger:** ALWAYS ON
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 293 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
 
 ---
 
@@ -192,7 +192,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **293 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **294 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -449,6 +449,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useCardCreationRules()` | `useCardCreationRules.ts` |
 | `useCardFinancialSummary()` | `useCardFinancialSummary.ts` |
 | `useCardGifts()` | `useCardGifts.ts` |
+| `useCardMondeVendas()` | `useCardMondeVendas.ts` |
 | `useCardObservacoes()` | `useCardObservacoes.ts` |
 | `useCardPeople()` | `useCardPeople.ts` |
 | `useCardRulesSettings()` | `useCardRulesSettings.ts` |

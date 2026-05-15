@@ -1,29 +1,31 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Hash, ChevronDown, ExternalLink } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
-
-interface MondeHistoricoEntry {
-    numero: string
-    origem: 'original' | 'sub_card'
-    sub_card_id: string | null
-    sub_card_titulo: string | null
-    adicionado_em: string
-}
+import { Hash, ChevronDown } from 'lucide-react'
+import { useCardMondeVendas } from '@/hooks/useCardMondeVendas'
 
 interface MondeNumbersBadgeProps {
+    cardId: string | undefined
     primaryNumber: string | null | undefined
-    historico: MondeHistoricoEntry[]
 }
 
-export default function MondeNumbersBadge({ primaryNumber, historico }: MondeNumbersBadgeProps) {
+export default function MondeNumbersBadge({ cardId, primaryNumber }: MondeNumbersBadgeProps) {
     const [open, setOpen] = useState(false)
     const containerRef = useRef<HTMLDivElement>(null)
     const popoverRef = useRef<HTMLDivElement>(null)
     const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
-    const navigate = useNavigate()
 
-    const extraCount = historico.length > 1 ? historico.length - 1 : 0
+    const { data: vendas = [] } = useCardMondeVendas(cardId)
+
+    // Lista ordenada: primário primeiro (se existir), demais por número
+    const ordered = (() => {
+        if (!primaryNumber) return vendas
+        const primary = vendas.find(v => v.numero === primaryNumber)
+        const rest = vendas.filter(v => v.numero !== primaryNumber)
+        return primary ? [primary, ...rest] : vendas
+    })()
+
+    const extraCount = Math.max(0, ordered.length - 1)
+    const displayPrimary = primaryNumber || ordered[0]?.numero || null
 
     useEffect(() => {
         if (!open || !containerRef.current) return
@@ -52,9 +54,9 @@ export default function MondeNumbersBadge({ primaryNumber, historico }: MondeNum
         return () => document.removeEventListener('mousedown', handler)
     }, [open])
 
-    if (!primaryNumber && historico.length === 0) return null
+    if (!displayPrimary) return <span className="text-sm text-slate-500">—</span>
 
-    const popover = open && historico.length > 0 && pos ? createPortal(
+    const popover = open && ordered.length > 0 && pos ? createPortal(
         <div
             ref={popoverRef}
             style={{
@@ -70,37 +72,22 @@ export default function MondeNumbersBadge({ primaryNumber, historico }: MondeNum
             <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-1 sticky top-0 bg-white pt-1 pb-1">
                 Todos os N de Venda Monde
             </p>
-            {historico.map((entry, i) => (
+            {ordered.map((v) => (
                 <div
-                    key={`${entry.numero}-${i}`}
+                    key={v.numero}
                     className="flex items-center justify-between px-2 py-1.5 rounded-md bg-slate-50 hover:bg-slate-100 transition-colors"
                 >
                     <div className="flex items-center gap-2 min-w-0">
                         <Hash className="h-3 w-3 text-slate-400 shrink-0" />
                         <div className="min-w-0">
                             <span className="text-sm font-medium text-slate-900 block truncate">
-                                {entry.numero}
+                                {v.numero}
                             </span>
                             <span className="text-[10px] text-slate-500">
-                                {entry.origem === 'original' ? 'Original' : entry.sub_card_titulo || 'Alteração'}
-                                {entry.adicionado_em && ` · ${new Date(entry.adicionado_em).toLocaleDateString('pt-BR')}`}
+                                {v.qtd_produtos} {v.qtd_produtos === 1 ? 'produto' : 'produtos'}
                             </span>
                         </div>
                     </div>
-                    {entry.sub_card_id && (
-                        <button
-                            type="button"
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                navigate(`/cards/${entry.sub_card_id}`)
-                                setOpen(false)
-                            }}
-                            className="p-1 text-slate-400 hover:text-indigo-600 rounded transition-colors shrink-0"
-                            title="Abrir card de alteração"
-                        >
-                            <ExternalLink className="h-3 w-3" />
-                        </button>
-                    )}
                 </div>
             ))}
         </div>,
@@ -109,7 +96,7 @@ export default function MondeNumbersBadge({ primaryNumber, historico }: MondeNum
 
     return (
         <div className="relative inline-flex items-center gap-1.5" ref={containerRef}>
-            <span className="text-sm text-slate-900 font-medium">{primaryNumber || '—'}</span>
+            <span className="text-sm text-slate-900 font-medium">{displayPrimary}</span>
 
             {extraCount > 0 && (
                 <button

@@ -941,27 +941,22 @@ export default function UniversalFieldRenderer({
         return <FieldCard icon={Banknote} iconColor="bg-emerald-100 text-emerald-600" label={field.label} value={displayValue} status={status} onEdit={onEdit} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
     }
     if (field.key === 'numero_venda_monde') {
-        const historico = extraData?.numeros_venda_monde_historico
-        const hasHistorico = Array.isArray(historico) && historico.length > 0
-
-        if (hasHistorico) {
-            return (
-                <FieldCard
-                    icon={Hash}
-                    iconColor="bg-blue-100 text-blue-600"
-                    label={field.label}
-                    value={<MondeNumbersBadge primaryNumber={value} historico={historico} />}
-                    status={status}
-                    onEdit={onEdit}
-                    cardId={cardId}
-                    showLockButton={showLockButton}
-                    fieldKey={field.key}
-                    isLocked={isLocked}
-                />
-            )
-        }
-
-        return <FieldCard icon={Hash} iconColor="bg-blue-100 text-blue-600" label={field.label} value={value} status={status} onEdit={onEdit} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
+        // Números de venda Monde do card = números ATIVOS em card_financial_items
+        // (não usa numeros_venda_monde_historico — regra do Vitor 15/05/2026).
+        return (
+            <FieldCard
+                icon={Hash}
+                iconColor="bg-blue-100 text-blue-600"
+                label={field.label}
+                value={<MondeNumbersBadge cardId={cardId} primaryNumber={value} />}
+                status={status}
+                onEdit={onEdit}
+                cardId={cardId}
+                showLockButton={showLockButton}
+                fieldKey={field.key}
+                isLocked={isLocked}
+            />
+        )
     }
     if (field.type === 'loss_reason_selector') {
         return <FieldCard icon={Tag} iconColor="bg-red-100 text-red-600" label={field.label} value={<LossReasonDisplay value={value} />} status={status} onEdit={onEdit} cardId={cardId} showLockButton={showLockButton} fieldKey={field.key} isLocked={isLocked} />
