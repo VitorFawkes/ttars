@@ -865,3 +865,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-15T13:30:56Z | supabase/migrations/20260515a_monde_multi_venda_sempre_ativa.sql | applied_to_prod
 2026-05-15T13:32:48Z | supabase/migrations/20260515c_overdue_trigger_field_config.sql | applied_to_prod
 2026-05-15T13:34:19Z | supabase/migrations/20260515b_rpc_find_cards_by_monde_vendas.sql | applied_to_prod
+2026-05-15T13:35:42Z | supabase/migrations/20260515c_rpc_find_cards_by_monde_vendas_org_param.sql | applied_to_prod

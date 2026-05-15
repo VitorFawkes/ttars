@@ -10,12 +10,13 @@ import {
 import { Button } from '@/components/ui/Button'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
+import { useOrg } from '@/contexts/OrgContext'
 import { parseBRNumber } from '@/lib/parseBRNumber'
 import { readFileText } from '@/lib/readFileText'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import {
-    parseDateBR, parseCSVNative, findColumn, chunked, formatBRL,
+    parseDateBR, parseCSVNative, findColumn, formatBRL,
     VENDA_COLUMN_ALIASES, PRODUTO_ALIASES, VALOR_TOTAL_ALIASES, RECEITA_ALIASES,
     PASSAGEIRO_ALIASES, FORNECEDOR_ALIASES, REPRESENTANTE_ALIASES, DOCUMENTO_ALIASES,
     DATA_INICIO_ALIASES, DATA_FIM_ALIASES, DATA_CANCELAMENTO_ALIASES,
@@ -478,6 +479,7 @@ type Tab = 'importar' | 'pendentes' | 'matched'
 
 export default function VendasMondePage() {
     const { profile } = useAuth()
+    const { org } = useOrg()
     const queryClient = useQueryClient()
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [activeTab, setActiveTab] = useState<Tab>('importar')
@@ -629,42 +631,36 @@ export default function VendasMondePage() {
             const matched: MatchedCard[] = []
             const matchedNums = new Set<string>()
 
-            // 1. Match primário em batch: produto_data->>numero_venda_monde via .in()
-            // Cards arquivados são ignorados — tratados como inexistentes (regra de negócio).
-            const primaryChunks = chunked(uniqueVendaNums, 50)
-            const primaryResults = await Promise.all(
-                primaryChunks.map(chunk =>
-                    supabase
-                        .from('cards')
-                        .select('id, titulo, produto_data')
-                        .in('produto_data->>numero_venda_monde', chunk)
-                        .is('archived_at', null)
-                )
-            )
+            // RPC find_cards_by_monde_vendas considera primário + histórico em
+            // uma única chamada. Cards arquivados são ignorados na própria RPC.
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data: hits, error } = await (supabase as any).rpc('find_cards_by_monde_vendas', {
+                p_venda_nums: uniqueVendaNums,
+                p_org_id: org?.id ?? null,
+            })
 
-            for (const { data: cards } of primaryResults) {
-                if (!cards) continue
-                for (const card of cards) {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const num = (card.produto_data as any)?.numero_venda_monde as string
-                    if (!num || matchedNums.has(num)) continue
-                    const products = grouped.get(num)
-                    if (!products) continue
-                    matched.push({
-                        cardId: card.id,
-                        cardTitle: (card.titulo as string) || 'Card sem título',
-                        vendaNum: num,
-                        products,
-                        totalVenda: products.reduce((s, p) => s + p.valorTotal, 0),
-                        totalReceita: products.reduce((s, p) => s + p.receita, 0),
-                    })
-                    matchedNums.add(num)
-                }
+            if (error) {
+                console.error('Erro ao fazer matching via RPC:', error)
+                toast.error('Erro ao buscar cards no banco')
+                setMatchResult({ matched: [], unmatched: uniqueVendaNums })
+                return
             }
 
-            // Histórico (numeros_venda_monde_historico) é apenas informativo:
-            // se o número não está em numero_venda_monde agora, o card não considera.
-            // Vendas sem match no número atual ficam pendentes.
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            for (const hit of (hits ?? []) as Array<{ card_id: string; card_titulo: string; venda_num: string; match_source: string }>) {
+                if (matchedNums.has(hit.venda_num)) continue
+                const products = grouped.get(hit.venda_num)
+                if (!products) continue
+                matched.push({
+                    cardId: hit.card_id,
+                    cardTitle: hit.card_titulo || 'Card sem título',
+                    vendaNum: hit.venda_num,
+                    products,
+                    totalVenda: products.reduce((s, p) => s + p.valorTotal, 0),
+                    totalReceita: products.reduce((s, p) => s + p.receita, 0),
+                })
+                matchedNums.add(hit.venda_num)
+            }
 
             setMatchResult({ matched, unmatched: uniqueVendaNums.filter(n => !matchedNums.has(n)) })
         } catch (err) {
