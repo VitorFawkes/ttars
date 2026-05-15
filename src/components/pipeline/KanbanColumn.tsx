@@ -33,10 +33,14 @@ export default function KanbanColumn({ stage, cards, phaseColor, phaseSlug, onWi
     })
     const receitaPerm = useReceitaPermission()
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cardsAny = cards as any[]
     const totalValue = cards.reduce((acc, card) => acc + (card.valor_display || card.valor_estimado || 0), 0)
     const totalReceita = cards.reduce((acc, card) => acc + (card.receita || 0), 0)
     const totalPrevisto = cards.reduce((acc, card) => acc + (card.valor_estimado || 0), 0)
-    const totalFechado = cards.reduce((acc, card) => acc + (card.valor_final || 0), 0)
+    // total_fechado vem da view view_cards_acoes (SUM dos produtos não-arquivados em card_financial_items)
+    // Fallback pra valor_final pra cards legados (ex: sub-cards agregados)
+    const totalFechado = cardsAny.reduce((acc, card) => acc + (Number(card.total_fechado) || Number(card.valor_final) || 0), 0)
     const totalFalta = totalPrevisto - totalFechado
 
     // 3 variantes do header de finanças:

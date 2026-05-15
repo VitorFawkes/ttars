@@ -477,39 +477,49 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
         if (fieldId === 'orcamento') {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const cardAny = card as any
+            const totalFechado = Number(cardAny.total_fechado) || 0
             const valorFinal = Number(cardAny.valor_final) || 0
             const valorEstimado = Number(cardAny.valor_estimado) || 0
+            const formatBRL = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 
-            // Prioridade 1: valor_final > 0 → fechado de verdade (soma dos produtos), emerald
+            // Prioridade 1: total_fechado > 0 → tem produto cadastrado, mostra fechado / previsto
+            if (totalFechado > 0) {
+                return (
+                    <div key={fieldId} className="flex items-center text-xs mt-1 tabular-nums">
+                        <DollarSign className="mr-1.5 h-3 w-3 flex-shrink-0 text-emerald-600" />
+                        <span className="truncate block flex-1">
+                            <span className="text-emerald-700 font-medium">{formatBRL(totalFechado)}</span>
+                            {valorEstimado > 0 && (
+                                <span className="text-slate-400"> / {formatBRL(valorEstimado)}</span>
+                            )}
+                        </span>
+                    </div>
+                )
+            }
+            // Prioridade 2: valor_final legado (sub-cards ou cards ganhos que já passaram pelo trigger)
             if (valorFinal > 0) {
                 return (
-                    <div key={fieldId} className="flex items-center text-xs text-emerald-600 mt-1">
+                    <div key={fieldId} className="flex items-center text-xs text-emerald-600 mt-1 tabular-nums">
                         <DollarSign className="mr-1.5 h-3 w-3 flex-shrink-0" />
-                        <span className="truncate block flex-1 font-medium">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorFinal)}
-                        </span>
+                        <span className="truncate block flex-1 font-medium">{formatBRL(valorFinal)}</span>
                     </div>
                 )
             }
-            // Prioridade 2: valor_estimado > 0 → orçamento previsto, cinza (não é fechado)
+            // Prioridade 3: valor_estimado > 0 → só orçamento previsto, sem produto cadastrado
             if (valorEstimado > 0) {
                 return (
-                    <div key={fieldId} className="flex items-center text-xs text-slate-500 mt-1">
+                    <div key={fieldId} className="flex items-center text-xs text-slate-500 mt-1 tabular-nums">
                         <DollarSign className="mr-1.5 h-3 w-3 flex-shrink-0" />
-                        <span className="truncate block flex-1">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorEstimado)}
-                        </span>
+                        <span className="truncate block flex-1">{formatBRL(valorEstimado)}</span>
                     </div>
                 )
             }
-            // Prioridade 3: orçamento dentro de produto_data (legado)
+            // Prioridade 4: orçamento dentro de produto_data (legado bem antigo)
             if (!value?.total) return null
             return (
-                <div key={fieldId} className="flex items-center text-xs text-slate-500 mt-1">
+                <div key={fieldId} className="flex items-center text-xs text-slate-500 mt-1 tabular-nums">
                     <DollarSign className="mr-1.5 h-3 w-3 flex-shrink-0" />
-                    <span className="truncate block flex-1">
-                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value.total)}
-                    </span>
+                    <span className="truncate block flex-1">{formatBRL(value.total)}</span>
                 </div>
             )
         }

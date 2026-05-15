@@ -868,3 +868,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-15T13:35:42Z | supabase/migrations/20260515c_rpc_find_cards_by_monde_vendas_org_param.sql | applied_to_prod
 2026-05-15T17:46:20Z | supabase/migrations/20260515d_bulk_import_preserve_is_ready_on_cleanup.sql | applied_to_prod
 2026-05-15T17:57:35Z | supabase/migrations/20260515e_card_arquivado_invariante.sql | applied_to_prod
+2026-05-15T18:02:19Z | supabase/migrations/20260515a_card_financial_items_auto_sync_totals.sql | applied_to_prod
+2026-05-15T18:07:37Z | supabase/migrations/20260515e_view_cards_acoes_total_fechado.sql | applied_to_prod
