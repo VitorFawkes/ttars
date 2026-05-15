@@ -866,3 +866,6 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-15T13:32:48Z | supabase/migrations/20260515c_overdue_trigger_field_config.sql | applied_to_prod
 2026-05-15T13:34:19Z | supabase/migrations/20260515b_rpc_find_cards_by_monde_vendas.sql | applied_to_prod
 2026-05-15T13:35:42Z | supabase/migrations/20260515c_rpc_find_cards_by_monde_vendas_org_param.sql | applied_to_prod
+2026-05-15T15:47:43Z | supabase/migrations/20260515d_wedding_guests.sql | applied_to_prod
+2026-05-15T16:15:31Z | supabase/migrations/20260515e_wedding_convidados_state.sql | applied_to_prod
+2026-05-15T17:11:09Z | supabase/migrations/20260515f_wedme_webhook_events.sql | applied_to_prod
