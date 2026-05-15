@@ -40,6 +40,7 @@ import { usePipelineCards } from '../../hooks/usePipelineCards'
 import { useMyAssistCardIds } from '../../hooks/useMyAssistCardIds'
 import { useAuth } from '../../contexts/AuthContext'
 import { useStageSort } from '../../hooks/usePhaseSort'
+import { useDataPrevistaTrackedStageIds } from '../../hooks/usePipelineGovernance'
 import { sortCards } from '../../lib/sortCards'
 import { useCardConciergeStatsBatch } from '../../hooks/concierge/useCardConciergeStats'
 
@@ -177,6 +178,11 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         [allCards]
     )
     const { data: conciergeStatsMap } = useCardConciergeStatsBatch(allCardIds)
+
+    // Etapas onde o admin marcou data_prevista_fechamento como visível
+    // (Pipeline Studio → "Campos por Etapa"). KanbanColumn/KanbanCard usam
+    // pra decidir se mostram a borda + tooltip vermelho de "data atrasada".
+    const { data: dataPrevistaTrackedStageIds } = useDataPrevistaTrackedStageIds(pipelineId)
 
     // Restore scroll position once after stages + cards are loaded
     useEffect(() => {
@@ -994,6 +1000,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                                                             onSortChange={(config) => setStageSortConfig(stage.id, config)}
                                                             onClearSort={() => clearStageSortConfig(stage.id)}
                                                             conciergeStatsMap={conciergeStatsMap}
+                                                            isDataPrevistaTracked={dataPrevistaTrackedStageIds?.has(stage.id) ?? false}
                                                         />
                                                     )
                                                 })
@@ -1005,7 +1012,11 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                             <DragOverlay dropAnimation={null}>
                                 {activeCard ? (
                                     <div className="rotate-3 scale-105 cursor-grabbing opacity-80">
-                                        <KanbanCard card={activeCard} phaseSlug={activeCardPhaseSlug} />
+                                        <KanbanCard
+                                            card={activeCard}
+                                            phaseSlug={activeCardPhaseSlug}
+                                            isDataPrevistaTracked={!!activeCard.pipeline_stage_id && (dataPrevistaTrackedStageIds?.has(activeCard.pipeline_stage_id) ?? false)}
+                                        />
                                     </div>
                                 ) : null}
                             </DragOverlay>

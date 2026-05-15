@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { useOrg } from '../contexts/OrgContext'
 
 export type DataOverdueSeverity = 'warn_only' | 'block_move' | 'block_all'
 
@@ -78,14 +79,37 @@ export function getDataPrevistaFechamento(produtoData: unknown): Date | null {
 }
 
 /**
- * Data Prevista de Fechamento é um conceito de Travel Planner: a data alvo
- * para fechar a venda. Após a venda fechar e o card mover para Pós-venda /
- * Resolução, o campo deixa de ser tracked (config marca visível só nos stages
- * de T.Planner). Toda lógica de alerta/bloqueio deve respeitar isso pra não
- * vazar overlay/badge/borda vermelha em fases onde o campo nem aparece.
+ * Retorna o conjunto de `pipeline_stage_id`s onde o campo
+ * `data_prevista_fechamento` está marcado como visível em
+ * `stage_field_config` (Pipeline Studio → "Campos por Etapa").
+ *
+ * Toda lógica de alerta/bloqueio (overlay, badge, borda no kanban, trigger
+ * SQL) usa esse conjunto pra decidir se atua. Assim o admin controla onde
+ * o alerta dispara apenas pela tela de configuração — sem hardcode de fase.
  */
-export function isDataPrevistaPhase(phaseSlug: string | null | undefined): boolean {
-    return phaseSlug === 'planner'
+export function useDataPrevistaTrackedStageIds(pipelineId?: string | null) {
+    const { org } = useOrg()
+    const activeOrgId = org?.id
+    return useQuery({
+        queryKey: ['data-prevista-tracked-stages', pipelineId, activeOrgId],
+        queryFn: async (): Promise<Set<string>> => {
+            if (!pipelineId || !activeOrgId) return new Set<string>()
+            const { data, error } = await supabase
+                .from('stage_field_config')
+                .select('stage_id, pipeline_stages!inner(pipeline_id)')
+                .eq('org_id', activeOrgId)
+                .eq('field_key', 'data_prevista_fechamento')
+                .eq('is_visible', true)
+                .eq('pipeline_stages.pipeline_id', pipelineId)
+            if (error) throw error
+            const ids = (data ?? [])
+                .map(row => (row as { stage_id: string | null }).stage_id)
+                .filter((id): id is string => !!id)
+            return new Set(ids)
+        },
+        enabled: !!pipelineId && !!activeOrgId,
+        staleTime: 1000 * 60 * 5,
+    })
 }
 
 /**

@@ -22,9 +22,11 @@ interface KanbanColumnProps {
     onSortChange: (config: StageSortConfig) => void
     onClearSort: () => void
     conciergeStatsMap?: Map<string, CardConciergeStats>
+    /** True quando admin marcou data_prevista_fechamento como visível nesta etapa em "Campos por Etapa". */
+    isDataPrevistaTracked?: boolean
 }
 
-export default function KanbanColumn({ stage, cards, phaseColor, phaseSlug, onWin, onLoss, currentSort, hasSortOverride, onSortChange, onClearSort, conciergeStatsMap }: KanbanColumnProps) {
+export default function KanbanColumn({ stage, cards, phaseColor, phaseSlug, onWin, onLoss, currentSort, hasSortOverride, onSortChange, onClearSort, conciergeStatsMap, isDataPrevistaTracked = false }: KanbanColumnProps) {
     const { setNodeRef, isOver } = useDroppable({
         id: stage.id,
         data: stage
@@ -153,6 +155,7 @@ export default function KanbanColumn({ stage, cards, phaseColor, phaseSlug, onWi
                             onWin={onWin}
                             onLoss={onLoss}
                             conciergeStatsMap={conciergeStatsMap}
+                            isDataPrevistaTracked={isDataPrevistaTracked}
                         />
                     ))
                 )}

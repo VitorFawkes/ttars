@@ -17,7 +17,7 @@ import { isGanhoDireto, getPhaseOwnerName } from '../../lib/pipeline/phaseLabels
 import { calculateExpectedPosVendaStage, isStageMismatch } from '../../lib/pipeline/posVendaStageRule'
 import { useCardTeamCounts } from '../../hooks/useCardTeamCounts'
 import { TIPO_LABEL, type CardConciergeStats } from '../../hooks/concierge/types'
-import { getDiasAtrasoDataPrevista, isDataPrevistaPhase } from '../../hooks/usePipelineGovernance'
+import { getDiasAtrasoDataPrevista } from '../../hooks/usePipelineGovernance'
 
 type Card = Database['public']['Views']['view_cards_acoes']['Row']
 
@@ -27,6 +27,8 @@ interface KanbanCardProps {
     onWin?: (cardId: string) => void
     onLoss?: (cardId: string) => void
     conciergeStatsMap?: Map<string, CardConciergeStats>
+    /** True quando admin marcou data_prevista_fechamento como visível na etapa do card. */
+    isDataPrevistaTracked?: boolean
 }
 
 
@@ -108,7 +110,7 @@ function formatTempoAberto(createdAt: string | null | undefined): TempoAberto | 
     return { label, level }
 }
 
-function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap }: KanbanCardProps) {
+function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataPrevistaTracked = false }: KanbanCardProps) {
     const navigate = useNavigate()
     const { isNew, markSeen } = useSeenCards()
     const isUnseen = isNew(card.id!, card.created_at)
@@ -119,12 +121,12 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap }: Kanba
     const isClosedCard = card.status_comercial === 'ganho' || card.status_comercial === 'perdido'
 
     // Data Prevista de Fechamento atrasada (badge visual + borda no card).
-    // Só aparece em colunas de T.Planner — em Pós-venda/Resolução o campo
-    // não é tracked, então não vaza borda/tooltip vermelho.
+    // Só aparece quando o admin marcou o campo como visível na etapa desta
+    // coluna (Pipeline Studio → "Campos por Etapa"). Sem hardcode de fase.
     const diasAtrasoDataPrevista = getDiasAtrasoDataPrevista(card.produto_data)
     const isDataPrevistaOverdue = diasAtrasoDataPrevista !== null
         && !isClosedCard
-        && isDataPrevistaPhase(phaseSlug)
+        && isDataPrevistaTracked
 
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: card.id!,
@@ -984,6 +986,7 @@ export default memo(KanbanCard, (prev, next) => {
     return (
         prev.card === next.card &&
         prev.phaseSlug === next.phaseSlug &&
-        prev.conciergeStatsMap === next.conciergeStatsMap
+        prev.conciergeStatsMap === next.conciergeStatsMap &&
+        prev.isDataPrevistaTracked === next.isDataPrevistaTracked
     )
 })

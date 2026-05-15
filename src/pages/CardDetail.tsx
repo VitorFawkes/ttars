@@ -26,7 +26,7 @@ import { useCardAlerts } from '../hooks/useCardAlerts'
 import { useRecordCardOpen } from '../hooks/useRecordCardOpen'
 import { useProductContext } from '../hooks/useProductContext'
 import { useProductPipelineId } from '../hooks/useCurrentProductMeta'
-import { usePipelineGovernance, getDiasAtrasoDataPrevista, isDataPrevistaPhase } from '../hooks/usePipelineGovernance'
+import { usePipelineGovernance, getDiasAtrasoDataPrevista, useDataPrevistaTrackedStageIds } from '../hooks/usePipelineGovernance'
 import OverdueDataPrevistaOverlay from '../components/card/OverdueDataPrevistaOverlay'
 
 type Card = Database['public']['Tables']['cards']['Row']
@@ -130,15 +130,19 @@ export default function CardDetail() {
     const { alerts: cardAlerts, unreadCount: alertUnread, markAllAsRead: markAllAlertsRead } = useCardAlerts(card?.id)
     const showAlertOverlay = alertUnread > 0 && !alertOverlayDismissed
 
-    // Overlay de bloqueio "Data Prevista atrasada" — só faz sentido em T.Planner.
-    // Em Pós-venda/Resolução o campo nem aparece nas configs, então não vaza alerta.
+    // Overlay de bloqueio "Data Prevista atrasada" — só dispara nas etapas
+    // onde o admin marcou o campo como visível em "Campos por Etapa". Sem
+    // hardcode de fase: trocou a regra na config, alerta acompanha.
     const cardPipelineId = useProductPipelineId(card?.produto)
     const { data: governance } = usePipelineGovernance(cardPipelineId)
+    const { data: trackedStageIds } = useDataPrevistaTrackedStageIds(cardPipelineId)
     const diasAtrasoDataPrevista = card ? getDiasAtrasoDataPrevista(card.produto_data) : null
     const isCardFinalizado = card?.status_comercial === 'ganho' || card?.status_comercial === 'perdido'
+    const isDataPrevistaTracked = !!card?.pipeline_stage_id
+        && (trackedStageIds?.has(card.pipeline_stage_id) ?? false)
     const showOverdueOverlay = !!card
         && !isCardFinalizado
-        && isDataPrevistaPhase(stageInfo?.phaseSlug)
+        && isDataPrevistaTracked
         && diasAtrasoDataPrevista !== null
         && (governance?.data_overdue_severity ?? 'block_all') === 'block_all'
 
