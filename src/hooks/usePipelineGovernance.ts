@@ -78,6 +78,17 @@ export function getDataPrevistaFechamento(produtoData: unknown): Date | null {
 }
 
 /**
+ * Data Prevista de Fechamento é um conceito de Travel Planner: a data alvo
+ * para fechar a venda. Após a venda fechar e o card mover para Pós-venda /
+ * Resolução, o campo deixa de ser tracked (config marca visível só nos stages
+ * de T.Planner). Toda lógica de alerta/bloqueio deve respeitar isso pra não
+ * vazar overlay/badge/borda vermelha em fases onde o campo nem aparece.
+ */
+export function isDataPrevistaPhase(phaseSlug: string | null | undefined): boolean {
+    return phaseSlug === 'planner'
+}
+
+/**
  * Helper: retorna número de dias que a Data Prevista está no passado
  * (positivo = atrasado, 0 = hoje, null = não preenchida/futuro).
  */

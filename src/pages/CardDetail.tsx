@@ -26,7 +26,7 @@ import { useCardAlerts } from '../hooks/useCardAlerts'
 import { useRecordCardOpen } from '../hooks/useRecordCardOpen'
 import { useProductContext } from '../hooks/useProductContext'
 import { useProductPipelineId } from '../hooks/useCurrentProductMeta'
-import { usePipelineGovernance, getDiasAtrasoDataPrevista } from '../hooks/usePipelineGovernance'
+import { usePipelineGovernance, getDiasAtrasoDataPrevista, isDataPrevistaPhase } from '../hooks/usePipelineGovernance'
 import OverdueDataPrevistaOverlay from '../components/card/OverdueDataPrevistaOverlay'
 
 type Card = Database['public']['Tables']['cards']['Row']
@@ -130,13 +130,15 @@ export default function CardDetail() {
     const { alerts: cardAlerts, unreadCount: alertUnread, markAllAsRead: markAllAlertsRead } = useCardAlerts(card?.id)
     const showAlertOverlay = alertUnread > 0 && !alertOverlayDismissed
 
-    // Overlay de bloqueio "Data Prevista atrasada"
+    // Overlay de bloqueio "Data Prevista atrasada" — só faz sentido em T.Planner.
+    // Em Pós-venda/Resolução o campo nem aparece nas configs, então não vaza alerta.
     const cardPipelineId = useProductPipelineId(card?.produto)
     const { data: governance } = usePipelineGovernance(cardPipelineId)
     const diasAtrasoDataPrevista = card ? getDiasAtrasoDataPrevista(card.produto_data) : null
     const isCardFinalizado = card?.status_comercial === 'ganho' || card?.status_comercial === 'perdido'
     const showOverdueOverlay = !!card
         && !isCardFinalizado
+        && isDataPrevistaPhase(stageInfo?.phaseSlug)
         && diasAtrasoDataPrevista !== null
         && (governance?.data_overdue_severity ?? 'block_all') === 'block_all'
 

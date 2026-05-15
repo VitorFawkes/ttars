@@ -860,3 +860,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-14T16:17:13Z | /home/pandassauro/ttars/supabase/migrations/20260516d_backfill_nps_april_whatsapp.sql | applied_to_prod
 2026-05-14T16:19:25Z | /home/pandassauro/ttars/supabase/migrations/20260516e_fix_nps_april_whatsapp.sql | applied_to_prod
 2026-05-14T16:21:52Z | supabase/migrations/20260516f_restore_phantom_nps_april.sql | applied_to_prod
+2026-05-14T20:29:45Z | supabase/migrations/20260514d_bulk_import_skip_archived_cards.sql | applied_to_prod
+2026-05-15T13:14:45Z | supabase/migrations/20260515b_overdue_trigger_planner_only.sql | applied_to_prod

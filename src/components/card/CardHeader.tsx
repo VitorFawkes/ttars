@@ -67,7 +67,7 @@ import { useFieldConfig } from '../../hooks/useFieldConfig'
 import { usePipelinePhases } from '../../hooks/usePipelinePhases'
 import { useCardAlerts } from '../../hooks/useCardAlerts'
 import { useProductPipelineId } from '../../hooks/useCurrentProductMeta'
-import { usePipelineGovernance, getDiasAtrasoDataPrevista } from '../../hooks/usePipelineGovernance'
+import { usePipelineGovernance, getDiasAtrasoDataPrevista, isDataPrevistaPhase } from '../../hooks/usePipelineGovernance'
 import { SystemPhase } from '@/types/pipeline'
 
 type CardBase = Database['public']['Tables']['cards']['Row']
@@ -402,9 +402,9 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
         [card.produto_data]
     )
     const isCardFinalized = card.status_comercial === 'ganho' || card.status_comercial === 'perdido'
-    const isDataPrevistaOverdue = diasAtraso !== null && !isCardFinalized
-    const stageMoveBlockedByOverdue = isDataPrevistaOverdue
-        && (governance?.data_overdue_severity ?? 'block_all') !== 'warn_only'
+    // isDataPrevistaOverdue / stageMoveBlockedByOverdue dependem da fase atual
+    // (Data Prevista só é tracked em T.Planner). Computados abaixo, após
+    // `currentStage` ser resolvido.
     const [isValidatingStage, setIsValidatingStage] = useState(false)
     const [qualityGateModalOpen, setQualityGateModalOpen] = useState(false)
     const [qualificationSheetOpen, setQualificationSheetOpen] = useState(false)
@@ -494,6 +494,16 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
     const currentStage = stages?.find(s => s.id === card.pipeline_stage_id)
     const currentFase = currentStage?.fase
     const currentPhaseObj = phasesData?.find(p => p.id === currentStage?.phase_id)
+    const currentPhaseSlug = currentPhaseObj?.slug ?? currentStage?.pipeline_phases?.slug ?? null
+    // Data Prevista de Fechamento só é relevante em T.Planner. Em Pós-venda /
+    // Resolução o campo nem aparece nas configs — então o badge de "atrasado",
+    // o bloqueio de mudança de etapa e o overlay não devem aparecer fora de
+    // T.Planner mesmo que a data tenha ficado para trás.
+    const isDataPrevistaOverdue = diasAtraso !== null
+        && !isCardFinalized
+        && isDataPrevistaPhase(currentPhaseSlug)
+    const stageMoveBlockedByOverdue = isDataPrevistaOverdue
+        && (governance?.data_overdue_severity ?? 'block_all') !== 'warn_only'
     const daysInStage = card.stage_entered_at
         ? Math.floor((new Date().getTime() - new Date(card.stage_entered_at).getTime()) / (1000 * 60 * 60 * 24))
         : null

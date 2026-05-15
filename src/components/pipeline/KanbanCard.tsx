@@ -17,7 +17,7 @@ import { isGanhoDireto, getPhaseOwnerName } from '../../lib/pipeline/phaseLabels
 import { calculateExpectedPosVendaStage, isStageMismatch } from '../../lib/pipeline/posVendaStageRule'
 import { useCardTeamCounts } from '../../hooks/useCardTeamCounts'
 import { TIPO_LABEL, type CardConciergeStats } from '../../hooks/concierge/types'
-import { getDiasAtrasoDataPrevista } from '../../hooks/usePipelineGovernance'
+import { getDiasAtrasoDataPrevista, isDataPrevistaPhase } from '../../hooks/usePipelineGovernance'
 
 type Card = Database['public']['Views']['view_cards_acoes']['Row']
 
@@ -118,9 +118,13 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap }: Kanba
 
     const isClosedCard = card.status_comercial === 'ganho' || card.status_comercial === 'perdido'
 
-    // Data Prevista de Fechamento atrasada (badge visual + borda no card)
+    // Data Prevista de Fechamento atrasada (badge visual + borda no card).
+    // Só aparece em colunas de T.Planner — em Pós-venda/Resolução o campo
+    // não é tracked, então não vaza borda/tooltip vermelho.
     const diasAtrasoDataPrevista = getDiasAtrasoDataPrevista(card.produto_data)
-    const isDataPrevistaOverdue = diasAtrasoDataPrevista !== null && !isClosedCard
+    const isDataPrevistaOverdue = diasAtrasoDataPrevista !== null
+        && !isClosedCard
+        && isDataPrevistaPhase(phaseSlug)
 
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: card.id!,
