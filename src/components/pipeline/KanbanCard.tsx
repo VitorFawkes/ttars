@@ -469,22 +469,37 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap }: Kanba
             )
         }
         if (fieldId === 'orcamento') {
-            // Prioridade 1: valor_final (confirmado)
-            const confirmedValue = (card as any).valor_final || (card as any).valor_display
-            if (confirmedValue) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const cardAny = card as any
+            const valorFinal = Number(cardAny.valor_final) || 0
+            const valorEstimado = Number(cardAny.valor_estimado) || 0
+
+            // Prioridade 1: valor_final > 0 → fechado de verdade (soma dos produtos), emerald
+            if (valorFinal > 0) {
                 return (
                     <div key={fieldId} className="flex items-center text-xs text-emerald-600 mt-1">
                         <DollarSign className="mr-1.5 h-3 w-3 flex-shrink-0" />
                         <span className="truncate block flex-1 font-medium">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(confirmedValue))}
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorFinal)}
                         </span>
                     </div>
                 )
             }
-            // Prioridade 2: orcamento estimado (lógica original)
+            // Prioridade 2: valor_estimado > 0 → orçamento previsto, cinza (não é fechado)
+            if (valorEstimado > 0) {
+                return (
+                    <div key={fieldId} className="flex items-center text-xs text-slate-500 mt-1">
+                        <DollarSign className="mr-1.5 h-3 w-3 flex-shrink-0" />
+                        <span className="truncate block flex-1">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorEstimado)}
+                        </span>
+                    </div>
+                )
+            }
+            // Prioridade 3: orçamento dentro de produto_data (legado)
             if (!value?.total) return null
             return (
-                <div key={fieldId} className="flex items-center text-xs text-gray-500 mt-1">
+                <div key={fieldId} className="flex items-center text-xs text-slate-500 mt-1">
                     <DollarSign className="mr-1.5 h-3 w-3 flex-shrink-0" />
                     <span className="truncate block flex-1">
                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value.total)}

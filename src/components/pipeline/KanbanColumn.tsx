@@ -49,7 +49,12 @@ export default function KanbanColumn({ stage, cards, phaseColor, phaseSlug, onWi
                 : 'default'
 
     const formatFull = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
-    const formatCompact = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact', maximumFractionDigits: 1 }).format(v)
+    const formatShort = (v: number) => {
+        if (!v) return 'R$ 0'
+        if (v >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(1).replace('.', ',')}M`
+        if (v >= 1_000) return `R$ ${Math.round(v / 1_000)}k`
+        return `R$ ${Math.round(v)}`
+    }
 
     // Robust color handling
     const isHex = phaseColor.startsWith('#') || phaseColor.startsWith('rgb')
@@ -88,11 +93,11 @@ export default function KanbanColumn({ stage, cards, phaseColor, phaseSlug, onWi
                         className="grid grid-cols-4 gap-2 tabular-nums"
                         title={`Previsto ${formatFull(totalPrevisto)}\nFechado ${formatFull(totalFechado)}\nFalta ${formatFull(Math.abs(totalFalta))}${receitaPerm.canView ? `\nReceita ${formatFull(totalReceita)}` : ''}`}
                     >
-                        <ColumnKpiCell label="Prev" value={formatCompact(totalPrevisto)} />
-                        <ColumnKpiCell label="Fech" value={formatCompact(totalFechado)} />
-                        <ColumnKpiCell label={totalFalta < 0 ? 'Exced' : 'Falta'} value={formatCompact(Math.abs(totalFalta))} />
+                        <ColumnKpiCell label="Prev" value={formatShort(totalPrevisto)} />
+                        <ColumnKpiCell label="Fech" value={formatShort(totalFechado)} />
+                        <ColumnKpiCell label={totalFalta < 0 ? 'Exced' : 'Falta'} value={formatShort(Math.abs(totalFalta))} />
                         {receitaPerm.canView ? (
-                            <ColumnKpiCell label="Rec" value={formatCompact(totalReceita)} />
+                            <ColumnKpiCell label="Rec" value={formatShort(totalReceita)} />
                         ) : (
                             <div />
                         )}
@@ -107,7 +112,7 @@ export default function KanbanColumn({ stage, cards, phaseColor, phaseSlug, onWi
                                 <>
                                     <span className="text-slate-300 mx-1.5">·</span>
                                     <span className="text-slate-400">Rec </span>
-                                    <span className="text-slate-700 font-medium">{formatCompact(totalReceita)}</span>
+                                    <span className="text-slate-700 font-medium">{formatShort(totalReceita)}</span>
                                 </>
                             )}
                         </span>
@@ -121,7 +126,7 @@ export default function KanbanColumn({ stage, cards, phaseColor, phaseSlug, onWi
                                 <>
                                     <span className="text-slate-300 mx-1.5">·</span>
                                     <span className="text-slate-400">Rec </span>
-                                    <span className="text-slate-700 font-medium">{formatCompact(totalReceita)}</span>
+                                    <span className="text-slate-700 font-medium">{formatShort(totalReceita)}</span>
                                 </>
                             )}
                         </span>
@@ -158,10 +163,16 @@ export default function KanbanColumn({ stage, cards, phaseColor, phaseSlug, onWi
 }
 
 function ColumnKpiCell({ label, value }: { label: string; value: string }) {
+    const isZero = value === 'R$ 0'
     return (
         <div className="min-w-0">
-            <div className="text-[10px] text-slate-400 truncate">{label}</div>
-            <div className="text-[11px] font-medium text-slate-700 truncate">{value}</div>
+            <div className="text-[11px] text-slate-400 leading-none">{label}</div>
+            <div className={cn(
+                'text-xs font-medium leading-tight mt-1 truncate',
+                isZero ? 'text-slate-400' : 'text-slate-700'
+            )}>
+                {value}
+            </div>
         </div>
     )
 }
