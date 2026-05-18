@@ -7,30 +7,30 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-18
 > **Trigger:** ALWAYS ON
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
-> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 749 components
 
 ---
 
