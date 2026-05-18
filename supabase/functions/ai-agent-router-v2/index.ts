@@ -371,9 +371,16 @@ Deno.serve(async (req) => {
 
     // ------------------------------------------------------------------
     // 3. Find or create contato
+    //
+    // Modo teste (whitelist do agente não-vazia): usa contato/card ISOLADO
+    // marcado com test_agent_id = agent.id, pra não poluir cards reais
+    // que existam com o mesmo telefone. Reset apaga só os marcados.
+    // Modo produção (whitelist vazia/null): comportamento normal.
     // ------------------------------------------------------------------
+    const isTestMode = Array.isArray(agent.test_mode_phone_whitelist) && agent.test_mode_phone_whitelist.length > 0;
+    const testAgentId: string | null = isTestMode ? agent.id : null;
     const phoneNorm = normalizePhone(contact_phone);
-    const contactId = await findOrCreateContact(supabase, agent.org_id, phoneNorm);
+    const contactId = await findOrCreateContact(supabase, agent.org_id, phoneNorm, testAgentId);
 
     // ------------------------------------------------------------------
     // 4. Find or create card (na linha do produto, primeira stage)
@@ -389,6 +396,7 @@ Deno.serve(async (req) => {
         lineRow.phase_id,
         lineRow.default_owner_id,
         lineRow.produto || agent.produto,
+        testAgentId,
       );
     }
 
@@ -1569,26 +1577,38 @@ async function findOrCreateContact(
   supabase: ReturnType<typeof createClient>,
   orgId: string,
   phone: string,
+  testAgentId: string | null = null,
 ): Promise<string> {
-  const { data: existing } = await supabase
+  // Em modo teste, busca/cria identidade isolada — não reutiliza contato
+  // real homônimo (mesmo telefone). Migration 20260518c adiciona a coluna.
+  let query = supabase
     .from("contatos")
     .select("id")
     .eq("org_id", orgId)
     .eq("telefone", phone)
-    .limit(1)
-    .maybeSingle();
+    .limit(1);
+  if (testAgentId) {
+    query = query.eq("test_agent_id", testAgentId);
+  } else {
+    query = query.is("test_agent_id", null);
+  }
+  const { data: existing } = await query.maybeSingle();
 
   if (existing?.id) return existing.id;
 
+  // telefone_normalizado é GENERATED — não pode passar valor explícito.
+  const insertData: Record<string, unknown> = {
+    org_id: orgId,
+    telefone: phone,
+    nome: testAgentId ? "Lead (teste)" : "WhatsApp",
+    sobrenome: phone.slice(-4),
+    origem: testAgentId ? "ai_agent_test" : "whatsapp_ai_agent",
+  };
+  if (testAgentId) insertData.test_agent_id = testAgentId;
+
   const { data: created, error } = await supabase
     .from("contatos")
-    .insert({
-      org_id: orgId,
-      telefone: phone,
-      nome: "WhatsApp",
-      sobrenome: phone.slice(-4), // últimos 4 dígitos como sobrenome temp; lead atualiza ao se identificar
-      origem: "whatsapp_ai_agent",
-    })
+    .insert(insertData)
     .select("id")
     .single();
 
@@ -1605,35 +1625,42 @@ async function findOrCreateCard(
   phaseId: string | null,
   defaultOwnerId: string | null,
   produto: string | null,
+  testAgentId: string | null = null,
 ): Promise<string | null> {
   if (!pipelineId || !stageId) return null;
 
-  // Busca card ATIVO recente do contato neste pipeline
-  const { data: existing } = await supabase
+  // Em modo teste: filtra cards pelo test_agent_id. Cards reais (sem
+  // a marca) ficam isolados mesmo que pertençam ao mesmo contact_id
+  // — relevante porque o contato de teste é distinto do real.
+  let query = supabase
     .from("cards")
     .select("id")
     .eq("org_id", orgId)
-    .eq("contato_principal_id", contactId)
+    .eq("pessoa_principal_id", contactId)
     .eq("pipeline_id", pipelineId)
-    .in("status", ["aberto", "open", "ativo", "active"])
+    .is("deleted_at", null)
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(1);
+  if (testAgentId) {
+    query = query.eq("test_agent_id", testAgentId);
+  } else {
+    query = query.is("test_agent_id", null);
+  }
+  const { data: existing } = await query.maybeSingle();
 
   if (existing?.id) return existing.id;
 
-  // Cria novo
+  // Cria novo card
   const insertData: Record<string, unknown> = {
     org_id: orgId,
-    contato_principal_id: contactId,
+    pessoa_principal_id: contactId,
     pipeline_id: pipelineId,
-    etapa_id: stageId,
-    titulo: "Novo lead WhatsApp",
-    status: "aberto",
+    pipeline_stage_id: stageId,
+    titulo: testAgentId ? "[TESTE] Lead WhatsApp" : "Novo lead WhatsApp",
   };
-  if (phaseId) insertData.fase_id = phaseId;
   if (defaultOwnerId) insertData.dono_atual_id = defaultOwnerId;
   if (produto) insertData.produto = produto;
+  if (testAgentId) insertData.test_agent_id = testAgentId;
 
   const { data: created, error } = await supabase
     .from("cards")
