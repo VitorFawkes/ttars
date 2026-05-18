@@ -285,7 +285,13 @@ export default function CardDetail() {
             )}
 
             {/* Cancellation Section (banner âmbar / cinza / botão abrir) */}
-            {card.id && card.produto === 'TRIPS' && <CancellationSection cardId={card.id} />}
+            {card.id && card.produto === 'TRIPS' && (
+                <CancellationSection
+                    cardId={card.id}
+                    cardGanhoPlanner={card.ganho_planner ?? null}
+                    cardStatusComercial={card.status_comercial}
+                />
+            )}
 
             {/* Sticky Header */}
             <div className="sticky top-0 z-10 bg-white shadow-sm">

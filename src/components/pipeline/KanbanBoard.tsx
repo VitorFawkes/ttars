@@ -1074,9 +1074,11 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                                     )
                                 })}
 
-                                {/* Coluna virtual "Cancelamento" — aparece quando há viagens em
-                                   cancelamento aberto onde o user atual é TP. Some quando vazia. */}
-                                {productFilter === 'TRIPS' && (
+                                {/* Coluna virtual "Cancelamento" — aparece SOMENTE pro Travel Planner
+                                    (user com team.phase.slug === 'planner') quando há viagens em
+                                    cancelamento aberto onde ele é TP. Some quando vazia.
+                                    Não aparece pra Pós-Venda (que trabalha em cima da operação). */}
+                                {productFilter === 'TRIPS' && profile?.team?.phase?.slug === 'planner' && (
                                     <KanbanCancellationLane
                                         tpOwnerId={profile?.id ?? undefined}
                                         orgId={org?.id ?? undefined}
