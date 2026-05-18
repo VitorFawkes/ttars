@@ -557,24 +557,29 @@ export async function executePatriciaToolCall(
           cur.setDate(cur.getDate() + 1);
         }
 
-        // Busca reuniões da WP no range
+        // Busca reuniões da WP no range — tabela canônica é `tarefas` com
+        // tipo='reuniao' (mesma que a página Agenda usa). Antes lia de
+        // `reunioes` (legado, só 7 entries) e mostrava slots "livres" que
+        // na verdade estavam ocupados. Corrigido 18/05.
         const occupied = new Set<string>();
         try {
           const endPlus = new Date(rangeEnd);
           endPlus.setDate(endPlus.getDate() + 1);
           const { data: meetings, error: meetErr } = await supabase
-            .from("reunioes")
-            .select("data_inicio")
+            .from("tarefas")
+            .select("data_vencimento")
             .eq("org_id", agent.org_id)
+            .eq("tipo", "reuniao")
             .eq("responsavel_id", agent.wedding_planner_profile_id)
-            .gte("data_inicio", rangeStart.toISOString())
-            .lt("data_inicio", endPlus.toISOString())
-            .in("status", ["agendada", "confirmada", "agendado", "confirmado"]);
+            .is("deleted_at", null)
+            .gte("data_vencimento", rangeStart.toISOString())
+            .lt("data_vencimento", endPlus.toISOString())
+            .in("status", ["agendada", "confirmada", "agendado", "confirmado", "pendente"]);
           if (meetErr) {
-            console.warn("[tool check_calendar] erro lendo reunioes:", meetErr.message);
+            console.warn("[tool check_calendar] erro lendo tarefas:", meetErr.message);
           } else if (Array.isArray(meetings)) {
             for (const m of meetings) {
-              const di = m.data_inicio as string | null;
+              const di = (m as { data_vencimento: string | null }).data_vencimento;
               if (!di) continue;
               const md = new Date(di);
               const yyyy = md.getFullYear();
@@ -678,32 +683,34 @@ export async function executePatriciaToolCall(
           return { tool_name: call.tool_name, ok: false, error: "formato inválido. Esperado { date: 'DD/MM' ou 'DD/MM/YYYY', time: 'HH:MM' } ou { iso: 'YYYY-MM-DDTHH:MM:00' }", duration_ms: Date.now() - startedAt };
         }
 
+        // IMPORTANTE: A página "Agenda" do app lê da tabela `tarefas` com
+        // tipo='reuniao' (via useCalendarMeetings). A tabela `reunioes` é
+        // legado/secundária. Antes a tool inseria em `reunioes` e a reunião
+        // não aparecia em Agenda — corrigido 18/05.
+        //
         // Re-checa disponibilidade ANTES de criar (entre sugestão e
         // confirmação alguém pode ter agendado outra coisa).
         const { data: existing, error: chkErr } = await supabase
-          .from("reunioes")
-          .select("id")
+          .from("tarefas")
+          .select("id,card_id")
+          .eq("tipo", "reuniao")
           .eq("responsavel_id", agent.wedding_planner_profile_id)
-          .eq("data_inicio", isoLocal)
-          .in("status", ["agendada", "confirmada", "agendado", "confirmado"])
-          .limit(1);
+          .eq("data_vencimento", isoLocal)
+          .is("deleted_at", null)
+          .in("status", ["agendada", "confirmada", "agendado", "confirmado", "pendente"])
+          .limit(5);
         if (chkErr) {
           console.warn("[tool confirm_meeting_slot] check conflito falhou:", chkErr.message);
         }
         if (Array.isArray(existing) && existing.length > 0) {
-          // Já existe — verifica se é do mesmo card (idempotência) ou de outro
-          const { data: sameCard } = await supabase
-            .from("reunioes")
-            .select("id,card_id")
-            .eq("responsavel_id", agent.wedding_planner_profile_id)
-            .eq("data_inicio", isoLocal)
-            .eq("card_id", cardId)
-            .maybeSingle();
+          // Idempotência: se já tem reunião desse mesmo card no mesmo horário,
+          // retorna sucesso sem duplicar.
+          const sameCard = existing.find((row) => (row as { card_id: string }).card_id === cardId);
           if (sameCard) {
             return {
               tool_name: call.tool_name,
               ok: true,
-              result: { reuniao_id: sameCard.id, status: "already_scheduled", iso: isoLocal },
+              result: { reuniao_id: (sameCard as { id: string }).id, status: "already_scheduled", iso: isoLocal },
               duration_ms: Date.now() - startedAt,
             };
           }
@@ -726,14 +733,16 @@ export async function executePatriciaToolCall(
           : "Reunião Wedding Planner";
 
         const { data: inserted, error: insErr } = await supabase
-          .from("reunioes")
+          .from("tarefas")
           .insert({
             card_id: cardId,
             org_id: agent.org_id,
-            responsavel_id: agent.wedding_planner_profile_id,
-            data_inicio: isoLocal,
-            status: "agendada",
+            tipo: "reuniao",
             titulo: meetingTitle,
+            responsavel_id: agent.wedding_planner_profile_id,
+            data_vencimento: isoLocal,
+            status: "agendada",
+            metadata: { duration_minutes: 30, source: "ai_agent_v2" },
           })
           .select("id")
           .single();
