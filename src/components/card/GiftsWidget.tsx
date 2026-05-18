@@ -13,6 +13,7 @@ import GiftItemRow from './gifts/GiftItemRow'
 import GiftDeliveryInfo from './gifts/GiftDeliveryInfo'
 import GiftBudgetSummary from './gifts/GiftBudgetSummary'
 import IndividualGiftAdder from './gifts/IndividualGiftAdder'
+import InventoryImageHoverPreview from '@/components/inventory/InventoryImageHoverPreview'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
@@ -523,56 +524,58 @@ function KitBuilder({
                             {/* Product grid — click to toggle */}
                             <div className="grid grid-cols-2 gap-1.5 max-h-40 overflow-y-auto">
                                 {available.map(p => (
-                                    <button
-                                        key={p.id}
-                                        onClick={() => toggleProduct(p)}
-                                        className="flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left transition-colors border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/50"
-                                    >
-                                        <div className="h-7 w-7 rounded bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
-                                            {p.image_path ? (
-                                                <img
-                                                    src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/inventory-images/${p.image_path}`}
-                                                    alt={p.name}
-                                                    className="h-full w-full rounded object-cover"
-                                                />
-                                            ) : (
-                                                <Package className="h-3.5 w-3.5 text-slate-300" />
-                                            )}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-xs font-medium text-slate-800 truncate">{p.name}</p>
-                                            <p className="text-[10px] text-slate-400">
-                                                {formatBRL(p.unit_price)} · {p.current_stock} disp.
-                                            </p>
-                                        </div>
-                                    </button>
+                                    <InventoryImageHoverPreview key={p.id} imagePath={p.image_path} productName={p.name}>
+                                        <button
+                                            onClick={() => toggleProduct(p)}
+                                            className="flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left transition-colors border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/50"
+                                        >
+                                            <div className="h-7 w-7 rounded bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
+                                                {p.image_path ? (
+                                                    <img
+                                                        src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/inventory-images/${p.image_path}`}
+                                                        alt={p.name}
+                                                        className="h-full w-full rounded object-cover"
+                                                    />
+                                                ) : (
+                                                    <Package className="h-3.5 w-3.5 text-slate-300" />
+                                                )}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-medium text-slate-800 truncate">{p.name}</p>
+                                                <p className="text-[10px] text-slate-400">
+                                                    {formatBRL(p.unit_price)} · {p.current_stock} disp.
+                                                </p>
+                                            </div>
+                                        </button>
+                                    </InventoryImageHoverPreview>
                                 ))}
                                 {/* Already-selected products show as checked */}
                                 {products.filter(p => existingProductIds.includes(p.id)).map(p => (
-                                    <button
-                                        key={p.id}
-                                        onClick={() => toggleProduct(p)}
-                                        className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-pink-300 bg-pink-50 text-left transition-colors"
-                                    >
-                                        <div className="h-7 w-7 rounded bg-pink-100 flex items-center justify-center shrink-0">
-                                            {p.image_path ? (
-                                                <img
-                                                    src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/inventory-images/${p.image_path}`}
-                                                    alt={p.name}
-                                                    className="h-full w-full rounded object-cover"
-                                                />
-                                            ) : (
-                                                <Check className="h-3.5 w-3.5 text-pink-600" />
-                                            )}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-xs font-medium text-pink-700 truncate">{p.name}</p>
-                                            <p className="text-[10px] text-pink-500">
-                                                {formatBRL(p.unit_price)} · {p.current_stock} disp.
-                                            </p>
-                                        </div>
-                                        <Check className="h-3.5 w-3.5 text-pink-600 shrink-0" />
-                                    </button>
+                                    <InventoryImageHoverPreview key={p.id} imagePath={p.image_path} productName={p.name}>
+                                        <button
+                                            onClick={() => toggleProduct(p)}
+                                            className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-pink-300 bg-pink-50 text-left transition-colors"
+                                        >
+                                            <div className="h-7 w-7 rounded bg-pink-100 flex items-center justify-center shrink-0">
+                                                {p.image_path ? (
+                                                    <img
+                                                        src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/inventory-images/${p.image_path}`}
+                                                        alt={p.name}
+                                                        className="h-full w-full rounded object-cover"
+                                                    />
+                                                ) : (
+                                                    <Check className="h-3.5 w-3.5 text-pink-600" />
+                                                )}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-medium text-pink-700 truncate">{p.name}</p>
+                                                <p className="text-[10px] text-pink-500">
+                                                    {formatBRL(p.unit_price)} · {p.current_stock} disp.
+                                                </p>
+                                            </div>
+                                            <Check className="h-3.5 w-3.5 text-pink-600 shrink-0" />
+                                        </button>
+                                    </InventoryImageHoverPreview>
                                 ))}
                             </div>
 

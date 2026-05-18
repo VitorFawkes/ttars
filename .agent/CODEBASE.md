@@ -5,32 +5,32 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-05-15
+> **Last Updated:** 2026-05-18
 > **Trigger:** ALWAYS ON
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
-> **Stats:** 200 tabelas | 171 paginas | 294 hooks | 22 views | 747 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
+> **Stats:** 200 tabelas | 175 paginas | 294 hooks | 22 views | 748 components
 
 ---
 
@@ -568,7 +568,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **171 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **175 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -612,6 +612,10 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `Tasks` | `src/pages/Tasks.tsx` |
 | `ViagemStandalone` | `src/pages/ViagemStandalone.tsx` |
 | `ViagensPage` | `src/pages/ViagensPage.tsx` |
+| `01-MasterLayout` | `src/pages/_proto/patricia/01-MasterLayout.tsx` |
+| `02-TabIdentidade` | `src/pages/_proto/patricia/02-TabIdentidade.tsx` |
+| `03-TabModoInteracao` | `src/pages/_proto/patricia/03-TabModoInteracao.tsx` |
+| `04-TabPlaybook` | `src/pages/_proto/patricia/04-TabPlaybook.tsx` |
 | `Atalhos` | `src/pages/_proto/patricia/Atalhos.tsx` |
 | `Cap1Identidade` | `src/pages/_proto/patricia/Cap1Identidade.tsx` |
 | `Cap2ComoFala` | `src/pages/_proto/patricia/Cap2ComoFala.tsx` |
