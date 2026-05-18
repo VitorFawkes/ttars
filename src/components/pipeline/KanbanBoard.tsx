@@ -45,6 +45,9 @@ import { sortCards } from '../../lib/sortCards'
 import { useCardConciergeStatsBatch } from '../../hooks/concierge/useCardConciergeStats'
 import { useOrg } from '../../contexts/OrgContext'
 import { KanbanCancellationLane } from '../kanban/KanbanCancellationLane'
+import { KanbanCancelladosColumn } from '../kanban/KanbanCancelladosColumn'
+import { useIncluirCanceladosToggle } from '../../hooks/cancelamento/useCancelamento'
+import { Archive } from 'lucide-react'
 
 const SCROLL_KEY_PREFIX = 'kanban-scroll-left'
 
@@ -72,6 +75,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
     const { validateMove, validateMoveSync, hasAsyncRules } = useQualityGate(pipelineId)
     const { session, profile } = useAuth()
     const { org } = useOrg()
+    const [incluirCancelados, setIncluirCancelados] = useIncluirCanceladosToggle()
     // Pre-fetch para expansão de fases — valor usado indiretamente via cache do React Query
     useMyAssistCardIds(viewMode === 'AGENT' && subView === 'MY_QUEUE')
 
@@ -991,6 +995,26 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
 
     return (
         <div className={cn("flex flex-col h-full", className)}>
+            {/* Toolbar: toggle "Incluir cancelados" (apenas TRIPS) */}
+            {productFilter === 'TRIPS' && (
+                <div className="flex justify-end px-4 pt-1 pb-1">
+                    <button
+                        type="button"
+                        onClick={() => setIncluirCancelados(!incluirCancelados)}
+                        className={cn(
+                            "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border transition-colors",
+                            incluirCancelados
+                                ? "bg-slate-200 border-slate-300 text-slate-800"
+                                : "bg-white border-slate-200 text-slate-500 hover:text-slate-700 hover:border-slate-300",
+                        )}
+                        title="Mostrar viagens com cancelamento total (arquivadas)"
+                    >
+                        <Archive className="w-3.5 h-3.5" />
+                        {incluirCancelados ? "Cancelados visíveis" : "Incluir cancelados"}
+                    </button>
+                </div>
+            )}
+
             {/* Scroll Area with Arrows */}
             <div className="flex-1 relative min-h-0">
                 {/* Scroll Arrows - Elite UX */}
@@ -1083,6 +1107,12 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                                         tpOwnerId={profile?.id ?? undefined}
                                         orgId={org?.id ?? undefined}
                                     />
+                                )}
+
+                                {/* Coluna "Cancelados" — cards totalmente cancelados (etapa terminal).
+                                    Aparece quando toggle "Incluir cancelados" está ligado. */}
+                                {productFilter === 'TRIPS' && incluirCancelados && (
+                                    <KanbanCancelladosColumn pipelineId={pipelineId} orgId={org?.id ?? undefined} />
                                 )}
                             </div>
                             <DragOverlay dropAnimation={null}>

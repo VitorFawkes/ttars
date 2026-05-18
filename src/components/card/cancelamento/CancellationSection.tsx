@@ -51,13 +51,13 @@ export function CancellationSection({ cardId, cardGanhoPlanner, cardStatusComerc
     staleTime: 60_000,
   })
 
-  // Mostrar a UI pra qualquer card de Welcome Trips que já tenha sido aceito pelo cliente
-  // (ganho_planner=true significa que o cliente confirmou a viagem e ela foi pra pós-venda),
-  // OU que esteja com status_comercial='ganho' (fechou ciclo completo).
-  // Não aparece em cards perdidos.
-  const podeAbrir =
-    cardStatusComercial !== 'perdido' &&
-    (cardGanhoPlanner === true || cardStatusComercial === 'ganho')
+  // Mostrar a UI pra qualquer card de Welcome Trips que não esteja perdido.
+  // Critério permissivo de propósito: cobre cards "aberto" em pós-venda (sem milestone
+  // explícito ainda) e cards "ganho". Cancelamento em card que ainda não foi vendido é
+  // raro mas o link aparece — fluxo natural cria viagem implicitamente se necessário.
+  const _ganhoPlannerFlag = cardGanhoPlanner === true // explicit flag para futura restrição se necessário
+  void _ganhoPlannerFlag
+  const podeAbrir = cardStatusComercial !== 'perdido'
 
   const viagem = viagemData?.viagem ?? null
   const items = viagemData?.items ?? []

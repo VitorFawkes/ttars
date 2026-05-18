@@ -86,6 +86,7 @@ import HelpCenter from './pages/help/HelpCenter'
 import UserManagement from './pages/admin/UserManagement'
 import CategoryManagement from './pages/admin/CategoryManagement'
 import LossReasonManagement from './pages/admin/LossReasonManagement'
+import CancellationReasonManagement from './pages/admin/CancellationReasonManagement'
 import LeadSourcesManagement from './pages/admin/LeadSourcesManagement'
 import TagManagement from './pages/admin/TagManagement'
 import PhaseVisibilitySettings from './pages/admin/PhaseVisibilitySettings'
@@ -131,6 +132,7 @@ import AiAgentBuilderWizard from './pages/admin/AiAgentBuilderWizard'
 import OutboundQueuePage from './pages/admin/OutboundQueuePage'
 import { lazy, Suspense } from 'react'
 const MobileCardCreate = lazy(() => import('./pages/mobile/MobileCardCreate'))
+const PatriciaProtoPage = lazy(() => import('./pages/_proto/patricia/PatriciaProtoPage'))
 import { ToastProvider } from './contexts/ToastContext'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import { Toaster, toast } from 'sonner'
@@ -230,6 +232,9 @@ function App() {
 
                 {/* Mobile Routes (authenticated, no sidebar) */}
                 <Route path="/m/novo-card" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" /></div>}><MobileCardCreate /></Suspense>} />
+
+                {/* Prototype Routes — TEMPORÁRIO. Remover quando o redesign for aplicado em src/pages/admin/AiAgentV2DetailPage.tsx. */}
+                <Route path="/proto/patricia" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" /></div>}><PatriciaProtoPage /></Suspense>} />
 
                 {/* Protected Routes */}
                 <Route element={<Layout />}>
@@ -364,6 +369,7 @@ function App() {
                     <Route path="customization/alert-rules" element={<CardAlertRulesPage />} />
                     <Route path="customization/categories" element={<CategoryManagement />} />
                     <Route path="customization/loss-reasons" element={<LossReasonManagement />} />
+                    <Route path="customization/cancellation-reasons" element={<CancellationReasonManagement />} />
                     <Route path="customization/lead-sources" element={<LeadSourcesManagement />} />
                     <Route path="customization/tags" element={<TagManagement />} />
 

@@ -634,9 +634,15 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
     // epoca_viagem e data_exata_da_viagem renderizam a mesma Data Viagem Completa — desduplica
     const dedupeTripDate = (arr: string[]) =>
         arr.includes('epoca_viagem') ? arr.filter(f => f !== 'data_exata_da_viagem') : arr
+    // Dedup geral: ordem_kanban pode conter duplicatas (system_fields tem 1 row por produto, e o
+    // PhaseSettingsDrawer escrevia o array bruto).
+    const dedupe = (arr: string[]) => Array.from(new Set(arr))
 
-    const fieldsToShow = dedupeTripDate(rawFieldsToShow)
-    const orderedFields = dedupeTripDate(rawOrderedFields)
+    const fieldsToShow = dedupe(dedupeTripDate(rawFieldsToShow))
+    const orderedFields = dedupe(dedupeTripDate(rawOrderedFields))
+    // ordem_kanban define a ordem; campos_kanban define a visibilidade. Render só os visíveis.
+    const visibleSet = new Set(fieldsToShow)
+    const fieldsToRender = orderedFields.filter(f => visibleSet.has(f))
 
     return (
         <div
@@ -933,10 +939,10 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
 
 
                 {/* Dynamic Fields */}
-                {orderedFields.filter(f => f !== 'task_status').map(fieldId => renderDynamicField(fieldId))}
+                {fieldsToRender.filter(f => f !== 'task_status').map(fieldId => renderDynamicField(fieldId))}
 
                 {/* Task Status always at bottom of fields, above owner */}
-                {renderDynamicField('task_status')}
+                {visibleSet.has('task_status') && renderDynamicField('task_status')}
 
                 {/* Anexos count */}
                 {(() => {
