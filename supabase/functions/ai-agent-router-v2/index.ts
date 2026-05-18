@@ -129,7 +129,8 @@ Deno.serve(async (req) => {
           test_mode_phone_whitelist, validator_rules, pipeline_models,
           identity_config, voice_config, boundaries_config, listening_config,
           handoff_actions, handoff_signals, intelligent_decisions, context_fields_config,
-          engine, timings, multimodal_config, wedding_planner_profile_id, scheduling_config
+          engine, timings, multimodal_config, wedding_planner_profile_id, scheduling_config,
+          fallback_message
         )
       `)
       .eq("phone_line_id", lineRow.id)
@@ -1500,6 +1501,70 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Quando o validator bloqueia (action="block"), o flow acima não envia
+    // nada e a lead fica esperando indefinidamente. Envia agent.fallback_message
+    // pra dar um sinal de vida ("Deixa eu verificar uma coisa aqui e já volto.")
+    // — Vitor pediu 2026-05-18 após Sarah ficar sem resposta a uma pergunta
+    // de orçamento bloqueada pela regra nunca_preco.
+    let fallbackSent = false;
+    const fallbackMessage = (agent as unknown as { fallback_message?: string | null }).fallback_message;
+    if (blocked && fallbackMessage && fallbackMessage.trim().length > 0) {
+      fallbackSent = true;
+      const fallbackText = fallbackMessage.trim();
+      const sendResult = await sendEchoMessage(
+        ECHO_API_URL,
+        ECHO_API_KEY,
+        phone_number_id,
+        contact_phone,
+        fallbackText,
+      );
+      let success = sendResult.ok;
+      let wamid: string | null = null;
+      try {
+        const parsed = sendResult.body ? JSON.parse(sendResult.body) : null;
+        wamid = parsed?.whatsapp_message_id || parsed?.id || null;
+        if (!success && wamid) success = true;
+      } catch (_) {}
+      sendResults.push({ ok: success, status: sendResult.status, error: sendResult.error, body: sendResult.body });
+
+      try {
+        await supabase.from("whatsapp_messages").insert({
+          contact_id: contactId,
+          card_id: cardId || null,
+          body: fallbackText,
+          direction: "outbound",
+          is_from_me: true,
+          type: "text",
+          status: success ? "sent" : "failed",
+          sender_phone: contact_phone.replace(/\D/g, ""),
+          sent_by_user_name: agent.nome,
+          phone_number_label: lineRow.phone_number_label,
+          external_id: wamid,
+          platform_id: platformId,
+          phone_number_id: phone_number_id,
+          metadata: { source: "ai_agent_v2_fallback", agent_id: agent.id, blocked_by_validator: true },
+        });
+      } catch (insErr) {
+        console.warn(`[v2] insert whatsapp_messages fallback falhou:`, insErr);
+      }
+
+      await supabase.from("ai_conversation_turns").insert({
+        conversation_id: conversationId,
+        role: "assistant",
+        content: fallbackText,
+        agent_id: agent.id,
+        reasoning: "Validator bloqueou a resposta original — enviando fallback_message do agente.",
+        skills_used: toolResults,
+        context_used: {
+          validator: verdict,
+          send_results: sendResults,
+          fallback_triggered: true,
+        },
+        detected_intent: singleAgentResult.output.current_moment_key,
+        qualification_score_at_turn: qualificationResult?.score ?? null,
+      });
+    }
+
     // ------------------------------------------------------------------
     // 15. Atualizar ai_conversation_state (last_moment_key, moment_step, summary)
     //
@@ -1529,8 +1594,8 @@ Deno.serve(async (req) => {
     await supabase
       .from("ai_conversations")
       .update({
-        message_count: turns.length + 1 + (blocked ? 0 : 1),
-        ai_message_count: blocked ? 0 : 1,
+        message_count: turns.length + 1 + ((blocked && !fallbackSent) ? 0 : 1),
+        ai_message_count: (blocked && !fallbackSent) ? 0 : 1,
         updated_at: new Date().toISOString(),
       })
       .eq("id", conversationId);
