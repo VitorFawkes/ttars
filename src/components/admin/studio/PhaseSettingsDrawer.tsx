@@ -151,17 +151,20 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
     });
 
     const { data: settings } = useQuery({
-        queryKey: ['pipeline-card-settings', phase?.name],
+        queryKey: ['pipeline-card-settings', phase?.id],
         queryFn: async () => {
-            if (!phase?.name) return null;
+            if (!phase?.id) return null;
+            // Filtrar por phase_id é mais preciso que fase (text), evita confusão
+            // quando há rows com mesmo nome mas phase_id diferente.
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data } = await (supabase.from('pipeline_card_settings') as any)
                 .select('*')
-                .eq('fase', phase.name)
-                .single();
+                .eq('phase_id', phase.id)
+                .is('usuario_id', null)
+                .maybeSingle();
             return data;
         },
-        enabled: isOpen && !!phase?.name
+        enabled: isOpen && !!phase?.id
     });
 
     // --- Sync State ---
@@ -216,26 +219,22 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
             if (phaseError) throw phaseError;
 
             // 2. Salvar campos do Kanban em pipeline_card_settings
-            //    Tabela não tem unique em `fase` (existem duplicatas) — fazer UPDATE por id ou INSERT.
+            //    Unique constraint: (phase_id, usuario_id). Usar UPSERT com onConflict
+            //    pra evitar duplicatas quando o GET falha por `.single()` em fases
+            //    com nome duplicado (ex: existem 2 rows pra fase "SDR").
             const basePayload = {
                 fase: phase.name,
+                phase_id: phase.id,
+                usuario_id: null,
                 campos_kanban: Array.from(visibleFields),
                 ordem_kanban: orderedFields,
                 updated_at: new Date().toISOString()
             };
 
-            if (settings?.id) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { error } = await (supabase.from('pipeline_card_settings') as any)
-                    .update(basePayload)
-                    .eq('id', settings.id);
-                if (error) throw error;
-            } else {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { error } = await (supabase.from('pipeline_card_settings') as any)
-                    .insert(basePayload);
-                if (error) throw error;
-            }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error } = await (supabase.from('pipeline_card_settings') as any)
+                .upsert(basePayload, { onConflict: 'phase_id,usuario_id' });
+            if (error) throw error;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['pipeline-card-settings'] });
