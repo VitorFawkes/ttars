@@ -877,3 +877,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-18T13:16:37Z | supabase/migrations/20260518b_materialize_stage_entry_tasks.sql | applied_to_prod
 2026-05-18T15:08:41Z | supabase/migrations/20260518c_test_agent_isolation_columns.sql | applied_to_prod
 2026-05-18T15:08:41Z | supabase/migrations/20260518d_reset_agent_test_conversation_v7.sql | applied_to_prod
+2026-05-18T15:29:24Z | supabase/migrations/20260518e_reset_agent_conversations_respects_test_mode.sql | applied_to_prod
