@@ -7,7 +7,6 @@ import { usePipelinePhases } from '../../../hooks/usePipelinePhases';
 import { useProductContext } from '../../../hooks/useProductContext';
 import { useCurrentProductMeta } from '../../../hooks/useCurrentProductMeta';
 import StageFieldConfirmationsPanel from './StageFieldConfirmationsPanel';
-import StageEntryTaskTemplatesEditor from './StageEntryTaskTemplatesEditor';
 import type { Database } from '../../../database.types';
 
 type PipelineStage = Database['public']['Tables']['pipeline_stages']['Row'];
@@ -71,10 +70,8 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
                 is_sdr_won: data.is_sdr_won,
                 is_planner_won: data.is_planner_won,
                 is_pos_won: data.is_pos_won,
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- colunas novas, types não regenerados
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
                 milestone_key: (data as any).milestone_key || null,
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                handoff_compartilhado: Boolean((data as any).handoff_compartilhado),
             };
 
             const { data: result, error } = await supabase
@@ -240,56 +237,6 @@ export default function StageInspectorDrawer({ isOpen, onClose, stage }: StageIn
                                         </div>
                                     ))}
                                 </div>
-                            </div>
-
-                            {/* Passagem de bastão — Handoff Compartilhado */}
-                            <div className="border-t border-gray-200 pt-4">
-                                <h3 className="text-sm font-semibold text-gray-800 mb-1">Passagem de bastão</h3>
-                                <p className="text-xs text-gray-500 mb-3">
-                                    Define como o card é atribuído quando chega nesta etapa.
-                                </p>
-                                <div className="flex items-start justify-between p-3 bg-gray-50 rounded-lg">
-                                    <div className="flex-1 mr-3">
-                                        <span className="text-sm font-medium text-gray-900">Handoff Compartilhado</span>
-                                        <p className="text-xs text-gray-500 mt-0.5">
-                                            Quando ativo, o card chega aqui sem responsável fixo. Todos os membros do time da fase verão o card no Kanban e poderão pegar as tarefas que aparecerem.
-                                        </p>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => setFormData({
-                                            ...formData,
-                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                            handoff_compartilhado: !(formData as any).handoff_compartilhado,
-                                        } as typeof formData)}
-                                        className={cn(
-                                            'relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0',
-                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                            (formData as any).handoff_compartilhado ? 'bg-indigo-600' : 'bg-gray-300'
-                                        )}
-                                    >
-                                        <span
-                                            className={cn(
-                                                'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
-                                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                                (formData as any).handoff_compartilhado ? 'translate-x-6' : 'translate-x-1'
-                                            )}
-                                        />
-                                    </button>
-                                </div>
-
-                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                {(formData as any).handoff_compartilhado && stage && (
-                                    <div className="mt-3 p-3 bg-indigo-50/40 rounded-lg border border-indigo-100">
-                                        <h4 className="text-sm font-medium text-slate-900 mb-1">
-                                            Tarefas criadas automaticamente na entrada
-                                        </h4>
-                                        <p className="text-xs text-slate-500 mb-3">
-                                            Estas tarefas serão geradas (sem responsável) toda vez que um card entrar nesta etapa. Qualquer membro do time pode puxá-las pra si.
-                                        </p>
-                                        <StageEntryTaskTemplatesEditor stageId={stage.id} />
-                                    </div>
-                                )}
                             </div>
 
                             {/* Milestone para Analytics */}

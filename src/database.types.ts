@@ -11062,6 +11062,7 @@ export type Database = {
           active: boolean
           color: string
           created_at: string | null
+          handoff_compartilhado: boolean
           id: string
           is_entry_phase: boolean
           is_terminal_phase: boolean
@@ -11082,6 +11083,7 @@ export type Database = {
           active?: boolean
           color: string
           created_at?: string | null
+          handoff_compartilhado?: boolean
           id?: string
           is_entry_phase?: boolean
           is_terminal_phase?: boolean
@@ -11102,6 +11104,7 @@ export type Database = {
           active?: boolean
           color?: string
           created_at?: string | null
+          handoff_compartilhado?: boolean
           id?: string
           is_entry_phase?: boolean
           is_terminal_phase?: boolean
