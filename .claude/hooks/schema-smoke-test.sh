@@ -389,6 +389,38 @@ if [ "$VIAGENS_CHECK" = "200" ] || [ "$VIAGENS_CHECK" = "206" ]; then
 
   test_rpc_exists "confirmar_viagem RPC exists" "confirmar_viagem" \
     '{"p_token":"__nonexistent__"}'
+
+  # Cancelamento de viagem pós-aceite
+  test_query "motivos_cancelamento table" \
+    "motivos_cancelamento?select=id,nome,escopo,ativo&limit=1"
+
+  test_query "viagens cancelamento columns" \
+    "viagens?select=id,modo_cancelamento,motivo_cancelamento_id,cancelamento_aberto_em,cancelamento_concluido_em,cancelamento_stage_anterior_id&limit=1"
+
+  test_query "trip_items cancelado columns" \
+    "trip_items?select=id,cancelado_em,cancelado_por,cancelado_motivo&limit=1"
+
+  test_query "pipeline_stages is_terminal column" \
+    "pipeline_stages?select=id,nome,is_terminal&limit=1"
+
+  test_query "stage Cancelada existe no pipeline Trips" \
+    "pipeline_stages?nome=eq.Cancelada&is_terminal=eq.true&select=id"
+
+  # RPCs de cancelamento
+  test_rpc_exists "abrir_cancelamento RPC exists" "abrir_cancelamento" \
+    '{"p_viagem_id":"00000000-0000-0000-0000-000000000000","p_modo":"parcial"}'
+
+  test_rpc_exists "concluir_cancelamento RPC exists" "concluir_cancelamento" \
+    '{"p_viagem_id":"00000000-0000-0000-0000-000000000000"}'
+
+  test_rpc_exists "reabrir_cancelamento RPC exists" "reabrir_cancelamento" \
+    '{"p_viagem_id":"00000000-0000-0000-0000-000000000000"}'
+
+  test_rpc_exists "cancelar_item_viagem RPC exists" "cancelar_item_viagem" \
+    '{"p_item_id":"00000000-0000-0000-0000-000000000000"}'
+
+  test_rpc_exists "descancelar_item_viagem RPC exists" "descancelar_item_viagem" \
+    '{"p_item_id":"00000000-0000-0000-0000-000000000000"}'
 fi
 
 if [ $FAILED -gt 0 ]; then

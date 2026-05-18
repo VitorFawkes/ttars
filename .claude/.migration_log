@@ -878,3 +878,6 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-18T15:08:41Z | supabase/migrations/20260518c_test_agent_isolation_columns.sql | applied_to_prod
 2026-05-18T15:08:41Z | supabase/migrations/20260518d_reset_agent_test_conversation_v7.sql | applied_to_prod
 2026-05-18T15:29:24Z | supabase/migrations/20260518e_reset_agent_conversations_respects_test_mode.sql | applied_to_prod
+2026-05-18T15:36:52Z | supabase/migrations/20260518f_cancelamento_viagem_schema.sql | applied_to_prod
+2026-05-18T15:37:58Z | supabase/migrations/20260518g_cancelamento_viagem_rpcs.sql | applied_to_prod
+2026-05-18T15:38:27Z | supabase/migrations/20260518h_cancelamento_motivos_seed_e_provision.sql | applied_to_prod

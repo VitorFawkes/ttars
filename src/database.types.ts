@@ -5640,6 +5640,7 @@ export type Database = {
           taxa_meio_pagamento: string | null
           taxa_status: string | null
           taxa_valor: number | null
+          test_agent_id: string | null
           titulo: string
           titulo_locked_at: string | null
           updated_at: string | null
@@ -5746,6 +5747,7 @@ export type Database = {
           taxa_meio_pagamento?: string | null
           taxa_status?: string | null
           taxa_valor?: number | null
+          test_agent_id?: string | null
           titulo: string
           titulo_locked_at?: string | null
           updated_at?: string | null
@@ -5852,6 +5854,7 @@ export type Database = {
           taxa_meio_pagamento?: string | null
           taxa_status?: string | null
           taxa_valor?: number | null
+          test_agent_id?: string | null
           titulo?: string
           titulo_locked_at?: string | null
           updated_at?: string | null
@@ -6517,6 +6520,7 @@ export type Database = {
           tags: string[] | null
           telefone: string | null
           telefone_normalizado: string | null
+          test_agent_id: string | null
           tipo_cliente: string | null
           tipo_contato: string | null
           tipo_pessoa: Database["public"]["Enums"]["tipo_pessoa_enum"]
@@ -6561,6 +6565,7 @@ export type Database = {
           tags?: string[] | null
           telefone?: string | null
           telefone_normalizado?: string | null
+          test_agent_id?: string | null
           tipo_cliente?: string | null
           tipo_contato?: string | null
           tipo_pessoa?: Database["public"]["Enums"]["tipo_pessoa_enum"]
@@ -6605,6 +6610,7 @@ export type Database = {
           tags?: string[] | null
           telefone?: string | null
           telefone_normalizado?: string | null
+          test_agent_id?: string | null
           tipo_cliente?: string | null
           tipo_contato?: string | null
           tipo_pessoa?: Database["public"]["Enums"]["tipo_pessoa_enum"]
@@ -10092,6 +10098,47 @@ export type Database = {
           },
         ]
       }
+      motivos_cancelamento: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          escopo: string
+          id: string
+          nome: string
+          ordem: number
+          org_id: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          escopo?: string
+          id?: string
+          nome: string
+          ordem?: number
+          org_id?: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          escopo?: string
+          id?: string
+          nome?: string
+          ordem?: number
+          org_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "motivos_cancelamento_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       motivos_perda: {
         Row: {
           ativo: boolean | null
@@ -11093,6 +11140,7 @@ export type Database = {
           is_planner_won: boolean | null
           is_pos_won: boolean | null
           is_sdr_won: boolean | null
+          is_terminal: boolean
           is_won: boolean | null
           milestone_key: string | null
           nome: string
@@ -11117,6 +11165,7 @@ export type Database = {
           is_planner_won?: boolean | null
           is_pos_won?: boolean | null
           is_sdr_won?: boolean | null
+          is_terminal?: boolean
           is_won?: boolean | null
           milestone_key?: string | null
           nome: string
@@ -11141,6 +11190,7 @@ export type Database = {
           is_planner_won?: boolean | null
           is_pos_won?: boolean | null
           is_sdr_won?: boolean | null
+          is_terminal?: boolean
           is_won?: boolean | null
           milestone_key?: string | null
           nome?: string
@@ -15293,6 +15343,9 @@ export type Database = {
           alternativas: Json
           aprovado_em: string | null
           aprovado_por: string | null
+          cancelado_em: string | null
+          cancelado_motivo: string | null
+          cancelado_por: string | null
           comercial: Json
           created_at: string
           criado_por: string | null
@@ -15316,6 +15369,9 @@ export type Database = {
           alternativas?: Json
           aprovado_em?: string | null
           aprovado_por?: string | null
+          cancelado_em?: string | null
+          cancelado_motivo?: string | null
+          cancelado_por?: string | null
           comercial?: Json
           created_at?: string
           criado_por?: string | null
@@ -15339,6 +15395,9 @@ export type Database = {
           alternativas?: Json
           aprovado_em?: string | null
           aprovado_por?: string | null
+          cancelado_em?: string | null
+          cancelado_motivo?: string | null
+          cancelado_por?: string | null
           comercial?: Json
           created_at?: string
           criado_por?: string | null
@@ -15359,6 +15418,27 @@ export type Database = {
           viagem_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "trip_items_cancelado_por_fkey"
+            columns: ["cancelado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_items_cancelado_por_fkey"
+            columns: ["cancelado_por"]
+            isOneToOne: false
+            referencedRelation: "v_team_proposal_performance"
+            referencedColumns: ["consultant_id"]
+          },
+          {
+            foreignKeyName: "trip_items_cancelado_por_fkey"
+            columns: ["cancelado_por"]
+            isOneToOne: false
+            referencedRelation: "view_profiles_complete"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "trip_items_org_id_fkey"
             columns: ["org_id"]
@@ -15698,6 +15778,10 @@ export type Database = {
       }
       viagens: {
         Row: {
+          cancelamento_aberto_em: string | null
+          cancelamento_aberto_por: string | null
+          cancelamento_concluido_em: string | null
+          cancelamento_stage_anterior_id: string | null
           capa_url: string | null
           card_id: string | null
           confirmada_em: string | null
@@ -15705,6 +15789,9 @@ export type Database = {
           enviada_em: string | null
           estado: Database["public"]["Enums"]["viagem_estado"]
           id: string
+          modo_cancelamento: string | null
+          motivo_cancelamento_id: string | null
+          motivo_cancelamento_obs: string | null
           nps_comentario: string | null
           nps_nota: number | null
           nps_respondida_em: string | null
@@ -15719,6 +15806,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          cancelamento_aberto_em?: string | null
+          cancelamento_aberto_por?: string | null
+          cancelamento_concluido_em?: string | null
+          cancelamento_stage_anterior_id?: string | null
           capa_url?: string | null
           card_id?: string | null
           confirmada_em?: string | null
@@ -15726,6 +15817,9 @@ export type Database = {
           enviada_em?: string | null
           estado?: Database["public"]["Enums"]["viagem_estado"]
           id?: string
+          modo_cancelamento?: string | null
+          motivo_cancelamento_id?: string | null
+          motivo_cancelamento_obs?: string | null
           nps_comentario?: string | null
           nps_nota?: number | null
           nps_respondida_em?: string | null
@@ -15740,6 +15834,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          cancelamento_aberto_em?: string | null
+          cancelamento_aberto_por?: string | null
+          cancelamento_concluido_em?: string | null
+          cancelamento_stage_anterior_id?: string | null
           capa_url?: string | null
           card_id?: string | null
           confirmada_em?: string | null
@@ -15747,6 +15845,9 @@ export type Database = {
           enviada_em?: string | null
           estado?: Database["public"]["Enums"]["viagem_estado"]
           id?: string
+          modo_cancelamento?: string | null
+          motivo_cancelamento_id?: string | null
+          motivo_cancelamento_obs?: string | null
           nps_comentario?: string | null
           nps_nota?: number | null
           nps_respondida_em?: string | null
@@ -15761,6 +15862,41 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "viagens_cancelamento_aberto_por_fkey"
+            columns: ["cancelamento_aberto_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viagens_cancelamento_aberto_por_fkey"
+            columns: ["cancelamento_aberto_por"]
+            isOneToOne: false
+            referencedRelation: "v_team_proposal_performance"
+            referencedColumns: ["consultant_id"]
+          },
+          {
+            foreignKeyName: "viagens_cancelamento_aberto_por_fkey"
+            columns: ["cancelamento_aberto_por"]
+            isOneToOne: false
+            referencedRelation: "view_profiles_complete"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viagens_cancelamento_stage_anterior_id_fkey"
+            columns: ["cancelamento_stage_anterior_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viagens_cancelamento_stage_anterior_id_fkey"
+            columns: ["cancelamento_stage_anterior_id"]
+            isOneToOne: false
+            referencedRelation: "view_dashboard_funil"
+            referencedColumns: ["stage_id"]
+          },
           {
             foreignKeyName: "viagens_card_id_fkey"
             columns: ["card_id"]
@@ -15794,6 +15930,13 @@ export type Database = {
             columns: ["card_id"]
             isOneToOne: true
             referencedRelation: "view_deleted_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viagens_motivo_cancelamento_id_fkey"
+            columns: ["motivo_cancelamento_id"]
+            isOneToOne: false
+            referencedRelation: "motivos_cancelamento"
             referencedColumns: ["id"]
           },
           {
@@ -18226,6 +18369,15 @@ export type Database = {
         Args: { p_field: string; p_source: string }
         Returns: boolean
       }
+      abrir_cancelamento: {
+        Args: {
+          p_modo: string
+          p_motivo_id?: string
+          p_obs?: string
+          p_viagem_id: string
+        }
+        Returns: Json
+      }
       accept_invite_for_existing_user: {
         Args: { p_token: string }
         Returns: Json
@@ -19801,6 +19953,10 @@ export type Database = {
       }
       calculate_reactivation_patterns: { Args: never; Returns: number }
       can_manage_gifts: { Args: never; Returns: boolean }
+      cancelar_item_viagem: {
+        Args: { p_item_id: string; p_motivo?: string }
+        Returns: Json
+      }
       cancelar_sub_card: {
         Args: { p_motivo?: string; p_sub_card_id: string }
         Returns: Json
@@ -19903,6 +20059,7 @@ export type Database = {
         Args: { p_error?: string; p_queue_id: string; p_status: string }
         Returns: undefined
       }
+      concluir_cancelamento: { Args: { p_viagem_id: string }; Returns: Json }
       confirmar_viagem: { Args: { p_token: string }; Returns: Json }
       consolidate_contacts_execute: {
         Args: { p_batch?: string; p_limit?: number }
@@ -19991,6 +20148,7 @@ export type Database = {
       delete_analytics_view: { Args: { p_id: string }; Returns: boolean }
       delete_user: { Args: { user_id: string }; Returns: undefined }
       desativar_pos_venda: { Args: { p_card_id: string }; Returns: Json }
+      descancelar_item_viagem: { Args: { p_item_id: string }; Returns: Json }
       describe_table: {
         Args: { p_table: string }
         Returns: {
@@ -20834,6 +20992,7 @@ export type Database = {
         }
         Returns: string
       }
+      reabrir_cancelamento: { Args: { p_viagem_id: string }; Returns: Json }
       reabrir_card: { Args: { p_card_id: string }; Returns: undefined }
       recalcular_financeiro_manual: {
         Args: { p_card_id: string }
@@ -21170,6 +21329,7 @@ export type Database = {
           usage_count: number
         }[]
       }
+      seed_motivos_cancelamento: { Args: { p_org_id: string }; Returns: number }
       send_card_alert: {
         Args: { p_card_id: string; p_message?: string; p_recipient_id: string }
         Returns: Json
