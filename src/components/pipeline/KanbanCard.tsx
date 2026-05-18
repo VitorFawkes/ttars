@@ -115,7 +115,7 @@ function formatTempoAberto(createdAt: string | null | undefined): TempoAberto | 
 function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataPrevistaTracked = false }: KanbanCardProps) {
     const navigate = useNavigate()
     const { isNew, markSeen } = useSeenCards()
-    const isUnseen = isNew(card.id!, card.created_at)
+    const isUnseen = isNew(card.id!, card.created_at, card.dono_atual_id)
     const { hasUnread } = useUnreadDelegatedTaskCards()
     const showDelegatedDot = hasUnread(card.id)
     // Etapa compartilhada (sem dono fixo) — badge visual quando card sem owner principal

@@ -60,8 +60,15 @@ export function useSeenCards() {
   // Re-render when store changes (e.g., another component calls markSeen)
   useSyncExternalStore(subscribe, getSnapshot)
 
-  const isNew = useCallback((cardId: string, createdAt: string | null | undefined): boolean => {
+  const isNew = useCallback((
+    cardId: string,
+    createdAt: string | null | undefined,
+    ownerId?: string | null,
+  ): boolean => {
     if (!userId || !cardId || !createdAt) return false
+    // Verde só pro dono específico — gestor que vê todos não vê verde,
+    // e card sem dono (etapa de handoff compartilhada) não destaca pra ninguém.
+    if (!ownerId || userId !== ownerId) return false
     const store = readStore(userId)
     // Only highlight cards created AFTER the user first loaded the pipeline
     if (new Date(createdAt) <= new Date(store.initializedAt)) return false

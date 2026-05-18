@@ -1410,7 +1410,7 @@ export default function PipelineListView({ productFilter, viewMode, subView, fil
                                 sortedCards.map((card) => {
                                     const hasOverdueTasks = (card.tarefas_atrasadas as number) > 0
                                     const hasTripSoon = card.dias_ate_viagem !== null && (card.dias_ate_viagem as number) <= 30 && (card.dias_ate_viagem as number) >= 0
-                                    const isUnseen = isCardNew(card.id!, card.created_at)
+                                    const isUnseen = isCardNew(card.id!, card.created_at, card.dono_atual_id)
 
                                     return (
                                         <TableRow
