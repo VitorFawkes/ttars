@@ -808,15 +808,21 @@ export async function executePatriciaToolCall(
         if (!cardId) {
           return { tool_name: call.tool_name, ok: false, error: "card_id ausente", duration_ms: Date.now() - startedAt };
         }
+        // Tarefas internas vão em `tarefas` (NÃO em `activities` — essa é audit log).
+        // Bug observado 2026-05-18: Patricia chamava create_task pra agendar
+        // reunião com Diana e falhava com "assignee_id column not found" porque
+        // o código antigo apontava pra tabela errada. Corrigido pra `tarefas`
+        // com as colunas reais: titulo / data_vencimento / responsavel_id.
         const { data, error } = await supabase
-          .from("activities")
+          .from("tarefas")
           .insert({
             card_id: cardId,
             tipo: call.args.tipo || "tarefa",
             titulo: call.args.titulo || "Tarefa",
             descricao: call.args.descricao || null,
-            data_inicio: call.args.data_inicio || null,
-            assignee_id: call.args.assignee_id || null,
+            data_vencimento: call.args.data_inicio || call.args.data_vencimento || null,
+            responsavel_id: call.args.assignee_id || call.args.responsavel_id || null,
+            status: "pendente",
             org_id: agent.org_id,
           })
           .select("id")
