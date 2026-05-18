@@ -197,7 +197,7 @@ Deno.serve(async (req) => {
             ECHO_API_KEY,
             phone_number_id,
             contact_phone,
-            "Conversa zerada. Manda 'oi' pra começar de novo.",
+            "Conversa zerada. Manda 'Oi, vim do site e gostaria de saber mais sobre Destination Wedding' pra começar de novo.",
           );
         } catch (e) {
           console.warn(`[v2 reset] envio echo falhou:`, (e as Error).message);
