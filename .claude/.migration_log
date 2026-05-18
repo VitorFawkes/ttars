@@ -873,3 +873,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-15T19:38:01Z | supabase/migrations/20260516g_unread_delegated_task_card_ids.sql | applied_to_prod
 2026-05-15T20:55:30Z | supabase/migrations/20260515f_bulk_import_v10_arquivo_e_fonte_unica.sql | applied_to_prod
 2026-05-15T21:11:12Z | supabase/migrations/20260515g_replica_produtos_para_todo_card_com_venda.sql | applied_to_prod
+2026-05-18T13:08:31Z | supabase/migrations/20260518a_handoff_compartilhado.sql | applied_to_prod
+2026-05-18T13:16:37Z | supabase/migrations/20260518b_materialize_stage_entry_tasks.sql | applied_to_prod

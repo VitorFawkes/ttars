@@ -14,6 +14,7 @@ import { TagBadge } from '../card/TagBadge'
 import { useCardTags } from '../../hooks/useCardTags'
 import { useSeenCards } from '../../hooks/useSeenCards'
 import { useUnreadDelegatedTaskCards } from '../../hooks/useUnreadDelegatedTaskCards'
+import { useSharedHandoffStageIds } from '../../hooks/useSharedHandoffStageIds'
 import { isGanhoDireto, getPhaseOwnerName } from '../../lib/pipeline/phaseLabels'
 import { calculateExpectedPosVendaStage, isStageMismatch } from '../../lib/pipeline/posVendaStageRule'
 import { useCardTeamCounts } from '../../hooks/useCardTeamCounts'
@@ -117,6 +118,12 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
     const isUnseen = isNew(card.id!, card.created_at)
     const { hasUnread } = useUnreadDelegatedTaskCards()
     const showDelegatedDot = hasUnread(card.id)
+    // Etapa compartilhada (sem dono fixo) — badge visual quando card sem owner principal
+    const { data: sharedStageIds } = useSharedHandoffStageIds()
+    const isInSharedStage = !!card.pipeline_stage_id
+        && Array.isArray(sharedStageIds)
+        && sharedStageIds.includes(card.pipeline_stage_id)
+    const isSharedCardNoOwner = isInSharedStage && !card.dono_atual_id
     // Lookup O(1) no Map batched (vinda do KanbanBoard via useCardConciergeStatsBatch).
     // Antes: cada KanbanCard disparava sua própria query → N+1 em pipelines com 100+ cards.
     const conciergeStats = card.id ? conciergeStatsMap?.get(card.id) ?? null : null
@@ -859,6 +866,17 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
             <span className="line-clamp-2 text-sm font-medium text-gray-900 group-hover:text-blue-600">
                 {card.titulo}
             </span>
+
+            {/* Handoff Compartilhado — card sem dono fixo, visível pra todo o time */}
+            {isSharedCardNoOwner && (
+                <div
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 -mt-0.5 self-start"
+                    title="Card compartilhado entre membros do time. Coordenação via tarefas delegadas."
+                >
+                    <Users className="h-3 w-3" />
+                    Time
+                </div>
+            )}
 
             {/* Contato Principal — fixo abaixo do título, controlado via pipeline_card_settings */}
             {card.pessoa_nome && fieldsToShow.includes('pessoa_nome') && (

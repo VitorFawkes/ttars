@@ -748,7 +748,10 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
         /* eslint-enable @typescript-eslint/no-explicit-any */
         const isCrossPhaseMove = srcPhaseId && destPhaseId && srcPhaseId !== destPhaseId
         const handoffPhaseId = explicitTargetPhaseId || (isCrossPhaseMove ? destPhaseId : null)
-        if (handoffPhaseId) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova
+        const isSharedHandoff = (targetStageData as any)?.handoff_compartilhado === true
+        // Etapa compartilhada: pula handoff modal, move direto sem setar owner
+        if (handoffPhaseId && !isSharedHandoff) {
             const targetPhase = phasesData?.find(p => p.id === handoffPhaseId)
             setPendingStageChange({
                 stageId,

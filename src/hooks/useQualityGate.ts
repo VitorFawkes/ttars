@@ -359,8 +359,23 @@ export function useQualityGate(pipelineId?: string) {
         }
 
         // --- Validate Team Member Requirements (owner OR team member with role) ---
+        // HANDOFF COMPARTILHADO: se origem OU destino é etapa com
+        // handoff_compartilhado=true, requirement team_member é ignorado
+        // (cards transitam e ficam sem dono fixo).
+        let skipTeamMemberRules = false
         const teamRules = stageRules.filter(r => r.requirement_type === 'team_member' && r.required_team_role)
         if (teamRules.length > 0) {
+            const stageIdsToCheck = [targetStageId, card.pipeline_stage_id as string | null].filter((s): s is string => !!s)
+            if (stageIdsToCheck.length > 0) {
+                const { data: stagesFlag } = await supabase
+                    .from('pipeline_stages')
+                    .select('id, handoff_compartilhado')
+                    .in('id', stageIdsToCheck)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova
+                skipTeamMemberRules = (stagesFlag ?? []).some((s: any) => s.handoff_compartilhado === true)
+            }
+        }
+        if (teamRules.length > 0 && !skipTeamMemberRules) {
             const missingRoles = teamRules.filter(rule => {
                 const ownerCol = TEAM_ROLE_TO_OWNER_COLUMN[rule.required_team_role as TeamRole]
                 const ownerId = card[ownerCol]

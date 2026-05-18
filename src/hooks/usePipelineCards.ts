@@ -7,6 +7,7 @@ import { prepareSearchTerms } from '../lib/utils'
 import { useTeamFilterMembers } from './useTeamFilterMembers'
 import { useMyAssistCardIds } from './useMyAssistCardIds'
 import { useAssistedCardIds, cardsAssistedByAny } from './useAssistedCardIds'
+import { useSharedHandoffStageIds } from './useSharedHandoffStageIds'
 
 export type Card = Database['public']['Views']['view_cards_acoes']['Row']
 
@@ -60,6 +61,11 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
     const needsAssists = viewMode === 'AGENT' && subView === 'MY_QUEUE'
     const { data: myAssistCardIds } = useMyAssistCardIds(needsAssists)
 
+    // Etapas com handoff_compartilhado=true onde o usuário tem time na fase.
+    // Cards nessas etapas ficam visíveis pra todos os membros do time, mesmo
+    // sem owner setado.
+    const { data: sharedHandoffStageIds } = useSharedHandoffStageIds()
+
     // Fetch stage IDs for user's team phase — garante que agentes veem cards na sua fase
     // mesmo sem atribuição explícita (ex: pós-venda vê todos os cards pós-venda)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -96,7 +102,7 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
     const isAssistedMembershipReady = !needsAssistedMembership || assistedMembership !== undefined
 
     const query = useQuery({
-        queryKey: ['cards', productFilter, viewMode, subView, filters, groupFilters, myTeamMembers, filteredTeamMembers, myAssistCardIds, myPhaseStageIds, showClosedCards, showWonDirect, assistedMembership?.allCardIds.length ?? 0],
+        queryKey: ['cards', productFilter, viewMode, subView, filters, groupFilters, myTeamMembers, filteredTeamMembers, myAssistCardIds, myPhaseStageIds, sharedHandoffStageIds, showClosedCards, showWonDirect, assistedMembership?.allCardIds.length ?? 0],
         placeholderData: keepPreviousData,
         // 30s de cache fresco evita refetch a cada click/foco de janela. Mutations já invalidam ['cards'].
         staleTime: 30 * 1000,
@@ -113,7 +119,9 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
             if (viewMode === 'AGENT') {
                 if (subView === 'MY_QUEUE') {
                     if (session?.user?.id) {
-                        // Minha Fila: APENAS cards onde estou nomeado (header OU equipe do card)
+                        // Minha Fila: cards onde estou nomeado (header OU equipe do card)
+                        // OU cards em etapas com handoff_compartilhado=true onde tenho
+                        // time na fase (visível pra todo o time, mesmo sem owner).
                         const ownerConditions = [
                             `dono_atual_id.eq.${session.user.id}`,
                             `sdr_owner_id.eq.${session.user.id}`,
@@ -123,6 +131,9 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                         ]
                         if (myAssistCardIds && myAssistCardIds.length > 0) {
                             ownerConditions.push(`id.in.(${myAssistCardIds.join(',')})`)
+                        }
+                        if (sharedHandoffStageIds && sharedHandoffStageIds.length > 0) {
+                            ownerConditions.push(`pipeline_stage_id.in.(${sharedHandoffStageIds.join(',')})`)
                         }
                         query = query.or(ownerConditions.join(','))
                     }

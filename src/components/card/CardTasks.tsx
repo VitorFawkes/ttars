@@ -4,6 +4,7 @@ import { BellConciergeIcon } from '../icons/BellConciergeIcon'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../contexts/AuthContext'
 import { SmartTaskModal } from './SmartTaskModal'
 import { AtendimentoDetailModal } from '../concierge/AtendimentoDetailModal'
 import { useAtendimentosCard } from '../../hooks/concierge/useAtendimentosCard'
@@ -66,6 +67,29 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
     const [outcomeFeedback, setOutcomeFeedback] = useState('')
 
     const queryClient = useQueryClient()
+    const { session } = useAuth()
+
+    // "Puxar pra mim": atribui tarefa órfã (sem responsável, criada pelo sistema) ao usuário atual
+    const claimTaskMutation = useMutation({
+        mutationFn: async (taskId: string) => {
+            if (!session?.user?.id) throw new Error('Usuário não autenticado')
+            const { error } = await supabase
+                .from('tarefas')
+                .update({ responsavel_id: session.user.id })
+                .eq('id', taskId)
+                .is('responsavel_id', null)
+            if (error) throw error
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['tasks', cardId] })
+            queryClient.invalidateQueries({ queryKey: ['card-detail', cardId] })
+            queryClient.invalidateQueries({ queryKey: ['unread-delegated-tasks'] })
+            toast.success('Tarefa atribuída pra você')
+        },
+        onError: (err: Error) => {
+            toast.error('Não foi possível pegar a tarefa', { description: err.message })
+        }
+    })
 
     // Detecta se o card atual é principal (não sub-card) para espelhar atendimentos
     // dos filhos. Se for sub-card, mostra só o que é do próprio card.
@@ -832,7 +856,7 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                                                 </div>
                                             )}
 
-                                            {/* Responsible — always show (ou chip "Sistema" se a tarefa foi criada pela automacao sem dono humano) */}
+                                            {/* Responsible — always show (ou chip "Sistema" se a tarefa foi criada pela automacao sem dono humano, ou "Puxar pra mim" se órfã do template de etapa compartilhada) */}
                                             {responsibleName ? (
                                                 <div className="flex items-center gap-1.5 text-xs text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded" title={`Responsável: ${responsibleName}`}>
                                                     <User className="w-3 h-3" />
@@ -843,6 +867,19 @@ export default function CardTasks({ cardId, requiredTasks = [] }: CardTasksProps
                                                     <Zap className="w-3 h-3" />
                                                     <span>Sistema</span>
                                                 </div>
+                                            ) : !task.concluida && !task.responsavel_id && !task.created_by ? (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        claimTaskMutation.mutate(task.id)
+                                                    }}
+                                                    disabled={claimTaskMutation.isPending}
+                                                    className="flex items-center gap-1.5 text-xs text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-1.5 py-0.5 rounded border border-indigo-200 transition-colors disabled:opacity-50"
+                                                    title="Tarefa do time — clique para se atribuir como responsável"
+                                                >
+                                                    <UserPlus className="w-3 h-3" />
+                                                    <span>Puxar pra mim</span>
+                                                </button>
                                             ) : null}
 
                                             {/* Creator — show when different from responsible */}

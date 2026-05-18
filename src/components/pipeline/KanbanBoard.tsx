@@ -391,8 +391,12 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         const explicitTargetPhaseId = (targetStage as any)?.target_phase_id as string | null
         const isCrossPhaseMove = sourcePhaseId && destPhaseId && sourcePhaseId !== destPhaseId
         const handoffPhaseId = explicitTargetPhaseId || (isCrossPhaseMove ? destPhaseId : null)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova
+        const isSharedHandoff = (targetStage as any)?.handoff_compartilhado === true
 
-        if (handoffPhaseId) {
+        // Handoff compartilhado: pula StageChangeModal de owner-selection.
+        // Card transita sem dono fixo; visibilidade fica por fase do time.
+        if (handoffPhaseId && !isSharedHandoff) {
             // Validar async rules ANTES de abrir o modal de handoff
             if (hasAsyncRules(stageId)) {
                 try {
@@ -793,6 +797,33 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
             targetPhaseId: nextPhase?.id,
             targetPhaseName: nextPhase?.name || nextPhaseCap?.slug || 'Próxima Fase'
         })
+        // HANDOFF COMPARTILHADO: pula StageChangeModal e marca ganho sem owner
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova
+        if (targetStage && (targetStage as any).handoff_compartilhado === true) {
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { error } = await (supabase as any).rpc('marcar_ganho', {
+                    p_card_id: cardId,
+                    p_novo_dono_id: null,
+                })
+                if (error) throw error
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (supabase as any).rpc('materialize_stage_entry_tasks_for_card', {
+                    p_card_id: cardId,
+                })
+                queryClient.invalidateQueries({ queryKey: ['cards'] })
+                queryClient.invalidateQueries({ queryKey: ['dashboard-funnel'] })
+                queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+                queryClient.invalidateQueries({ queryKey: ['unread-delegated-tasks'] })
+                setPendingMove(null)
+                setActiveCard(null)
+            } catch (err) {
+                console.error('Erro ao marcar como ganho (compartilhado):', err)
+                const msg = err instanceof Error ? err.message : 'Erro desconhecido'
+                toast.error('Erro ao marcar como ganho', { description: msg })
+            }
+            return
+        }
         if (tryAutoConfirmStageChange(cardId, nextPhase?.id)) return
         setStageChangeModalOpen(true)
     }
@@ -825,6 +856,37 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
             } catch (err) {
                 console.error('[QualityGate] Win validation failed — move allowed (fail-open):', err)
             }
+        }
+
+        // HANDOFF COMPARTILHADO: se 1ª etapa de Pós-Venda é compartilhada,
+        // chama marcar_ganho sem owner e materializa tarefas do template
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova
+        const isSharedHandoff = (targetStage as any)?.handoff_compartilhado === true
+        if (isSharedHandoff) {
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { error } = await (supabase as any).rpc('marcar_ganho', {
+                    p_card_id: pendingMove.cardId,
+                    p_novo_dono_id: null,
+                })
+                if (error) throw error
+                // Materializar tarefas + notificar time (marcar_ganho não passa por mover_card)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (supabase as any).rpc('materialize_stage_entry_tasks_for_card', {
+                    p_card_id: pendingMove.cardId,
+                })
+                queryClient.invalidateQueries({ queryKey: ['cards'] })
+                queryClient.invalidateQueries({ queryKey: ['dashboard-funnel'] })
+                queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+                queryClient.invalidateQueries({ queryKey: ['unread-delegated-tasks'] })
+                setPendingMove(null)
+                setActiveCard(null)
+            } catch (err) {
+                console.error('Erro ao marcar como ganho (compartilhado):', err)
+                const msg = err instanceof Error ? err.message : 'Erro desconhecido'
+                toast.error('Erro ao marcar como ganho', { description: msg })
+            }
+            return
         }
 
         if (tryAutoConfirmStageChange(pendingMove.cardId, pendingMove.targetPhaseId)) return
