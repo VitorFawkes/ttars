@@ -43,6 +43,8 @@ import { useStageSort } from '../../hooks/usePhaseSort'
 import { useDataPrevistaTrackedStageIds } from '../../hooks/usePipelineGovernance'
 import { sortCards } from '../../lib/sortCards'
 import { useCardConciergeStatsBatch } from '../../hooks/concierge/useCardConciergeStats'
+import { useOrg } from '../../contexts/OrgContext'
+import { KanbanCancellationLane } from '../kanban/KanbanCancellationLane'
 
 const SCROLL_KEY_PREFIX = 'kanban-scroll-left'
 
@@ -68,7 +70,8 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
     const { products } = useProducts()
     const pipelineId = products.find(p => p.slug === productFilter)?.pipeline_id ?? undefined
     const { validateMove, validateMoveSync, hasAsyncRules } = useQualityGate(pipelineId)
-    const { session } = useAuth()
+    const { session, profile } = useAuth()
+    const { org } = useOrg()
     // Pre-fetch para expansão de fases — valor usado indiretamente via cache do React Query
     useMyAssistCardIds(viewMode === 'AGENT' && subView === 'MY_QUEUE')
 
@@ -1070,6 +1073,15 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                                         </KanbanPhaseGroup>
                                     )
                                 })}
+
+                                {/* Coluna virtual "Cancelamento" — aparece quando há viagens em
+                                   cancelamento aberto onde o user atual é TP. Some quando vazia. */}
+                                {productFilter === 'TRIPS' && (
+                                    <KanbanCancellationLane
+                                        tpOwnerId={profile?.id ?? undefined}
+                                        orgId={org?.id ?? undefined}
+                                    />
+                                )}
                             </div>
                             <DragOverlay dropAnimation={null}>
                                 {activeCard ? (

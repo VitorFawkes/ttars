@@ -20,6 +20,8 @@ import { calculateExpectedPosVendaStage, isStageMismatch } from '../../lib/pipel
 import { useCardTeamCounts } from '../../hooks/useCardTeamCounts'
 import { TIPO_LABEL, type CardConciergeStats } from '../../hooks/concierge/types'
 import { getDiasAtrasoDataPrevista } from '../../hooks/usePipelineGovernance'
+import { useCancellationOverlay, modoCancelamentoLabel } from '../../hooks/cancelamento/useCancelamento'
+import { useOrg } from '../../contexts/OrgContext'
 
 type Card = Database['public']['Views']['view_cards_acoes']['Row']
 
@@ -114,6 +116,8 @@ function formatTempoAberto(createdAt: string | null | undefined): TempoAberto | 
 
 function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataPrevistaTracked = false }: KanbanCardProps) {
     const navigate = useNavigate()
+    const { org } = useOrg()
+    const cancelOverlay = useCancellationOverlay(card.id ?? undefined, org?.id)
     const { isNew, markSeen } = useSeenCards()
     const isUnseen = isNew(card.id!, card.created_at, card.dono_atual_id)
     const { hasUnread } = useUnreadDelegatedTaskCards()
@@ -647,6 +651,7 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
                 isDragging && "opacity-0",
                 conciergeStats?.vencidos && conciergeStats.vencidos > 0 && "border-l-4 border-l-red-300",
                 isDataPrevistaOverdue && "border-l-4 border-l-red-500 ring-1 ring-red-200",
+                cancelOverlay && "border-2 border-amber-500 animate-pulse",
                 card.status_comercial === 'ganho' && isGanhoDireto(card) && "border-amber-300 bg-amber-50/40 opacity-80",
                 card.status_comercial === 'ganho' && !(isGanhoDireto(card)) && "border-green-300 bg-green-50/40 opacity-80",
                 card.status_comercial === 'perdido' && "border-red-300 bg-red-50/40 opacity-80",
@@ -666,6 +671,21 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
                         : undefined
             }
         >
+            {cancelOverlay && (
+                <span
+                    className={cn(
+                        "absolute -top-2 -right-1 z-40 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border shadow-sm pointer-events-none",
+                        cancelOverlay.modo_cancelamento === 'total'
+                            ? "bg-red-100 text-red-800 border-red-300"
+                            : cancelOverlay.modo_cancelamento === 'mudanca_brusca'
+                                ? "bg-violet-100 text-violet-800 border-violet-300"
+                                : "bg-amber-100 text-amber-800 border-amber-300",
+                    )}
+                    title="Esta viagem está em cancelamento"
+                >
+                    ⚠ {modoCancelamentoLabel(cancelOverlay.modo_cancelamento)}
+                </span>
+            )}
             {showDelegatedDot && (
                 <span
                     className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5 z-30 pointer-events-none"

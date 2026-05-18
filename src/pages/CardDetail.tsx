@@ -28,6 +28,7 @@ import { useProductContext } from '../hooks/useProductContext'
 import { useProductPipelineId } from '../hooks/useCurrentProductMeta'
 import { usePipelineGovernance, getDiasAtrasoDataPrevista, useDataPrevistaTrackedStageIds } from '../hooks/usePipelineGovernance'
 import OverdueDataPrevistaOverlay from '../components/card/OverdueDataPrevistaOverlay'
+import { CancellationSection } from '../components/card/cancelamento/CancellationSection'
 
 type Card = Database['public']['Tables']['cards']['Row']
 
@@ -282,6 +283,9 @@ export default function CardDetail() {
                     </div>
                 </div>
             )}
+
+            {/* Cancellation Section (banner âmbar / cinza / botão abrir) */}
+            {card.id && card.produto === 'TRIPS' && <CancellationSection cardId={card.id} />}
 
             {/* Sticky Header */}
             <div className="sticky top-0 z-10 bg-white shadow-sm">

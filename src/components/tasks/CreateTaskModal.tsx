@@ -38,10 +38,13 @@ export function CreateTaskModal({
     open,
     onOpenChange,
     initialCardId,
+    extraMetadata,
 }: {
     open: boolean
     onOpenChange: (open: boolean) => void
     initialCardId?: string | null
+    /** Campos adicionais para mesclar em tarefas.metadata. Ex: { origem: 'cancelamento_parcial', viagem_id: '...' } */
+    extraMetadata?: Record<string, unknown>
 }) {
     const { profile } = useAuth()
     const { currentProduct } = useProductContext()
@@ -126,7 +129,7 @@ export function CreateTaskModal({
                     status: 'pendente',
                     concluida: false,
                     created_by: profile?.id,
-                    metadata: { origin: 'manual' },
+                    metadata: { origin: 'manual', ...(extraMetadata ?? {}) },
                 })
                 if (error) throw error
             }
@@ -137,6 +140,8 @@ export function CreateTaskModal({
             queryClient.invalidateQueries({ queryKey: ['cards'] })
             queryClient.invalidateQueries({ queryKey: ['concierge'] })
             queryClient.invalidateQueries({ queryKey: ['unread-delegated-tasks'] })
+            queryClient.invalidateQueries({ queryKey: ['cancelamento-tasks'] })
+            queryClient.invalidateQueries({ queryKey: ['cancelamento-ghosts'] })
             toast.success(isConciergeRequest ? 'Atendimento concierge criado' : 'Tarefa criada')
             handleClose()
         },
