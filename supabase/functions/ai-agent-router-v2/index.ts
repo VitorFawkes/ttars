@@ -1133,85 +1133,93 @@ Deno.serve(async (req) => {
     let checkCalendarResult: { slots_disponiveis?: Array<{ date: string; time: string; weekday: string }>; note?: string | null } | null = null;
     const inDesfechoComSlots = forcedMomentKey === "desfecho_qualificado" && !!(proposedSlots && proposedSlots.length > 0);
 
-    // Defesa pré-loop: se LLM está em desfecho com slots E NÃO chamou
-    // confirm_meeting_slot mas a resposta dele OU a msg do lead aponta
-    // claramente pra um dos slots, injetamos a chamada. Sem isso, LLM diz
-    // "fica marcado" sem agendar de verdade.
+    // Defesa pré-loop AMPLA (Vitor 18/05): sempre que o agente tem Wedding
+    // Planner configurada E a Patricia confirmou data+hora na resposta (até
+    // mesmo data FORA dos proposed_slots — lead pode sugerir), injetamos
+    // confirm_meeting_slot. A função tem check de conflito interno — se o
+    // slot estiver ocupado, retorna erro e Patricia se ajeita no próximo
+    // turno. Regra: nunca deixar "reservado" verbal sem agendar de fato.
     const llmCalledConfirm = singleAgentResult.output.tool_calls.some((tc) => tc.tool_name === "confirm_meeting_slot");
-    if (inDesfechoComSlots && !llmCalledConfirm) {
-      // Busca match em: msg do lead + texto da resposta da Patricia
-      // (cobre 2 casos: "marca 14/05 10h" do lead, OU Patricia já
-      // confirmando "vou agendar 14/05 às 10:00" sem chamar tool).
-      const agentMessages = (singleAgentResult.output.messages || [])
-        .map((m) => (m.content || "").toLowerCase())
-        .join(" ");
-      const haystack = `${(processedText || "").toLowerCase()} ${agentMessages}`;
+    const agentHasWP = !!(agent as unknown as { wedding_planner_profile_id?: string | null }).wedding_planner_profile_id;
+    const agentResponseText = (singleAgentResult.output.messages || [])
+      .map((m) => m.content || "")
+      .join(" ");
 
-      // Aliases pra weekdays (curto + longo)
-      const weekdayAliases: Record<string, string[]> = {
-        dom: ["dom", "domingo"],
-        seg: ["seg", "segunda", "segunda-feira"],
-        ter: ["ter", "terça", "terca", "terça-feira", "terca-feira"],
-        qua: ["qua", "quarta", "quarta-feira"],
-        qui: ["qui", "quinta", "quinta-feira"],
-        sex: ["sex", "sexta", "sexta-feira"],
-        sáb: ["sáb", "sab", "sábado", "sabado"],
-      };
-
-      let matched: { date: string; time: string } | null = null;
-      for (const slot of proposedSlots!) {
-        const [dd, mm] = slot.date.split("/");
-        const hh = slot.time.split(":")[0];
-        const dayPatterns = [
-          slot.date.toLowerCase(),
-          `${parseInt(dd, 10)}/${parseInt(mm, 10)}`,
-          `dia ${parseInt(dd, 10)}`,
-          ...(weekdayAliases[slot.weekday.toLowerCase()] || [slot.weekday.toLowerCase()]),
-        ];
-        const hourPatterns = [
-          slot.time,
-          `${hh}h`,
-          `${parseInt(hh, 10)}h`,
-          `às ${parseInt(hh, 10)}`,
-          ` ${parseInt(hh, 10)} `,
-          `${parseInt(hh, 10)}:00`,
-        ];
-        const dayHit = dayPatterns.some((p) => p.length >= 2 && haystack.includes(p));
-        const hourHit = hourPatterns.some((p) => haystack.includes(p));
-        if (dayHit && hourHit) {
-          matched = { date: slot.date, time: slot.time };
-          break;
+    /** Extrai (date DD/MM[/YYYY], time HH:MM) de um texto livre.
+     *  Aceita formatos: "22/05", "22/05/2026", "às 11:00", "às 11h", "11h00".
+     *  Pega o par (date, time) mais próximos (até 80 chars de distância). */
+    const findDateTime = (text: string): { date: string; time: string } | null => {
+      if (!text) return null;
+      const dateRe = /\b(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?\b/g;
+      const timeRe = /(?:às\s+|as\s+)?(\d{1,2})(?::(\d{2})|h\s*(\d{0,2}))(?:\s*h(?:oras?)?)?/gi;
+      const dates: Array<{ idx: number; date: string }> = [];
+      const times: Array<{ idx: number; time: string }> = [];
+      let m: RegExpExecArray | null;
+      while ((m = dateRe.exec(text)) !== null) {
+        const dd = m[1].padStart(2, "0");
+        const mm = m[2].padStart(2, "0");
+        const yyyy = m[3] || "";
+        dates.push({ idx: m.index, date: yyyy ? `${dd}/${mm}/${yyyy}` : `${dd}/${mm}` });
+      }
+      while ((m = timeRe.exec(text)) !== null) {
+        const hh = parseInt(m[1], 10);
+        if (hh > 23) continue;
+        const mi = m[2] ?? (m[3] && m[3].length > 0 ? m[3] : "00");
+        const miPadded = mi.padStart(2, "0");
+        if (parseInt(miPadded, 10) > 59) continue;
+        times.push({ idx: m.index, time: `${String(hh).padStart(2, "0")}:${miPadded}` });
+      }
+      if (dates.length === 0 || times.length === 0) return null;
+      let best: { date: string; time: string; dist: number } | null = null;
+      for (const d of dates) {
+        for (const t of times) {
+          const dist = Math.abs(d.idx - t.idx);
+          if (dist <= 80 && (!best || dist < best.dist)) {
+            best = { date: d.date, time: t.time, dist };
+          }
         }
       }
-      if (matched) {
-        console.warn(`[v2] LLM não chamou confirm_meeting_slot em desfecho — injetando chamada { date: ${matched.date}, time: ${matched.time} }`);
+      return best ? { date: best.date, time: best.time } : null;
+    };
+
+    // Palavras que indicam que a Patricia CONFIRMOU o agendamento (verbal).
+    // Evita falsos positivos quando ela só está propondo/perguntando.
+    const confirmHints = /\b(reservad[oa]|marcad[oa]|agendad[oa]|combinad[oa]|fechad[oa]|consigo\s+sim|pode\s+ser|fica\s+pra|fica\s+reservad|fica\s+marcad|fica\s+agendad|t[áa]\s+(?:marcad|agendad|fechad)|perfeito,?\s+(?:ent[ãa]o|fica))/i;
+    const agentConfirmed = confirmHints.test(agentResponseText);
+
+    if (agentHasWP && !llmCalledConfirm && agentConfirmed) {
+      const found = findDateTime(agentResponseText);
+      if (found) {
+        console.warn(`[v2] LLM confirmou agendamento sem chamar confirm_meeting_slot — injetando { date: ${found.date}, time: ${found.time} }`);
         singleAgentResult.output.tool_calls.unshift({
           tool_name: "confirm_meeting_slot",
-          args: matched,
+          args: found,
         });
       }
     }
 
     for (let tc of singleAgentResult.output.tool_calls) {
-      // (1) Auto-rotear create_task em contexto de agendamento
-      if (
-        inDesfechoComSlots &&
-        tc.tool_name === "create_task"
-      ) {
+      // (1) Auto-rotear create_task pra confirm_meeting_slot em agente com WP.
+      // Cobre desfecho_qualificado com slots formais E quando LLM confirma
+      // data livre sugerida pelo lead (mesmo fora dos slots oferecidos).
+      if (agentHasWP && tc.tool_name === "create_task") {
         const args = tc.args || {};
-        // Tenta extrair date/time dos vários formatos comuns: data_inicio,
-        // data_vencimento, scheduled_at — tudo pode ser ISO ou string livre.
         const dt = args.data_inicio || args.data_vencimento || args.scheduled_at || args.start_at;
         let rerouted: { date: string; time: string } | null = null;
         if (typeof dt === "string") {
-          // ISO "YYYY-MM-DDTHH:MM..." ou "YYYY-MM-DD HH:MM"
           const m = dt.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})/);
           if (m) {
             rerouted = { date: `${m[3]}/${m[2]}/${m[1]}`, time: `${m[4]}:${m[5]}` };
+          } else {
+            rerouted = findDateTime(dt);
           }
         }
-        if (rerouted) {
-          console.warn(`[v2] LLM chamou create_task em desfecho com slots — auto-rotando pra confirm_meeting_slot { date: ${rerouted.date}, time: ${rerouted.time} }`);
+        if (!rerouted) {
+          rerouted = findDateTime(`${args.titulo || ""} ${args.descricao || ""}`);
+        }
+        const looksLikeMeeting = /reuni[ãa]o|videoconfer[êe]ncia|call|encontro|conversa.*planner|wedding\s+planner/i.test(`${args.titulo || ""} ${args.descricao || ""} ${args.tipo || ""}`);
+        if (rerouted && (looksLikeMeeting || inDesfechoComSlots)) {
+          console.warn(`[v2] auto-rotando create_task → confirm_meeting_slot { date: ${rerouted.date}, time: ${rerouted.time} } (reason: ${inDesfechoComSlots ? "desfecho+slots" : "looksLikeMeeting"})`);
           tc = { tool_name: "confirm_meeting_slot", args: rerouted };
         }
       }
