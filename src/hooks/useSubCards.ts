@@ -94,7 +94,6 @@ export function useSubCards(parentCardId?: string) {
                 success: boolean
                 error?: string
                 sub_card_id?: string
-                task_id?: string
                 mode?: SubCardMode
                 parent_id?: string
             }
