@@ -3,8 +3,6 @@ import { useOrg } from '../../contexts/OrgContext'
 import { sbAny } from './_supabaseUntyped'
 import { ETAPA_DEFAULT, type EtapaConvidados, type Wedding } from './types'
 
-// Slug da fase do funil onde a gestão de convidados faz sentido.
-// Por design, só casamentos em pós-venda aparecem na aba Convidados.
 const POS_VENDA_PHASE_SLUG = 'pos_venda'
 
 interface CardRow {
@@ -13,6 +11,7 @@ interface CardRow {
   pipeline_stage_id: string | null
   created_at: string
   data_viagem_inicio: string | null
+  produto_data: Record<string, unknown> | null
   wedding_convidados_state: { etapa: EtapaConvidados } | { etapa: EtapaConvidados }[] | null
 }
 
@@ -20,6 +19,15 @@ function pickEtapa(state: CardRow['wedding_convidados_state']): EtapaConvidados 
   if (!state) return ETAPA_DEFAULT
   if (Array.isArray(state)) return state[0]?.etapa ?? ETAPA_DEFAULT
   return state.etapa ?? ETAPA_DEFAULT
+}
+
+function readString(data: Record<string, unknown> | null, ...keys: string[]): string | null {
+  if (!data) return null
+  for (const k of keys) {
+    const v = data[k]
+    if (typeof v === 'string' && v.trim().length > 0) return v.trim()
+  }
+  return null
 }
 
 export function useWeddings() {
@@ -32,9 +40,7 @@ export function useWeddings() {
     queryFn: async () => {
       if (!orgId) return []
 
-      // 1) Descobre phase_id da pos_venda e pipeline_id do WEDDING em paralelo.
-      //    Sem embeds para evitar ambiguidade do PostgREST quando há FKs
-      //    reversas entre pipelines e pipeline_stages.
+      // 1) Stages da fase pos_venda do pipeline WEDDING dessa org.
       const [phaseRes, pipelineRes] = await Promise.all([
         sbAny
           .from('pipeline_phases')
@@ -56,7 +62,6 @@ export function useWeddings() {
       const pipelineId: string | undefined = pipelineRes.data?.id
       if (!phaseId || !pipelineId) return []
 
-      // 2) Stages da fase pos_venda dentro do pipeline WEDDING.
       const { data: stages, error: stagesErr } = await sbAny
         .from('pipeline_stages')
         .select('id')
@@ -67,26 +72,33 @@ export function useWeddings() {
       const stageIds = ((stages ?? []) as { id: string }[]).map(s => s.id)
       if (stageIds.length === 0) return []
 
-      // 3) Cards WEDDING dessa org que estão em alguma stage de pos_venda.
-      const { data, error } = await sbAny
-        .from('cards')
-        .select('id, titulo, pipeline_stage_id, created_at, data_viagem_inicio, wedding_convidados_state(etapa)')
-        .eq('produto', 'WEDDING')
-        .eq('org_id', orgId)
-        .in('pipeline_stage_id', stageIds)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false })
-      if (error) throw error
-
-      const rows = (data ?? []) as CardRow[]
+      // 2) Cards WEDDING da org em qualquer stage de pos_venda (paginado por
+      //    causa do cap server-side de 1000 do PostgREST).
+      const PAGE = 1000
+      const rows: CardRow[] = []
+      for (let start = 0; ; start += PAGE) {
+        const { data, error } = await sbAny
+          .from('cards')
+          .select('id, titulo, pipeline_stage_id, created_at, data_viagem_inicio, produto_data, wedding_convidados_state(etapa)')
+          .eq('produto', 'WEDDING')
+          .eq('org_id', orgId)
+          .in('pipeline_stage_id', stageIds)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .range(start, start + PAGE - 1)
+        if (error) throw error
+        const page = (data ?? []) as CardRow[]
+        rows.push(...page)
+        if (page.length < PAGE) break
+      }
       return rows.map(row => ({
         id: row.id,
         titulo: row.titulo,
         pipeline_stage_id: row.pipeline_stage_id,
         created_at: row.created_at,
         wedding_date: row.data_viagem_inicio,
-        local: null,
-        site_url: null,
+        local: readString(row.produto_data, 'ww_local', 'local_casamento', 'local', 'venue'),
+        site_url: readString(row.produto_data, 'ww_site_casamento', 'ww_site', 'site_casamento', 'site_url', 'website'),
         etapa: pickEtapa(row.wedding_convidados_state),
       }))
     },

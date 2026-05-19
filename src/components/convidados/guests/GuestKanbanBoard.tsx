@@ -129,7 +129,7 @@ function Column({ status, guests, tone }: ColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
 
   return (
-    <div className="flex flex-col flex-1 min-w-[240px] max-w-[360px] min-h-0">
+    <div className="flex flex-col flex-1 min-w-[280px] min-h-0">
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col h-full min-h-0 overflow-hidden">
         {/* Header da coluna não encolhe */}
         <div className="relative px-3 py-2.5 border-b border-slate-100 bg-white shrink-0">

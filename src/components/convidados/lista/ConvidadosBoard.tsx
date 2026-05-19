@@ -1,8 +1,6 @@
-import { useState } from 'react'
 import { useAllGuests } from '../../../hooks/convidados/useAllGuests'
-import type { GuestWithWedding, StatusRSVP } from '../../../hooks/convidados/types'
-import { GuestCard } from './GuestCard'
-import { GuestDetailModal } from '../GuestDetailModal'
+import type { StatusRSVP } from '../../../hooks/convidados/types'
+import { GuestKanbanBoard } from '../guests/GuestKanbanBoard'
 
 interface ConvidadosBoardProps {
   search: string
@@ -12,13 +10,12 @@ interface ConvidadosBoardProps {
 
 export function ConvidadosBoard({ search, statusFilter, weddingFilter }: ConvidadosBoardProps) {
   const { data, isLoading, isError } = useAllGuests({ search, statusFilter, weddingFilter })
-  const [selected, setSelected] = useState<GuestWithWedding | null>(null)
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {[1, 2, 3].map(i => (
-          <div key={i} className="bg-white border border-slate-200 shadow-sm rounded-xl p-4 h-28 animate-pulse" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="bg-white border border-slate-200 rounded-xl h-80 animate-pulse" />
         ))}
       </div>
     )
@@ -34,30 +31,14 @@ export function ConvidadosBoard({ search, statusFilter, weddingFilter }: Convida
 
   const guests = data ?? []
 
-  if (guests.length === 0) {
-    return (
-      <div className="bg-white border border-slate-200 rounded-xl p-8 text-center">
-        <p className="text-sm text-slate-700">Nenhum convidado encontrado.</p>
-        <p className="text-xs text-slate-500 mt-1">Ajuste os filtros ou adicione um convidado a um casamento.</p>
-      </div>
-    )
-  }
-
+  // O kanban filtra por status visualmente (cada coluna = um status). Mesmo
+  // quando a lista vier vazia, mostra as 4 colunas com placeholder "Sem
+  // convidados aqui" — assim o layout fica estável e o usuário entende o
+  // efeito dos filtros do topo. Altura ~80% da viewport: o usuário pode
+  // rolar a página um pouco pra ver o que ficou abaixo.
   return (
-    <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {guests.map(guest => (
-          <GuestCard key={guest.id} guest={guest} onClick={() => setSelected(guest)} />
-        ))}
-      </div>
-
-      {selected && (
-        <GuestDetailModal
-          guest={selected}
-          isOpen={!!selected}
-          onClose={() => setSelected(null)}
-        />
-      )}
-    </>
+    <div className="h-[80vh] min-h-[480px]">
+      <GuestKanbanBoard guests={guests} search="" />
+    </div>
   )
 }

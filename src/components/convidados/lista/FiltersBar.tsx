@@ -16,7 +16,19 @@ const MAX_RESULTS = 12
 
 export function FiltersBar() {
   const { prefs, setPref, toggleStatus, toggleWedding, clearAll, hasAnyFilter } = useConvidadosPreferences()
-  const { data: weddings = [] } = useWeddings()
+  const { data: weddings = [], isSuccess: weddingsLoaded } = useWeddings()
+
+  // Sanitiza weddingFilter: se houver UUIDs persistidos que não existem mais
+  // (casamento deletado, ou cliente trocou de org), remove. Sem isso a query
+  // de convidados aplica `.in('card_id', [id_inexistente])` e devolve 0.
+  useEffect(() => {
+    if (!weddingsLoaded || prefs.weddingFilter.length === 0) return
+    const validIds = new Set(weddings.map(w => w.id))
+    const cleaned = prefs.weddingFilter.filter(id => validIds.has(id))
+    if (cleaned.length !== prefs.weddingFilter.length) {
+      setPref('weddingFilter', cleaned)
+    }
+  }, [weddingsLoaded, weddings, prefs.weddingFilter, setPref])
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-3 flex flex-col gap-3">

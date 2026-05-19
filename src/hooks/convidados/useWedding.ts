@@ -1,7 +1,11 @@
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useOrg } from '../../contexts/OrgContext'
 import { sbAny } from './_supabaseUntyped'
 import { ETAPA_DEFAULT, type EtapaConvidados, type Wedding } from './types'
+import { useFluxoTemplates } from './useFluxoConfig'
+import { useAllWeddingFluxos } from './useWeddingFluxo'
+import { computeDisplayedEtapa } from './displayedEtapa'
 
 interface Row {
   id: string
@@ -31,8 +35,10 @@ function readString(data: Record<string, unknown> | null, ...keys: string[]): st
 export function useWedding(cardId: string | null | undefined) {
   const { org } = useOrg()
   const orgId = org?.id ?? null
+  const { data: flows = [] } = useFluxoTemplates()
+  const { data: assignmentStore = {} } = useAllWeddingFluxos()
 
-  return useQuery<Wedding | null>({
+  const query = useQuery<Wedding | null>({
     queryKey: ['convidados', 'wedding', orgId, cardId],
     enabled: !!orgId && !!cardId,
     queryFn: async () => {
@@ -60,4 +66,23 @@ export function useWedding(cardId: string | null | undefined) {
       }
     },
   })
+
+  // Sobrescreve etapa com a derivada do fluxo (promo/padrao), exceto quando
+  // etapa "crua" for encerrado/cancelado (estados manuais).
+  const today = useMemo(() => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return d
+  }, [])
+
+  const wedding = query.data
+  const data: Wedding | null | undefined = useMemo(() => {
+    if (!wedding) return wedding
+    const assignment = assignmentStore[wedding.id] ?? null
+    const fluxo = assignment ? flows.find(f => f.id === assignment.fluxoId) ?? null : null
+    const etapa = computeDisplayedEtapa(wedding.etapa, assignment, fluxo, today)
+    return { ...wedding, etapa }
+  }, [wedding, today, assignmentStore, flows])
+
+  return { ...query, data }
 }

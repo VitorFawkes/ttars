@@ -27,6 +27,7 @@ export interface PipelinePhase {
     accent_color: string | null
     is_entry_phase: boolean
     is_terminal_phase: boolean
+    handoff_compartilhado: boolean
 }
 
 export interface PipelineStage {

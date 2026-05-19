@@ -1,6 +1,9 @@
 import { useMemo } from 'react'
 import { useWeddings } from './useWeddings'
 import { useAllGuests } from './useAllGuests'
+import { useFluxoTemplates } from './useFluxoConfig'
+import { useAllWeddingFluxos } from './useWeddingFluxo'
+import { computeDisplayedEtapa } from './displayedEtapa'
 import type { Guest, RsvpCounts, WeddingWithGuests } from './types'
 
 const ZERO_COUNTS: RsvpCounts = { nao_vai: 0, sem_reacao: 0, intencao: 0, confirmado: 0, total: 0 }
@@ -8,6 +11,14 @@ const ZERO_COUNTS: RsvpCounts = { nao_vai: 0, sem_reacao: 0, intencao: 0, confir
 export function useWeddingsWithGuestCounts() {
   const weddingsQuery = useWeddings()
   const guestsQuery = useAllGuests({ search: '', statusFilter: [], weddingFilter: [] })
+  const { data: flows = [] } = useFluxoTemplates()
+  const { data: assignmentStore = {} } = useAllWeddingFluxos()
+
+  const today = useMemo(() => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return d
+  }, [])
 
   const data = useMemo<WeddingWithGuests[]>(() => {
     const weddings = weddingsQuery.data ?? []
@@ -27,9 +38,14 @@ export function useWeddingsWithGuestCounts() {
         acc.total += 1
         return acc
       }, { ...ZERO_COUNTS })
-      return { ...w, guests, counts }
+
+      const assignment = assignmentStore[w.id] ?? null
+      const fluxo = assignment ? flows.find(f => f.id === assignment.fluxoId) ?? null : null
+      const etapa = computeDisplayedEtapa(w.etapa, assignment, fluxo, today)
+
+      return { ...w, etapa, guests, counts }
     })
-  }, [weddingsQuery.data, guestsQuery.data])
+  }, [weddingsQuery.data, guestsQuery.data, today, assignmentStore, flows])
 
   return {
     data,

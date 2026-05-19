@@ -1,11 +1,15 @@
 import { useState, type MouseEvent } from 'react'
 import { useDraggable } from '@dnd-kit/core'
-import { Pencil, Trash2, Phone, Mail, X, Check } from 'lucide-react'
+import { Pencil, Trash2, Phone, Mail, X, Check, Heart } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { useDeleteGuest } from '../../../hooks/convidados/useGuestMutations'
 import { formatPhoneBR } from '../../../utils/normalizePhone'
-import type { Guest, StatusRSVP } from '../../../hooks/convidados/types'
+import type { Guest, GuestWithWedding, StatusRSVP } from '../../../hooks/convidados/types'
 import { GuestDetailModal } from '../GuestDetailModal'
+
+function hasWeddingTitle(g: Guest | GuestWithWedding): g is GuestWithWedding {
+  return typeof (g as GuestWithWedding).card_titulo === 'string'
+}
 
 const ACCENT: Record<StatusRSVP, string> = {
   sem_reacao: 'border-l-slate-300',
@@ -15,11 +19,12 @@ const ACCENT: Record<StatusRSVP, string> = {
 }
 
 interface GuestKanbanCardProps {
-  guest: Guest
+  guest: Guest | GuestWithWedding
   isOverlay?: boolean
 }
 
 export function GuestKanbanCard({ guest, isOverlay = false }: GuestKanbanCardProps) {
+  const weddingTitle = hasWeddingTitle(guest) ? guest.card_titulo : null
   const [editing, setEditing] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const deleteGuest = useDeleteGuest()
@@ -49,9 +54,17 @@ export function GuestKanbanCard({ guest, isOverlay = false }: GuestKanbanCardPro
         {...(!isOverlay ? { ...dnd.listeners, ...dnd.attributes } : {})}
       >
         <div className="flex items-start justify-between gap-2">
-          <h4 className="text-sm font-semibold text-slate-900 break-words min-w-0 flex-1" title={fullName}>
-            {fullName}
-          </h4>
+          <div className="min-w-0 flex-1">
+            <h4 className="text-sm font-semibold text-slate-900 break-words" title={fullName}>
+              {fullName}
+            </h4>
+            {weddingTitle && (
+              <p className="text-[10.5px] text-slate-500 inline-flex items-center gap-1 truncate mt-0.5" title={weddingTitle}>
+                <Heart className="w-2.5 h-2.5 shrink-0 text-rose-400" />
+                <span className="truncate">{weddingTitle}</span>
+              </p>
+            )}
+          </div>
           <div className="flex items-center gap-0.5 shrink-0">
             <button
               type="button"

@@ -38,23 +38,26 @@ export function useAllGuests(filters: AllGuestsFilters) {
     queryFn: async () => {
       if (!orgId) return []
 
-      let query = sbAny
-        .from('wedding_guests')
-        .select('id, card_id, contato_id, org_id, status_rsvp, observacoes, created_at, updated_at, created_by, contatos!inner(nome, sobrenome, telefone, email), cards!inner(id, titulo)')
-        .eq('org_id', orgId)
-
-      if (filters.statusFilter.length > 0) {
-        query = query.in('status_rsvp', filters.statusFilter)
+      const buildBaseQuery = () => {
+        let q = sbAny
+          .from('wedding_guests')
+          .select('id, card_id, contato_id, org_id, status_rsvp, observacoes, created_at, updated_at, created_by, contatos!inner(nome, sobrenome, telefone, email), cards!inner(id, titulo)')
+          .eq('org_id', orgId)
+        if (filters.statusFilter.length > 0) q = q.in('status_rsvp', filters.statusFilter)
+        if (filters.weddingFilter.length > 0) q = q.in('card_id', filters.weddingFilter)
+        return q
       }
 
-      if (filters.weddingFilter.length > 0) {
-        query = query.in('card_id', filters.weddingFilter)
+      // PostgREST cap em 1000 → paginação.
+      const PAGE = 1000
+      const rows: Row[] = []
+      for (let start = 0; ; start += PAGE) {
+        const { data, error } = await buildBaseQuery().range(start, start + PAGE - 1)
+        if (error) throw error
+        const page = (data ?? []) as Row[]
+        rows.push(...page)
+        if (page.length < PAGE) break
       }
-
-      const { data, error } = await query
-      if (error) throw error
-
-      const rows = (data ?? []) as Row[]
 
       const term = filters.search.trim().toLowerCase()
       const mapped: GuestWithWedding[] = rows

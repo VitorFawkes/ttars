@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useOrg } from '../../contexts/OrgContext'
 import { ETAPA_ORDER, STATUS_RSVP_LIST, type EtapaConvidados, type StatusRSVP } from './types'
 
-export type ConvidadosModo = 'casamentos' | 'convidados'
+export type ConvidadosModo = 'casamentos' | 'convidados' | 'envios_hoje'
 
 export interface ConvidadosPreferences {
   modo: ConvidadosModo
@@ -29,7 +29,10 @@ const DEFAULT_PREFS: ConvidadosPreferences = {
   weddingFilter: [],
 }
 
-const STORAGE_PREFIX = 'welcomecrm:convidados:v1'
+// v2 = reset após refactor pra contatos linkados + status RSVP em 4 estados.
+// Quem ainda tinha valores antigos (pendente/talvez/ativo/removido, ou um
+// weddingFilter de UUIDs que não existem mais) terá as prefs zeradas.
+const STORAGE_PREFIX = 'welcomecrm:convidados:v2'
 
 function storageKey(orgId: string | null | undefined) {
   return orgId ? `${STORAGE_PREFIX}:${orgId}` : null
@@ -42,7 +45,10 @@ function readPrefs(key: string | null): ConvidadosPreferences {
     if (!raw) return DEFAULT_PREFS
     const parsed = JSON.parse(raw) as Partial<ConvidadosPreferences>
     return {
-      modo: parsed.modo === 'convidados' ? 'convidados' : 'casamentos',
+      modo:
+        parsed.modo === 'convidados' ? 'convidados'
+        : parsed.modo === 'envios_hoje' ? 'envios_hoje'
+        : 'casamentos',
       search: typeof parsed.search === 'string' ? parsed.search : '',
       casamentosSearch: typeof parsed.casamentosSearch === 'string' ? parsed.casamentosSearch : '',
       etapaFilter: Array.isArray(parsed.etapaFilter)

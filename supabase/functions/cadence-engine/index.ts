@@ -282,6 +282,9 @@ serve(async (req) => {
                 const echoApiKey2 = Deno.env.get("ECHO_API_KEY") ?? "";
                 const echoBase2 = echoApiUrl2.replace(/\/send-message\/?$/, '').replace(/\/+$/, '');
                 const phoneId2 = body.phone_number_id || Deno.env.get("ECHO_PHONE_NUMBER_ID") || "";
+                // Echo GET /templates retorna no máximo 100 (cap server-side).
+                // Não há cursor exposto na resposta — paginação não é possível
+                // até o Echo expor `paging.cursors.after` ou aceitar `limit>100`.
                 const r2 = await fetch(`${echoBase2}/templates?phone_number_id=${phoneId2}`, {
                     method: 'GET',
                     headers: { 'x-api-key': echoApiKey2 },

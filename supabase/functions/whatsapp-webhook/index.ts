@@ -226,7 +226,32 @@ Deno.serve(async (req) => {
                     // inbound nova, chamava o router, que respondia à própria resposta →
                     // loop infinito de mensagens. Status events NUNCA devem disparar router.
                     const eventKind = data.event || singlePayload.event;
-                    if (typeof eventKind === "string" && eventKind.startsWith("message.status")) continue;
+                    if (typeof eventKind === "string" && eventKind.startsWith("message.status")) {
+                        // 2026-05-19: ANTES de descartar, processa failures pra refletir
+                        // no relatório de Envios do Dia (envio_lotes + whatsapp_messages).
+                        try {
+                            const statusName = data.status_name || singlePayload.status_name;
+                            const wppId = data.whatsapp_message_id || singlePayload.whatsapp_message_id;
+                            if (statusName === "failed" && wppId) {
+                                const errorMsg = data.error_message || data.error || singlePayload.error_message || singlePayload.error || "Falha reportada pelo WhatsApp";
+                                // Marca a mensagem outbound como erro
+                                const { data: msgRow } = await supabaseClient
+                                    .from("whatsapp_messages")
+                                    .update({ has_error: true, error_message: errorMsg, ack_status: -1 })
+                                    .eq("whatsapp_message_id", wppId)
+                                    .select("id, metadata")
+                                    .maybeSingle();
+                                // Se a mensagem tem envio_lote_id, incrementa o failed do lote
+                                const loteId = (msgRow?.metadata as Record<string, unknown> | null)?.envio_lote_id;
+                                if (typeof loteId === "string") {
+                                    await supabaseClient.rpc("increment_envio_lote_failed", { p_lote_id: loteId });
+                                }
+                            }
+                        } catch (err) {
+                            console.warn("[webhook] failed-status processing error:", err);
+                        }
+                        continue;
+                    }
                     // Heurística extra: sender=null + status_name preenchido = status event
                     const isStatusOnly = (data.sender === null && data.status_name)
                         || (singlePayload.sender === null && singlePayload.status_name);

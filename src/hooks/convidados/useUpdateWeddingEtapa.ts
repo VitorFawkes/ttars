@@ -27,8 +27,11 @@ export function useUpdateWeddingEtapa() {
         )
       if (error) throw error
     },
-    onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: ['convidados'] })
+    onSuccess: async (_, vars) => {
+      // Await refetch para que `mutateAsync()` só resolva quando os dados
+      // novos estiverem no cache. Sem isso, callers (handleEncerrar etc)
+      // viam estado velho na linha seguinte.
+      await queryClient.invalidateQueries({ queryKey: ['convidados'] })
       toast.success(`Etapa: ${ETAPA_LABEL[vars.etapa]}`)
     },
     onError: (err) => {

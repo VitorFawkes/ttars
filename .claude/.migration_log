@@ -871,3 +871,8 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-15T17:11:09Z | supabase/migrations/20260515f_wedme_webhook_events.sql | applied_to_prod
 2026-05-15T17:58:10Z | supabase/migrations/20260515f_wedding_guests_link_contatos.sql | applied_to_prod
 2026-05-15T18:31:21Z | supabase/migrations/20260515g_wedding_guests_rsvp_4estados.sql | applied_to_prod
+2026-05-19T16:28:13Z | supabase/migrations/20260519_fluxo_templates_wedding_fluxo.sql | applied_to_prod
+2026-05-19T16:29:11Z | supabase/migrations/20260519b_seed_fluxo_wedme.sql | applied_to_prod
+2026-05-19T17:03:29Z | supabase/migrations/20260519c_template_var_configs.sql | applied_to_prod
+2026-05-19T18:43:34Z | supabase/migrations/20260519d_guest_rsvp_auto_decline.sql | applied_to_prod
+2026-05-19T19:25:40Z | supabase/migrations/20260519e_envio_lotes.sql | applied_to_prod
