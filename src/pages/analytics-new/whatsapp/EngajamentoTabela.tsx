@@ -117,6 +117,7 @@ export default function EngajamentoTabela({
               <th className="px-4 py-2.5 text-left font-semibold">Dela última</th>
               <th className="px-4 py-2.5 text-right font-semibold">Duração</th>
               <th className="px-4 py-2.5 text-left font-semibold">Estado</th>
+              <th className="px-4 py-2.5 text-left font-semibold">Etapa</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -124,7 +125,7 @@ export default function EngajamentoTabela({
               <>
                 {[1, 2, 3, 4, 5].map(i => (
                   <tr key={i} className="animate-pulse">
-                    {Array(10).fill(0).map((_, j) => (
+                    {Array(11).fill(0).map((_, j) => (
                       <td key={j} className="px-4 py-4">
                         <div className="h-3 bg-slate-100 rounded w-16" />
                       </td>
@@ -136,7 +137,7 @@ export default function EngajamentoTabela({
 
             {!isLoading && conversations.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-12 text-center text-sm text-slate-500">
+                <td colSpan={11} className="px-4 py-12 text-center text-sm text-slate-500">
                   Nenhuma conversa encontrada com os filtros atuais.
                 </td>
               </tr>
@@ -200,6 +201,26 @@ export default function EngajamentoTabela({
                         <span className={cn('w-1.5 h-1.5 rounded-full', badge.dot)} />
                         {badge.label}
                       </span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {c.stage_nome ? (
+                        <span
+                          className={cn(
+                            'inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border',
+                            c.meeting_state === 'meeting_done'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : c.meeting_state === 'meeting_scheduled'
+                                ? 'bg-violet-50 text-violet-700 border-violet-200'
+                                : c.stage_phase_slug === 'resolucao'
+                                  ? 'bg-slate-50 text-slate-500 border-slate-200'
+                                  : 'bg-sky-50 text-sky-700 border-sky-200'
+                          )}
+                        >
+                          {c.stage_nome}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
                     </td>
                   </tr>
                 )

@@ -17,6 +17,7 @@ import EngajamentoHeatmap from './EngajamentoHeatmap'
 import EngajamentoTimelineDiaria from './EngajamentoTimelineDiaria'
 import EngajamentoVelocidadeDia from './EngajamentoVelocidadeDia'
 import EngajamentoTimeMetrics from './EngajamentoTimeMetrics'
+import EngajamentoReunioes from './EngajamentoReunioes'
 import EngajamentoFunil from './EngajamentoFunil'
 import EngajamentoTabela from './EngajamentoTabela'
 import EngajamentoConversaDrawer from './EngajamentoConversaDrawer'
@@ -209,6 +210,12 @@ export default function EngajamentoConversasView() {
       </div>
 
       <EngajamentoTimeMetrics metrics={data?.time_metrics} isLoading={isLoading} />
+
+      <EngajamentoReunioes
+        metrics={data?.meetings_kpis}
+        totalContacts={data?.kpis?.total_contacts ?? 0}
+        isLoading={isLoading}
+      />
 
       <EngajamentoDistribuicoes
         states={data?.state_distribution ?? []}

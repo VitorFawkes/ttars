@@ -29,6 +29,8 @@ export interface EngajamentoLineBreakdown {
   lost_count: number
   active_count: number
   won_count: number
+  meetings_scheduled?: number
+  meetings_done?: number
 }
 
 export interface EngajamentoStateBucket {
@@ -94,6 +96,16 @@ export interface EngajamentoConversation {
   state: ConversationState
   card_id: string | null
   attribution_modes: AttributionMode[] | null
+  stage_nome: string | null
+  stage_phase_slug: string | null
+  meeting_state: 'meeting_scheduled' | 'meeting_done' | null
+}
+
+export interface EngajamentoMeetingKpis {
+  meetings_scheduled: number
+  meetings_done: number
+  proposals_sent: number
+  contracts_signed: number
 }
 
 export interface EngajamentoLineOption {
@@ -103,6 +115,7 @@ export interface EngajamentoLineOption {
 
 export interface EngajamentoResponse {
   kpis: EngajamentoKpis
+  meetings_kpis: EngajamentoMeetingKpis
   funnel: EngajamentoFunnelStep[]
   by_line: EngajamentoLineBreakdown[]
   state_distribution: EngajamentoStateBucket[]

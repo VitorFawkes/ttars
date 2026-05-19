@@ -24,6 +24,12 @@ const EMPTY_RESPONSE: EngajamentoResponse = {
     active_count: 0,
     win_rate: null,
   },
+  meetings_kpis: {
+    meetings_scheduled: 0,
+    meetings_done: 0,
+    proposals_sent: 0,
+    contracts_signed: 0,
+  },
   funnel: [],
   by_line: [],
   state_distribution: [],
