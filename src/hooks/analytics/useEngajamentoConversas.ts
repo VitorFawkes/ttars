@@ -46,6 +46,7 @@ const EMPTY_RESPONSE: EngajamentoResponse = {
   conversations: [],
   pagination: { page: 1, limit: 50, total: 0 },
   lines: [],
+  stages: [],
 }
 
 export function useEngajamentoConversas({
@@ -67,6 +68,11 @@ export function useEngajamentoConversas({
       filters.coldThresholdHours,
       filters.weekdayFilter,
       filters.hourFilter,
+      filters.inboundMin,
+      filters.inboundMax,
+      filters.meetingStates,
+      filters.stageNames,
+      filters.stagePhases,
       page,
       limit,
     ],
@@ -83,6 +89,11 @@ export function useEngajamentoConversas({
         p_include_test_lines: filters.includeTestLines,
         p_weekday_filter: filters.weekdayFilter,
         p_hour_filter: filters.hourFilter,
+        p_inbound_min: filters.inboundMin,
+        p_inbound_max: filters.inboundMax,
+        p_meeting_states: filters.meetingStates.length > 0 ? filters.meetingStates : null,
+        p_stage_names: filters.stageNames.length > 0 ? filters.stageNames : null,
+        p_stage_phases: filters.stagePhases.length > 0 ? filters.stagePhases : null,
         p_page: page,
         p_limit: limit,
       })

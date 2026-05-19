@@ -18,6 +18,7 @@ import EngajamentoTimelineDiaria from './EngajamentoTimelineDiaria'
 import EngajamentoVelocidadeDia from './EngajamentoVelocidadeDia'
 import EngajamentoTimeMetrics from './EngajamentoTimeMetrics'
 import EngajamentoReunioes from './EngajamentoReunioes'
+import EngajamentoSegmentos from './EngajamentoSegmentos'
 import EngajamentoFunil from './EngajamentoFunil'
 import EngajamentoTabela from './EngajamentoTabela'
 import EngajamentoConversaDrawer from './EngajamentoConversaDrawer'
@@ -38,6 +39,9 @@ function defaultFilters(): EngajamentoFilters {
     inboundMax: null,
     weekdayFilter: null,
     hourFilter: null,
+    meetingStates: [],
+    stageNames: [],
+    stagePhases: [],
   }
 }
 
@@ -93,17 +97,8 @@ export default function EngajamentoConversasView() {
   const activeState: ConversationState | null =
     filters.stateFilter.length === 1 ? filters.stateFilter[0] : null
 
-  // Filtro client-side de depth bucket (RPC ainda não tem param dedicado)
-  const filteredConversations = useMemo(() => {
-    const list = data?.conversations ?? []
-    if (filters.inboundMin === null && filters.inboundMax === null) return list
-    return list.filter(c => {
-      const n = c.inbound_count
-      if (filters.inboundMin !== null && n < filters.inboundMin) return false
-      if (filters.inboundMax !== null && n > filters.inboundMax) return false
-      return true
-    })
-  }, [data?.conversations, filters.inboundMin, filters.inboundMax])
+  // Filtros agora são server-side; conversações chegam já filtradas
+  const filteredConversations = data?.conversations ?? []
 
   const activeTableFilters = useMemo(() => {
     const out: { label: string; onClear: () => void }[] = []
@@ -157,10 +152,13 @@ export default function EngajamentoConversasView() {
         </p>
       </div>
 
+      <EngajamentoSegmentos filters={filters} onChange={handleFilterChange} />
+
       <EngajamentoFiltros
         filters={filters}
         onChange={handleFilterChange}
         lines={lines}
+        stages={data?.stages ?? []}
         isLoading={isFetching}
       />
 

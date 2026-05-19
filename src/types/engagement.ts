@@ -127,6 +127,16 @@ export interface EngajamentoResponse {
   conversations: EngajamentoConversation[]
   pagination: { page: number; limit: number; total: number }
   lines: EngajamentoLineOption[]
+  stages: EngajamentoStageOption[]
+}
+
+export type MeetingState = 'meeting_scheduled' | 'meeting_done' | 'none'
+
+export interface EngajamentoStageOption {
+  nome: string
+  phase: string | null
+  ordem: number
+  count: number
 }
 
 export interface EngajamentoFilters {
@@ -137,12 +147,13 @@ export interface EngajamentoFilters {
   stateFilter: ConversationState[]
   includeTestLines: boolean
   coldThresholdHours: number
-  // Client-side filters (não passam ao RPC, filtram a tabela após chegada)
   inboundMin: number | null
   inboundMax: number | null
-  // Drill-down do heatmap (passa ao RPC)
-  weekdayFilter: number | null // 0=Dom..6=Sáb
-  hourFilter: number | null    // 0-23
+  weekdayFilter: number | null
+  hourFilter: number | null
+  meetingStates: MeetingState[]
+  stageNames: string[]
+  stagePhases: string[]
 }
 
 export interface ThreadMessage {

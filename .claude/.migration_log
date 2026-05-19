@@ -904,3 +904,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-19T17:57:59Z | supabase/migrations/20260519k_weddings_view_phone_normalize.sql | applied_to_prod
 2026-05-19T18:10:26Z | supabase/migrations/20260519l_weddings_view_phone_normalize_robusto.sql | applied_to_prod
 2026-05-19T18:10:26Z | supabase/migrations/20260519m_weddings_analytics_v10_stages.sql | applied_to_prod
+2026-05-19T18:24:07Z | supabase/migrations/20260519n_weddings_analytics_v11_filtros.sql | applied_to_prod

@@ -13,12 +13,14 @@ import type {
   ConversationState,
   EngajamentoFilters,
   EngajamentoLineOption,
+  EngajamentoStageOption,
 } from '@/types/engagement'
 
 interface Props {
   filters: EngajamentoFilters
   onChange: (updates: Partial<EngajamentoFilters>) => void
   lines: EngajamentoLineOption[]
+  stages: EngajamentoStageOption[]
   isLoading?: boolean
 }
 
@@ -54,7 +56,7 @@ function daysBetween(from: string, to: string): number {
   return Math.round(ms / (1000 * 60 * 60 * 24))
 }
 
-export default function EngajamentoFiltros({ filters, onChange, lines, isLoading }: Props) {
+export default function EngajamentoFiltros({ filters, onChange, lines, stages, isLoading }: Props) {
   const currentDays = daysBetween(filters.dateFrom, filters.dateTo)
   const activePreset = PRESETS.find(p => p.days === currentDays)
 
@@ -89,10 +91,18 @@ export default function EngajamentoFiltros({ filters, onChange, lines, isLoading
     onChange({ stateFilter: Array.from(set) })
   }
 
+  function toggleStageName(name: string) {
+    const set = new Set(filters.stageNames)
+    if (set.has(name)) set.delete(name)
+    else set.add(name)
+    onChange({ stageNames: Array.from(set) })
+  }
+
   const hasAnyFilter =
     filters.lineLabels.length > 0 ||
     filters.attributionModes.length > 0 ||
     filters.stateFilter.length > 0 ||
+    filters.stageNames.length > 0 ||
     filters.includeTestLines
 
   return (
@@ -207,6 +217,37 @@ export default function EngajamentoFiltros({ filters, onChange, lines, isLoading
           </DropdownMenuContent>
         </DropdownMenu>
 
+        {/* Etapa do funil */}
+        {stages.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-sm text-slate-700 hover:bg-slate-50">
+              <span>Etapa do funil</span>
+              {filters.stageNames.length > 0 && (
+                <span className="ml-1 px-1.5 rounded bg-indigo-100 text-indigo-700 text-[10px]">
+                  {filters.stageNames.length}
+                </span>
+              )}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-72 max-h-[60vh] overflow-y-auto">
+              <DropdownMenuLabel>Estágio do card no funil Weddings</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {stages.map(stage => (
+                <DropdownMenuCheckboxItem
+                  key={stage.nome}
+                  checked={filters.stageNames.includes(stage.nome)}
+                  onCheckedChange={() => toggleStageName(stage.nome)}
+                  onSelect={e => e.preventDefault()}
+                >
+                  <span className="flex-1">{stage.nome}</span>
+                  <span className="text-[10px] text-slate-400 ml-2 tabular-nums">
+                    {stage.count}
+                  </span>
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+
         {hasAnyFilter && (
           <button
             onClick={() =>
@@ -214,6 +255,11 @@ export default function EngajamentoFiltros({ filters, onChange, lines, isLoading
                 lineLabels: [],
                 attributionModes: [],
                 stateFilter: [],
+                stageNames: [],
+                stagePhases: [],
+                meetingStates: [],
+                inboundMin: null,
+                inboundMax: null,
                 includeTestLines: false,
               })
             }
