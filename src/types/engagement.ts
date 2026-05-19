@@ -19,6 +19,29 @@ export interface EngajamentoFunnelStep {
   order: number
 }
 
+export interface EngajamentoLineBreakdown {
+  label: string
+  total: number
+  reply_rate: number | null
+  depth_avg: number | null
+  frt_median_hours: number | null
+  cold_count: number
+  lost_count: number
+  active_count: number
+  won_count: number
+}
+
+export interface EngajamentoStateBucket {
+  state: ConversationState
+  count: number
+}
+
+export interface EngajamentoDepthBucket {
+  bucket: string
+  count: number
+  order: number
+}
+
 export interface EngajamentoConversation {
   customer_phone: string
   contact_id: string | null
@@ -45,6 +68,9 @@ export interface EngajamentoLineOption {
 export interface EngajamentoResponse {
   kpis: EngajamentoKpis
   funnel: EngajamentoFunnelStep[]
+  by_line: EngajamentoLineBreakdown[]
+  state_distribution: EngajamentoStateBucket[]
+  depth_histogram: EngajamentoDepthBucket[]
   conversations: EngajamentoConversation[]
   pagination: { page: number; limit: number; total: number }
   lines: EngajamentoLineOption[]
@@ -58,4 +84,25 @@ export interface EngajamentoFilters {
   stateFilter: ConversationState[]
   includeTestLines: boolean
   coldThresholdHours: number
+}
+
+// Thread (drawer)
+export interface ThreadMessage {
+  message_id: string
+  direction: 'inbound' | 'outbound'
+  body: string | null
+  sent_at: string
+  attribution_mode: string
+  sent_by_user_name: string | null
+  source: 'whatsapp_messages' | 'ai_conversation_turns'
+}
+
+export interface ThreadResponse {
+  thread: ThreadMessage[]
+  stats: {
+    total: number
+    inbound: number
+    outbound: number
+    sources_used: string[]
+  }
 }

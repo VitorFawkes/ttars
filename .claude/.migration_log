@@ -888,3 +888,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-19T14:25:03Z | supabase/migrations/20260519b_weddings_engagement_foundation.sql | applied_to_prod
 2026-05-19T14:25:03Z | supabase/migrations/20260519c_analytics_weddings_conversations_rpc.sql | applied_to_prod
 2026-05-19T14:55:22Z | supabase/migrations/20260519d_weddings_engagement_v2.sql | applied_to_prod
+2026-05-19T15:20:55Z | supabase/migrations/20260519e_weddings_thread_rpc.sql | applied_to_prod
+2026-05-19T15:20:55Z | supabase/migrations/20260519f_weddings_analytics_v3_breakdowns.sql | applied_to_prod

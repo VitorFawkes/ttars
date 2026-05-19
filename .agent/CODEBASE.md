@@ -7,30 +7,30 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-19
 > **Trigger:** ALWAYS ON
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
-> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 185 paginas | 297 hooks | 23 views | 757 components
 
 ---
 
@@ -571,7 +571,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **182 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **185 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -720,11 +720,14 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `PipelineStagesChart` | `src/pages/analytics-new/pipeline/PipelineStagesChart.tsx` |
 | `PipelineTasksSection` | `src/pages/analytics-new/pipeline/PipelineTasksSection.tsx` |
 | `PipelineTopDeals` | `src/pages/analytics-new/pipeline/PipelineTopDeals.tsx` |
+| `EngajamentoBreakdownLinhas` | `src/pages/analytics-new/whatsapp/EngajamentoBreakdownLinhas.tsx` |
 | `EngajamentoConversaDrawer` | `src/pages/analytics-new/whatsapp/EngajamentoConversaDrawer.tsx` |
 | `EngajamentoConversasView` | `src/pages/analytics-new/whatsapp/EngajamentoConversasView.tsx` |
+| `EngajamentoDistribuicoes` | `src/pages/analytics-new/whatsapp/EngajamentoDistribuicoes.tsx` |
 | `EngajamentoFiltros` | `src/pages/analytics-new/whatsapp/EngajamentoFiltros.tsx` |
 | `EngajamentoFunil` | `src/pages/analytics-new/whatsapp/EngajamentoFunil.tsx` |
-| `EngajamentoKpis` | `src/pages/analytics-new/whatsapp/EngajamentoKpis.tsx` |
+| `EngajamentoHeroKpis` | `src/pages/analytics-new/whatsapp/EngajamentoHeroKpis.tsx` |
+| `EngajamentoSecondaryKpis` | `src/pages/analytics-new/whatsapp/EngajamentoSecondaryKpis.tsx` |
 | `EngajamentoTabela` | `src/pages/analytics-new/whatsapp/EngajamentoTabela.tsx` |
 | `AnalyticsPage` | `src/pages/analytics/AnalyticsPage.tsx` |
 | `ResumoView` | `src/pages/analytics/views/ResumoView.tsx` |
