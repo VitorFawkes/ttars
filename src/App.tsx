@@ -136,6 +136,8 @@ const PatriciaProtoPage = lazy(() => import('./pages/_proto/patricia/PatriciaPro
 import { ToastProvider } from './contexts/ToastContext'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import { Toaster, toast } from 'sonner'
+import { SupabaseOutageBanner } from './components/shared/SupabaseOutageBanner'
+import { reportSupabaseNetworkError } from './lib/supabaseHealth'
 
 function isNetworkError(error: Error): boolean {
     const msg = error.message?.toLowerCase() ?? ''
@@ -159,6 +161,7 @@ const queryClient = new QueryClient({
                     id: 'query-error-schema',
                 })
             } else if (isNetworkError(error)) {
+                reportSupabaseNetworkError()
                 toast.error('Erro de conexão', {
                     description: 'Verifique sua conexão com a internet e tente novamente.',
                     id: 'query-error-network',
@@ -171,6 +174,9 @@ const queryClient = new QueryClient({
     mutationCache: new MutationCache({
         onError: (error) => {
             console.error('[MutationCache] Mutation error:', error.message)
+            if (error instanceof Error && isNetworkError(error)) {
+                reportSupabaseNetworkError()
+            }
         },
     }),
     defaultOptions: {
@@ -214,6 +220,7 @@ function App() {
         <AuthProvider>
           <OrgProvider>
           <ToastProvider>
+            <SupabaseOutageBanner />
             <Toaster richColors position="top-right" />
             <BrowserRouter>
               <Routes>
