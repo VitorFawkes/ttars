@@ -12,11 +12,11 @@ interface Props {
 }
 
 const STATE_BADGE: Record<ConversationState, { label: string; className: string }> = {
-  hot:  { label: 'Quente',  className: 'bg-rose-100 text-rose-700 border-rose-200' },
-  warm: { label: 'Morna',   className: 'bg-amber-100 text-amber-700 border-amber-200' },
-  lost: { label: 'Sumiu',   className: 'bg-slate-100 text-slate-600 border-slate-200' },
+  hot:  { label: 'Quente',          className: 'bg-rose-100 text-rose-700 border-rose-200' },
+  warm: { label: 'Morna',           className: 'bg-amber-100 text-amber-700 border-amber-200' },
+  lost: { label: 'Sumiu',           className: 'bg-slate-100 text-slate-600 border-slate-200' },
   cold: { label: 'Nunca respondeu', className: 'bg-slate-50 text-slate-500 border-slate-200' },
-  won:  { label: 'Ganha',   className: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  won:  { label: 'Ganha',           className: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
 }
 
 function formatRelative(iso: string | null): string {
@@ -30,9 +30,21 @@ function formatRelative(iso: string | null): string {
 
 function formatHours(hours: number | null): string {
   if (hours === null || hours === undefined) return '—'
+  if (hours < 0) return '—'
   if (hours < 1) return `${Math.round(hours * 60)}min`
   if (hours < 24) return `${hours.toFixed(1)}h`
   return `${(hours / 24).toFixed(1)}d`
+}
+
+function formatPhone(phone: string): string {
+  // Best-effort formatting for BR phone numbers (55 + DDD + 8/9 digits)
+  if (phone.length === 13 && phone.startsWith('55')) {
+    return `+${phone.slice(0, 2)} (${phone.slice(2, 4)}) ${phone.slice(4, 9)}-${phone.slice(9)}`
+  }
+  if (phone.length === 12 && phone.startsWith('55')) {
+    return `+${phone.slice(0, 2)} (${phone.slice(2, 4)}) ${phone.slice(4, 8)}-${phone.slice(8)}`
+  }
+  return phone
 }
 
 export default function EngajamentoTabela({
@@ -101,18 +113,21 @@ export default function EngajamentoTabela({
             {!isLoading &&
               conversations.map(c => {
                 const badge = STATE_BADGE[c.state] ?? STATE_BADGE.cold
+                const displayName = c.contact_name || (
+                  <span className="italic text-slate-400">(sem cadastro)</span>
+                )
                 return (
                   <tr
-                    key={`${c.contact_id}-${c.phone_line_id}`}
+                    key={`${c.customer_phone}-${c.phone_line_label}`}
                     onClick={() => onRowClick(c)}
                     className="cursor-pointer hover:bg-indigo-50/40 transition-colors"
                   >
                     <td className="px-4 py-3">
-                      <div className="font-medium text-slate-900 truncate max-w-[180px]">
-                        {c.contact_name || '(sem nome)'}
+                      <div className="font-medium text-slate-900 truncate max-w-[200px]">
+                        {displayName}
                       </div>
-                      <div className="text-xs text-slate-400 truncate max-w-[180px]">
-                        {c.contact_phone || '—'}
+                      <div className="text-xs text-slate-400 truncate max-w-[200px]">
+                        {formatPhone(c.customer_phone)}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-slate-600 truncate max-w-[160px]">

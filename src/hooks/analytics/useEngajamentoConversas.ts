@@ -24,7 +24,6 @@ const EMPTY_RESPONSE: EngajamentoResponse = {
   conversations: [],
   pagination: { page: 1, limit: 50, total: 0 },
   lines: [],
-  filters_applied: {},
 }
 
 export function useEngajamentoConversas({
@@ -39,7 +38,7 @@ export function useEngajamentoConversas({
       'weddings-engajamento',
       filters.dateFrom,
       filters.dateTo,
-      filters.linhaIds,
+      filters.lineLabels,
       filters.attributionModes,
       filters.stateFilter,
       filters.includeTestLines,
@@ -52,7 +51,7 @@ export function useEngajamentoConversas({
       const { data, error } = await (supabase.rpc as any)('analytics_weddings_conversations', {
         p_from: filters.dateFrom,
         p_to: filters.dateTo,
-        p_linha_ids: filters.linhaIds.length > 0 ? filters.linhaIds : null,
+        p_line_labels: filters.lineLabels.length > 0 ? filters.lineLabels : null,
         p_attribution_modes: filters.attributionModes.length > 0 ? filters.attributionModes : null,
         p_state_filter: filters.stateFilter.length > 0 ? filters.stateFilter : null,
         p_cold_threshold_hours: filters.coldThresholdHours,

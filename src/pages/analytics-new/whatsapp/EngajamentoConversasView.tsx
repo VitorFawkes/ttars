@@ -18,7 +18,7 @@ function defaultFilters(): EngajamentoFilters {
   return {
     dateFrom: from.toISOString().slice(0, 10),
     dateTo: to.toISOString().slice(0, 10),
-    linhaIds: [],
+    lineLabels: [],
     attributionModes: [],
     stateFilter: [],
     includeTestLines: false,

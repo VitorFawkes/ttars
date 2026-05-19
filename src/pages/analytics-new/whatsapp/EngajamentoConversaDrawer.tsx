@@ -22,16 +22,16 @@ interface ThreadMessage {
 
 function useConversationThread(conversation: EngajamentoConversation | null) {
   return useQuery<ThreadMessage[]>({
-    queryKey: ['engajamento-thread', conversation?.contact_id, conversation?.phone_line_id],
+    queryKey: ['engajamento-thread', conversation?.customer_phone, conversation?.phone_line_label],
     queryFn: async () => {
       if (!conversation) return []
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- view não está em database.types.ts
       const { data, error } = await (supabase.from as any)('vw_weddings_messages_unified')
         .select('message_id, direction, body, sent_at, attribution_mode, sent_by_user_name')
-        .eq('contact_id', conversation.contact_id)
-        .eq('phone_line_id', conversation.phone_line_id)
+        .eq('customer_phone', conversation.customer_phone)
+        .eq('phone_line_label', conversation.phone_line_label)
         .order('sent_at', { ascending: false })
-        .limit(50)
+        .limit(100)
 
       if (error) throw error
       return ((data ?? []) as ThreadMessage[]).reverse()
@@ -39,6 +39,16 @@ function useConversationThread(conversation: EngajamentoConversation | null) {
     enabled: !!conversation,
     staleTime: 30 * 1000,
   })
+}
+
+function formatPhone(phone: string): string {
+  if (phone.length === 13 && phone.startsWith('55')) {
+    return `+${phone.slice(0, 2)} (${phone.slice(2, 4)}) ${phone.slice(4, 9)}-${phone.slice(9)}`
+  }
+  if (phone.length === 12 && phone.startsWith('55')) {
+    return `+${phone.slice(0, 2)} (${phone.slice(2, 4)}) ${phone.slice(4, 8)}-${phone.slice(8)}`
+  }
+  return phone
 }
 
 export default function EngajamentoConversaDrawer({ conversation, onClose }: Props) {
@@ -49,10 +59,7 @@ export default function EngajamentoConversaDrawer({ conversation, onClose }: Pro
   return (
     <>
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/30 z-40 transition-opacity"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 bg-black/30 z-40 transition-opacity" onClick={onClose} />
 
       {/* Drawer */}
       <div className="fixed right-0 top-0 bottom-0 w-full sm:w-[480px] bg-white shadow-2xl z-50 flex flex-col">
@@ -60,10 +67,12 @@ export default function EngajamentoConversaDrawer({ conversation, onClose }: Pro
         <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between">
           <div className="min-w-0">
             <h3 className="text-base font-semibold text-slate-900 tracking-tight truncate">
-              {conversation.contact_name || '(sem nome)'}
+              {conversation.contact_name || (
+                <span className="italic text-slate-400">(sem cadastro)</span>
+              )}
             </h3>
             <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
-              <span>{conversation.contact_phone || '—'}</span>
+              <span>{formatPhone(conversation.customer_phone)}</span>
               <span>•</span>
               <span>{conversation.phone_line_label}</span>
             </div>
@@ -84,12 +93,14 @@ export default function EngajamentoConversaDrawer({ conversation, onClose }: Pro
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-wide text-slate-400">Enviadas</div>
-            <div className="text-lg font-semibold text-slate-900">{conversation.outbound_count}</div>
+            <div className="text-lg font-semibold text-slate-900">
+              {conversation.outbound_count}
+            </div>
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-wide text-slate-400">1ª resposta</div>
             <div className="text-lg font-semibold text-slate-900">
-              {conversation.frt_hours !== null
+              {conversation.frt_hours !== null && conversation.frt_hours >= 0
                 ? conversation.frt_hours < 1
                   ? `${Math.round(conversation.frt_hours * 60)}min`
                   : conversation.frt_hours < 24
@@ -132,10 +143,7 @@ export default function EngajamentoConversaDrawer({ conversation, onClose }: Pro
             messages.map(m => (
               <div
                 key={m.message_id}
-                className={cn(
-                  'flex',
-                  m.direction === 'outbound' ? 'justify-end' : 'justify-start'
-                )}
+                className={cn('flex', m.direction === 'outbound' ? 'justify-end' : 'justify-start')}
               >
                 <div
                   className={cn(
@@ -145,14 +153,18 @@ export default function EngajamentoConversaDrawer({ conversation, onClose }: Pro
                       : 'bg-white border border-slate-200 text-slate-900 rounded-bl-sm'
                   )}
                 >
-                  <div>{m.body || <span className="italic opacity-70">(mensagem sem texto)</span>}</div>
+                  <div>
+                    {m.body || (
+                      <span className="italic opacity-70">(mensagem sem texto)</span>
+                    )}
+                  </div>
                   <div
                     className={cn(
                       'text-[10px] mt-1 flex items-center gap-1.5',
                       m.direction === 'outbound' ? 'text-indigo-200' : 'text-slate-400'
                     )}
                   >
-                    <span>{format(new Date(m.sent_at), "dd/MM HH:mm", { locale: ptBR })}</span>
+                    <span>{format(new Date(m.sent_at), 'dd/MM HH:mm', { locale: ptBR })}</span>
                     {m.direction === 'outbound' && (
                       <>
                         <span>•</span>

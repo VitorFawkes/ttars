@@ -20,10 +20,9 @@ export interface EngajamentoFunnelStep {
 }
 
 export interface EngajamentoConversation {
-  contact_id: string
+  customer_phone: string
+  contact_id: string | null
   contact_name: string | null
-  contact_phone: string | null
-  phone_line_id: string
   phone_line_label: string
   first_outbound_at: string | null
   last_outbound_at: string | null
@@ -39,7 +38,6 @@ export interface EngajamentoConversation {
 }
 
 export interface EngajamentoLineOption {
-  id: string
   label: string
   is_test: boolean
 }
@@ -50,13 +48,12 @@ export interface EngajamentoResponse {
   conversations: EngajamentoConversation[]
   pagination: { page: number; limit: number; total: number }
   lines: EngajamentoLineOption[]
-  filters_applied: Record<string, unknown>
 }
 
 export interface EngajamentoFilters {
   dateFrom: string
   dateTo: string
-  linhaIds: string[]
+  lineLabels: string[]
   attributionModes: AttributionMode[]
   stateFilter: ConversationState[]
   includeTestLines: boolean

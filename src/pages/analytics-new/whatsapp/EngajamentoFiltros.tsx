@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import { Calendar, Filter, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -59,12 +58,8 @@ export default function EngajamentoFiltros({ filters, onChange, lines, isLoading
   const currentDays = daysBetween(filters.dateFrom, filters.dateTo)
   const activePreset = PRESETS.find(p => p.days === currentDays)
 
-  const linesById = useMemo(() => new Map(lines.map(l => [l.id, l])), [lines])
-  const selectedLineLabels = filters.linhaIds.length === 0
-    ? 'Todas as linhas'
-    : filters.linhaIds
-        .map(id => linesById.get(id)?.label ?? '?')
-        .join(', ')
+  const selectedLineLabels =
+    filters.lineLabels.length === 0 ? 'Todas as linhas' : filters.lineLabels.join(', ')
 
   function setPreset(days: number) {
     const to = new Date()
@@ -73,11 +68,11 @@ export default function EngajamentoFiltros({ filters, onChange, lines, isLoading
     onChange({ dateFrom: isoDate(from), dateTo: isoDate(to) })
   }
 
-  function toggleLine(id: string) {
-    const set = new Set(filters.linhaIds)
-    if (set.has(id)) set.delete(id)
-    else set.add(id)
-    onChange({ linhaIds: Array.from(set) })
+  function toggleLine(label: string) {
+    const set = new Set(filters.lineLabels)
+    if (set.has(label)) set.delete(label)
+    else set.add(label)
+    onChange({ lineLabels: Array.from(set) })
   }
 
   function toggleAttribution(mode: AttributionMode) {
@@ -95,7 +90,7 @@ export default function EngajamentoFiltros({ filters, onChange, lines, isLoading
   }
 
   const hasAnyFilter =
-    filters.linhaIds.length > 0 ||
+    filters.lineLabels.length > 0 ||
     filters.attributionModes.length > 0 ||
     filters.stateFilter.length > 0 ||
     filters.includeTestLines
@@ -128,12 +123,10 @@ export default function EngajamentoFiltros({ filters, onChange, lines, isLoading
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-sm text-slate-700 hover:bg-slate-50">
             <Filter className="w-3.5 h-3.5 text-slate-400" />
-            <span className="truncate max-w-[200px]">
-              {selectedLineLabels}
-            </span>
-            {filters.linhaIds.length > 0 && (
+            <span className="truncate max-w-[200px]">{selectedLineLabels}</span>
+            {filters.lineLabels.length > 0 && (
               <span className="ml-1 px-1.5 rounded bg-indigo-100 text-indigo-700 text-[10px]">
-                {filters.linhaIds.length}
+                {filters.lineLabels.length}
               </span>
             )}
           </DropdownMenuTrigger>
@@ -142,9 +135,9 @@ export default function EngajamentoFiltros({ filters, onChange, lines, isLoading
             <DropdownMenuSeparator />
             {lines.map(line => (
               <DropdownMenuCheckboxItem
-                key={line.id}
-                checked={filters.linhaIds.includes(line.id)}
-                onCheckedChange={() => toggleLine(line.id)}
+                key={line.label}
+                checked={filters.lineLabels.includes(line.label)}
+                onCheckedChange={() => toggleLine(line.label)}
                 onSelect={e => e.preventDefault()}
               >
                 {line.label}
@@ -218,7 +211,7 @@ export default function EngajamentoFiltros({ filters, onChange, lines, isLoading
           <button
             onClick={() =>
               onChange({
-                linhaIds: [],
+                lineLabels: [],
                 attributionModes: [],
                 stateFilter: [],
                 includeTestLines: false,
@@ -231,9 +224,7 @@ export default function EngajamentoFiltros({ filters, onChange, lines, isLoading
           </button>
         )}
 
-        {isLoading && (
-          <div className="ml-auto text-xs text-slate-400">Carregando…</div>
-        )}
+        {isLoading && <div className="ml-auto text-xs text-slate-400">Carregando…</div>}
       </div>
     </div>
   )
