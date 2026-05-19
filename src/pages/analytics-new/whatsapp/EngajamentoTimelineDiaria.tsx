@@ -7,7 +7,6 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  Legend,
   CartesianGrid,
   Line,
   ComposedChart,
@@ -22,8 +21,9 @@ interface Props {
 interface ChartPoint {
   day: string
   dayLabel: string
+  responderam: number
+  sem_resposta: number
   outbound: number
-  inbound: number
   msgs_out: number
   msgs_in: number
   new_contacts: number
@@ -36,8 +36,10 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: unknow
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const p = (payload[0] as any).payload as ChartPoint
   const day = parseISO(p.day)
+  const replyRate =
+    p.outbound > 0 ? ((p.responderam / p.outbound) * 100).toFixed(0) : '—'
   return (
-    <div className="bg-white border border-slate-200 shadow-lg rounded-lg p-3 text-xs min-w-[200px]">
+    <div className="bg-white border border-slate-200 shadow-lg rounded-lg p-3 text-xs min-w-[220px]">
       <div className="font-semibold text-slate-900 mb-2">
         {format(day, "EEE, dd 'de' MMM", { locale: ptBR })}
       </div>
@@ -46,14 +48,24 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: unknow
           <span className="text-slate-500">Pessoas contatadas</span>
           <span className="font-medium text-slate-900 tabular-nums">{p.outbound}</span>
         </div>
-        <div className="flex justify-between gap-3">
-          <span className="text-slate-500">Pessoas que responderam</span>
-          <span className="font-medium text-emerald-700 tabular-nums">{p.inbound}</span>
+        <div className="flex justify-between gap-3 pl-2 border-l-2 border-emerald-300">
+          <span className="text-slate-500">↳ responderam</span>
+          <span className="font-medium text-emerald-700 tabular-nums">
+            {p.responderam} <span className="text-slate-400">({replyRate}%)</span>
+          </span>
+        </div>
+        <div className="flex justify-between gap-3 pl-2 border-l-2 border-slate-300">
+          <span className="text-slate-500">↳ silêncio</span>
+          <span className="font-medium text-slate-600 tabular-nums">{p.sem_resposta}</span>
         </div>
         <div className="border-t border-slate-100 my-1.5" />
         <div className="flex justify-between gap-3">
           <span className="text-slate-500">Novos contatos (1ª vez)</span>
           <span className="font-medium text-indigo-700 tabular-nums">{p.new_contacts}</span>
+        </div>
+        <div className="flex justify-between gap-3">
+          <span className="text-slate-500">1ª resposta recebida</span>
+          <span className="font-medium text-sky-700 tabular-nums">{p.new_replies}</span>
         </div>
         {p.wins > 0 && (
           <div className="flex justify-between gap-3">
@@ -78,8 +90,9 @@ export default function EngajamentoTimelineDiaria({ points, isLoading }: Props) 
     return points.map(p => ({
       day: p.day,
       dayLabel: format(parseISO(p.day), 'dd/MM', { locale: ptBR }),
+      responderam: p.inbound,
+      sem_resposta: p.no_reply,
       outbound: p.outbound,
-      inbound: p.inbound,
       msgs_out: p.msgs_out,
       msgs_in: p.msgs_in,
       new_contacts: p.new_contacts,
@@ -92,12 +105,12 @@ export default function EngajamentoTimelineDiaria({ points, isLoading }: Props) 
     return data.reduce(
       (acc, p) => ({
         outbound: acc.outbound + p.outbound,
-        inbound: acc.inbound + p.inbound,
+        responderam: acc.responderam + p.responderam,
+        sem_resposta: acc.sem_resposta + p.sem_resposta,
         new_contacts: acc.new_contacts + p.new_contacts,
-        new_replies: acc.new_replies + p.new_replies,
         wins: acc.wins + p.wins,
       }),
-      { outbound: 0, inbound: 0, new_contacts: 0, new_replies: 0, wins: 0 }
+      { outbound: 0, responderam: 0, sem_resposta: 0, new_contacts: 0, wins: 0 }
     )
   }, [data])
 
@@ -113,29 +126,36 @@ export default function EngajamentoTimelineDiaria({ points, isLoading }: Props) 
             Pessoas por dia
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Cada barra conta pessoas únicas — contatadas e que responderam naquele dia
+            Cada barra é o total de pessoas contatadas naquele dia — verde respondeu, cinza ficou no silêncio
           </p>
         </div>
-        <div className="flex items-center gap-4 text-xs">
-          <div className="flex items-baseline gap-1">
-            <span className="w-2 h-2 rounded-full bg-indigo-500 inline-block" />
-            <span className="text-slate-500">contatadas</span>
-            <span className="font-semibold text-slate-900 tabular-nums">
-              {totals.outbound.toLocaleString('pt-BR')}
-            </span>
-          </div>
+        <div className="flex items-center gap-4 text-xs flex-wrap">
           <div className="flex items-baseline gap-1">
             <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
             <span className="text-slate-500">responderam</span>
             <span className="font-semibold text-slate-900 tabular-nums">
-              {totals.inbound.toLocaleString('pt-BR')}
+              {totals.responderam.toLocaleString('pt-BR')}
             </span>
           </div>
           <div className="flex items-baseline gap-1">
-            <span className="w-2 h-2 rounded-full bg-sky-500 inline-block" />
+            <span className="w-2 h-2 rounded-full bg-slate-300 inline-block" />
+            <span className="text-slate-500">silêncio</span>
+            <span className="font-semibold text-slate-900 tabular-nums">
+              {totals.sem_resposta.toLocaleString('pt-BR')}
+            </span>
+          </div>
+          <div className="flex items-baseline gap-1">
+            <span className="w-2 h-2 rounded-full bg-indigo-500 inline-block" />
             <span className="text-slate-500">novos</span>
             <span className="font-semibold text-slate-900 tabular-nums">
               {totals.new_contacts.toLocaleString('pt-BR')}
+            </span>
+          </div>
+          <div className="flex items-baseline gap-1">
+            <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
+            <span className="text-slate-500">vendas</span>
+            <span className="font-semibold text-slate-900 tabular-nums">
+              {totals.wins.toLocaleString('pt-BR')}
             </span>
           </div>
         </div>
@@ -159,19 +179,31 @@ export default function EngajamentoTimelineDiaria({ points, isLoading }: Props) 
               tickLine={false}
               allowDecimals={false}
             />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(99, 102, 241, 0.05)' }} />
-            <Legend
-              wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
-              iconType="circle"
-              iconSize={8}
+            <Tooltip
+              content={<CustomTooltip />}
+              cursor={{ fill: 'rgba(99, 102, 241, 0.05)' }}
             />
-            <Bar dataKey="outbound" name="Contatadas" fill="#6366f1" radius={[4, 4, 0, 0]} maxBarSize={32} />
-            <Bar dataKey="inbound" name="Responderam" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={32} />
+            <Bar
+              dataKey="responderam"
+              stackId="pessoas"
+              name="Responderam"
+              fill="#10b981"
+              radius={[0, 0, 0, 0]}
+              maxBarSize={32}
+            />
+            <Bar
+              dataKey="sem_resposta"
+              stackId="pessoas"
+              name="Sem resposta"
+              fill="#cbd5e1"
+              radius={[4, 4, 0, 0]}
+              maxBarSize={32}
+            />
             <Line
               type="monotone"
               dataKey="new_contacts"
               name="Novos contatos"
-              stroke="#0ea5e9"
+              stroke="#6366f1"
               strokeWidth={2}
               dot={{ r: 3 }}
               activeDot={{ r: 5 }}
@@ -179,7 +211,7 @@ export default function EngajamentoTimelineDiaria({ points, isLoading }: Props) 
             <Line
               type="monotone"
               dataKey="wins"
-              name="Vendas ganhas"
+              name="Vendas"
               stroke="#f59e0b"
               strokeWidth={2}
               dot={{ r: 3 }}

@@ -15,6 +15,7 @@ import EngajamentoDistribuicoes from './EngajamentoDistribuicoes'
 import EngajamentoFRTBuckets from './EngajamentoFRTBuckets'
 import EngajamentoHeatmap from './EngajamentoHeatmap'
 import EngajamentoTimelineDiaria from './EngajamentoTimelineDiaria'
+import EngajamentoVelocidadeDia from './EngajamentoVelocidadeDia'
 import EngajamentoTimeMetrics from './EngajamentoTimeMetrics'
 import EngajamentoFunil from './EngajamentoFunil'
 import EngajamentoTabela from './EngajamentoTabela'
@@ -187,6 +188,11 @@ export default function EngajamentoConversasView() {
       />
 
       <EngajamentoTimelineDiaria
+        points={data?.daily_timeline ?? []}
+        isLoading={isLoading}
+      />
+
+      <EngajamentoVelocidadeDia
         points={data?.daily_timeline ?? []}
         isLoading={isLoading}
       />
