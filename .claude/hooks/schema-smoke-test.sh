@@ -337,6 +337,49 @@ if [ "$STAGING_MODE" = "false" ]; then
     echo "  FAIL: $ZUMBI cards com itens Monde zumbi (mesma venda re-importada com conteúdo diferente, mas linhas antigas não foram arquivadas) — rodar cleanup retroativo" >&2
     FAILED=$((FAILED + 1))
   fi
+
+  # ── Items Monde em cards arquivados (regra absoluta: card arquivado = inexistente) ──
+  # Esperado: 0 sempre. Trigger BEFORE INSERT/UPDATE em card_financial_items
+  # (20260519c) + cascata trg_propagate_card_archived (20260515e) impedem.
+  # Se subir, há um caminho que está bypassando a guarda — investigar.
+  TOTAL=$((TOTAL + 1))
+  ARCHIVED_LEAK=$(curl -s \
+    -X POST \
+    "${URL}/rest/v1/rpc/monde_items_in_archived_cards_count" \
+    -H "apikey: ${ANON}" \
+    -H "Authorization: Bearer ${KEY}" \
+    -H "Content-Type: application/json" \
+    -d '{}' \
+    --max-time 10)
+
+  if [ -z "$ARCHIVED_LEAK" ] || ! echo "$ARCHIVED_LEAK" | grep -qE '^[0-9]+$'; then
+    echo "  FAIL: monde_items_in_archived_cards_count → resposta inesperada: $ARCHIVED_LEAK" >&2
+    FAILED=$((FAILED + 1))
+  elif [ "$ARCHIVED_LEAK" != "0" ]; then
+    echo "  FAIL: $ARCHIVED_LEAK items financeiros ativos em cards arquivados — guarda BEFORE INSERT/UPDATE foi furada" >&2
+    FAILED=$((FAILED + 1))
+  fi
+
+  # ── Reconcile: divergência entre card_financial_items e arquivo Monde ──
+  # Esperado: 0 após backfill (20260519d). Casos legacy (pending_sale ausente)
+  # não contam. Se subir, algum caminho de criação/atualização não passou pelo
+  # reconcile_card_monde_venda — investigar ImportacaoPosVendaPage ou outra rota.
+  TOTAL=$((TOTAL + 1))
+  RECONCILE_DIV=$(curl -s \
+    -X POST \
+    "${URL}/rest/v1/rpc/monde_reconcile_divergence_count" \
+    -H "apikey: ${ANON}" \
+    -H "Authorization: Bearer ${KEY}" \
+    -H "Content-Type: application/json" \
+    -d '{}' \
+    --max-time 10)
+
+  if [ -z "$RECONCILE_DIV" ] || ! echo "$RECONCILE_DIV" | grep -qE '^[0-9]+$'; then
+    echo "  FAIL: monde_reconcile_divergence_count → resposta inesperada: $RECONCILE_DIV" >&2
+    FAILED=$((FAILED + 1))
+  elif [ "$RECONCILE_DIV" != "0" ]; then
+    echo "  WARN: $RECONCILE_DIV pares (card, venda) divergem do arquivo Monde — chamar reconcile_card_monde_venda" >&2
+  fi
 fi
 
 # ── NPS feature (nps_surveys + nps_responses) ──

@@ -10,6 +10,7 @@ import { useFinancialItemPassengers } from '@/hooks/useFinancialItemPassengers'
 import { useDeleteFinancialItem } from '@/hooks/useDeleteFinancialItem'
 import type { FinancialItemPassenger } from '@/hooks/useFinancialItemPassengers'
 import { useCardFinancialSummary, type FinancialItem } from '@/hooks/useCardFinancialSummary'
+import { useReconcileMondeVenda } from '@/hooks/useCardMondeVendas'
 import type { Database } from '@/database.types'
 
 type Card = Database['public']['Tables']['cards']['Row']
@@ -194,13 +195,38 @@ export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCol
                     </div>
                 ) : (
                     <>
-                        {items.map((item) => (
-                            isPostSales ? (
-                                <ProductItemOperational key={item.id} item={item} cardId={cardId} onDelete={() => handleDeleteItem(item)} />
-                            ) : (
-                                <ProductItemReadOnly key={item.id} item={item} cardId={cardId} phaseSlug={phaseSlug ?? undefined} onDelete={() => handleDeleteItem(item)} />
-                            )
-                        ))}
+                        {(() => {
+                            const groups = new Map<string, FinancialItem[]>()
+                            for (const it of items) {
+                                const key = it.monde_venda_num || '__manual__'
+                                const arr = groups.get(key) ?? []
+                                arr.push(it)
+                                groups.set(key, arr)
+                            }
+                            const sortedKeys = Array.from(groups.keys()).sort((a, b) => {
+                                if (a === '__manual__') return 1
+                                if (b === '__manual__') return -1
+                                return a.localeCompare(b)
+                            })
+                            return sortedKeys.map((vendaKey) => {
+                                const groupItems = groups.get(vendaKey) ?? []
+                                const isMonde = vendaKey !== '__manual__'
+                                return (
+                                    <div key={vendaKey}>
+                                        {isMonde && (
+                                            <VendaMondeHeader vendaNum={vendaKey} cardId={cardId} qtd={groupItems.length} />
+                                        )}
+                                        {groupItems.map((item) => (
+                                            isPostSales ? (
+                                                <ProductItemOperational key={item.id} item={item} cardId={cardId} onDelete={() => handleDeleteItem(item)} />
+                                            ) : (
+                                                <ProductItemReadOnly key={item.id} item={item} cardId={cardId} phaseSlug={phaseSlug ?? undefined} onDelete={() => handleDeleteItem(item)} />
+                                            )
+                                        ))}
+                                    </div>
+                                )
+                            })
+                        })()}
 
                         {/* Footer totals */}
                         <div className="px-4 py-2.5 bg-gray-50/80">
@@ -225,6 +251,36 @@ export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCol
                     </>
                 )}
             </div>
+        </div>
+    )
+}
+
+// ═══════════════════════════════════════════════════════════
+// Cabeçalho de grupo por venda Monde — com botão de re-sincronizar
+// ═══════════════════════════════════════════════════════════
+
+function VendaMondeHeader({ vendaNum, cardId, qtd }: { vendaNum: string; cardId: string; qtd: number }) {
+    const reconcile = useReconcileMondeVenda(cardId)
+    return (
+        <div className="px-4 py-1.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between text-xs">
+            <span className="text-slate-500">
+                Venda Monde <span className="font-semibold text-slate-700">{vendaNum}</span>
+                <span className="text-slate-400"> · {qtd} {qtd === 1 ? 'produto' : 'produtos'}</span>
+            </span>
+            <button
+                onClick={() => reconcile.mutate(vendaNum)}
+                disabled={reconcile.isPending}
+                className={cn(
+                    "flex items-center gap-1 px-2 py-1 rounded text-[11px] transition-colors",
+                    reconcile.isPending
+                        ? "text-slate-400 cursor-wait"
+                        : "text-slate-500 hover:text-indigo-600 hover:bg-indigo-50"
+                )}
+                title="Re-sincronizar produtos com o arquivo Monde atual"
+            >
+                <RefreshCw className={cn("h-3 w-3", reconcile.isPending && "animate-spin")} />
+                {reconcile.isPending ? 'Sincronizando…' : 'Re-sincronizar'}
+            </button>
         </div>
     )
 }

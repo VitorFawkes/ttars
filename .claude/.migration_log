@@ -892,3 +892,8 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-19T15:20:55Z | supabase/migrations/20260519f_weddings_analytics_v3_breakdowns.sql | applied_to_prod
 2026-05-19T16:49:19Z | supabase/migrations/20260519c_reconcile_card_monde_venda.sql | applied_to_prod
 2026-05-19T16:51:47Z | supabase/migrations/20260519g_weddings_analytics_v4_temporal.sql | applied_to_prod
+2026-05-19T16:57:17Z | supabase/migrations/20260519e_bulk_import_v11_fix_record_null_check.sql | applied_to_prod
+2026-05-19T16:58:26Z | supabase/migrations/20260519d_backfill_reconcile_monde_vendas.sql | applied_to_prod
+2026-05-19T17:00:59Z | supabase/migrations/20260519f_bulk_import_v12_fix_passengers_org_id.sql | applied_to_prod
+2026-05-19T17:01:42Z | supabase/migrations/20260519d_backfill_reconcile_monde_vendas.sql | applied_to_prod
+2026-05-19T17:04:36Z | supabase/migrations/20260519g_monde_audit_rpcs.sql | applied_to_prod
