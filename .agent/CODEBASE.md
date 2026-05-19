@@ -1135,3 +1135,4 @@ pipeline_stages → pipeline_phases (target_phase_id) — handoff entre fases
 
 <!-- synced 2026-05-18 18:22:16 -->
 <!-- last sync: Tue May 19 17:19:17 UTC 2026 -->
+<!-- sync: Tue May 19 17:34:04 UTC 2026 -->

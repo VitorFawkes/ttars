@@ -58,8 +58,10 @@ export interface EngajamentoHeatmapCell {
 
 export interface EngajamentoDailyPoint {
   day: string // YYYY-MM-DD
-  outbound: number
-  inbound: number
+  outbound: number      // pessoas únicas contatadas (não msgs)
+  inbound: number       // pessoas únicas que responderam
+  msgs_out: number      // total de mensagens enviadas
+  msgs_in: number       // total de mensagens recebidas
   new_contacts: number
   new_replies: number
   wins: number

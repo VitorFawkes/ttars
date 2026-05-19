@@ -69,7 +69,7 @@ export default function EngajamentoHeatmap({
             Quando as pessoas respondem
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Clique numa célula pra filtrar o dashboard só por leads que respondem naquele dia/hora
+            Cada célula conta pessoas únicas. Clique pra filtrar o dashboard só por elas.
           </p>
         </div>
         <div className="flex items-center gap-3 text-xs">
@@ -82,7 +82,7 @@ export default function EngajamentoHeatmap({
               <span className="text-indigo-400">×</span>
             </button>
           )}
-          <div className="text-slate-400">{total.toLocaleString('pt-BR')} respostas</div>
+          <div className="text-slate-400">{total.toLocaleString('pt-BR')} pessoas (com sobreposição)</div>
         </div>
       </div>
 
@@ -125,8 +125,8 @@ export default function EngajamentoHeatmap({
                     )}
                     title={
                       value > 0
-                        ? `${day} ${String(hour).padStart(2, '0')}h — ${value} resposta${value > 1 ? 's' : ''} · clique pra filtrar`
-                        : `${day} ${String(hour).padStart(2, '0')}h — sem resposta`
+                        ? `${day} ${String(hour).padStart(2, '0')}h — ${value} pessoa${value > 1 ? 's' : ''} respondendo · clique pra filtrar`
+                        : `${day} ${String(hour).padStart(2, '0')}h — ninguém`
                     }
                     style={{
                       backgroundColor:
