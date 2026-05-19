@@ -11,6 +11,8 @@ interface Props {
   isLoading?: boolean
   activeState: ConversationState | null
   onToggleState: (state: ConversationState) => void
+  activeDepthBucket: string | null
+  onToggleDepthBucket: (bucket: EngajamentoDepthBucket | null) => void
 }
 
 const STATE_META: Record<
@@ -55,6 +57,8 @@ export default function EngajamentoDistribuicoes({
   isLoading,
   activeState,
   onToggleState,
+  activeDepthBucket,
+  onToggleDepthBucket,
 }: Props) {
   if (isLoading) {
     return (
@@ -109,16 +113,14 @@ export default function EngajamentoDistribuicoes({
                 className={cn(
                   'w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-left transition-all duration-150',
                   isActive
-                    ? 'bg-slate-100'
+                    ? 'bg-slate-100 ring-1 ring-slate-300'
                     : 'hover:bg-slate-50 active:scale-[0.99]'
                 )}
               >
                 <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', meta.bar)} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className={cn('text-sm font-medium', meta.color)}>
-                      {meta.label}
-                    </span>
+                    <span className={cn('text-sm font-medium', meta.color)}>{meta.label}</span>
                     <div className="flex items-baseline gap-2 tabular-nums">
                       <span className="text-sm font-semibold text-slate-900">
                         {s.count.toLocaleString('pt-BR')}
@@ -140,33 +142,46 @@ export default function EngajamentoDistribuicoes({
             Quantas vezes a pessoa respondeu
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Distribuição do número de inbounds por conversa
+            Clique numa barra pra filtrar a tabela só pelas conversas com essa profundidade
           </p>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {depths.map((d, idx) => {
             const widthPct = (d.count / maxDepth) * 100
             const sharePct = depthTotal === 0 ? 0 : (d.count / depthTotal) * 100
+            const isActive = activeDepthBucket === d.bucket
             return (
-              <div
+              <button
                 key={d.bucket}
-                className="flex items-center gap-3"
+                onClick={() =>
+                  onToggleDepthBucket(isActive ? null : d)
+                }
+                className={cn(
+                  'w-full flex items-center gap-3 px-2 py-1 rounded-md transition-all duration-150',
+                  isActive
+                    ? 'bg-indigo-50 ring-1 ring-indigo-200'
+                    : 'hover:bg-slate-50 active:scale-[0.99]'
+                )}
                 style={{
                   animation: `depthRowEnter 320ms cubic-bezier(0.23, 1, 0.32, 1) ${idx * 50}ms both`,
                 }}
               >
-                <div className="w-28 text-sm font-medium text-slate-700 shrink-0">
+                <div className="w-24 text-sm font-medium text-slate-700 shrink-0 text-left">
                   {d.bucket}
                 </div>
                 <div className="flex-1 relative">
                   <div className="h-7 bg-slate-100 rounded-md overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-indigo-400 to-indigo-600 rounded-md flex items-center justify-end px-2"
+                      className={cn(
+                        'h-full rounded-md flex items-center justify-end px-2',
+                        isActive
+                          ? 'bg-gradient-to-r from-indigo-500 to-indigo-700'
+                          : 'bg-gradient-to-r from-indigo-400 to-indigo-600'
+                      )}
                       style={{
                         width: `${widthPct}%`,
-                        transition:
-                          'width 500ms cubic-bezier(0.23, 1, 0.32, 1)',
+                        transition: 'width 500ms cubic-bezier(0.23, 1, 0.32, 1)',
                       }}
                     >
                       {widthPct > 20 && (
@@ -185,10 +200,16 @@ export default function EngajamentoDistribuicoes({
                   )}
                   {sharePct.toFixed(0)}%
                 </div>
-              </div>
+              </button>
             )
           })}
         </div>
+
+        <p className="mt-3 pt-3 border-t border-slate-100 text-[11px] text-slate-400 leading-relaxed">
+          “0 mensagens” inclui leads que não responderam <strong>e também</strong> alguns que
+          viraram venda por outro canal (telefone, email) mesmo sem responder no WhatsApp.
+          Por isso pode ser maior que “Nunca respondeu”.
+        </p>
       </div>
 
       <style>{`

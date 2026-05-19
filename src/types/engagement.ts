@@ -40,6 +40,27 @@ export interface EngajamentoDepthBucket {
   bucket: string
   count: number
   order: number
+  min: number
+  max: number
+}
+
+export interface EngajamentoFRTBucket {
+  bucket: string
+  count: number
+  order: number
+}
+
+export interface EngajamentoHeatmapCell {
+  weekday: number // 0=Sunday … 6=Saturday
+  hour: number    // 0-23
+  count: number
+}
+
+export interface EngajamentoTimeMetrics {
+  median_conversation_duration_days: number | null
+  median_conversation_duration_days_won: number | null
+  median_outbounds_no_reply: number | null
+  max_outbounds_no_reply: number | null
 }
 
 export interface EngajamentoConversation {
@@ -55,6 +76,7 @@ export interface EngajamentoConversation {
   outbound_count: number
   frt_hours: number | null
   hours_since_inbound: number | null
+  conversation_duration_days: number | null
   state: ConversationState
   card_id: string | null
   attribution_modes: AttributionMode[] | null
@@ -71,6 +93,9 @@ export interface EngajamentoResponse {
   by_line: EngajamentoLineBreakdown[]
   state_distribution: EngajamentoStateBucket[]
   depth_histogram: EngajamentoDepthBucket[]
+  frt_distribution: EngajamentoFRTBucket[]
+  weekday_hour_heatmap: EngajamentoHeatmapCell[]
+  time_metrics: EngajamentoTimeMetrics
   conversations: EngajamentoConversation[]
   pagination: { page: number; limit: number; total: number }
   lines: EngajamentoLineOption[]
@@ -84,9 +109,11 @@ export interface EngajamentoFilters {
   stateFilter: ConversationState[]
   includeTestLines: boolean
   coldThresholdHours: number
+  // Client-side filters (não passam ao RPC, filtram a tabela após chegada)
+  inboundMin: number | null
+  inboundMax: number | null
 }
 
-// Thread (drawer)
 export interface ThreadMessage {
   message_id: string
   direction: 'inbound' | 'outbound'
