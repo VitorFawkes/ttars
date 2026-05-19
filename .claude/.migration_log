@@ -884,3 +884,6 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-18T18:43:39Z | supabase/migrations/20260518f_handoff_compartilhado_por_fase.sql | applied_to_prod
 2026-05-18T19:30:12Z | supabase/migrations/20260518a_subcard_remove_auto_task.sql | applied_to_prod
 2026-05-18T20:03:04Z | supabase/migrations/20260518a_fix_app_content_template_anchor.sql | applied_to_prod
+2026-05-19T13:35:34Z | supabase/migrations/20260519a_validator_verdict_action.sql | applied_to_prod
+2026-05-19T14:25:03Z | supabase/migrations/20260519b_weddings_engagement_foundation.sql | applied_to_prod
+2026-05-19T14:25:03Z | supabase/migrations/20260519c_analytics_weddings_conversations_rpc.sql | applied_to_prod

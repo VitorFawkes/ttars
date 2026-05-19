@@ -5,32 +5,32 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-05-18
+> **Last Updated:** 2026-05-19
 > **Trigger:** ALWAYS ON
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
-> **Stats:** 202 tabelas | 176 paginas | 296 hooks | 22 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
+> **Stats:** 202 tabelas | 182 paginas | 297 hooks | 23 views | 757 components
 
 ---
 
@@ -192,7 +192,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **296 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **297 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -351,6 +351,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useEmpresaPessoas()` | `useEmpresaPessoas.ts` |
 | `useEmpresas()` | `useEmpresas.ts` |
 | `useEmpresas 2()` | `useEmpresas 2.ts` |
+| `useEngajamentoConversas()` | `useEngajamentoConversas.ts` |
 | `useEstelaScoringRules()` | `useEstelaScoringRules.ts` |
 | `useEstelaScoringRules 2()` | `useEstelaScoringRules 2.ts` |
 | `useFlightLookup()` | `useFlightLookup.ts` |
@@ -570,7 +571,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **176 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **182 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -719,6 +720,12 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `PipelineStagesChart` | `src/pages/analytics-new/pipeline/PipelineStagesChart.tsx` |
 | `PipelineTasksSection` | `src/pages/analytics-new/pipeline/PipelineTasksSection.tsx` |
 | `PipelineTopDeals` | `src/pages/analytics-new/pipeline/PipelineTopDeals.tsx` |
+| `EngajamentoConversaDrawer` | `src/pages/analytics-new/whatsapp/EngajamentoConversaDrawer.tsx` |
+| `EngajamentoConversasView` | `src/pages/analytics-new/whatsapp/EngajamentoConversasView.tsx` |
+| `EngajamentoFiltros` | `src/pages/analytics-new/whatsapp/EngajamentoFiltros.tsx` |
+| `EngajamentoFunil` | `src/pages/analytics-new/whatsapp/EngajamentoFunil.tsx` |
+| `EngajamentoKpis` | `src/pages/analytics-new/whatsapp/EngajamentoKpis.tsx` |
+| `EngajamentoTabela` | `src/pages/analytics-new/whatsapp/EngajamentoTabela.tsx` |
 | `AnalyticsPage` | `src/pages/analytics/AnalyticsPage.tsx` |
 | `ResumoView` | `src/pages/analytics/views/ResumoView.tsx` |
 | `SaudeView` | `src/pages/analytics/views/SaudeView.tsx` |
