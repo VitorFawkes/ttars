@@ -72,7 +72,7 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, onCon
         queryKey: ['contacts-search', debouncedSearch],
         queryFn: async () => {
             if (!debouncedSearch) return [] as Database['public']['Tables']['contatos']['Row'][]
-            const { data: hits, error: rpcErr } = await (supabase.rpc as any)('search_contatos', {
+            const { data: hits, error: rpcErr } = await supabase.rpc('search_contatos', {
                 p_term: debouncedSearch,
                 p_limit: 8,
             })
@@ -328,8 +328,8 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, onCon
 
     return (
         <Dialog open={true} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[520px] p-0 overflow-hidden gap-0">
-                <div className="p-6 pb-4 border-b border-slate-100">
+            <DialogContent className="sm:max-w-[520px] p-0 overflow-hidden gap-0 max-h-[90vh] flex flex-col">
+                <div className="p-6 pb-4 border-b border-slate-100 shrink-0">
                     <DialogHeader>
                         <DialogTitle className="text-xl font-semibold text-slate-900">
                             {showCreateForm ? 'Novo Contato' : multiSelect ? 'Selecionar Pessoas' : 'Selecionar Contato'}
@@ -345,7 +345,7 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, onCon
                     </DialogHeader>
                 </div>
 
-                <div className="p-6">
+                <div className="flex-1 overflow-y-auto min-h-0 p-6">
                     {error && (
                         <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-lg flex items-start gap-2 text-sm text-red-700">
                             <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
@@ -558,31 +558,6 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, onCon
                                 </div>
                             )}
 
-                            {/* Action buttons */}
-                            <div className="pt-4 border-t border-slate-100 space-y-2">
-                                {multiSelect && selectedContacts.length > 0 && (
-                                    <Button
-                                        onClick={handleBatchAdd}
-                                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
-                                    >
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        Adicionar {selectedContacts.length} {selectedContacts.length === 1 ? 'pessoa' : 'pessoas'}
-                                    </Button>
-                                )}
-                                <Button
-                                    onClick={() => setShowCreateForm(true)}
-                                    variant={multiSelect && selectedContacts.length > 0 ? "outline" : undefined}
-                                    className={cn(
-                                        "w-full",
-                                        multiSelect && selectedContacts.length > 0
-                                            ? "text-indigo-600 border-indigo-200 hover:bg-indigo-50"
-                                            : "bg-indigo-600 hover:bg-indigo-700 text-white"
-                                    )}
-                                >
-                                    <UserPlus className="h-4 w-4 mr-2" />
-                                    Criar Novo Contato
-                                </Button>
-                            </div>
                         </div>
                     ) : (
                         <div className="space-y-5">
@@ -823,42 +798,71 @@ export default function ContactSelector({ cardId, onClose, onContactAdded, onCon
                                 </div>
                             )}
 
-                            {/* Actions */}
-                            <div className="flex gap-3 pt-3 border-t border-slate-100">
+                        </div>
+                    )}
+                </div>
+
+                {/* Footer fixo — botões sempre visíveis, fora do scroll do body */}
+                <div className="p-6 pt-4 border-t border-slate-100 shrink-0 bg-white">
+                    {!showCreateForm ? (
+                        <div className="space-y-2">
+                            {multiSelect && selectedContacts.length > 0 && (
                                 <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={resetForm}
-                                    className="flex-1"
+                                    onClick={handleBatchAdd}
+                                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
                                 >
-                                    Voltar
+                                    <Plus className="h-4 w-4 mr-2" />
+                                    Adicionar {selectedContacts.length} {selectedContacts.length === 1 ? 'pessoa' : 'pessoas'}
                                 </Button>
-                                <Button
-                                    onClick={() => {
-                                        if (mondeChecked && mondeCreateCheck.results.length > 0 && !skipMonde) {
-                                            // User saw Monde results but wants to create anyway
-                                            setSkipMonde(true)
-                                            createContactMutation.mutate()
-                                        } else {
-                                            handleCreateContact()
-                                        }
-                                    }}
-                                    disabled={createContactMutation.isPending || mondeCreateCheck.isSearching || mondeImportForCreate.isPending || !newContact.nome.trim() || !newContact.sobrenome.trim() || !newContact.telefone.trim()}
-                                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50"
-                                >
-                                    {createContactMutation.isPending || mondeCreateCheck.isSearching ? (
-                                        <>
-                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                            {mondeCreateCheck.isSearching ? 'Verificando...' : 'Salvando...'}
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Plus className="h-4 w-4 mr-2" />
-                                            {mondeChecked && mondeCreateCheck.results.length > 0 ? 'Criar mesmo assim' : multiSelect ? 'Criar e Selecionar' : 'Criar e Adicionar'}
-                                        </>
-                                    )}
-                                </Button>
-                            </div>
+                            )}
+                            <Button
+                                onClick={() => setShowCreateForm(true)}
+                                variant={multiSelect && selectedContacts.length > 0 ? "outline" : undefined}
+                                className={cn(
+                                    "w-full",
+                                    multiSelect && selectedContacts.length > 0
+                                        ? "text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                                        : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                                )}
+                            >
+                                <UserPlus className="h-4 w-4 mr-2" />
+                                Criar Novo Contato
+                            </Button>
+                        </div>
+                    ) : (
+                        <div className="flex gap-3">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={resetForm}
+                                className="flex-1"
+                            >
+                                Voltar
+                            </Button>
+                            <Button
+                                onClick={() => {
+                                    if (mondeChecked && mondeCreateCheck.results.length > 0 && !skipMonde) {
+                                        setSkipMonde(true)
+                                        createContactMutation.mutate()
+                                    } else {
+                                        handleCreateContact()
+                                    }
+                                }}
+                                disabled={createContactMutation.isPending || mondeCreateCheck.isSearching || mondeImportForCreate.isPending || !newContact.nome.trim() || !newContact.sobrenome.trim() || !newContact.telefone.trim()}
+                                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50"
+                            >
+                                {createContactMutation.isPending || mondeCreateCheck.isSearching ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                        {mondeCreateCheck.isSearching ? 'Verificando...' : 'Salvando...'}
+                                    </>
+                                ) : (
+                                    <>
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        {mondeChecked && mondeCreateCheck.results.length > 0 ? 'Criar mesmo assim' : multiSelect ? 'Criar e Selecionar' : 'Criar e Adicionar'}
+                                    </>
+                                )}
+                            </Button>
                         </div>
                     )}
                 </div>
