@@ -14,6 +14,7 @@ import EngajamentoBreakdownLinhas from './EngajamentoBreakdownLinhas'
 import EngajamentoDistribuicoes from './EngajamentoDistribuicoes'
 import EngajamentoFRTBuckets from './EngajamentoFRTBuckets'
 import EngajamentoHeatmap from './EngajamentoHeatmap'
+import EngajamentoTimelineDiaria from './EngajamentoTimelineDiaria'
 import EngajamentoTimeMetrics from './EngajamentoTimeMetrics'
 import EngajamentoFunil from './EngajamentoFunil'
 import EngajamentoTabela from './EngajamentoTabela'
@@ -33,6 +34,8 @@ function defaultFilters(): EngajamentoFilters {
     coldThresholdHours: 48,
     inboundMin: null,
     inboundMax: null,
+    weekdayFilter: null,
+    hourFilter: null,
   }
 }
 
@@ -78,6 +81,10 @@ export default function EngajamentoConversasView() {
     }
     setActiveDepthBucket(bucket)
     handleFilterChange({ inboundMin: bucket.min, inboundMax: bucket.max })
+  }
+
+  function setHeatmapCell(weekday: number | null, hour: number | null) {
+    handleFilterChange({ weekdayFilter: weekday, hourFilter: hour })
   }
 
   // Single-active state (for highlighting): só destaca quando tem só 1 estado selecionado
@@ -126,6 +133,13 @@ export default function EngajamentoConversasView() {
         onClear: () => handleFilterChange({ lineLabels: [] }),
       })
     }
+    if (filters.weekdayFilter !== null && filters.hourFilter !== null) {
+      const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+      out.push({
+        label: `Responde ${weekdays[filters.weekdayFilter]} ${String(filters.hourFilter).padStart(2, '0')}h`,
+        onClear: () => setHeatmapCell(null, null),
+      })
+    }
     return out
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDepthBucket, filters.stateFilter, filters.lineLabels])
@@ -172,9 +186,20 @@ export default function EngajamentoConversasView() {
         onClearLines={() => handleFilterChange({ lineLabels: [] })}
       />
 
+      <EngajamentoTimelineDiaria
+        points={data?.daily_timeline ?? []}
+        isLoading={isLoading}
+      />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <EngajamentoFRTBuckets buckets={data?.frt_distribution ?? []} isLoading={isLoading} />
-        <EngajamentoHeatmap cells={data?.weekday_hour_heatmap ?? []} isLoading={isLoading} />
+        <EngajamentoHeatmap
+          cells={data?.weekday_hour_heatmap ?? []}
+          isLoading={isLoading}
+          activeWeekday={filters.weekdayFilter}
+          activeHour={filters.hourFilter}
+          onCellClick={setHeatmapCell}
+        />
       </div>
 
       <EngajamentoTimeMetrics metrics={data?.time_metrics} isLoading={isLoading} />

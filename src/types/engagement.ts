@@ -56,6 +56,15 @@ export interface EngajamentoHeatmapCell {
   count: number
 }
 
+export interface EngajamentoDailyPoint {
+  day: string // YYYY-MM-DD
+  outbound: number
+  inbound: number
+  new_contacts: number
+  new_replies: number
+  wins: number
+}
+
 export interface EngajamentoTimeMetrics {
   median_conversation_duration_days: number | null
   median_conversation_duration_days_won: number | null
@@ -95,6 +104,7 @@ export interface EngajamentoResponse {
   depth_histogram: EngajamentoDepthBucket[]
   frt_distribution: EngajamentoFRTBucket[]
   weekday_hour_heatmap: EngajamentoHeatmapCell[]
+  daily_timeline: EngajamentoDailyPoint[]
   time_metrics: EngajamentoTimeMetrics
   conversations: EngajamentoConversation[]
   pagination: { page: number; limit: number; total: number }
@@ -112,6 +122,9 @@ export interface EngajamentoFilters {
   // Client-side filters (não passam ao RPC, filtram a tabela após chegada)
   inboundMin: number | null
   inboundMax: number | null
+  // Drill-down do heatmap (passa ao RPC)
+  weekdayFilter: number | null // 0=Dom..6=Sáb
+  hourFilter: number | null    // 0-23
 }
 
 export interface ThreadMessage {

@@ -30,6 +30,7 @@ const EMPTY_RESPONSE: EngajamentoResponse = {
   depth_histogram: [],
   frt_distribution: [],
   weekday_hour_heatmap: [],
+  daily_timeline: [],
   time_metrics: {
     median_conversation_duration_days: null,
     median_conversation_duration_days_won: null,
@@ -58,6 +59,8 @@ export function useEngajamentoConversas({
       filters.stateFilter,
       filters.includeTestLines,
       filters.coldThresholdHours,
+      filters.weekdayFilter,
+      filters.hourFilter,
       page,
       limit,
     ],
@@ -72,6 +75,8 @@ export function useEngajamentoConversas({
         p_state_filter: filters.stateFilter.length > 0 ? filters.stateFilter : null,
         p_cold_threshold_hours: filters.coldThresholdHours,
         p_include_test_lines: filters.includeTestLines,
+        p_weekday_filter: filters.weekdayFilter,
+        p_hour_filter: filters.hourFilter,
         p_page: page,
         p_limit: limit,
       })
