@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Kanban, Users, Settings, FileText, ChevronRight, User, BarChart3, LogOut, Database, Calendar, CheckSquare, Gift, Shield, MapPin, Building2, Target, Smile, type LucideIcon } from 'lucide-react'
+import { Kanban, Users, Settings, FileText, ChevronRight, User, BarChart3, LogOut, Database, Calendar, CheckSquare, Gift, Shield, MapPin, Building2, Target, Smile, LibraryBig, type LucideIcon } from 'lucide-react'
 import { BellConciergeIcon } from '../icons/BellConciergeIcon'
 import { cn } from '../../lib/utils'
 import { OrgSwitcher } from './OrgSwitcher'
@@ -13,6 +13,7 @@ const navigation: { name: string; href: string; icon: LucideIcon; orgsOnly?: str
     { name: 'Funil', href: '/pipeline', icon: Kanban },
     { name: 'Gestão de Leads', href: '/leads', icon: Database },
     { name: 'Propostas', href: '/proposals', icon: FileText },
+    { name: 'Catálogo', href: '/catalogo', icon: LibraryBig },
     { name: 'Viagens', href: '/viagens', icon: MapPin, orgsOnly: ['welcome-trips'] },
     { name: 'Grupos', href: '/groups', icon: Users, orgsOnly: ['welcome-trips'] },
     { name: 'Contatos', href: '/people', icon: User },

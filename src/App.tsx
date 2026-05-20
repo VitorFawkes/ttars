@@ -26,6 +26,7 @@ import ProposalBuilderElite from './pages/ProposalBuilderElite'
 import BuilderPageV5 from './components/proposals/v5/BuilderPage'
 import PortalEditor from './pages/PortalEditor'
 import ProposalsPage from './pages/ProposalsPage'
+import CatalogoPage from './pages/CatalogoPage'
 import ProposalView from './pages/public/ProposalView'
 import TripPortalPublic from './pages/public/TripPortalPublic'
 import AnalyticsPage from './pages/analytics/AnalyticsPage'
@@ -267,6 +268,7 @@ function App() {
                   <Route path="/tasks" element={<Tasks />} />
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/proposals" element={<ProposalsPage />} />
+                  <Route path="/catalogo" element={<CatalogoPage />} />
                   <Route path="/reactivation" element={<ReactivationPage />} />
                   <Route path="/nps" element={<NPSPage />} />
                   <Route path="/sdr/pontuacoes" element={<PontuacoesPage />} />
