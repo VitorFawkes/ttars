@@ -32,6 +32,7 @@ import {
     type TriggerMode,
     type PreviewResult,
 } from '../../hooks/useCardAlertRules'
+import { useWorkspaceMembers } from '../../hooks/useWorkspaceMembers'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
 import { useProductContext } from '../../hooks/useProductContext'
@@ -53,6 +54,11 @@ interface FormState {
     title_template: string
     body_template: string
     send_email: boolean
+    show_in_modal: boolean
+    show_in_kanban_banner: boolean
+    show_in_bell: boolean
+    recipient_mode: 'card_owner' | 'team_managers' | 'specific_roles' | 'specific_users'
+    recipient_target: string[]
 }
 
 const emptyForm: FormState = {
@@ -66,6 +72,11 @@ const emptyForm: FormState = {
     title_template: 'Card "{titulo}" precisa de ajuste',
     body_template: 'Campos pendentes: {missing_fields}',
     send_email: false,
+    show_in_modal: false,
+    show_in_kanban_banner: false,
+    show_in_bell: true,
+    recipient_mode: 'card_owner',
+    recipient_target: [],
 }
 
 const SEVERITY_COLORS: Record<AlertSeverity, string> = {
@@ -100,6 +111,7 @@ export default function CardAlertRulesPage() {
 
     const { pipelineId } = useCurrentProductMeta()
     const { currentProduct } = useProductContext()
+    const { data: workspaceMembers = [] } = useWorkspaceMembers()
 
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [editingRule, setEditingRule] = useState<CardAlertRule | null>(null)
@@ -208,6 +220,11 @@ export default function CardAlertRulesPage() {
             title_template: rule.title_template,
             body_template: rule.body_template ?? '',
             send_email: rule.send_email,
+            show_in_modal: rule.show_in_modal,
+            show_in_kanban_banner: rule.show_in_kanban_banner,
+            show_in_bell: rule.show_in_bell,
+            recipient_mode: rule.recipient_mode,
+            recipient_target: rule.recipient_target,
         })
         setPreview(null)
         setJsonError(null)
@@ -258,6 +275,11 @@ export default function CardAlertRulesPage() {
             title_template: form.title_template,
             body_template: form.body_template || null,
             send_email: form.send_email,
+            show_in_modal: form.show_in_modal,
+            show_in_kanban_banner: form.show_in_kanban_banner,
+            show_in_bell: form.show_in_bell,
+            recipient_mode: form.recipient_mode,
+            recipient_target: form.recipient_target,
             pipeline_id: form.scope_type === 'pipeline' ? scopeValue : null,
             phase_id: form.scope_type === 'phase' ? scopeValue : null,
             stage_id: form.scope_type === 'stage' ? scopeValue : null,
@@ -691,17 +713,176 @@ export default function CardAlertRulesPage() {
                             />
                         </div>
 
-                        <div className="flex items-center gap-2">
-                            <input
-                                type="checkbox"
-                                id="send_email"
-                                checked={form.send_email}
-                                onChange={(e) => setForm({ ...form, send_email: e.target.checked })}
-                            />
-                            <label htmlFor="send_email" className="text-sm text-slate-700">
-                                Também enviar por email (respeita preferências do usuário)
+                        {/* Seção: Canais */}
+                        <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                            <header>
+                                <h3 className="text-sm font-medium text-slate-900">Canais de entrega</h3>
+                                <p className="text-xs text-slate-500">Onde a pendência aparece quando a regra dispara.</p>
+                            </header>
+
+                            <label className="flex items-center gap-3 text-sm text-slate-700 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={form.show_in_modal}
+                                    onChange={(e) =>
+                                        setForm({ ...form, show_in_modal: e.target.checked })
+                                    }
+                                    className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                                />
+                                <div>
+                                    <div className="font-medium">Modal de boas-vindas do dia</div>
+                                    <div className="text-xs text-slate-500">Aparece no 1º acesso do dia ao CRM.</div>
+                                </div>
                             </label>
-                        </div>
+
+                            <label className="flex items-center gap-3 text-sm text-slate-700 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={form.show_in_kanban_banner}
+                                    onChange={(e) =>
+                                        setForm({ ...form, show_in_kanban_banner: e.target.checked })
+                                    }
+                                    className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                                />
+                                <div>
+                                    <div className="font-medium">Faixa no Kanban</div>
+                                    <div className="text-xs text-slate-500">Destaque no topo do pipeline kanban.</div>
+                                </div>
+                            </label>
+
+                            <label className="flex items-center gap-3 text-sm text-slate-700 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={form.show_in_bell}
+                                    onChange={(e) =>
+                                        setForm({ ...form, show_in_bell: e.target.checked })
+                                    }
+                                    className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                                />
+                                <div>
+                                    <div className="font-medium">Notificação (sininho)</div>
+                                    <div className="text-xs text-slate-500">Ícone de campainha no topo do app.</div>
+                                </div>
+                            </label>
+
+                            <label className="flex items-center gap-3 text-sm text-slate-700 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={form.send_email}
+                                    onChange={(e) =>
+                                        setForm({ ...form, send_email: e.target.checked })
+                                    }
+                                    className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                                />
+                                <div>
+                                    <div className="font-medium">Email</div>
+                                    <div className="text-xs text-slate-500">Também enviar por email (respeita preferências do usuário).</div>
+                                </div>
+                            </label>
+                        </section>
+
+                        {/* Seção: Destinatário */}
+                        <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                            <header>
+                                <h3 className="text-sm font-medium text-slate-900">Destinatário</h3>
+                                <p className="text-xs text-slate-500">Quem recebe a notificação quando a regra dispara.</p>
+                            </header>
+
+                            <select
+                                value={form.recipient_mode}
+                                onChange={(e) =>
+                                    setForm({
+                                        ...form,
+                                        recipient_mode: e.target.value as FormState['recipient_mode'],
+                                        recipient_target: [],
+                                    })
+                                }
+                                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                            >
+                                <option value="card_owner">Dono atual do card</option>
+                                <option value="team_managers">Todos os admins do workspace</option>
+                                <option value="specific_roles">Papéis específicos (SDR, Vendas, Pós, Concierge)</option>
+                                <option value="specific_users">Usuários específicos</option>
+                            </select>
+
+                            {form.recipient_mode === 'specific_roles' && (
+                                <div className="space-y-2">
+                                    {[
+                                        { value: 'sdr', label: 'SDR' },
+                                        { value: 'vendas', label: 'Vendas (Planner)' },
+                                        { value: 'pos', label: 'Pós-venda' },
+                                        { value: 'concierge', label: 'Concierge' },
+                                    ].map((r) => (
+                                        <label
+                                            key={r.value}
+                                            className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={form.recipient_target.includes(r.value)}
+                                                onChange={(e) => {
+                                                    const next = e.target.checked
+                                                        ? [...form.recipient_target, r.value]
+                                                        : form.recipient_target.filter(
+                                                              (x) => x !== r.value
+                                                          );
+                                                    setForm({
+                                                        ...form,
+                                                        recipient_target: next,
+                                                    });
+                                                }}
+                                                className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                                            />
+                                            {r.label}
+                                        </label>
+                                    ))}
+                                </div>
+                            )}
+
+                            {form.recipient_mode === 'specific_users' && (
+                                <div className="max-h-48 overflow-y-auto space-y-1 border border-slate-200 rounded-md p-2 bg-slate-50">
+                                    {workspaceMembers.length === 0 ? (
+                                        <p className="text-xs text-slate-500 p-2">
+                                            Nenhum membro no workspace
+                                        </p>
+                                    ) : (
+                                        workspaceMembers.map((m) => (
+                                            <label
+                                                key={m.id}
+                                                className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer hover:bg-white p-1 rounded"
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={form.recipient_target.includes(m.id)}
+                                                    onChange={(e) => {
+                                                        const next = e.target.checked
+                                                            ? [...form.recipient_target, m.id]
+                                                            : form.recipient_target.filter(
+                                                                  (x) => x !== m.id
+                                                              );
+                                                        setForm({
+                                                            ...form,
+                                                            recipient_target: next,
+                                                        });
+                                                    }}
+                                                    className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                                                />
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="font-medium text-slate-900">
+                                                        {m.nome || 'Sem nome'}
+                                                    </div>
+                                                    {m.email && (
+                                                        <div className="text-xs text-slate-500 truncate">
+                                                            {m.email}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </label>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                        </section>
 
                         {preview && (
                             <div className="bg-indigo-50 border border-indigo-200 rounded-md p-3 text-sm">

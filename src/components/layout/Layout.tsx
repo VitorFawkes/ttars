@@ -15,6 +15,7 @@ import { FeedbackPopup } from '@/components/feedback/FeedbackPopup';
 import NotificationCenter from './NotificationCenter';
 import OnboardingWizard from '@/components/onboarding/OnboardingWizard';
 import { ImpersonateBanner } from '@/components/platform/ImpersonateBanner';
+import { PendenciasModalDiario } from '@/components/notifications/PendenciasModalDiario';
 
 
 export default function Layout() {
@@ -83,6 +84,7 @@ export default function Layout() {
             <GlobalSearchModal />
             <FeedbackPopup />
             <NotificationCenter />
+            <PendenciasModalDiario />
             <OnboardingWizard key={org?.id ?? 'no-org'} />
         </GlobalSearchProvider>
     );

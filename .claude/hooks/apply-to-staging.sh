@@ -22,18 +22,30 @@ echo "Arquivo: $SQL_FILE"
 echo "Banco: ivmebyvjarcvrkrbemam (staging)"
 echo ""
 
+# SUPABASE_ACCESS_TOKEN (org-wide) tem acesso a todos os projetos da org,
+# inclusive staging. Fallback para STAGING_ACCESS_TOKEN caso o primeiro não exista.
+TOKEN="${SUPABASE_ACCESS_TOKEN:-${STAGING_ACCESS_TOKEN:-}}"
+if [ -z "$TOKEN" ]; then
+  echo "Erro: nem SUPABASE_ACCESS_TOKEN nem STAGING_ACCESS_TOKEN definidos no .env" >&2
+  exit 1
+fi
+
 python3 -c "
-import json,subprocess,os
+import json,subprocess,sys
 sql = open('$SQL_FILE').read()
-r = subprocess.run(['curl','-sS','-X','POST',
+r = subprocess.run(['curl','-sS','-w','\nHTTP:%{http_code}','-X','POST',
   'https://api.supabase.com/v1/projects/ivmebyvjarcvrkrbemam/database/query',
-  '-H','Authorization: Bearer '+os.environ['STAGING_ACCESS_TOKEN'],
+  '-H','Authorization: Bearer $TOKEN',
   '-H','Content-Type: application/json',
   '-d',json.dumps({'query':sql})], capture_output=True, text=True)
-print(r.stdout[:500])
-if r.returncode != 0:
+out = r.stdout
+http_code = out.rsplit('HTTP:', 1)[-1].strip() if 'HTTP:' in out else 'unknown'
+body = out.rsplit('HTTP:', 1)[0][:600]
+print('Resposta:', body)
+print('HTTP:', http_code)
+if r.returncode != 0 or http_code not in ('200','201'):
     print('STDERR:', r.stderr[:300])
-    exit(1)
+    sys.exit(1)
 "
 
 echo ""
