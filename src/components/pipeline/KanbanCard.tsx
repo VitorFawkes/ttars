@@ -39,6 +39,7 @@ interface KanbanCardProps {
 
 import { GroupBadge } from './GroupBadge'
 import SubCardBadge from './SubCardBadge'
+import { KanbanCardPendenciaFaixa } from './KanbanCardPendenciaFaixa'
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 
@@ -677,6 +678,7 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
                         : undefined
             }
         >
+            <KanbanCardPendenciaFaixa cardId={card.id!} />
             {cancelOverlay && (
                 <span
                     className={cn(
