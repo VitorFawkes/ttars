@@ -41,12 +41,12 @@ import type { ProposalItemType } from '@/types/proposals'
 import { createInitialCruiseData } from './cruises/types'
 import { createInitialInsuranceData } from './insurance/types'
 import { HotelCatalogPicker } from './HotelCatalogPicker'
-import { FlightLookupPicker } from './FlightLookupPicker'
 import { TransferCatalogPicker } from './TransferCatalogPicker'
 import { TourCatalogPicker } from './TourCatalogPicker'
 import { CarRentalPicker } from './CarRentalPicker'
+import { DuffelFlightPicker } from './DuffelFlightPicker'
 import type { HotelDetailsResult } from '@/hooks/useHotelSearch'
-import type { FlightLookupResult } from '@/hooks/useFlightLookup'
+import type { FlightOffer } from '@/hooks/useDuffelFlightSearch'
 import type { IterpecTransferResult, IterpecTourResult, IterpecCarResult } from '@/types/iterpec'
 
 interface BlockSearchDrawerProps {
@@ -144,7 +144,8 @@ const BLOCK_TO_ITEM: Record<BlockType, ProposalItemType> = {
 const AI_ENABLED_BLOCKS: BlockType[] = ['flight']
 
 // Blocks that support library search
-const LIBRARY_ENABLED_BLOCKS: BlockType[] = ['hotel', 'flight', 'experience', 'transfer', 'insurance']
+// Voo NÃO entra no catálogo (preços/horários são voláteis — vai e volta a cada busca).
+const LIBRARY_ENABLED_BLOCKS: BlockType[] = ['hotel', 'experience', 'transfer', 'insurance']
 
 // Blocks that support external catalog/lookup
 const CATALOG_ENABLED_BLOCKS: BlockType[] = ['hotel', 'flight', 'transfer', 'experience', 'car']
@@ -170,12 +171,21 @@ export function BlockSearchDrawer({
     // Senão, vai pra "Criar Novo" (textos, divisores, etc).
     const [activeTab, setActiveTab] = useState<TabType>('library')
 
-    // Resetar aba ao abrir/trocar tipo de bloco
+    // Resetar aba ao abrir/trocar tipo de bloco.
+    // Voo: abre na busca ao vivo (Duffel).
+    // Hotel/Experiência/Transfer/Seguro: abre no Catálogo.
+    // Texto/Divisor/Imagem: abre em Criar Novo.
     useEffect(() => {
         if (isOpen && blockType) {
-            setActiveTab(hasLibrarySupport ? 'library' : 'create')
+            if (blockType === 'flight' && hasCatalogSupport) {
+                setActiveTab('catalog')
+            } else if (hasLibrarySupport) {
+                setActiveTab('library')
+            } else {
+                setActiveTab('create')
+            }
         }
-    }, [isOpen, blockType, hasLibrarySupport])
+    }, [isOpen, blockType, hasLibrarySupport, hasCatalogSupport])
 
     // Get library category for this block type
     const libraryCategory = blockType ? BLOCK_TO_LIBRARY_CATEGORY[blockType] : undefined
@@ -373,68 +383,94 @@ export function BlockSearchDrawer({
         onClose()
     }, [sectionId, addItem, updateItem, onClose])
 
-    // Handle flight import from lookup
+    // Handle flight import from Duffel offer
     // Formato: rich_content.flights.legs[].options[]
     // Alinhado com readFlightData.ts que lê rich_content.flights namespace
-    const handleFlightImport = useCallback((flight: FlightLookupResult) => {
+    const handleDuffelOfferImport = useCallback((offer: FlightOffer) => {
         if (!sectionId) return
 
-        const depTime = flight.departure.scheduledTime
-            ? formatTimeFromISO(flight.departure.scheduledTime)
-            : ''
-        const arrTime = flight.arrival.scheduledTime
-            ? formatTimeFromISO(flight.arrival.scheduledTime)
-            : ''
+        const pricePerSlice = offer.slices.length > 0
+            ? offer.total_amount / offer.slices.length
+            : offer.total_amount
 
-        const title = `${flight.airline.name} ${flight.flightNumber}`
+        const cabinLabel: Record<string, string> = {
+            economy: 'economy',
+            premium_economy: 'premium_economy',
+            business: 'business',
+            first: 'first',
+        }
+
+        const ts = Date.now()
+        const legs = offer.slices.map((slice, idx) => {
+            const firstSeg = slice.segments[0]
+            const lastSeg = slice.segments[slice.segments.length - 1]
+            const depTime = firstSeg?.departure_datetime
+                ? new Date(firstSeg.departure_datetime).toISOString().slice(11, 16)
+                : ''
+            const arrTime = lastSeg?.arrival_datetime
+                ? new Date(lastSeg.arrival_datetime).toISOString().slice(11, 16)
+                : ''
+            const flightNumbers = slice.segments.map((s) => s.flight_number).filter(Boolean).join(' + ')
+            const dateOnly = firstSeg?.departure_datetime
+                ? firstSeg.departure_datetime.slice(0, 10)
+                : ''
+
+            return {
+                id: `leg-${ts}-${idx}`,
+                leg_type: idx === 0 ? 'outbound' : 'return',
+                label: idx === 0 ? 'IDA' : 'VOLTA',
+                origin_code: slice.origin.iata_code,
+                origin_city: slice.origin.city_name || '',
+                destination_code: slice.destination.iata_code,
+                destination_city: slice.destination.city_name || '',
+                date: dateOnly,
+                ordem: idx,
+                options: [
+                    {
+                        id: `opt-${ts}-${idx}`,
+                        airline_code: offer.owner.iata_code,
+                        airline_name: offer.owner.name,
+                        flight_number: flightNumbers || `${offer.owner.iata_code}—`,
+                        departure_time: depTime,
+                        arrival_time: arrTime,
+                        cabin_class: cabinLabel[offer.cabin_class] ?? 'economy',
+                        fare_family: '',
+                        equipment: firstSeg?.aircraft || '',
+                        stops: slice.stops,
+                        baggage: offer.baggage_summary || '',
+                        price: Math.round(pricePerSlice * 100) / 100,
+                        currency: offer.total_currency,
+                        is_recommended: true,
+                        enabled: true,
+                        ordem: 0,
+                        duration_minutes: slice.duration_minutes,
+                    },
+                ],
+            }
+        })
+
+        const title = legs.length > 1
+            ? `${offer.owner.name} ${legs[0].origin_code} ↔ ${legs[0].destination_code}`
+            : `${offer.owner.name} ${legs[0]?.origin_code ?? ''} → ${legs[0]?.destination_code ?? ''}`
+
         const itemId = addItem(sectionId, 'flight', title)
         updateItem(itemId, {
+            base_price: offer.total_amount,
             rich_content: {
                 flights: {
-                    legs: [
-                        {
-                            id: `leg-${Date.now()}`,
-                            leg_type: 'outbound',
-                            label: 'IDA',
-                            origin_code: flight.departure.iata,
-                            origin_city: flight.departure.city || '',
-                            destination_code: flight.arrival.iata,
-                            destination_city: flight.arrival.city || '',
-                            date: flight.departureDate,
-                            ordem: 0,
-                            options: [
-                                {
-                                    id: `opt-${Date.now()}`,
-                                    airline_code: flight.airline.iata,
-                                    airline_name: flight.airline.name,
-                                    flight_number: flight.flightNumber,
-                                    departure_time: depTime,
-                                    arrival_time: arrTime,
-                                    cabin_class: 'economy',
-                                    fare_family: '',
-                                    equipment: flight.aircraft || '',
-                                    stops: 0,
-                                    baggage: '',
-                                    price: 0,
-                                    currency: 'BRL',
-                                    is_recommended: true,
-                                    enabled: true,
-                                    ordem: 0,
-                                },
-                            ],
-                        },
-                    ],
+                    legs,
                     show_prices: true,
                     allow_mix_airlines: true,
-                    _catalog: {
-                        provider: flight.provider,
-                        departure_terminal: flight.departure.terminal,
-                        arrival_terminal: flight.arrival.terminal,
-                        duration_minutes: flight.durationMinutes,
-                        status: flight.status,
+                    _duffel: {
+                        provider: 'duffel',
+                        offer_id: offer.id,
+                        expires_at: offer.expires_at,
+                        base_amount: offer.base_amount,
+                        tax_amount: offer.tax_amount,
                     },
                 },
-            },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } as any,
         })
         onClose()
     }, [sectionId, addItem, updateItem, onClose])
@@ -560,8 +596,13 @@ export function BlockSearchDrawer({
     const colors = BLOCK_COLORS[blockType] || BLOCK_COLORS.custom
 
     // Count available tabs
-    // Iterpec foi removido como aba (resultados mesclados no Catálogo)
-    const tabCount = 1 + (hasLibrarySupport ? 1 : 0) + (hasAISupport ? 1 : 0)
+    // Iterpec foi removido como aba (resultados mesclados no Catálogo).
+    // Pra voo, a aba "Buscar voos" (Duffel) aparece pq é o método principal.
+    const tabCount =
+        1 +
+        (hasLibrarySupport ? 1 : 0) +
+        (hasAISupport ? 1 : 0) +
+        (blockType === 'flight' && hasCatalogSupport ? 1 : 0)
 
     return (
         <>
@@ -650,10 +691,26 @@ export function BlockSearchDrawer({
                             </button>
                         )}
 
-                        {/* Aba Iterpec separada removida: pra hotel a busca já mescla
-                            SerpAPI inline; pra transfer/tour/car o link discreto
-                            "Cotar nova opção ao vivo" no rodapé do catálogo muda
-                            o conteúdo do mesmo painel sem virar outra aba. */}
+                        {/* Aba "Buscar voos" só aparece pra voo (Duffel) — pra hotel
+                            a busca já mescla LiteAPI inline no Catálogo; pra
+                            transfer/tour/car o link "Cotar nova opção ao vivo" no
+                            rodapé do catálogo muda o conteúdo do mesmo painel sem
+                            virar outra aba. */}
+                        {hasCatalogSupport && blockType === 'flight' && (
+                            <button
+                                onClick={() => setActiveTab('catalog')}
+                                className={cn(
+                                    'flex-1 py-3 px-3 text-sm font-medium transition-all',
+                                    'flex items-center justify-center gap-2 rounded-t-lg mx-1',
+                                    activeTab === 'catalog'
+                                        ? 'text-indigo-700 bg-indigo-100'
+                                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                                )}
+                            >
+                                <Plane className="h-4 w-4" />
+                                Buscar voos
+                            </button>
+                        )}
 
                         {/* AI Tab */}
                         {hasAISupport && (
@@ -772,8 +829,8 @@ export function BlockSearchDrawer({
                                 />
                             )}
                             {blockType === 'flight' && (
-                                <FlightLookupPicker
-                                    onImport={handleFlightImport}
+                                <DuffelFlightPicker
+                                    onImport={handleDuffelOfferImport}
                                 />
                             )}
                             {blockType === 'transfer' && (
@@ -800,19 +857,3 @@ export function BlockSearchDrawer({
 }
 
 export default BlockSearchDrawer
-
-/** Extrai HH:MM de um ISO timestamp (ex: "2026-07-16 01:50Z" → "01:50") */
-function formatTimeFromISO(iso: string): string {
-    try {
-        // Tenta parsear como Date
-        const d = new Date(iso)
-        if (!isNaN(d.getTime())) {
-            return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false })
-        }
-        // Fallback: extrair HH:MM de string tipo "2026-07-16 01:50Z"
-        const match = iso.match(/(\d{2}):(\d{2})/)
-        return match ? `${match[1]}:${match[2]}` : ''
-    } catch {
-        return ''
-    }
-}

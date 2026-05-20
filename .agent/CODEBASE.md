@@ -7,30 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-20
 > **Trigger:** ALWAYS ON
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
-> **Stats:** 207 tabelas | 193 paginas | 298 hooks | 23 views | 761 components
+> **Stats:** 207 tabelas | 193 paginas | 299 hooks | 23 views | 762 components
 
 ---
 
@@ -192,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **298 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **299 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -220,6 +197,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useBriefingImages 2()` | `useBriefingImages 2.ts` |
 | `useChatIA()` | `useChatIA.ts` |
 | `useContactSearch()` | `useContactSearch.ts` |
+| `useDuffelFlightSearch()` | `useDuffelFlightSearch.ts` |
 | `useEmailNotificationPreferences()` | `useEmailNotificationPreferences.ts` |
 | `useGlobalSearch()` | `useGlobalSearch.ts` |
 | `useHotelSearch()` | `useHotelSearch.ts` |
