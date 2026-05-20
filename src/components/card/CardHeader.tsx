@@ -69,6 +69,8 @@ import { useCardAlerts } from '../../hooks/useCardAlerts'
 import { useProductPipelineId } from '../../hooks/useCurrentProductMeta'
 import { usePipelineGovernance, getDiasAtrasoDataPrevista, useDataPrevistaTrackedStageIds } from '../../hooks/usePipelineGovernance'
 import { SystemPhase } from '@/types/pipeline'
+import { useCancellationStateByCard, useReabrirCancelamento, modoCancelamentoLabel } from '@/hooks/cancelamento/useCancelamento'
+import { AlertOctagon } from 'lucide-react'
 
 type CardBase = Database['public']['Tables']['cards']['Row']
 
@@ -491,7 +493,7 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                 const phaseOrderB = (b.pipeline_phases as { order_index?: number } | null)?.order_index ?? 999
                 if (phaseOrderA !== phaseOrderB) return phaseOrderA - phaseOrderB
                 return a.ordem - b.ordem
-            }) as { id: string; nome: string; ordem: number; fase: string; phase_id?: string; pipeline_phases?: { id: string; name: string; order_index: number; slug: string } | null }[]
+            }) as { id: string; nome: string; ordem: number; fase: string; phase_id?: string; is_terminal?: boolean; pipeline_phases?: { id: string; name: string; order_index: number; slug: string } | null }[]
         }
     })
 
@@ -501,6 +503,16 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
     const currentStage = stages?.find(s => s.id === card.pipeline_stage_id)
     const currentFase = currentStage?.fase
     const currentPhaseObj = phasesData?.find(p => p.id === currentStage?.phase_id)
+
+    // Cancellation state — quando ganho + cancelamento total concluído, o card é
+    // historicamente "vendido" mas atualmente cancelado. UI substitui o banner verde
+    // por banner cinza/vermelho "Viagem Cancelada".
+    const { data: cancellationState } = useCancellationStateByCard(card.id)
+    const reabrirCancelamentoMutation = useReabrirCancelamento()
+    const isFullyCancelled =
+        cancellationState?.modo_cancelamento === 'total' &&
+        !!cancellationState?.cancelamento_concluido_em
+    const isInTerminalStage = currentStage?.is_terminal === true
     const daysInStage = card.stage_entered_at
         ? Math.floor((new Date().getTime() - new Date(card.stage_entered_at).getTime()) / (1000 * 60 * 60 * 24))
         : null
@@ -1409,7 +1421,8 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                                 <span className="h-3.5 w-px bg-gray-200" />
                                 <span className={cn(
                                     "w-2 h-2 rounded-full shrink-0",
-                                    getPhaseBgColorByPhaseId(currentStage?.phase_id)
+                                    // Etapa terminal (Cancelada) sempre cinza, não herda cor da fase
+                                    isInTerminalStage ? "bg-slate-500" : getPhaseBgColorByPhaseId(currentStage?.phase_id)
                                 )} />
                                 <span className="text-[13px] font-bold text-gray-900 leading-none">{currentStage?.nome || 'Sem Etapa'}</span>
                                 {daysInStage !== null && (
@@ -1583,9 +1596,47 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                             </div>
                         )}
 
+                        {/* Banner "Viagem Cancelada" — quando ganho + cancelamento total concluído.
+                             Substitui o banner verde de Ganho. O card permanece com status_comercial='ganho'
+                             no banco (receita histórica), mas a UI comunica claramente o estado atual. */}
+                        {!isArchived && card.status_comercial === 'ganho' && isFullyCancelled && (
+                            <div className="flex items-center gap-3 px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-300">
+                                <div className="flex items-center gap-1.5 font-semibold text-sm text-slate-700">
+                                    <AlertOctagon className="h-4 w-4 text-rose-600" />
+                                    Viagem Cancelada
+                                </div>
+                                <span className="text-[11px] text-slate-500">
+                                    {cancellationState?.cancelamento_concluido_em
+                                        ? `em ${new Date(cancellationState.cancelamento_concluido_em).toLocaleDateString('pt-BR')}`
+                                        : null}
+                                </span>
+                                {cancellationState?.modo_cancelamento && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-600 border border-slate-300 uppercase tracking-wide font-bold">
+                                        {modoCancelamentoLabel(cancellationState.modo_cancelamento)}
+                                    </span>
+                                )}
+                                <div className="ml-auto flex items-center gap-2">
+                                    <span className="text-[11px] text-slate-500 italic">venda fechada, cancelada depois</span>
+                                    <button
+                                        onClick={() => {
+                                            if (confirm('Reabrir o cancelamento desta viagem?\n\nO card volta pra etapa anterior e o cancelamento volta a estar em curso.')) {
+                                                reabrirCancelamentoMutation.mutate(cancellationState?.viagem_id ?? '')
+                                            }
+                                        }}
+                                        disabled={reabrirCancelamentoMutation.isPending || !cancellationState?.viagem_id}
+                                        className="px-2 py-0.5 rounded-md border border-slate-400 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50 transition-colors flex items-center gap-1"
+                                        title="Reabrir o cancelamento (disponível por 30 dias)"
+                                    >
+                                        <RotateCcw className="h-3 w-3" />
+                                        {reabrirCancelamentoMutation.isPending ? 'Reabrindo...' : 'Reabrir cancelamento'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Status Banners — ganho or perdido (suprimidos quando arquivado para evitar
                              ruído: ações como Reabrir/Sem Pós-Venda só fazem sentido fora do arquivamento) */}
-                        {!isArchived && card.status_comercial === 'ganho' && (
+                        {!isArchived && card.status_comercial === 'ganho' && !isFullyCancelled && (
                             <div className={cn(
                                 "flex items-center gap-3 px-3 py-1.5 rounded-lg border",
                                 isSemPosVenda
