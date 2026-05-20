@@ -5,6 +5,8 @@ import { toast } from 'sonner'
 export interface CardMondeVenda {
     numero: string
     qtd_produtos: number
+    is_primary: boolean
+    in_card: boolean
 }
 
 interface ReconcileResult {
@@ -18,27 +20,74 @@ interface ReconcileResult {
     products_reactivated?: number
 }
 
+// Fonte: união entre "intent" (cards.produto_data) e "state" (card_financial_items).
+// - intent: o que o card declara ter (primário + histórico) — venda recém-cadastrada
+//   aparece mesmo antes da planilha Monde ser importada.
+// - state: itens ativos no card (defesa em profundidade: se um item ficou pendurado
+//   sem estar no histórico, ainda aparece).
 export function useCardMondeVendas(cardId: string | undefined) {
     return useQuery({
         queryKey: ['card-monde-vendas', cardId],
         queryFn: async (): Promise<CardMondeVenda[]> => {
             if (!cardId) return []
-            const { data, error } = await supabase
-                .from('card_financial_items')
-                .select('monde_venda_num')
-                .eq('card_id', cardId)
-                .is('archived_at', null)
-                .not('monde_venda_num', 'is', null)
-            if (error) throw error
+            const [itemsRes, cardRes] = await Promise.all([
+                supabase
+                    .from('card_financial_items')
+                    .select('monde_venda_num')
+                    .eq('card_id', cardId)
+                    .is('archived_at', null)
+                    .not('monde_venda_num', 'is', null),
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (supabase.from('cards') as any)
+                    .select('produto_data')
+                    .eq('id', cardId)
+                    .maybeSingle(),
+            ])
+            if (itemsRes.error) throw itemsRes.error
+            if (cardRes.error) throw cardRes.error
+
             const counts = new Map<string, number>()
-            for (const row of data ?? []) {
-                const num = (row as { monde_venda_num: string }).monde_venda_num
+            for (const row of itemsRes.data ?? []) {
+                const num = (row as { monde_venda_num: string | null }).monde_venda_num
                 if (!num) continue
                 counts.set(num, (counts.get(num) ?? 0) + 1)
             }
-            return Array.from(counts.entries())
-                .map(([numero, qtd_produtos]) => ({ numero, qtd_produtos }))
-                .sort((a, b) => a.numero.localeCompare(b.numero))
+
+            const pd = (cardRes.data?.produto_data ?? {}) as {
+                numero_venda_monde?: string | number | null
+                numeros_venda_monde_historico?: Array<{ numero?: string | number | null }> | null
+            }
+            const cleanNum = (v: unknown): string | null => {
+                if (v === null || v === undefined) return null
+                const s = String(v).trim()
+                return s ? s : null
+            }
+            const primary = cleanNum(pd.numero_venda_monde)
+            const historico = Array.isArray(pd.numeros_venda_monde_historico)
+                ? pd.numeros_venda_monde_historico
+                      .map(entry => cleanNum(entry?.numero))
+                      .filter((n): n is string => n !== null)
+                : []
+
+            const intentSet = new Set<string>()
+            if (primary) intentSet.add(primary)
+            historico.forEach(n => intentSet.add(n))
+
+            const allNumeros = new Set<string>(intentSet)
+            counts.forEach((_, n) => allNumeros.add(n))
+
+            return Array.from(allNumeros)
+                .map(numero => ({
+                    numero,
+                    qtd_produtos: counts.get(numero) ?? 0,
+                    is_primary: numero === primary,
+                    in_card: intentSet.has(numero),
+                }))
+                .sort((a, b) => {
+                    if (a.is_primary && !b.is_primary) return -1
+                    if (!a.is_primary && b.is_primary) return 1
+                    return a.numero.localeCompare(b.numero)
+                })
         },
         enabled: !!cardId,
         staleTime: 30_000,

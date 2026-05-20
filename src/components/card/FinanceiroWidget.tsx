@@ -10,7 +10,7 @@ import { useFinancialItemPassengers } from '@/hooks/useFinancialItemPassengers'
 import { useDeleteFinancialItem } from '@/hooks/useDeleteFinancialItem'
 import type { FinancialItemPassenger } from '@/hooks/useFinancialItemPassengers'
 import { useCardFinancialSummary, type FinancialItem } from '@/hooks/useCardFinancialSummary'
-import { useReconcileMondeVenda } from '@/hooks/useCardMondeVendas'
+import { useCardMondeVendas, useReconcileMondeVenda } from '@/hooks/useCardMondeVendas'
 import type { Database } from '@/database.types'
 
 type Card = Database['public']['Tables']['cards']['Row']
@@ -81,6 +81,7 @@ export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCol
 
     const summary = useCardFinancialSummary(cardId, card)
     const { items, isLoading, readyCount, obsCount } = summary
+    const { data: mondeVendas = [] } = useCardMondeVendas(cardId)
     const totalVenda = summary.fechado
     const valorPrevisto = summary.orcamentoPrevisto
     const showComparativo = summary.hasOrcamento
@@ -188,7 +189,7 @@ export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCol
                     <div className="flex items-center justify-center py-6">
                         <RefreshCw className="h-4 w-4 animate-spin text-gray-300" />
                     </div>
-                ) : items.length === 0 ? (
+                ) : items.length === 0 && mondeVendas.length === 0 ? (
                     <div className="px-4 py-6 text-center">
                         <Package className="h-8 w-8 text-gray-200 mx-auto mb-2" />
                         <p className="text-xs text-gray-400">Nenhum produto cadastrado</p>
@@ -203,9 +204,18 @@ export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCol
                                 arr.push(it)
                                 groups.set(key, arr)
                             }
+                            // Garantir grupo para cada venda declarada no card,
+                            // mesmo sem produtos sincronizados ainda.
+                            for (const v of mondeVendas) {
+                                if (!groups.has(v.numero)) groups.set(v.numero, [])
+                            }
+                            // Ordenação: primário primeiro, demais Monde por número, manual no fim
+                            const primary = mondeVendas.find(v => v.is_primary)?.numero
                             const sortedKeys = Array.from(groups.keys()).sort((a, b) => {
                                 if (a === '__manual__') return 1
                                 if (b === '__manual__') return -1
+                                if (primary && a === primary) return -1
+                                if (primary && b === primary) return 1
                                 return a.localeCompare(b)
                             })
                             return sortedKeys.map((vendaKey) => {
@@ -216,13 +226,21 @@ export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCol
                                         {isMonde && (
                                             <VendaMondeHeader vendaNum={vendaKey} cardId={cardId} qtd={groupItems.length} />
                                         )}
-                                        {groupItems.map((item) => (
-                                            isPostSales ? (
-                                                <ProductItemOperational key={item.id} item={item} cardId={cardId} onDelete={() => handleDeleteItem(item)} />
-                                            ) : (
-                                                <ProductItemReadOnly key={item.id} item={item} cardId={cardId} phaseSlug={phaseSlug ?? undefined} onDelete={() => handleDeleteItem(item)} />
-                                            )
-                                        ))}
+                                        {groupItems.length === 0 && isMonde ? (
+                                            <div className="px-4 py-3 text-center bg-slate-50/30">
+                                                <p className="text-[11px] text-slate-400">
+                                                    Nenhum produto sincronizado ainda — clique em <span className="font-medium text-slate-500">Re-sincronizar</span> ou importe a planilha Monde dessa venda.
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            groupItems.map((item) => (
+                                                isPostSales ? (
+                                                    <ProductItemOperational key={item.id} item={item} cardId={cardId} onDelete={() => handleDeleteItem(item)} />
+                                                ) : (
+                                                    <ProductItemReadOnly key={item.id} item={item} cardId={cardId} phaseSlug={phaseSlug ?? undefined} onDelete={() => handleDeleteItem(item)} />
+                                                )
+                                            ))
+                                        )}
                                     </div>
                                 )
                             })
