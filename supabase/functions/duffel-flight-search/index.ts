@@ -116,6 +116,9 @@ serve(async (req) => {
                 cabin_class: body.cabin_class ?? "economy",
                 max_connections:
                     body.max_connections == null ? undefined : body.max_connections,
+                // Welcome Trips opera em BRL — força conversão das ofertas.
+                // Em modo live, Duffel converte usando câmbio do dia.
+                currency: body.currency ?? "BRL",
             },
         };
 

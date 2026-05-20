@@ -814,15 +814,18 @@ export function BlockSearchDrawer({
 
                     {/* PAINEL DE COTAÇÃO AO VIVO (Iterpec) — sem ser aba.
                         Acessado apenas via "Cotar nova opção ao vivo" no rodapé
-                        do CatalogPickerPanel. Header com botão Voltar pro Catálogo. */}
+                        do CatalogPickerPanel. Header com botão Voltar pro Catálogo.
+                        Pra voo, é a aba principal (Duffel) e não tem "voltar". */}
                     {activeTab === 'catalog' && hasCatalogSupport && (
                         <div className="p-4">
-                            <button
-                                onClick={() => setActiveTab('library')}
-                                className="mb-3 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-900"
-                            >
-                                ← Voltar ao catálogo
-                            </button>
+                            {blockType !== 'flight' && (
+                                <button
+                                    onClick={() => setActiveTab('library')}
+                                    className="mb-3 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-900"
+                                >
+                                    ← Voltar ao catálogo
+                                </button>
+                            )}
                             {blockType === 'hotel' && (
                                 <HotelCatalogPicker
                                     onImport={handleHotelImport}
