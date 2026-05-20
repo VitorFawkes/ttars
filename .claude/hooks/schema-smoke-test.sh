@@ -399,6 +399,22 @@ if [ "$NPS_CHECK" = "200" ] || [ "$NPS_CHECK" = "206" ]; then
     "nps_responses?select=id,survey_id,org_id,card_id,score,comment,responded_at&limit=1"
 fi
 
+# ── A1: Card Alert Rules — canais e destinatários (Marco A.1, 20260520a) ──
+# Detectar se as colunas de canais foram adicionadas
+ALERT_RULES_CHECK=$(curl -s -o /dev/null -w "%{http_code}" \
+  "${URL}/rest/v1/card_alert_rules?select=show_in_modal&limit=1" \
+  -H "apikey: ${ANON}" \
+  -H "Authorization: Bearer ${KEY}" \
+  --max-time 10)
+
+if [ "$ALERT_RULES_CHECK" = "200" ] || [ "$ALERT_RULES_CHECK" = "206" ]; then
+  test_query "card_alert_rules.show_in_modal column" \
+    "card_alert_rules?select=id,show_in_modal,show_in_kanban_banner,show_in_bell&limit=1"
+
+  test_query "card_alert_rules.recipient_mode column" \
+    "card_alert_rules?select=id,recipient_mode,recipient_target&limit=1"
+fi
+
 # ── M1: Travel Planner tables (só após promoção para produção) ──
 # Detectar se viagens existe antes de testar todo o grupo
 VIAGENS_CHECK=$(curl -s -o /dev/null -w "%{http_code}" \
