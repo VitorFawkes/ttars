@@ -7,13 +7,13 @@ interface Props {
 }
 
 function formatDays(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value) || value < 0) return '—'
+  if (value === null || value === undefined || Number.isNaN(value) || value < 0) return '·'
   if (value < 1) return `${Math.round(value * 24)}h`
   return `${value.toFixed(1)}d`
 }
 
 function formatInt(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return '—'
+  if (value === null || value === undefined || Number.isNaN(value)) return '·'
   return Math.round(value).toLocaleString('pt-BR')
 }
 
@@ -22,7 +22,7 @@ export default function EngajamentoTimeMetrics({ metrics, isLoading }: Props) {
     {
       title: 'Duração das conversas',
       value: formatDays(metrics?.median_conversation_duration_days),
-      subtitle: 'mediana — da 1ª nossa até a última',
+      subtitle: 'mediana, da 1ª nossa até a última',
       icon: Calendar,
       fg: 'text-sky-700',
       bg: 'bg-sky-100',

@@ -21,7 +21,7 @@ const STATE_BADGE: Record<ConversationState, { label: string; className: string;
 }
 
 function formatRelative(iso: string | null): string {
-  if (!iso) return '—'
+  if (!iso) return '·'
   try {
     return formatDistanceToNow(new Date(iso), { addSuffix: true, locale: ptBR })
   } catch {
@@ -30,7 +30,7 @@ function formatRelative(iso: string | null): string {
 }
 
 function formatShortDate(iso: string | null): string {
-  if (!iso) return '—'
+  if (!iso) return '·'
   try {
     return format(new Date(iso), 'dd/MM HH:mm', { locale: ptBR })
   } catch {
@@ -39,7 +39,7 @@ function formatShortDate(iso: string | null): string {
 }
 
 function formatHours(hours: number | null): string {
-  if (hours === null || hours === undefined || hours < 0) return '—'
+  if (hours === null || hours === undefined || hours < 0) return '·'
   if (hours < 1) return `${Math.round(hours * 60)}min`
   if (hours < 24) return `${hours.toFixed(1)}h`
   return `${(hours / 24).toFixed(1)}d`
@@ -189,7 +189,7 @@ export default function EngajamentoTabela({
                         ? c.conversation_duration_days < 1
                           ? `${Math.round(c.conversation_duration_days * 24)}h`
                           : `${c.conversation_duration_days.toFixed(1)}d`
-                        : '—'}
+                        : '·'}
                     </td>
                     <td className="px-4 py-2.5">
                       <span
@@ -219,7 +219,7 @@ export default function EngajamentoTabela({
                           {c.stage_nome}
                         </span>
                       ) : (
-                        <span className="text-xs text-slate-400">—</span>
+                        <span className="text-xs text-slate-400">·</span>
                       )}
                     </td>
                   </tr>

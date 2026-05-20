@@ -37,7 +37,7 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: unknow
   const p = (payload[0] as any).payload as ChartPoint
   const day = parseISO(p.day)
   const replyRate =
-    p.outbound > 0 ? ((p.responderam / p.outbound) * 100).toFixed(0) : '—'
+    p.outbound > 0 ? ((p.responderam / p.outbound) * 100).toFixed(0) : '·'
   return (
     <div className="bg-white border border-slate-200 shadow-lg rounded-lg p-3 text-xs min-w-[220px]">
       <div className="font-semibold text-slate-900 mb-2">
@@ -126,7 +126,7 @@ export default function EngajamentoTimelineDiaria({ points, isLoading }: Props) 
             Pessoas por dia
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Cada barra é o total de pessoas contatadas naquele dia — verde respondeu, cinza ficou no silêncio
+            Cada barra é o total de pessoas contatadas naquele dia. Verde: respondeu. Cinza: silêncio.
           </p>
         </div>
         <div className="flex items-center gap-4 text-xs flex-wrap">

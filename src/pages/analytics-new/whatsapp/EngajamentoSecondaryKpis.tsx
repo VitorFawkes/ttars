@@ -10,12 +10,12 @@ interface Props {
 }
 
 function pct(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return '—'
+  if (value === null || value === undefined || Number.isNaN(value)) return '·'
   return `${value.toFixed(1)}%`
 }
 
 function num(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return '—'
+  if (value === null || value === undefined || Number.isNaN(value)) return '·'
   return value.toFixed(1)
 }
 

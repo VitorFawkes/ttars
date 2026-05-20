@@ -125,8 +125,8 @@ export default function EngajamentoHeatmap({
                     )}
                     title={
                       value > 0
-                        ? `${day} ${String(hour).padStart(2, '0')}h — ${value} pessoa${value > 1 ? 's' : ''} respondendo · clique pra filtrar`
-                        : `${day} ${String(hour).padStart(2, '0')}h — ninguém`
+                        ? `${day} ${String(hour).padStart(2, '0')}h · ${value} pessoa${value > 1 ? 's' : ''} respondendo · clique pra filtrar`
+                        : `${day} ${String(hour).padStart(2, '0')}h · ninguém`
                     }
                     style={{
                       backgroundColor:

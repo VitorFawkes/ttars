@@ -27,7 +27,7 @@ interface ChartPoint {
 }
 
 function formatMinutes(min: number | null): string {
-  if (min === null || min === undefined || min < 0) return '—'
+  if (min === null || min === undefined || min < 0) return '·'
   if (min < 60) return `${Math.round(min)}min`
   if (min < 60 * 24) return `${(min / 60).toFixed(1)}h`
   return `${(min / (60 * 24)).toFixed(1)}d`
@@ -47,7 +47,7 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: unknow
         <div className="flex justify-between gap-3">
           <span className="text-slate-500">Taxa de resposta</span>
           <span className="font-medium text-emerald-700 tabular-nums">
-            {p.reply_rate_pct !== null ? `${p.reply_rate_pct.toFixed(1)}%` : '—'}
+            {p.reply_rate_pct !== null ? `${p.reply_rate_pct.toFixed(1)}%` : '·'}
           </span>
         </div>
         <div className="flex justify-between gap-3">
@@ -109,7 +109,7 @@ export default function EngajamentoVelocidadeDia({ points, isLoading }: Props) {
             Velocidade por dia
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Taxa de resposta (área verde) e tempo até a 1ª resposta (linha azul) — por cohort do dia
+            Taxa de resposta (área verde) e tempo até a 1ª resposta (linha azul), por cohort do dia.
           </p>
         </div>
         <div className="flex items-center gap-4 text-xs">
@@ -117,7 +117,7 @@ export default function EngajamentoVelocidadeDia({ points, isLoading }: Props) {
             <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
             <span className="text-slate-500">média</span>
             <span className="font-semibold text-slate-900 tabular-nums">
-              {avgReply !== null ? `${avgReply.toFixed(1)}%` : '—'}
+              {avgReply !== null ? `${avgReply.toFixed(1)}%` : '·'}
             </span>
           </div>
           <div className="flex items-baseline gap-1">

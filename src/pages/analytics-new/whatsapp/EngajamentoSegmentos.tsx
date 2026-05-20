@@ -77,7 +77,7 @@ const SEGMENTS: Segment[] = [
   {
     id: 'respondeu_sem_reuniao',
     label: 'Respondeu mas não marcou',
-    description: 'engajou mas sem reunião — oportunidade morna',
+    description: 'engajou mas sem reunião · oportunidade morna',
     icon: Repeat,
     fg: 'text-sky-700',
     bg: 'bg-sky-100',
@@ -88,7 +88,7 @@ const SEGMENTS: Segment[] = [
   {
     id: 'paradoxo_cold_reuniao',
     label: 'Marcou sem responder',
-    description: 'cold no WhatsApp mas tem reunião — checar outro canal',
+    description: 'cold no WhatsApp mas tem reunião · checar outro canal',
     icon: AlertTriangle,
     fg: 'text-rose-700',
     bg: 'bg-rose-100',
@@ -131,7 +131,7 @@ export default function EngajamentoSegmentos({ filters, onChange }: Props) {
             Segmentos rápidos
           </h3>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            Combinações comuns de filtros — clique pra recortar tudo
+            Combinações comuns de filtros · clique pra recortar tudo
           </p>
         </div>
         {anyFilterActive && (
@@ -169,7 +169,7 @@ export default function EngajamentoSegmentos({ filters, onChange }: Props) {
 
       {!anySegmentActive && anyFilterActive && (
         <p className="text-[11px] text-slate-400 mt-3">
-          Filtros customizados ativos — não casam com nenhum segmento pronto.
+          Filtros customizados ativos · não casam com nenhum segmento pronto.
         </p>
       )}
     </div>

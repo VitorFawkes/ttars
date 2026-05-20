@@ -11,12 +11,12 @@ interface Props {
 }
 
 function pct(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return '—'
+  if (value === null || value === undefined || Number.isNaN(value)) return '·'
   return `${value.toFixed(1)}%`
 }
 
 function hours(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value) || value < 0) return '—'
+  if (value === null || value === undefined || Number.isNaN(value) || value < 0) return '·'
   if (value < 1) return `${Math.round(value * 60)}min`
   if (value < 24) return `${value.toFixed(1)}h`
   return `${(value / 24).toFixed(1)}d`
@@ -173,7 +173,7 @@ export default function EngajamentoBreakdownLinhas({
                 <div className="flex items-baseline justify-between">
                   <span className="text-slate-500">Profundidade</span>
                   <span className="font-medium text-slate-900 tabular-nums">
-                    {l.depth_avg !== null ? l.depth_avg.toFixed(1) : '—'}
+                    {l.depth_avg !== null ? l.depth_avg.toFixed(1) : '·'}
                   </span>
                 </div>
                 <div className="flex items-baseline justify-between">

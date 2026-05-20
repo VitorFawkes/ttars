@@ -6,6 +6,8 @@ import type {
   EngajamentoConversation,
   EngajamentoDepthBucket,
   EngajamentoFilters,
+  EngajamentoFunnelStep,
+  MeetingState,
 } from '@/types/engagement'
 import EngajamentoFiltros from './EngajamentoFiltros'
 import EngajamentoHeroKpis from './EngajamentoHeroKpis'
@@ -93,9 +95,113 @@ export default function EngajamentoConversasView() {
     handleFilterChange({ weekdayFilter: weekday, hourFilter: hour })
   }
 
+  const RESET_DERIVED: Partial<EngajamentoFilters> = {
+    stateFilter: [],
+    inboundMin: null,
+    inboundMax: null,
+    meetingStates: [],
+    stageNames: [],
+  }
+
+  function applyFunnelStep(step: EngajamentoFunnelStep) {
+    // Toggle: se já está com esse filtro ativo, limpa
+    const isActiveStep = activeFunnelStep === step.step
+    if (isActiveStep) {
+      handleFilterChange(RESET_DERIVED)
+      setActiveDepthBucket(null)
+      return
+    }
+    setActiveDepthBucket(null)
+    switch (step.step) {
+      case 'Contatado':
+        handleFilterChange(RESET_DERIVED)
+        return
+      case 'Respondeu 1x':
+        handleFilterChange({ ...RESET_DERIVED, inboundMin: 1 })
+        return
+      case 'Respondeu 3x':
+        handleFilterChange({ ...RESET_DERIVED, inboundMin: 3 })
+        return
+      case 'Reunião Agendada':
+        handleFilterChange({
+          ...RESET_DERIVED,
+          meetingStates: ['meeting_scheduled', 'meeting_done'] as MeetingState[],
+        })
+        return
+      case 'Reunião Feita':
+        handleFilterChange({
+          ...RESET_DERIVED,
+          meetingStates: ['meeting_done'] as MeetingState[],
+        })
+        return
+      case 'Proposta':
+        handleFilterChange({
+          ...RESET_DERIVED,
+          stageNames: ['Proposta', 'Proposta Enviada', 'Negociação', 'Contrato Assinado'],
+        })
+        return
+      case 'Ganhou':
+        handleFilterChange({ ...RESET_DERIVED, stateFilter: ['won'] })
+        return
+    }
+  }
+
+  function applyMeetingCard(key: 'scheduled' | 'done' | 'proposals' | 'contracts') {
+    const isActive = activeMeetingKey === key
+    if (isActive) {
+      handleFilterChange(RESET_DERIVED)
+      return
+    }
+    switch (key) {
+      case 'scheduled':
+        handleFilterChange({ ...RESET_DERIVED, meetingStates: ['meeting_scheduled'] as MeetingState[] })
+        return
+      case 'done':
+        handleFilterChange({ ...RESET_DERIVED, meetingStates: ['meeting_done'] as MeetingState[] })
+        return
+      case 'proposals':
+        handleFilterChange({
+          ...RESET_DERIVED,
+          stageNames: ['Proposta', 'Proposta Enviada', 'Negociação', 'Contrato Assinado'],
+        })
+        return
+      case 'contracts':
+        handleFilterChange({ ...RESET_DERIVED, stageNames: ['Contrato Assinado'] })
+        return
+    }
+  }
+
+  function applyHeroReplyRate() {
+    handleFilterChange({ ...RESET_DERIVED, inboundMin: 1 })
+  }
+
+  function applyHeroActive() {
+    handleFilterChange({ ...RESET_DERIVED, stateFilter: ['hot', 'warm'] })
+  }
+
   // Single-active state (for highlighting): só destaca quando tem só 1 estado selecionado
   const activeState: ConversationState | null =
     filters.stateFilter.length === 1 ? filters.stateFilter[0] : null
+
+  // Derivar qual step do funil está ativo (pra destacar)
+  const activeFunnelStep: string | null = (() => {
+    if (filters.stateFilter.length === 1 && filters.stateFilter[0] === 'won') return 'Ganhou'
+    if (filters.meetingStates.length === 2 && filters.meetingStates.includes('meeting_scheduled') && filters.meetingStates.includes('meeting_done')) return 'Reunião Agendada'
+    if (filters.meetingStates.length === 1 && filters.meetingStates[0] === 'meeting_done') return 'Reunião Feita'
+    if (filters.stageNames.length === 4 && filters.stageNames.includes('Proposta') && filters.stageNames.includes('Contrato Assinado')) return 'Proposta'
+    if (filters.inboundMin === 3) return 'Respondeu 3x'
+    if (filters.inboundMin === 1 && filters.inboundMax === null) return 'Respondeu 1x'
+    return null
+  })()
+
+  // Qual card de reunião está ativo
+  const activeMeetingKey: 'scheduled' | 'done' | 'proposals' | 'contracts' | null = (() => {
+    if (filters.meetingStates.length === 1 && filters.meetingStates[0] === 'meeting_scheduled') return 'scheduled'
+    if (filters.meetingStates.length === 1 && filters.meetingStates[0] === 'meeting_done') return 'done'
+    if (filters.stageNames.length === 1 && filters.stageNames[0] === 'Contrato Assinado') return 'contracts'
+    if (filters.stageNames.length === 4 && filters.stageNames.includes('Proposta') && filters.stageNames.includes('Contrato Assinado')) return 'proposals'
+    return null
+  })()
 
   // Filtros agora são server-side; conversações chegam já filtradas
   const filteredConversations = data?.conversations ?? []
@@ -148,7 +254,7 @@ export default function EngajamentoConversasView() {
           Engajamento de Conversas
         </h1>
         <p className="text-sm text-slate-500 mt-1">
-          Quem responde, quem some, em quanto tempo, e como cada linha se compara — Welcome Weddings.
+          Quem responde, quem some, em quanto tempo, e como cada linha se compara na Welcome Weddings.
         </p>
       </div>
 
@@ -169,7 +275,12 @@ export default function EngajamentoConversasView() {
         />
       )}
 
-      <EngajamentoHeroKpis kpis={data?.kpis} isLoading={isLoading} />
+      <EngajamentoHeroKpis
+        kpis={data?.kpis}
+        isLoading={isLoading}
+        onReplyRateClick={applyHeroReplyRate}
+        onActiveClick={applyHeroActive}
+      />
 
       <EngajamentoSecondaryKpis
         kpis={data?.kpis}
@@ -213,6 +324,8 @@ export default function EngajamentoConversasView() {
         metrics={data?.meetings_kpis}
         totalContacts={data?.kpis?.total_contacts ?? 0}
         isLoading={isLoading}
+        onCardClick={applyMeetingCard}
+        activeKey={activeMeetingKey}
       />
 
       <EngajamentoDistribuicoes
@@ -225,7 +338,12 @@ export default function EngajamentoConversasView() {
         onToggleDepthBucket={toggleDepthBucket}
       />
 
-      <EngajamentoFunil steps={data?.funnel ?? []} isLoading={isLoading} />
+      <EngajamentoFunil
+        steps={data?.funnel ?? []}
+        isLoading={isLoading}
+        onStepClick={applyFunnelStep}
+        activeStep={activeFunnelStep}
+      />
 
       <EngajamentoTabela
         conversations={filteredConversations}
