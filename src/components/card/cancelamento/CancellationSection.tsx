@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { AlertOctagon, Loader2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
 import {
   useCancellationStateByCard,
   useCancellationTasksForCard,
@@ -14,18 +13,16 @@ import { toast } from 'sonner'
 
 interface CancellationSectionProps {
   cardId: string
-  /** True quando o cliente já aceitou a viagem (passou pelo Planner para pós-venda). */
-  cardGanhoPlanner: boolean | null
-  cardStatusComercial: string | null
 }
 
 /** Conjunto único que CardDetail importa.
- *  Mostra banner âmbar (durante modo), banner cinza (até 7d após conclusão),
- *  ou um botão discreto "Abrir cancelamento" quando aplicável.
+ *  Renderiza banner âmbar (durante modo ativo) e banner cinza (até 7d após
+ *  conclusão parcial/mudança). O gatilho para abrir o modal não vive aqui —
+ *  fica no mega-menu "Ações" do card, que dispara o evento `open-cancellation`.
  *
  *  Funciona mesmo para cards sem `viagens` row — cria uma viagem implícita
- *  na hora de abrir cancelamento. */
-export function CancellationSection({ cardId, cardGanhoPlanner, cardStatusComercial }: CancellationSectionProps) {
+ *  quando o evento dispara a abertura. */
+export function CancellationSection({ cardId }: CancellationSectionProps) {
   const { data: state } = useCancellationStateByCard(cardId)
   const { data: viagemData } = useViagemByCardId(cardId)
   const { data: tarefas = [] } = useCancellationTasksForCard(cardId)
@@ -51,14 +48,6 @@ export function CancellationSection({ cardId, cardGanhoPlanner, cardStatusComerc
     staleTime: 60_000,
   })
 
-  // Mostrar a UI pra qualquer card de Welcome Trips que não esteja perdido.
-  // Critério permissivo de propósito: cobre cards "aberto" em pós-venda (sem milestone
-  // explícito ainda) e cards "ganho". Cancelamento em card que ainda não foi vendido é
-  // raro mas o link aparece — fluxo natural cria viagem implicitamente se necessário.
-  const _ganhoPlannerFlag = cardGanhoPlanner === true // explicit flag para futura restrição se necessário
-  void _ganhoPlannerFlag
-  const podeAbrir = cardStatusComercial !== 'perdido'
-
   const viagem = viagemData?.viagem ?? null
   const items = viagemData?.items ?? []
   const modoAtivo = !!state?.modo_cancelamento && !state.cancelamento_concluido_em
@@ -70,15 +59,18 @@ export function CancellationSection({ cardId, cardGanhoPlanner, cardStatusComerc
   const tarefasPendentesCount = tarefas.filter((t) => t.concluida !== true).length
 
   const handleOpenCancelamento = async () => {
+    // Se já há cancelamento em curso, abre direto o painel.
+    if (modoAtivo) {
+      setPanelOpen(true)
+      return
+    }
     if (viagem) {
       setOpenModalOpen(true)
       return
     }
-    // Sem viagem ainda — criar implicitamente (sem hidratação automática)
     setCriandoViagem(true)
     try {
       await criarViagem.mutateAsync({ cardId, hidratar: false })
-      // Aguarda o refresh de useViagemByCardId
       await queryClient.invalidateQueries({ queryKey: ['viagem-interna'] })
       setOpenModalOpen(true)
     } catch (err) {
@@ -86,6 +78,22 @@ export function CancellationSection({ cardId, cardGanhoPlanner, cardStatusComerc
     } finally {
       setCriandoViagem(false)
     }
+  }
+
+  // Escuta o evento disparado pelo item "Cancelar viagem" do mega-menu Ações.
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { cardId?: string } | undefined
+      if (detail?.cardId !== cardId) return
+      void handleOpenCancelamento()
+    }
+    window.addEventListener('open-cancellation', onOpen)
+    return () => window.removeEventListener('open-cancellation', onOpen)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardId, viagem?.id, modoAtivo])
+
+  if (criandoViagem) {
+    // No-op visual — toast já dá feedback se falhar; placeholder some quando viagem cria.
   }
 
   return (
@@ -109,25 +117,6 @@ export function CancellationSection({ cardId, cardGanhoPlanner, cardStatusComerc
           tarefasPendentesCount={tarefasPendentesCount}
           onOpenPanel={() => setPanelOpen(true)}
         />
-      )}
-
-      {/* Botão pequeno pra abrir cancelamento — quando card está vendido e sem modo ativo */}
-      {podeAbrir && !modoAtivo && !concluidoRecente && (
-        <div className="flex justify-end pt-1 pb-2 px-3">
-          <button
-            type="button"
-            onClick={handleOpenCancelamento}
-            disabled={criandoViagem}
-            className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-amber-700 transition-colors disabled:opacity-50"
-          >
-            {criandoViagem ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <AlertOctagon className="w-3.5 h-3.5" />
-            )}
-            {criandoViagem ? 'Preparando…' : 'Abrir cancelamento'}
-          </button>
-        </div>
       )}
 
       {/* Modal de abertura — só renderiza quando viagem existe */}

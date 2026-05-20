@@ -284,13 +284,10 @@ export default function CardDetail() {
                 </div>
             )}
 
-            {/* Cancellation Section (banner âmbar / cinza / botão abrir) */}
+            {/* Cancellation Section — banner âmbar (em curso) ou cinza (concluído).
+                O gatilho de abertura vive no mega-menu "Ações" → "Cancelar viagem". */}
             {card.id && card.produto === 'TRIPS' && (
-                <CancellationSection
-                    cardId={card.id}
-                    cardGanhoPlanner={card.ganho_planner ?? null}
-                    cardStatusComercial={card.status_comercial}
-                />
+                <CancellationSection cardId={card.id} />
             )}
 
             {/* Sticky Header */}
