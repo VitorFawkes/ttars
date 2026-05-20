@@ -906,3 +906,6 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-19T18:10:26Z | supabase/migrations/20260519m_weddings_analytics_v10_stages.sql | applied_to_prod
 2026-05-19T18:24:07Z | supabase/migrations/20260519n_weddings_analytics_v11_filtros.sql | applied_to_prod
 2026-05-20T17:36:43Z | supabase/migrations/20260520a_catalogo_unificado_fundacao.sql | applied_to_prod
+2026-05-20T18:52:45Z | supabase/migrations/20260513a_briefing_images_bucket.sql | marked_external_task
+2026-05-20T18:52:45Z | supabase/migrations/20260519a_validator_verdict_action.sql | marked_external_task
+2026-05-20T18:59:22Z | supabase/migrations/20260518i_trip_items_allow_cancel_transition.sql | applied_to_prod
