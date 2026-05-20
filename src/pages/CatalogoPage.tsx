@@ -35,6 +35,8 @@ import {
     SORT_OPTIONS,
 } from '@/hooks/useCatalog'
 import { cn } from '@/lib/utils'
+import { CatalogItemDetailDrawer } from '@/components/catalog/CatalogItemDetailDrawer'
+import { CatalogCreateModal } from '@/components/catalog/CatalogCreateModal'
 
 // ============================================================
 // Tipos auxiliares
@@ -173,14 +175,17 @@ function QuickChip({
     )
 }
 
-function ItemCard({ item }: { item: CatalogItem }) {
+function ItemCard({ item, onClick }: { item: CatalogItem; onClick: () => void }) {
     const Icon = CATEGORY_ICONS[item.category] ?? Package
     const config = CATEGORY_CONFIG[item.category as CatalogCategory]
     const placeholder =
         'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 225"><rect width="400" height="225" fill="%23f1f5f9"/></svg>'
 
     return (
-        <div className="group flex flex-col overflow-hidden rounded-xl bg-white ring-1 ring-slate-200 transition hover:ring-slate-300 hover:shadow-md">
+        <button
+            onClick={onClick}
+            className="group flex flex-col overflow-hidden rounded-xl bg-white text-left ring-1 ring-slate-200 transition hover:ring-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
             <div className="relative aspect-[16/10] bg-slate-100">
                 <img
                     src={item.thumbnail_url || placeholder}
@@ -237,7 +242,7 @@ function ItemCard({ item }: { item: CatalogItem }) {
                     ) : null}
                 </div>
             </div>
-        </div>
+        </button>
     )
 }
 
@@ -250,6 +255,8 @@ export default function CatalogoPage() {
         sort: 'most_used',
         limit: 60,
     })
+    const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
+    const [isCreateOpen, setIsCreateOpen] = useState(false)
 
     const { data: items, isLoading, error } = useCatalogSearch(filters)
     const { data: topRegions } = useCatalogTopRegions(6)
@@ -308,7 +315,7 @@ export default function CatalogoPage() {
                                 Todos os hotéis, experiências, transfers e serviços do time. Aprende sozinho conforme vocês usam.
                             </p>
                         </div>
-                        <Button variant="default" size="sm">
+                        <Button variant="default" size="sm" onClick={() => setIsCreateOpen(true)}>
                             <Plus className="mr-1.5 h-4 w-4" />
                             Adicionar manualmente
                         </Button>
@@ -557,12 +564,27 @@ export default function CatalogoPage() {
                         ) : (
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                                 {items.map((item) => (
-                                    <ItemCard key={item.id} item={item} />
+                                    <ItemCard
+                                        key={item.id}
+                                        item={item}
+                                        onClick={() => setSelectedItemId(item.id)}
+                                    />
                                 ))}
                             </div>
                         )}
                     </main>
                 </div>
+
+                <CatalogItemDetailDrawer
+                    itemId={selectedItemId}
+                    open={!!selectedItemId}
+                    onClose={() => setSelectedItemId(null)}
+                />
+
+                <CatalogCreateModal
+                    open={isCreateOpen}
+                    onClose={() => setIsCreateOpen(false)}
+                />
             </div>
         </ErrorBoundary>
     )
