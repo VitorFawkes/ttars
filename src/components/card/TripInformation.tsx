@@ -363,6 +363,7 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
                 queryClient.invalidateQueries({ queryKey: ['financial-items-total', card.id] })
                 queryClient.invalidateQueries({ queryKey: ['financial-items-dates', card.id] })
                 queryClient.invalidateQueries({ queryKey: ['financial-item-passengers', card.id] })
+                queryClient.invalidateQueries({ queryKey: ['card-monde-vendas', card.id] })
             }
             setEditingField(null)
             setEditValue(null)
