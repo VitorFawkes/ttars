@@ -96,9 +96,7 @@ export function CatalogPickerPanel({
     // mexe não precisa diferenciar de onde veio.
     const isHotel = category === 'hotel'
     const trimmedSearch = search.trim()
-    // WIP: integração com Google Hotels (SerpAPI) ainda não conectada ao render.
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { data: externalHotels = [], isLoading: _isLoadingExternal } = useHotelSearch(
+    const { data: externalHotels = [], isLoading: isLoadingExternal } = useHotelSearch(
         trimmedSearch,
         { enabled: isHotel && trimmedSearch.length >= 3 }
     )
@@ -108,13 +106,11 @@ export function CatalogPickerPanel({
     const internalNames = new Set(
         (items ?? []).map((it) => it.name.toLowerCase().trim())
     )
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const _externalUnique = externalHotels.filter(
+    const externalUnique = externalHotels.filter(
         (h) => !internalNames.has(h.name.toLowerCase().trim())
     )
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const _handleSelectExternal = async (hotel: HotelSearchResult) => {
+    const handleSelectExternal = async (hotel: HotelSearchResult) => {
         // Busca detalhes completos (fotos HD, amenidades) → vira item de proposta.
         try {
             const details = await hotelDetails.mutateAsync(hotel.externalId)

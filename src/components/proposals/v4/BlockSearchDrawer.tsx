@@ -35,7 +35,6 @@ import {
     Minus,
     Table,
     Type,
-    Globe,
 } from 'lucide-react'
 import type { BlockType } from '@/pages/ProposalBuilderV4'
 import type { ProposalItemType } from '@/types/proposals'
@@ -561,7 +560,8 @@ export function BlockSearchDrawer({
     const colors = BLOCK_COLORS[blockType] || BLOCK_COLORS.custom
 
     // Count available tabs
-    const tabCount = 1 + (hasLibrarySupport ? 1 : 0) + (hasAISupport ? 1 : 0) + (hasCatalogSupport ? 1 : 0)
+    // Iterpec foi removido como aba (resultados mesclados no Catálogo)
+    const tabCount = 1 + (hasLibrarySupport ? 1 : 0) + (hasAISupport ? 1 : 0)
 
     return (
         <>
@@ -650,22 +650,10 @@ export function BlockSearchDrawer({
                             </button>
                         )}
 
-                        {/* Iterpec Tab (fallback — só aparece se usuário clicar "buscar mais opções") */}
-                        {hasCatalogSupport && (
-                            <button
-                                onClick={() => setActiveTab('catalog')}
-                                className={cn(
-                                    'flex-1 py-3 px-3 text-sm font-medium transition-all',
-                                    'flex items-center justify-center gap-2 rounded-t-lg mx-1',
-                                    activeTab === 'catalog'
-                                        ? 'text-indigo-700 bg-indigo-100'
-                                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-                                )}
-                            >
-                                <Globe className="h-4 w-4" />
-                                Iterpec
-                            </button>
-                        )}
+                        {/* Aba Iterpec separada removida: pra hotel a busca já mescla
+                            SerpAPI inline; pra transfer/tour/car o link discreto
+                            "Cotar nova opção ao vivo" no rodapé do catálogo muda
+                            o conteúdo do mesmo painel sem virar outra aba. */}
 
                         {/* AI Tab */}
                         {hasAISupport && (
@@ -767,9 +755,17 @@ export function BlockSearchDrawer({
                         </div>
                     )}
 
-                    {/* CATALOG TAB */}
+                    {/* PAINEL DE COTAÇÃO AO VIVO (Iterpec) — sem ser aba.
+                        Acessado apenas via "Cotar nova opção ao vivo" no rodapé
+                        do CatalogPickerPanel. Header com botão Voltar pro Catálogo. */}
                     {activeTab === 'catalog' && hasCatalogSupport && (
                         <div className="p-4">
+                            <button
+                                onClick={() => setActiveTab('library')}
+                                className="mb-3 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-900"
+                            >
+                                ← Voltar ao catálogo
+                            </button>
                             {blockType === 'hotel' && (
                                 <HotelCatalogPicker
                                     onImport={handleHotelImport}
