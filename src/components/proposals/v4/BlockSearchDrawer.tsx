@@ -8,17 +8,16 @@
  * - Clear loading/error states
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
-import { useLibrarySearch, type LibrarySearchResult, type LibraryCategory } from '@/hooks/useLibrary'
+import { type LibrarySearchResult, type LibraryCategory } from '@/hooks/useLibrary'
+import { CatalogPickerPanel } from '@/components/catalog/CatalogPickerPanel'
 import { useProposalBuilder } from '@/hooks/useProposalBuilder'
 import { AIImageExtractor } from '@/components/proposals/AIImageExtractor'
 import type { ExtractedItem } from '@/hooks/useAIExtract'
 import {
     X,
-    Search,
     Plus,
     Building2,
     Plane,
@@ -36,7 +35,6 @@ import {
     Minus,
     Table,
     Type,
-    AlertCircle,
     Globe,
 } from 'lucide-react'
 import type { BlockType } from '@/pages/ProposalBuilderV4'
@@ -160,8 +158,7 @@ export function BlockSearchDrawer({
     sectionId,
     onClose,
 }: BlockSearchDrawerProps) {
-    const [search, setSearch] = useState('')
-    const [activeTab, setActiveTab] = useState<TabType>('create')
+    const [, setSearch] = useState('')
     const [isCreating, setIsCreating] = useState(false)
     const { addItemFromLibrary, addItem, updateItem } = useProposalBuilder()
 
@@ -170,14 +167,19 @@ export function BlockSearchDrawer({
     const hasLibrarySupport = blockType && LIBRARY_ENABLED_BLOCKS.includes(blockType)
     const hasCatalogSupport = blockType && CATALOG_ENABLED_BLOCKS.includes(blockType)
 
+    // Default tab: se tipo aceita catálogo, abre direto nele (time já tem itens cadastrados).
+    // Senão, vai pra "Criar Novo" (textos, divisores, etc).
+    const [activeTab, setActiveTab] = useState<TabType>('library')
+
+    // Resetar aba ao abrir/trocar tipo de bloco
+    useEffect(() => {
+        if (isOpen && blockType) {
+            setActiveTab(hasLibrarySupport ? 'library' : 'create')
+        }
+    }, [isOpen, blockType, hasLibrarySupport])
+
     // Get library category for this block type
     const libraryCategory = blockType ? BLOCK_TO_LIBRARY_CATEGORY[blockType] : undefined
-
-    // Search library (only when on library tab and has 2+ chars)
-    const { data: results = [], isLoading, error } = useLibrarySearch(
-        { search, category: libraryCategory },
-        isOpen && search.length >= 2 && activeTab === 'library' && !!hasLibrarySupport
-    )
 
     // Handle creating empty item
     const handleCreateEmpty = useCallback(async () => {
@@ -548,9 +550,9 @@ export function BlockSearchDrawer({
     // Close drawer and reset
     const handleClose = useCallback(() => {
         setSearch('')
-        setActiveTab('create')
+        setActiveTab(hasLibrarySupport ? 'library' : 'create')
         onClose()
-    }, [onClose])
+    }, [onClose, hasLibrarySupport])
 
     if (!isOpen || !blockType) return null
 
@@ -631,7 +633,7 @@ export function BlockSearchDrawer({
                             Criar Novo
                         </button>
 
-                        {/* Library Tab */}
+                        {/* Catálogo Tab (substitui Biblioteca antiga, usa o Catálogo unificado) */}
                         {hasLibrarySupport && (
                             <button
                                 onClick={() => setActiveTab('library')}
@@ -644,11 +646,11 @@ export function BlockSearchDrawer({
                                 )}
                             >
                                 <Library className="h-4 w-4" />
-                                Biblioteca
+                                Catálogo
                             </button>
                         )}
 
-                        {/* Catalog Tab */}
+                        {/* Iterpec Tab (fallback — só aparece se usuário clicar "buscar mais opções") */}
                         {hasCatalogSupport && (
                             <button
                                 onClick={() => setActiveTab('catalog')}
@@ -661,7 +663,7 @@ export function BlockSearchDrawer({
                                 )}
                             >
                                 <Globe className="h-4 w-4" />
-                                Catálogo
+                                Iterpec
                             </button>
                         )}
 
@@ -738,160 +740,22 @@ export function BlockSearchDrawer({
                             {hasLibrarySupport && (
                                 <div className="mt-6 p-4 bg-slate-50 rounded-xl">
                                     <p className="text-xs text-slate-500">
-                                        <strong className="text-slate-700">Dica:</strong> Use a aba "Biblioteca" para buscar itens que voce ja cadastrou anteriormente.
+                                        <strong className="text-slate-700">Dica:</strong> A aba "Catálogo" tem todos os itens que o time já usou em propostas — pode ser mais rápido que criar do zero.
                                     </p>
                                 </div>
                             )}
                         </div>
                     )}
 
-                    {/* LIBRARY TAB */}
+                    {/* LIBRARY TAB → agora usa o Catálogo unificado */}
                     {activeTab === 'library' && hasLibrarySupport && (
-                        <>
-                            {/* Search Input */}
-                            <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50">
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                                    <Input
-                                        placeholder={`Buscar ${label.toLowerCase()} na biblioteca...`}
-                                        value={search}
-                                        onChange={(e) => setSearch(e.target.value)}
-                                        className="pl-10 h-11 bg-white"
-                                        autoFocus
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Results Area */}
-                            <div className="p-4">
-                                {/* Error State */}
-                                {error && (
-                                    <div className="flex flex-col items-center justify-center py-12 text-center">
-                                        <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mb-4">
-                                            <AlertCircle className="h-7 w-7 text-red-500" />
-                                        </div>
-                                        <p className="text-sm font-medium text-slate-900 mb-1">
-                                            Erro ao buscar
-                                        </p>
-                                        <p className="text-xs text-slate-500 mb-4">
-                                            Nao foi possivel carregar a biblioteca
-                                        </p>
-                                        <Button variant="outline" size="sm" onClick={() => setSearch('')}>
-                                            Tentar novamente
-                                        </Button>
-                                    </div>
-                                )}
-
-                                {/* Loading State */}
-                                {isLoading && !error && (
-                                    <div className="flex flex-col items-center justify-center py-12">
-                                        <Loader2 className="h-8 w-8 animate-spin text-blue-500 mb-3" />
-                                        <p className="text-sm text-slate-500">
-                                            Buscando "{search}"...
-                                        </p>
-                                    </div>
-                                )}
-
-                                {/* Empty Search State */}
-                                {!isLoading && !error && search.length < 2 && (
-                                    <div className="flex flex-col items-center justify-center py-12 text-center">
-                                        <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mb-4">
-                                            <Library className="h-7 w-7 text-slate-400" />
-                                        </div>
-                                        <p className="text-sm font-medium text-slate-700 mb-1">
-                                            Buscar na biblioteca
-                                        </p>
-                                        <p className="text-xs text-slate-500">
-                                            Digite pelo menos 2 caracteres para buscar
-                                        </p>
-                                    </div>
-                                )}
-
-                                {/* No Results */}
-                                {!isLoading && !error && search.length >= 2 && results.length === 0 && (
-                                    <div className="flex flex-col items-center justify-center py-12 text-center">
-                                        <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mb-4">
-                                            <Search className="h-7 w-7 text-slate-400" />
-                                        </div>
-                                        <p className="text-sm font-medium text-slate-700 mb-1">
-                                            Nenhum resultado
-                                        </p>
-                                        <p className="text-xs text-slate-500 mb-4">
-                                            Nao encontramos "{search}" na biblioteca
-                                        </p>
-                                        <Button onClick={() => setActiveTab('create')}>
-                                            <Plus className="h-4 w-4 mr-2" />
-                                            Criar Novo
-                                        </Button>
-                                    </div>
-                                )}
-
-                                {/* Results List */}
-                                {!isLoading && !error && results.length > 0 && (
-                                    <div className="space-y-2">
-                                        {results.map((item) => (
-                                            <button
-                                                key={item.id}
-                                                onClick={() => handleSelect(item)}
-                                                className="w-full p-3 flex items-center gap-3 bg-white rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all text-left group"
-                                            >
-                                                {/* Thumbnail */}
-                                                <div className="w-14 h-14 rounded-lg bg-slate-100 flex-shrink-0 overflow-hidden">
-                                                    {item.thumbnail_url ? (
-                                                        <img
-                                                            src={item.thumbnail_url}
-                                                            alt={item.name}
-                                                            className="w-full h-full object-cover"
-                                                        />
-                                                    ) : (
-                                                        <div className={cn(
-                                                            "w-full h-full flex items-center justify-center",
-                                                            colors.bg, colors.text
-                                                        )}>
-                                                            <Icon className="h-5 w-5" />
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                {/* Info */}
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="font-medium text-slate-900 truncate group-hover:text-blue-700">
-                                                        {item.name}
-                                                    </p>
-                                                    {item.destination && (
-                                                        <p className="text-xs text-slate-500 mt-0.5">
-                                                            {item.destination}
-                                                        </p>
-                                                    )}
-                                                    {item.supplier && (
-                                                        <p className="text-xs text-slate-400 mt-0.5">
-                                                            {item.supplier}
-                                                        </p>
-                                                    )}
-                                                </div>
-
-                                                {/* Price */}
-                                                {item.base_price && Number(item.base_price) > 0 && (
-                                                    <div className="text-right flex-shrink-0">
-                                                        <p className="text-sm font-semibold text-emerald-600">
-                                                            {new Intl.NumberFormat('pt-BR', {
-                                                                style: 'currency',
-                                                                currency: item.currency || 'BRL',
-                                                            }).format(Number(item.base_price))}
-                                                        </p>
-                                                    </div>
-                                                )}
-
-                                                {/* Arrow */}
-                                                <div className="text-slate-300 group-hover:text-blue-500 transition-colors">
-                                                    <Plus className="h-5 w-5" />
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </>
+                        <CatalogPickerPanel
+                            category={libraryCategory}
+                            label={label}
+                            onSelect={handleSelect}
+                            onCreateNew={() => setActiveTab('create')}
+                            onFallbackIterpec={hasCatalogSupport ? () => setActiveTab('catalog') : undefined}
+                        />
                     )}
 
                     {/* AI TAB */}
