@@ -4020,8 +4020,13 @@ export type Database = {
           phase_id: string | null
           pipeline_id: string | null
           product: string | null
+          recipient_mode: string
+          recipient_target: Json
           send_email: boolean
           severity: string
+          show_in_bell: boolean
+          show_in_kanban_banner: boolean
+          show_in_modal: boolean
           stage_id: string | null
           title_template: string
           trigger_mode: string
@@ -4041,8 +4046,13 @@ export type Database = {
           phase_id?: string | null
           pipeline_id?: string | null
           product?: string | null
+          recipient_mode?: string
+          recipient_target?: Json
           send_email?: boolean
           severity?: string
+          show_in_bell?: boolean
+          show_in_kanban_banner?: boolean
+          show_in_modal?: boolean
           stage_id?: string | null
           title_template: string
           trigger_mode?: string
@@ -4062,8 +4072,13 @@ export type Database = {
           phase_id?: string | null
           pipeline_id?: string | null
           product?: string | null
+          recipient_mode?: string
+          recipient_target?: Json
           send_email?: boolean
           severity?: string
+          show_in_bell?: boolean
+          show_in_kanban_banner?: boolean
+          show_in_modal?: boolean
           stage_id?: string | null
           title_template?: string
           trigger_mode?: string
@@ -21640,6 +21655,12 @@ export type Database = {
       reset_user_password: {
         Args: { p_new_password: string; p_user_id: string }
         Returns: undefined
+      }
+      resolve_alert_recipients: {
+        Args: { p_card_id: string; p_rule_id: string }
+        Returns: {
+          user_id: string
+        }[]
       }
       resolve_card_owner_contact: {
         Args: { p_contato_id: string }
