@@ -21,6 +21,11 @@ export interface CardAlertRule {
     title_template: string
     body_template: string | null
     send_email: boolean
+    show_in_modal: boolean
+    show_in_kanban_banner: boolean
+    show_in_bell: boolean
+    recipient_mode: 'card_owner' | 'team_managers' | 'specific_roles' | 'specific_users'
+    recipient_target: string[]
     created_by: string | null
     created_at: string
     updated_at: string
@@ -41,6 +46,11 @@ export interface CardAlertRuleInput {
     title_template: string
     body_template?: string | null
     send_email?: boolean
+    show_in_modal?: boolean
+    show_in_kanban_banner?: boolean
+    show_in_bell?: boolean
+    recipient_mode?: 'card_owner' | 'team_managers' | 'specific_roles' | 'specific_users'
+    recipient_target?: string[]
 }
 
 export interface PreviewResult {
@@ -96,6 +106,11 @@ export function useCardAlertRules() {
                     title_template: input.title_template,
                     body_template: input.body_template ?? null,
                     send_email: input.send_email ?? false,
+                    show_in_modal: input.show_in_modal ?? false,
+                    show_in_kanban_banner: input.show_in_kanban_banner ?? false,
+                    show_in_bell: input.show_in_bell ?? true,
+                    recipient_mode: input.recipient_mode ?? 'card_owner',
+                    recipient_target: input.recipient_target ?? [],
                 })
                 .select()
                 .single()
