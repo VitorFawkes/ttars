@@ -877,3 +877,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-19T18:43:34Z | supabase/migrations/20260519d_guest_rsvp_auto_decline.sql | applied_to_prod
 2026-05-19T19:25:40Z | supabase/migrations/20260519e_envio_lotes.sql | applied_to_prod
 2026-05-20T12:31:47Z | supabase/migrations/20260519f_increment_envio_lote_failed.sql | applied_to_prod
+2026-05-20T13:05:37Z | supabase/migrations/20260520_guest_rsvp_from_raw_events.sql | applied_to_prod
