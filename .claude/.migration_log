@@ -909,3 +909,9 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-20T18:52:45Z | supabase/migrations/20260513a_briefing_images_bucket.sql | marked_external_task
 2026-05-20T18:52:45Z | supabase/migrations/20260519a_validator_verdict_action.sql | marked_external_task
 2026-05-20T18:59:22Z | supabase/migrations/20260518i_trip_items_allow_cancel_transition.sql | applied_to_prod
+2026-05-20T21:00:42Z | supabase/migrations/20260520c_resolve_alert_recipients.sql | applied_to_prod
+2026-05-20T21:01:06Z | supabase/migrations/20260520b_evaluate_alert_condition_task_overdue.sql | applied_to_prod
+2026-05-20T21:01:28Z | supabase/migrations/20260520d_generate_card_alerts_multi_recipient.sql | applied_to_prod
+2026-05-20T21:10:18Z | supabase/migrations/20260520e_ai_agents_tool_descriptions.sql | applied_to_prod
+2026-05-20T21:14:37Z | supabase/migrations/20260520f_silent_signals_detection_patterns.sql | applied_to_prod
+2026-05-20T21:30:41Z | supabase/migrations/20260520g_deprecate_v2_enfeite_columns.sql | applied_to_prod

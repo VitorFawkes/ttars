@@ -1,21 +1,23 @@
 import { useState } from 'react'
-import { Brain, Database, ImageIcon, Radio, ShieldAlert, ChevronDown, ChevronRight, Info, ExternalLink } from 'lucide-react'
+import { Brain, Database, ImageIcon, ShieldAlert, ChevronDown, ChevronRight, Info, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { TabModelosComportamento } from '../../../TabModelosComportamento'
 import { TabMemoria } from '../../../TabMemoria'
 import { TabMultimodal } from '../../../TabMultimodal'
 import { TabValidatorRules } from '../../../TabValidatorRules'
-import { TabContextoCampos } from '../../../TabContextoCampos'
 import type { AgentEditorForm } from '../../../types'
 
 interface Props {
   form: AgentEditorForm
   setForm: (updater: (f: AgentEditorForm) => AgentEditorForm) => void
-  agentId?: string
   isN8n: boolean
 }
 
-type CardKey = 'modelos' | 'memoria' | 'multimodal' | 'validador' | 'contexto'
+// Card "contexto" (Campos do CRM) removido: engine V2 ignora completamente
+// context_fields_config — apenas selecionado no SELECT, nunca lido em prompt
+// ou condicional. Quem controla campos atualizáveis é
+// ai_agent_business_config.auto_update_fields (aba Regras de negócio).
+type CardKey = 'modelos' | 'memoria' | 'multimodal' | 'validador'
 
 const CARDS: Array<{
   key: CardKey
@@ -29,12 +31,10 @@ const CARDS: Array<{
   // Cores escolhidas com semântica:
   // - Pipeline IA: violet (cérebro/IA)
   // - Memória: indigo (mesma família — armazenamento de pensamento)
-  // - Campos CRM: emerald (dados estruturados, "verdes")
   // - Multimodal: sky (mídia/visual)
   // - Validador: amber (regra/atenção)
   { key: 'modelos',    title: 'Pipeline de IA',  subtitle: 'Modelos que rodam em cada etapa do turno (resposta, validação, formatador)', icon: Brain,       iconBg: 'bg-violet-50',  iconText: 'text-violet-600',  n8nDisabled: true },
   { key: 'memoria',    title: 'Memória',          subtitle: 'Quantos turnos de histórico ela carrega no contexto',                          icon: Database,    iconBg: 'bg-indigo-50',  iconText: 'text-indigo-600',  n8nDisabled: true },
-  { key: 'contexto',   title: 'Campos do CRM',    subtitle: 'Quais campos ela vê do card e quais pode atualizar',                          icon: Radio,       iconBg: 'bg-emerald-50', iconText: 'text-emerald-600', n8nDisabled: false },
   { key: 'multimodal', title: 'Multimodal',       subtitle: 'Áudio, imagem e PDF — quais mídias ela entende',                              icon: ImageIcon,   iconBg: 'bg-sky-50',     iconText: 'text-sky-600',     n8nDisabled: true },
   { key: 'validador',  title: 'Validador',        subtitle: 'Regras pós-produção que corrigem ou bloqueiam respostas',                     icon: ShieldAlert, iconBg: 'bg-amber-50',   iconText: 'text-amber-600',   n8nDisabled: true },
 ]
@@ -51,13 +51,12 @@ const CARDS: Array<{
  * (header colapsável) é nosso. O conteúdo expandido renderiza o componente
  * filho direto, que cuida do próprio enquadramento visual.
  */
-export function TecnicoSection({ form, setForm, agentId, isN8n }: Props) {
+export function TecnicoSection({ form, setForm, isN8n }: Props) {
   const [expanded, setExpanded] = useState<Record<CardKey, boolean>>({
     modelos: false,
     memoria: false,
     multimodal: false,
     validador: false,
-    contexto: false,
   })
 
   const toggle = (k: CardKey) => setExpanded(s => ({ ...s, [k]: !s[k] }))
@@ -74,7 +73,7 @@ export function TecnicoSection({ form, setForm, agentId, isN8n }: Props) {
             Configurações técnicas
           </h4>
           <p className="text-xs text-slate-600 leading-relaxed">
-            Modelos de IA, memória, multimodal, validador e campos do CRM. Os valores padrão atendem
+            Modelos de IA, memória, multimodal e validador. Os valores padrão atendem
             a maioria dos casos — você raramente precisa mexer aqui.
           </p>
         </div>
@@ -85,8 +84,7 @@ export function TecnicoSection({ form, setForm, agentId, isN8n }: Props) {
           <Info className="w-4 h-4 text-orange-600 mt-0.5 flex-shrink-0" />
           <div className="text-xs text-slate-700">
             <strong>Este agente roda em n8n.</strong> Configurações técnicas (modelos, memória,
-            multimodal, validador) moram no workflow do n8n, não aqui. Apenas "Campos do CRM" pode
-            ser editado pelo painel.
+            multimodal, validador) moram no workflow do n8n, não aqui.
           </div>
         </div>
       )}
@@ -145,7 +143,6 @@ export function TecnicoSection({ form, setForm, agentId, isN8n }: Props) {
                   {card.key === 'memoria'    && <TabMemoria form={form} setForm={setForm} />}
                   {card.key === 'multimodal' && <TabMultimodal form={form} setForm={setForm} />}
                   {card.key === 'validador'  && <TabValidatorRules form={form} setForm={setForm} />}
-                  {card.key === 'contexto'   && <TabContextoCampos form={form} setForm={setForm} agentId={agentId} />}
                 </div>
               )}
             </div>

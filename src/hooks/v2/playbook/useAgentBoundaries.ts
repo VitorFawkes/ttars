@@ -17,6 +17,13 @@ export interface BoundaryItem {
   enabled: boolean
   /** ID original da biblioteca; ausente em itens custom. */
   library_id?: string
+  /**
+   * Override do texto que vai pro LLM. Quando preenchido, sobrescreve a
+   * descrição padrão da biblioteca (LIBRARY_DESCRIPTIONS no router) sem
+   * apagar o `library_id`. Permite admin afinar a regra mantendo o tracking.
+   * Em itens custom (sem library_id), o `text` continua sendo a fonte.
+   */
+  custom_text?: string
 }
 
 export interface BoundariesConfig {

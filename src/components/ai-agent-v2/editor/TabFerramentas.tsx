@@ -407,7 +407,165 @@ export function TabFerramentas({ form, setForm, agentId }: Props) {
           onClose={() => setEditingOverrideSkill(null)}
         />
       )}
+
+      <BuiltInToolsDescriptionsCard form={form} setForm={setForm} />
     </section>
+  )
+}
+
+// ── Card: descrições das tools built-in editáveis ──────────────────────
+//
+// As 8 tools built-in (calculate_qualification_score, search_knowledge_base,
+// check_calendar, confirm_meeting_slot, request_handoff, update_contact,
+// assign_tag, create_task) têm descrições padrão hardcoded no router que
+// orientam o LLM sobre quando chamar cada uma. Aqui o admin pode sobrescrever
+// esse texto por tool, sem deploy.
+
+const BUILT_IN_TOOLS: Array<{ name: string; titulo: string; defaultText: string }> = [
+  {
+    name: 'calculate_qualification_score',
+    titulo: 'Calcular pontuação de qualificação',
+    defaultText: 'Aplica fórmulas determinísticas de scoring. Args: { fields: { destino, valor_total, num_convidados, ...} }. Retorna { score, breakdown, qualificado }. Use ao fim da sondagem. NOTA: se o contexto já exibe <qualification_result>, esta tool NÃO é necessária — use o valor do contexto.',
+  },
+  {
+    name: 'search_knowledge_base',
+    titulo: 'Buscar na base de conhecimento',
+    defaultText: 'Busca na base de conhecimento (FAQ, destinos, processo Welcome). Args: { query: string }. Retorna { results: [...] }. Use quando lead pergunta algo factual.',
+  },
+  {
+    name: 'check_calendar',
+    titulo: 'Verificar agenda real',
+    defaultText: 'Verifica horários DISPONÍVEIS na agenda real da Wedding Planner. Use quando o lead pedir uma data ou horário diferente dos que estão em <proposed_slots>. Args (todos OPCIONAIS): { data_inicio, data_fim, quantidade }. Retorna { slots_disponiveis, note? }. NUNCA invente horários — sempre chame esta tool antes de oferecer outra data.',
+  },
+  {
+    name: 'confirm_meeting_slot',
+    titulo: 'Confirmar reunião na agenda',
+    defaultText: '[OBRIGATÓRIA SEMPRE QUE COMBINAR REUNIÃO] CRIA a reunião na agenda real da Wedding Planner. Args: { date, time }. Retorna { reuniao_id, status }. Esta é a ÚNICA forma de a reunião realmente entrar na agenda.',
+  },
+  {
+    name: 'request_handoff',
+    titulo: 'Pedir transferência pra humano',
+    defaultText: 'Pede transferência pra humano (handoff_actions roda automaticamente). Args: { motivo: string }. Use em loop_incompreensao, alta_intencao_bloqueada, pedido_humano explícito.',
+  },
+  {
+    name: 'update_contact',
+    titulo: 'Atualizar dados do contato',
+    defaultText: 'Atualiza dados do contato. Args: { contato_id, nome?, email?, data_nascimento? }. NUNCA atualize telefone.',
+  },
+  {
+    name: 'assign_tag',
+    titulo: 'Aplicar tag no card',
+    defaultText: 'Aplica tag no card. Args: { card_id, tag_name, color? }. Use em sinais indiretos, momentos especiais, desfechos.',
+  },
+  {
+    name: 'create_task',
+    titulo: 'Criar tarefa genérica',
+    defaultText: 'Cria TAREFA genérica do CRM (lembrete interno, follow-up). Args: { titulo, descricao, data_inicio, assignee_id, tipo }. NÃO use pra reunião — pra isso use confirm_meeting_slot.',
+  },
+]
+
+function BuiltInToolsDescriptionsCard({
+  form,
+  setForm,
+}: {
+  form: AgentEditorForm
+  setForm: (updater: (f: AgentEditorForm) => AgentEditorForm) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const overrides = form.tool_descriptions ?? {}
+  const overrideCount = Object.values(overrides).filter(v => !!v?.trim()).length
+
+  const setOverride = (toolName: string, text: string) => {
+    setForm(f => {
+      const next: Record<string, string> = { ...(f.tool_descriptions ?? {}) }
+      const trimmed = text.trim()
+      if (trimmed) {
+        next[toolName] = trimmed
+      } else {
+        delete next[toolName]
+      }
+      return { ...f, tool_descriptions: next }
+    })
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white">
+      <button
+        type="button"
+        onClick={() => setExpanded(s => !s)}
+        className="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-slate-50/60 transition-colors rounded-xl"
+      >
+        <div className="flex items-center gap-3">
+          <span className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center">
+            <Sparkles className="w-4 h-4 text-indigo-600" />
+          </span>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900">Como ela vê as ferramentas</h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Texto que o agente lê pra decidir QUANDO chamar cada ferramenta. Edite só se quiser ajustar.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {overrideCount > 0 && (
+            <Badge className="text-[10px] bg-indigo-100 text-indigo-700 border-indigo-200">
+              {overrideCount} editad{overrideCount === 1 ? 'a' : 'as'}
+            </Badge>
+          )}
+          {expanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="p-4 pt-0 space-y-3 border-t border-slate-100">
+          <p className="text-xs text-slate-600 bg-amber-50 border border-amber-200 rounded p-2.5">
+            Mexe aqui só se o agente tá chamando ferramenta na hora errada (ex: cria reunião quando devia confirmar; pede handoff sem motivo). O texto editado aqui substitui o padrão no prompt da IA. Vazio = usa o padrão (recomendado).
+          </p>
+          {BUILT_IN_TOOLS.map(tool => {
+            const current = overrides[tool.name] ?? ''
+            const hasOverride = current.trim().length > 0
+            return (
+              <div key={tool.name} className="border border-slate-200 rounded-lg p-3 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-sm font-semibold text-slate-900">{tool.titulo}</h4>
+                    <p className="text-[11px] text-slate-400 font-mono">{tool.name}</p>
+                  </div>
+                  {hasOverride && (
+                    <Badge className="text-[10px] bg-indigo-100 text-indigo-700 border-indigo-200 flex-shrink-0">
+                      editada
+                    </Badge>
+                  )}
+                </div>
+                <details className="text-[11px] text-slate-500">
+                  <summary className="cursor-pointer hover:text-slate-700">Ver texto padrão</summary>
+                  <p className="mt-1 p-2 bg-slate-50 rounded text-slate-600 leading-relaxed">
+                    {tool.defaultText}
+                  </p>
+                </details>
+                <textarea
+                  value={current}
+                  onChange={e => setOverride(tool.name, e.target.value)}
+                  rows={3}
+                  placeholder="Deixe vazio pra usar o padrão. Escreva aqui pra substituir."
+                  className="w-full text-xs border border-slate-200 rounded p-2 focus:border-indigo-300 focus:ring-1 focus:ring-indigo-100 focus:outline-none"
+                />
+                {hasOverride && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setOverride(tool.name, '')}
+                    className="text-[11px] text-slate-500"
+                  >
+                    Resetar pro padrão
+                  </Button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }
 

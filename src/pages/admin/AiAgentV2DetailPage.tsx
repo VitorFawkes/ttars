@@ -82,6 +82,7 @@ const DEFAULT_FORM: AgentEditorForm = {
   playbook_enabled: false,
   wedding_planner_profile_id: null,
   scheduling_config: null,
+  tool_descriptions: {},
 }
 
 function formatRelative(iso: string): string {
@@ -188,6 +189,8 @@ export default function AiAgentDetailPage() {
       },
       wedding_planner_profile_id: (a as { wedding_planner_profile_id?: string | null }).wedding_planner_profile_id ?? null,
       scheduling_config: (a as { scheduling_config?: AgentEditorForm['scheduling_config'] }).scheduling_config ?? null,
+      tool_descriptions:
+        ((a as { tool_descriptions?: Record<string, string> }).tool_descriptions ?? {}) as Record<string, string>,
     })
     setDirty(false)
   }, [existingAgent])
@@ -253,6 +256,7 @@ export default function AiAgentDetailPage() {
           : [],
         wedding_planner_profile_id: form.wedding_planner_profile_id,
         scheduling_config: form.scheduling_config,
+        tool_descriptions: form.tool_descriptions ?? {},
       }
 
       let agentId = id
@@ -366,7 +370,12 @@ export default function AiAgentDetailPage() {
       ...(v3Enabled ? [] : [{ id: 'conhecimento', label: 'Conhecimento', icon: BookOpen } as EditorTab]),
       ...technicalTabs,
       { id: 'handoff', label: 'Handoff', icon: Handshake },
-      { id: 'decisoes', label: 'Decisões inteligentes', icon: Lightbulb },
+      // Aba "Decisões inteligentes" removida do V3 (engine V2 ignora o campo
+      // intelligent_decisions — só selecionado no SELECT, nunca lido em prompt
+      // ou condicional). Conteúdo equivalente vive nos Princípios de caráter
+      // dentro do Playbook > Identidade. Aba clássica ainda existe via toggle
+      // "voltar p/ layout antigo" (TabDecisoes) — limpeza completa depois.
+      ...(v3Enabled ? [] : [{ id: 'decisoes', label: 'Decisões inteligentes', icon: Lightbulb } as EditorTab]),
       { id: 'ativacao', label: 'Ativação', icon: Power },
       { id: 'teste', label: 'Teste ao vivo', icon: PlayCircle, disabled: isN8n, disabledHint: 'Julia roda no n8n — teste lá' },
     ]
@@ -538,7 +547,7 @@ export default function AiAgentDetailPage() {
         {activeTab === 'contexto' && <TabContextoCampos form={form} setForm={setFormWrapper} agentId={isNew ? undefined : id} />}
         {activeTab === 'multimodal' && !isN8n && <TabMultimodal form={form} setForm={setFormWrapper} />}
         {activeTab === 'tecnico' && (
-          <TecnicoSection form={form} setForm={setFormWrapper} agentId={isNew ? undefined : id} isN8n={isN8n} />
+          <TecnicoSection form={form} setForm={setFormWrapper} isN8n={isN8n} />
         )}
         {activeTab === 'handoff' && (
           // Agentes com playbook usam SEMPRE a v3 — ela tem o cross-org check

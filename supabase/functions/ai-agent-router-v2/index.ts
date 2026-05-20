@@ -15,6 +15,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { runSingleAgent } from "./single_agent.ts";
+import type { BuildSinglePromptInput } from "./prompt_assembler.ts";
 import { validateBrandCompliance, type ValidatorRule } from "./brand_validator.ts";
 import { loadScoringRulesForPlaybook, type ScoringRule } from "./playbook_loader.ts";
 import { evaluateSubjectiveRules } from "./subjective_evaluator.ts";
@@ -128,9 +129,9 @@ Deno.serve(async (req) => {
           id, org_id, produto, nome, ativa, modelo, temperature, max_tokens,
           test_mode_phone_whitelist, validator_rules, pipeline_models,
           identity_config, voice_config, boundaries_config, listening_config,
-          handoff_actions, handoff_signals, intelligent_decisions, context_fields_config,
+          handoff_actions,
           engine, timings, multimodal_config, wedding_planner_profile_id, scheduling_config,
-          fallback_message
+          fallback_message, prompts_extra, tool_descriptions
         )
       `)
       .eq("phone_line_id", lineRow.id)
@@ -428,6 +429,36 @@ Deno.serve(async (req) => {
     }
 
     // ------------------------------------------------------------------
+    // 5b. Card pausado permanentemente? (handoff humano invisível)
+    //
+    // Quando o agente chamou request_handoff com handoff_actions.pause_permanently=true,
+    // cards.ai_pause_config = { permanent: true, ... }. O humano assumiu a
+    // conversa via NotificationCenter — a agente NÃO deve responder mais
+    // nesse contato. Bail out antes de gastar tokens do LLM.
+    // ------------------------------------------------------------------
+    if (cardId) {
+      const { data: pauseRow } = await supabase
+        .from("cards")
+        .select("ai_pause_config")
+        .eq("id", cardId)
+        .maybeSingle();
+      const pauseConfig = pauseRow?.ai_pause_config as { permanent?: boolean; reason?: string } | null;
+      if (pauseConfig?.permanent === true) {
+        console.info(`[v2] agente pausado permanentemente, abortando`, {
+          card_id: cardId,
+          conversation_id: conversationId,
+          reason: pauseConfig.reason || null,
+        });
+        return jsonResponse({
+          ok: true,
+          skipped: true,
+          reason: "card_paused_permanently",
+          card_id: cardId,
+        });
+      }
+    }
+
+    // ------------------------------------------------------------------
     // 6. Inserir turno do usuário
     // ------------------------------------------------------------------
     await supabase.from("ai_conversation_turns").insert({
@@ -596,6 +627,86 @@ Deno.serve(async (req) => {
           }
         }
       }
+
+      // DETECÇÃO GENÉRICA via detection_patterns dos sinais silenciosos.
+      // Aplica a mesma lógica dos 2 blocos acima, mas pra QUALQUER sinal
+      // do agente que tenha keywords configuradas via UI. Permite criar
+      // novos sinais (qualquer agente) sem precisar de deploy.
+      try {
+        const { data: configuredSignals } = await supabase
+          .from("ai_agent_silent_signals")
+          .select("signal_key, crm_field_key, detection_patterns")
+          .eq("agent_id", agent.id)
+          .eq("enabled", true)
+          .not("detection_patterns", "is", null);
+
+        for (const sig of (configuredSignals || []) as Array<{
+          signal_key: string;
+          crm_field_key: string | null;
+          detection_patterns: {
+            question_keywords?: string[];
+            answer_yes_keywords?: string[];
+            answer_no_keywords?: string[];
+            max_answer_length?: number;
+          } | null;
+        }>) {
+          const field = sig.crm_field_key;
+          if (!field) continue;
+          if (trackedData[field] != null) continue;
+
+          const p = sig.detection_patterns || {};
+          const questionKw = Array.isArray(p.question_keywords) ? p.question_keywords.filter(Boolean) : [];
+          const yesKw = Array.isArray(p.answer_yes_keywords) ? p.answer_yes_keywords.filter(Boolean) : [];
+          const noKw = Array.isArray(p.answer_no_keywords) ? p.answer_no_keywords.filter(Boolean) : [];
+          const maxLen = typeof p.max_answer_length === "number" && p.max_answer_length > 0
+            ? p.max_answer_length
+            : 200;
+          if (questionKw.length === 0) continue;
+
+          const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const asked = questionKw.some((kw) => {
+            try {
+              return new RegExp(escapeRegex(kw), "i").test(lastAssistantContent);
+            } catch {
+              return false;
+            }
+          });
+          if (!asked) continue;
+
+          const matchesNo = noKw.some((kw) => {
+            try {
+              return new RegExp(`\\b${escapeRegex(kw)}\\b`, "i").test(leadAnswer);
+            } catch {
+              return false;
+            }
+          });
+          if (matchesNo) {
+            trackedData[field] = false;
+            console.log(`[v2 fallback] ${field}=false detectado por detection_patterns(${sig.signal_key})`);
+            continue;
+          }
+
+          const matchesYes = yesKw.some((kw) => {
+            try {
+              return new RegExp(`\\b${escapeRegex(kw)}\\b`, "i").test(leadAnswer);
+            } catch {
+              return false;
+            }
+          });
+          if (matchesYes) {
+            trackedData[field] = true;
+            console.log(`[v2 fallback] ${field}=true detectado por detection_patterns(${sig.signal_key})`);
+            continue;
+          }
+
+          if (leadAnswer.length > 0 && leadAnswer.length < maxLen) {
+            trackedData[field] = processedText;
+            console.log(`[v2 fallback] ${field}="${processedText.substring(0, 60)}" detectado por detection_patterns(${sig.signal_key})`);
+          }
+        }
+      } catch (err) {
+        console.warn("[v2 fallback] erro lendo detection_patterns dos signals:", err);
+      }
     }
 
     // ------------------------------------------------------------------
@@ -610,6 +721,85 @@ Deno.serve(async (req) => {
     let forcedMomentKey: string | null = null;
     let qualificationResult: { score: number; qualificado: boolean; breakdown?: unknown } | null = null;
     let proposedSlots: Array<{ date: string; time: string; weekday: string }> | null = null;
+
+    // ------------------------------------------------------------------
+    // 8c'. Detecção de recent_blocks_count → handoff_humano_invisivel
+    //
+    // Se o validator bloqueou N+ mensagens da agente nos últimos M turns,
+    // a agente está travada — não consegue gerar resposta honesta sob as
+    // regras atuais. Em vez de loop infinito de fallback_message ("deixa eu
+    // verificar e já volto"), forçamos moment `handoff_humano_invisivel`
+    // que manda uma frase humana coerente e chama request_handoff.
+    //
+    // N (block_threshold) e M (window_turns) são configuráveis por agente em
+    // ai_agents.handoff_actions.auto_handoff_invisible. Default: 3 em 5
+    // (threshold 2 era agressivo demais — qualificações com 1-2 hiccups
+    // iniciais entravam em pausa). Toggle enabled controla se o trigger roda.
+    // ------------------------------------------------------------------
+    let autoHandoffTriggered = false;
+    {
+      const autoHandoffCfg = ((agent.handoff_actions || {}) as Record<string, unknown>)
+        .auto_handoff_invisible as { enabled?: boolean; block_threshold?: number; window_turns?: number } | undefined;
+      const ahEnabled = autoHandoffCfg?.enabled ?? true;
+      const ahBlockThreshold = Math.max(1, autoHandoffCfg?.block_threshold ?? 3);
+      const ahWindowTurns = Math.max(1, autoHandoffCfg?.window_turns ?? 5);
+
+      const { data: recentTurns } = await supabase
+        .from("ai_conversation_turns")
+        .select("validator_verdict_action")
+        .eq("conversation_id", conversationId)
+        .eq("role", "assistant")
+        .order("created_at", { ascending: false })
+        .limit(ahWindowTurns);
+      const recentBlocksCount = (recentTurns || []).filter(
+        (t) => t.validator_verdict_action === "block",
+      ).length;
+      if (ahEnabled && recentBlocksCount >= ahBlockThreshold) {
+        forcedMomentKey = "handoff_humano_invisivel";
+        autoHandoffTriggered = true;
+        console.log(
+          `[v2] trigger: ${recentBlocksCount} blocks recentes → forçando moment=handoff_humano_invisivel + executando request_handoff direto`,
+        );
+        // Executar request_handoff direto, sem depender do LLM lembrar de
+        // chamar a tool no tool_calls. O moment garante a frase humana,
+        // mas a ação concreta (pausa + notify) é responsabilidade do router.
+        if (cardId) {
+          const ha = (agent.handoff_actions || {}) as Record<string, unknown>;
+          const updates: Record<string, unknown> = {};
+          if (ha.change_stage_id) updates.pipeline_stage_id = ha.change_stage_id;
+          if (ha.pause_permanently === true) {
+            updates.ai_pause_config = {
+              permanent: true,
+              reason: "validator_block_repetido",
+              paused_at: new Date().toISOString(),
+            };
+          }
+          if (Object.keys(updates).length > 0) {
+            const { error: upErr } = await supabase.from("cards").update(updates).eq("id", cardId);
+            if (upErr) console.error(`[v2 auto-handoff] update card falhou:`, upErr.message);
+          }
+          if (ha.notify_responsible === true) {
+            const bookMeeting = (ha.book_meeting || {}) as Record<string, unknown>;
+            const responsavelId =
+              (bookMeeting.responsavel_id as string | undefined) ||
+              (ha.responsavel_id as string | undefined) ||
+              agent.wedding_planner_profile_id;
+            if (responsavelId) {
+              await supabase.from("notifications").insert({
+                user_id: responsavelId,
+                org_id: agent.org_id,
+                type: "handoff_agente",
+                title: `${agent.nome} pediu handoff (auto)`,
+                body: `Agente travou (${recentBlocksCount} blocks consecutivos). Assuma a conversa.`,
+                card_id: cardId,
+                url: `/cards/${cardId}`,
+                metadata: { agent_id: agent.id, motivo: "validator_block_repetido", severity: "high", auto: true },
+              });
+            }
+          }
+        }
+      }
+    }
     // Snapshot do que o subjective_evaluator devolveu — persistido em
     // context_used pra auditoria via SQL (logs do edge runtime não aparecem
     // em function_logs do analytics).
@@ -659,8 +849,30 @@ Deno.serve(async (req) => {
         ? numConvidados
         : parseInt(String(numConvidados).replace(/[^0-9]/g, ""), 10) || 0;
 
+      // Converter on-the-fly se moeda estrangeira está no tracked_data mas o
+      // valor parece ter ficado em EUR/USD original (LLM ignorou conversão no
+      // primeiro turn). Heurística: se orcamentoTeto < 50k E moeda != BRL.
+      const moedaOriginal = trackedData["ww_orcamento_moeda_original"] as string | undefined;
+      const cotacaoUsada = trackedData["ww_orcamento_cotacao_usada"] as number | undefined;
+      if (
+        orcamentoTeto && orcamentoTeto < 50000 && cotacaoUsada &&
+        moedaOriginal && moedaOriginal.toUpperCase() !== "BRL"
+      ) {
+        const original = orcamentoTeto;
+        orcamentoTeto = Math.round(orcamentoTeto * cotacaoUsada);
+        console.log(`[v2] trigger: convertendo orçamento ${original} ${moedaOriginal} × ${cotacaoUsada} = ${orcamentoTeto} BRL`);
+      }
+
       const valorPorPax = (orcamentoTeto && numConv > 0) ? orcamentoTeto / numConv : null;
       const isFronteira = valorPorPax !== null && valorPorPax < 2500;
+      // Piso ABSOLUTO de inviabilidade: valor/conv < R$ 800 — escopo claramente
+      // fora da Welcome, vai direto pra desfecho_nao_qualificado sem sondar
+      // opcionais. Sobrepõe o trigger normal de score.
+      const isInviavelResistente = valorPorPax !== null && valorPorPax < 800;
+      if (isInviavelResistente && !forcedMomentKey) {
+        forcedMomentKey = "desfecho_nao_qualificado";
+        console.log(`[v2] trigger: inviabilidade resistente (valor/conv=${Math.round(valorPorPax)}) → forçando desfecho_nao_qualificado`);
+      }
 
       const viajouInternacional = trackedData["ww_sdr_perfil_viagem_internacional"];
       const ajudaFamilia = trackedData["ww_sdr_ajuda_familia"];
@@ -674,12 +886,14 @@ Deno.serve(async (req) => {
       // direto (red_line só protegia o caminho do não-qualificado). Bug
       // observado 2026-05-12: caso 50k/30/Nordeste virou qualificado direto
       // sem coletar opcionais.
-      if (!podeDesfechar && criticosColetados && isFronteira) {
+      if (!podeDesfechar && criticosColetados && isFronteira && !forcedMomentKey) {
+        // Só força sondagem se nenhum trigger anterior (ex: handoff_humano_invisivel
+        // ou desfecho_nao_qualificado por piso) já tomou prioridade.
         forcedMomentKey = "sondagem";
         console.log(`[v2] trigger: fronteira sem opcionais → forçando moment=sondagem (valor/pax=${valorPorPax})`);
       }
 
-      if (podeDesfechar) {
+      if (podeDesfechar && !isInviavelResistente) {
         // Chamar RPC determinística + avaliar regras ai_subjective via LLM.
         // RPC avalia só {equals, range, boolean_true}. Regras ai_subjective
         // (todas as 14 regras da Patricia) precisam de LLM intermediário. Sem
@@ -848,9 +1062,13 @@ Deno.serve(async (req) => {
                 qualificado,
                 breakdown,
               };
-              forcedMomentKey = qualificado
-                ? "desfecho_qualificado"
-                : "desfecho_nao_qualificado";
+              // handoff_humano_invisivel tem prioridade absoluta — só seta
+              // desfecho_X se nenhum trigger anterior reivindicou.
+              if (!forcedMomentKey) {
+                forcedMomentKey = qualificado
+                  ? "desfecho_qualificado"
+                  : "desfecho_nao_qualificado";
+              }
             }
 
             // Buscar horários disponíveis. Configurável via
@@ -1032,6 +1250,9 @@ Deno.serve(async (req) => {
         voice_config: agent.voice_config,
         boundaries_config: agent.boundaries_config,
         listening_config: agent.listening_config,
+        scheduling_config: agent.scheduling_config,
+        prompts_extra: (agent as unknown as { prompts_extra?: BuildSinglePromptInput["agent"]["prompts_extra"] }).prompts_extra,
+        tool_descriptions: (agent as unknown as { tool_descriptions?: BuildSinglePromptInput["agent"]["tool_descriptions"] }).tool_descriptions ?? null,
       },
       business: business ? {
         company_name: business.company_name,
@@ -1071,6 +1292,26 @@ Deno.serve(async (req) => {
     // ------------------------------------------------------------------
     const cardPatch = singleAgentResult.output.card_patch || {};
     const contactPatch = singleAgentResult.output.contact_patch || {};
+
+    // Auto-normalização de moeda estrangeira: se o LLM gravou moeda original
+    // (EUR/USD/GBP) + cotação mas esqueceu de converter o valor em BRL,
+    // multiplicamos aqui. Padrão observado: LLM declara "convertendo 15k * 6"
+    // no reasoning mas grava 15000 cru no campo (não obedece a própria intenção).
+    {
+      const moeda = (cardPatch.ww_orcamento_moeda_original as string | undefined)
+        || (trackedData["ww_orcamento_moeda_original"] as string | undefined);
+      const cotacao = (cardPatch.ww_orcamento_cotacao_usada as number | undefined)
+        || (trackedData["ww_orcamento_cotacao_usada"] as number | undefined);
+      const valor = cardPatch.ww_orcamento_faixa;
+      if (
+        moeda && moeda.toUpperCase() !== "BRL" && cotacao && typeof valor === "number" &&
+        valor > 0 && valor < 50000  // heurística: < R$ 50k pra 150 pax já é absurdo; deve ser EUR não convertido
+      ) {
+        const converted = Math.round(valor * cotacao);
+        console.log(`[v2] auto-convert moeda: ${valor} ${moeda} × ${cotacao} = ${converted} BRL`);
+        cardPatch.ww_orcamento_faixa = converted;
+      }
+    }
 
     // Mesclar card_patch em trackedData (sempre, mesmo sem card linkado)
     let updatedTrackedData = trackedData;
@@ -1279,6 +1520,7 @@ Deno.serve(async (req) => {
             voice_config: agent.voice_config,
             boundaries_config: agent.boundaries_config,
             listening_config: agent.listening_config,
+            scheduling_config: agent.scheduling_config,
           },
           business: business ? {
             company_name: business.company_name,
@@ -1340,6 +1582,81 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Instrução custom do validator (ai_agents.prompts_extra.validator) é
+    // concatenada após as regras — habilita admin a escrever orientação meta
+    // sobre COMO o validador deve raciocinar (ex: "audite princípios de
+    // caráter, não checklist"). Per-agente; vazio = comportamento padrão.
+    const extraValidatorInstruction = (
+      (agent as unknown as { prompts_extra?: { validator?: string | null } | null }).prompts_extra?.validator
+    ) || null;
+
+    // -------- Context facts pré-validator -----------------------------------
+    // O main LLM (gpt-5.5-thinking) pensa antes de responder e preenche o
+    // bloco `self_analysis` com detecção de contradição, pitch saturado,
+    // inviabilidade econômica, pendências e sinais defensivos.
+    //
+    // O router consome esse self_analysis e passa pro validator. Em vez de
+    // heurísticas regex/listas hardcoded, o validator confia no julgamento
+    // semântico do main (que entende nuance: "frio + Mendoza" não é
+    // contradição, "frio + Trancoso" é).
+    //
+    // Fallback determinístico: a viabilidade econômica é cruzada com cálculo
+    // matemático (com conversão de moeda) — defesa em profundidade caso o
+    // LLM erre. Se há divergência, usamos o cálculo mais restritivo.
+    const selfAnalysis = singleAgentResult.output.self_analysis || {};
+    const contextFacts: Record<string, unknown> = {};
+    if (selfAnalysis.contradicao_detectada) {
+      contextFacts.contradicao_detectada = selfAnalysis.contradicao_detectada;
+    }
+    if (selfAnalysis.pitch_saturado_self === true) {
+      contextFacts.pitch_saturado = true;
+      contextFacts.pitch_count_recent = selfAnalysis.pitch_count_recent || 2;
+    }
+    if (selfAnalysis.pendencia_resolver) {
+      contextFacts.pendencias_patricia = selfAnalysis.pendencia_resolver;
+    }
+    if (selfAnalysis.sinais_defensivos_lead === true) {
+      contextFacts.sinais_defensivos_lead = true;
+    }
+    if (selfAnalysis.pergunta_lead_nao_respondida) {
+      contextFacts.pergunta_lead_nao_respondida = selfAnalysis.pergunta_lead_nao_respondida;
+    }
+
+    // Fallback determinístico de viabilidade: calcula matemática e cruza com
+    // o que o LLM disse. Toma o MAIS restritivo (proteção da marca > LLM otimista).
+    {
+      const orc = updatedTrackedData["ww_orcamento_faixa"];
+      const conv = updatedTrackedData["ww_num_convidados"];
+      let orcNum = typeof orc === "number" ? orc : (typeof orc === "string" ? parseInt(orc.replace(/[^0-9]/g, ""), 10) || 0 : 0);
+      const convNum = typeof conv === "number" ? conv : (typeof conv === "string" ? parseInt(conv.replace(/[^0-9]/g, ""), 10) || 0 : 0);
+      const moedaCtx = updatedTrackedData["ww_orcamento_moeda_original"] as string | undefined;
+      const cotacaoCtx = updatedTrackedData["ww_orcamento_cotacao_usada"] as number | undefined;
+      if (orcNum > 0 && orcNum < 50000 && cotacaoCtx && moedaCtx && moedaCtx.toUpperCase() !== "BRL") {
+        orcNum = Math.round(orcNum * cotacaoCtx);
+      }
+      if (orcNum > 0 && convNum > 0) {
+        const valorPorPax = orcNum / convNum;
+        const calcLevel = valorPorPax < 800 ? "abaixo_minimo_resistente"
+          : valorPorPax < 1200 ? "fronteira_defensiva"
+          : null;
+        const llmLevel = selfAnalysis.inviabilidade_calc || null;
+        // Toma o mais restritivo entre cálculo determinístico e LLM
+        const severityRank: Record<string, number> = { "abaixo_minimo_resistente": 2, "fronteira_defensiva": 1 };
+        const calcRank = calcLevel ? severityRank[calcLevel] : 0;
+        const llmRank = llmLevel ? severityRank[llmLevel] : 0;
+        const finalLevel = calcRank >= llmRank ? calcLevel : llmLevel;
+        if (finalLevel) contextFacts.inviabilidade_economica = finalLevel;
+        contextFacts.valor_por_convidado_brl = Math.round(valorPorPax);
+      } else if (selfAnalysis.valor_por_convidado_brl) {
+        // LLM calculou mas dados do trackedData ainda não chegaram; usa LLM
+        contextFacts.valor_por_convidado_brl = selfAnalysis.valor_por_convidado_brl;
+        if (selfAnalysis.inviabilidade_calc) {
+          contextFacts.inviabilidade_economica = selfAnalysis.inviabilidade_calc;
+        }
+      }
+    }
+    console.log(`[v2] contextFacts (self+calc):`, JSON.stringify(contextFacts));
+
     const verdict = await validateBrandCompliance(
       {
         messages: singleAgentResult.output.messages,
@@ -1350,6 +1667,8 @@ Deno.serve(async (req) => {
         active_moment_key: activeMomentKey,
         active_moment_mode: activeMomentMode,
         active_moment_label: activeMomentLabel,
+        extra_validator_instruction: extraValidatorInstruction,
+        context_facts: contextFacts,
       },
       OPENAI_API_KEY,
     );
@@ -1414,16 +1733,24 @@ Deno.serve(async (req) => {
     let blocks: string[] = [];
 
     if (!blocked && finalMessages.length > 0) {
-      // Se o LLM já devolveu N mensagens distintas e cabem no máximo configurado,
-      // respeita essa separação natural. Caso contrário, junta tudo e re-quebra
-      // pela heurística (last resort).
-      if (finalMessages.length > 0 && finalMessages.length <= maxMessageBlocks) {
-        blocks = finalMessages
-          .map((m) => normalizeWhatsAppText(m))
-          .filter((m) => m.trim().length > 0)
-          .map((m) => (m.length > 1024 ? m.substring(0, 1023) + "…" : m));
+      // Estratégia de quebra em bolhas WhatsApp:
+      //  (a) Se o LLM devolveu múltiplos items em messages[] que cabem no max,
+      //      respeita a separação natural — cada item vira uma bolha.
+      //  (b) Se devolveu 1 item só com múltiplos parágrafos (\n\n) — comum em
+      //      moments LITERAL onde o anchor é uma string contínua — auto-quebra
+      //      pelos parágrafos pra virar bolhas separadas.
+      //  (c) Fallback: junta tudo e usa heurística.
+      const normalizedMsgs = finalMessages
+        .map((m) => normalizeWhatsAppText(m))
+        .filter((m) => m.trim().length > 0);
+
+      if (normalizedMsgs.length === 1 && normalizedMsgs[0].includes("\n\n")) {
+        // Quebra automática por parágrafos (caso (b))
+        blocks = formatWhatsAppMessagesHeuristic(normalizedMsgs[0], maxMessageBlocks, 1024);
+      } else if (normalizedMsgs.length > 0 && normalizedMsgs.length <= maxMessageBlocks) {
+        blocks = normalizedMsgs.map((m) => (m.length > 1024 ? m.substring(0, 1023) + "…" : m));
       } else {
-        const allMessagesText = finalMessages.join("\n\n");
+        const allMessagesText = normalizedMsgs.join("\n\n");
         blocks = formatWhatsAppMessagesHeuristic(allMessagesText, maxMessageBlocks, 1024);
       }
 
@@ -1485,6 +1812,8 @@ Deno.serve(async (req) => {
       // Persistir assistant turn (junta blocos em 1 turno; reasoning vai pra coluna).
       // qualification_score_at_turn é persistido SEMPRE que o trigger determinístico
       // rodou — assim dashboards e auditoria têm o histórico de score por turno.
+      // validator_verdict_action é o resumo binário (pass/rewrite/block) que habilita
+      // queries diretas e a detecção de recent_blocks_count → handoff_humano_invisivel.
       await supabase.from("ai_conversation_turns").insert({
         conversation_id: conversationId,
         role: "assistant",
@@ -1506,6 +1835,7 @@ Deno.serve(async (req) => {
         },
         detected_intent: singleAgentResult.output.current_moment_key,
         qualification_score_at_turn: qualificationResult?.score ?? null,
+        validator_verdict_action: verdict?.action ?? null,
       });
     }
 
@@ -1570,6 +1900,7 @@ Deno.serve(async (req) => {
         },
         detected_intent: singleAgentResult.output.current_moment_key,
         qualification_score_at_turn: qualificationResult?.score ?? null,
+        validator_verdict_action: verdict?.action ?? "block",
       });
     }
 

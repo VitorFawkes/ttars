@@ -1,11 +1,11 @@
 import { useRef } from 'react'
-import { Handshake, Tag, Bell, MessageCircle, Pause, GitBranch, CalendarPlus, AlertTriangle, LifeBuoy, Info, CheckCircle2 } from 'lucide-react'
+import { Handshake, Tag, Bell, MessageCircle, Pause, GitBranch, CalendarPlus, AlertTriangle, LifeBuoy, Info, CheckCircle2, ShieldAlert } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select } from '@/components/ui/Select'
-import { HANDOFF_SIGNALS_CATALOG, type AgentEditorForm, type BookMeetingConfig } from '../../../types'
+import { DEFAULT_AUTO_HANDOFF_INVISIBLE, type AgentEditorForm, type AutoHandoffInvisibleConfig, type BookMeetingConfig } from '../../../types'
 import { useCurrentProductMeta, useProductBySlug } from '@/hooks/useCurrentProductMeta'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
 import { useFilterProfiles } from '@/hooks/analytics/useFilterOptions'
@@ -131,30 +131,27 @@ export function HandoffSection({ form, setForm, agentOrgId, agentProductSlug }: 
     }))
   }
 
-  const toggleSignal = (slug: string) => {
-    setForm(f => ({
-      ...f,
-      handoff_signals: f.handoff_signals.map(s =>
-        s.slug === slug ? { ...s, enabled: !s.enabled } : s
-      ),
-    }))
-  }
-
-  const updateSignalDescription = (slug: string, description: string) => {
-    setForm(f => ({
-      ...f,
-      handoff_signals: f.handoff_signals.map(s =>
-        s.slug === slug ? { ...s, description } : s
-      ),
-    }))
-  }
-
   // Cross-check do responsável da reunião
   const responsavelCheck = useResponsavelOrgCheck(bookMeeting?.responsavel_id, agentOrgId)
   const responsavelProfile = profiles.find(p => p.id === bookMeeting?.responsavel_id)
 
-  const activeSignalsCount = form.handoff_signals.filter(s => s.enabled).length
   const meetingActive = !!bookMeeting?.enabled && !!bookMeeting?.responsavel_id
+
+  // Auto-handoff invisível (dispara após N bloqueios do validador em M turnos)
+  const autoHandoff: AutoHandoffInvisibleConfig =
+    form.handoff_actions.auto_handoff_invisible ?? DEFAULT_AUTO_HANDOFF_INVISIBLE
+  const updateAutoHandoff = (patch: Partial<AutoHandoffInvisibleConfig>) => {
+    setForm(f => ({
+      ...f,
+      handoff_actions: {
+        ...f.handoff_actions,
+        auto_handoff_invisible: {
+          ...(f.handoff_actions.auto_handoff_invisible ?? DEFAULT_AUTO_HANDOFF_INVISIBLE),
+          ...patch,
+        },
+      },
+    }))
+  }
 
   return (
     <div className="space-y-6">
@@ -166,9 +163,8 @@ export function HandoffSection({ form, setForm, agentOrgId, agentProductSlug }: 
             Quando ela passa o bastão pra um humano
           </h4>
           <p className="text-xs text-slate-600 leading-relaxed">
-            Configure aqui <strong>3 caminhos</strong>: 1) sinais que ela detecta na conversa
-            e disparam handoff, 2) o que acontece quando dispara, 3) agendamento automático
-            quando o lead qualifica.
+            O agente decide com julgamento quando travar é melhor do que insistir. Configure aqui
+            o que acontece nessa hora: ação no card, agendamento automático e mensagem de fallback.
           </p>
         </div>
       </div>
@@ -176,10 +172,10 @@ export function HandoffSection({ form, setForm, agentOrgId, agentProductSlug }: 
       {/* Status compacto */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <StatusCard
-          icon={Handshake}
-          label="Sinais ativos"
-          value={`${activeSignalsCount}`}
-          tone={activeSignalsCount === 0 ? 'warning' : 'normal'}
+          icon={ShieldAlert}
+          label="Auto-handoff"
+          value={autoHandoff.enabled ? `${autoHandoff.block_threshold} em ${autoHandoff.window_turns}` : 'desligado'}
+          tone={autoHandoff.enabled ? 'success' : 'normal'}
         />
         <StatusCard
           icon={CalendarPlus}
@@ -195,54 +191,78 @@ export function HandoffSection({ form, setForm, agentOrgId, agentProductSlug }: 
         />
       </div>
 
-      {/* ── Bloco 1: Sinais ─────────────────────────────────────────── */}
+      {/* ── Bloco 1: Auto-handoff invisível ─────────────────────────── */}
       <Section
-        Icon={Handshake}
-        iconClass="text-orange-500"
-        title="1. Sinais que disparam handoff"
-        subtitle="Situações em que o agente passa a conversa para um humano. O agente decide com julgamento, sem regex."
+        Icon={ShieldAlert}
+        iconClass="text-amber-500"
+        title="1. Quando ela trava sozinha (auto-handoff invisível)"
+        subtitle="Quando o validador bloqueia várias mensagens seguidas, ela passa o bastão sem o lead perceber."
+        right={
+          <Switch
+            aria-label="Ativar auto-handoff invisível"
+            checked={autoHandoff.enabled}
+            onCheckedChange={v => updateAutoHandoff({ enabled: v })}
+          />
+        }
       >
-        <div className="space-y-2">
-          {HANDOFF_SIGNALS_CATALOG.map(cat => {
-            const signal = form.handoff_signals.find(s => s.slug === cat.slug)
-            if (!signal) return null
-            return (
-              <div
-                key={cat.slug}
-                className={cn(
-                  'border rounded-lg p-3 space-y-2 transition-colors',
-                  signal.enabled ? 'border-orange-200 bg-orange-50/40' : 'border-slate-200'
-                )}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-sm font-medium text-slate-900 flex-1 min-w-0">{cat.label}</p>
-                  <Switch
-                    aria-label={`Ligar/desligar sinal: ${cat.label}`}
-                    checked={signal.enabled}
-                    onCheckedChange={() => toggleSignal(cat.slug)}
-                  />
-                </div>
-                {signal.enabled && (
-                  <Textarea
-                    value={signal.description}
-                    onChange={e => updateSignalDescription(cat.slug, e.target.value)}
-                    rows={2}
-                    className="text-xs"
-                    placeholder={cat.defaultDescription}
-                  />
-                )}
+        {autoHandoff.enabled && (
+          <div className="space-y-4">
+            <p className="text-xs text-slate-600 leading-relaxed -mt-1">
+              Quando o agente tenta responder mas o validador rejeita a mensagem repetidas
+              vezes, isso é sinal de que ela está travada. Em vez de loop de fallback ("deixa
+              eu verificar e já volto" infinito), ela manda uma frase humana coerente e aciona
+              o handoff de verdade.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Bloqueios pra disparar</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={autoHandoff.block_threshold}
+                  onChange={e => updateAutoHandoff({
+                    block_threshold: Math.max(1, Math.min(10, Number(e.target.value) || 3)),
+                  })}
+                />
+                <p className="text-[11px] text-slate-500">
+                  Quantos bloqueios do validador disparam o handoff. Default 3 (1-2 é agressivo demais).
+                </p>
               </div>
-            )
-          })}
-        </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Janela de turnos olhada</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={autoHandoff.window_turns}
+                  onChange={e => updateAutoHandoff({
+                    window_turns: Math.max(1, Math.min(20, Number(e.target.value) || 5)),
+                  })}
+                />
+                <p className="text-[11px] text-slate-500">
+                  Em quantos turnos recentes a gente conta os bloqueios. Default 5.
+                </p>
+              </div>
+            </div>
+            <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-3">
+              <p className="text-[11px] text-slate-700">
+                <strong>Regra atual:</strong> se o validador bloquear <strong>{autoHandoff.block_threshold}+</strong>{' '}
+                mensagens nos últimos <strong>{autoHandoff.window_turns}</strong> turnos do agente,
+                força o momento <code className="bg-white px-1 rounded text-[10px]">handoff_humano_invisivel</code> e
+                executa as ações do handoff (etapa, pausa, notificar, tag) imediatamente.
+              </p>
+            </div>
+          </div>
+        )}
       </Section>
 
       {/* ── Bloco 2: O que acontece ─────────────────────────────────── */}
       <Section
         Icon={Bell}
         iconClass="text-rose-500"
-        title="2. O que acontece quando dispara"
-        subtitle="Ações automáticas ao detectar qualquer sinal habilitado."
+        title="2. O que acontece quando ela passa o bastão"
+        subtitle="Ações automáticas no card e no contato quando o handoff dispara."
       >
         <div className="space-y-4">
           <div className="space-y-2">
@@ -500,7 +520,7 @@ export function HandoffSection({ form, setForm, agentOrgId, agentProductSlug }: 
         )}
       </Section>
 
-      {/* ── Bloco 4 NOVO: Fallback ──────────────────────────────────── */}
+      {/* ── Bloco 4: Fallback ──────────────────────────────────── */}
       <Section
         Icon={LifeBuoy}
         iconClass="text-slate-500"

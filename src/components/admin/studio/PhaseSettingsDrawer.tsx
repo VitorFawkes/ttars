@@ -172,20 +172,23 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
 
     useEffect(() => {
         if (systemFields) {
-            // Default order: existing settings or alphabetical
-            let initialOrder = systemFields.map(f => f.key);
+            // system_fields tem 1 row por produto pra mesmo `key` — deduplica antes de usar.
+            const uniqueKeys = Array.from(new Set(systemFields.map(f => f.key)));
+            let initialOrder = uniqueKeys;
             let initialVisible = new Set<string>();
 
             if (settings) {
                 if (settings.ordem_kanban && Array.isArray(settings.ordem_kanban)) {
-                    // Merge saved order with new fields
-                    const savedOrder = settings.ordem_kanban;
+                    // Merge saved order with new fields, deduplicando (rows antigas podem
+                    // ter duplicatas vindas do bug pré-correção de 2026-05-18).
+                    const savedOrderRaw = settings.ordem_kanban as string[];
+                    const savedOrder = Array.from(new Set(savedOrderRaw));
                     const newFields = initialOrder.filter(f => !savedOrder.includes(f));
                     initialOrder = [...savedOrder, ...newFields];
                 }
 
                 if (settings.campos_kanban && Array.isArray(settings.campos_kanban)) {
-                    initialVisible = new Set(settings.campos_kanban);
+                    initialVisible = new Set(settings.campos_kanban as string[]);
                 }
             } else {
                 // Default visible fields if no settings
@@ -211,7 +214,6 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
                     supports_win: phaseConfig.supports_win,
                     win_action: phaseConfig.win_action || null,
                     owner_label: phaseConfig.owner_label || null,
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova
                     handoff_compartilhado: phaseConfig.handoff_compartilhado,
                 } as Partial<PipelinePhase>)
                 .eq('id', phase.id);

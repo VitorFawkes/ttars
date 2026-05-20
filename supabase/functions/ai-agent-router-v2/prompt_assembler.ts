@@ -16,6 +16,7 @@ import type {
   PlaybookFewShotExample,
   PlaybookMoment,
   PlaybookSilentSignal,
+  SchedulingConfig,
   ScoringRule,
   VoiceConfig,
 } from "./playbook_loader.ts";
@@ -30,6 +31,25 @@ export interface BuildSinglePromptInput {
     voice_config: VoiceConfig | null;
     boundaries_config: BoundariesConfig | null;
     listening_config: ListeningConfig | null;
+    scheduling_config?: SchedulingConfig | null;
+    /**
+     * Instruções extras do admin (per-agente). Sub-campos consumidos hoje:
+     *   - context: orientação que vai no bloco <context_rules> antes do playbook.
+     *   - data_update: regras de gravação de campos do card (conversão de moeda etc).
+     * Outros sub-campos (validator, formatting) são consumidos por outros módulos.
+     */
+    prompts_extra?: {
+      context?: string | null;
+      data_update?: string | null;
+      validator?: string | null;
+      formatting?: string | null;
+    } | null;
+    /**
+     * Override por agente das descrições das tools que vão pro prompt.
+     * Chave = nome da tool (ex "request_handoff"). Valor = texto que substitui
+     * o default (DEFAULT_TOOL_DESCRIPTIONS). Vazio/undefined → usa default.
+     */
+    tool_descriptions?: Record<string, string> | null;
   };
   business: {
     company_name?: string | null;
@@ -135,6 +155,25 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
   // -------- Header / identity ---------------------------------------------
   const headerBlock = renderHeader(agent.nome, identity, resolvedBusiness);
 
+  // -------- Principles (per-agente, opcional) -----------------------------
+  // Quando preenchido em identity_config.principles_text, vira bloco separado
+  // entre <identity> e <agent_schedule>. Hospeda "como eu penso" — meta-cognição
+  // que cobre famílias de casos em vez de listas de regras específicas.
+  const principlesBlock = renderPrinciples(identity.principles_text);
+
+  // -------- Agent schedule (fonte única de verdade da agenda) -------------
+  // Lido de ai_agents.scheduling_config; injetado em linguagem natural pro LLM
+  // ler sem confabular janela. Elimina drift entre config do banco e texto
+  // que o admin escreveria manualmente em principles_text.
+  const agentScheduleBlock = renderAgentSchedule(agent.scheduling_config);
+
+  // -------- Extra prompts editáveis pelo admin (per-agente) ---------------
+  // ai_agents.prompts_extra.context vira <context_rules>, data_update vira
+  // <data_update_rules>. Validator/formatting são lidos por outros módulos.
+  // Vazio = bloco omitido (zero overhead de tokens).
+  const contextRulesBlock = renderExtraRules("context_rules", agent.prompts_extra?.context);
+  const dataUpdateRulesBlock = renderExtraRules("data_update_rules", agent.prompts_extra?.data_update);
+
   // -------- Voice ---------------------------------------------------------
   const voiceBlock = renderVoice(voice);
 
@@ -180,24 +219,39 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
   const turnPolicyBlock = renderTurnPolicy(moments, conversationState);
 
   // -------- Tools available -----------------------------------------------
-  const toolsBlock = renderTools(availableTools);
+  const toolsBlock = renderTools(availableTools, agent.tool_descriptions);
 
   // -------- Output schema reminder ----------------------------------------
   const schemaReminder = renderSchemaReminder();
 
+  // Ordem otimizada pra atenção do LLM (revisão Opus 4.7 + paper Lost in the Middle):
+  //   1-3   Identidade carregada de verdade (atenção alta - primacy):
+  //         identity → principles → agent_schedule
+  //   4-5   Como falar / linhas vermelhas: voice → boundaries
+  //   6     Playbook (mais pesado) sai do meio do prompt — atenção alta
+  //   7     Listening (sinais ativos)
+  //   8-11  Estado e contexto autoritativos do turn: state → qualification_result
+  //         → proposed_slots → tool_results
+  //   12-14 Silent signals + qualification (referência) + examples (suporte)
+  //   15-17 Comando final pra executar: turn_policy → tools → output_format
+  //         (zona de recency forte, perto da geração do output)
   const system = [
     headerBlock,
+    principlesBlock,
+    agentScheduleBlock,
     voiceBlock,
     boundariesBlock,
-    listeningBlock,
+    dataUpdateRulesBlock,
+    contextRulesBlock,
     playbookBlock,
-    silentSignalsBlock,
-    qualificationBlock,
-    examplesBlock,
+    listeningBlock,
     stateBlock,
     qualificationResultBlock,
     proposedSlotsBlock,
     toolResultsBlock,
+    silentSignalsBlock,
+    qualificationBlock,
+    examplesBlock,
     turnPolicyBlock,
     toolsBlock,
     schemaReminder,
@@ -247,6 +301,79 @@ ${methodology}
 </identity>`;
 }
 
+/**
+ * Renderiza os princípios de caráter da agente (per-agente). Quando vazio,
+ * retorna string vazia — `.filter(Boolean)` no array de blocos remove.
+ *
+ * Hospeda "como eu penso" da agente: meta-cognição que cobre famílias de
+ * casos em vez de listas de regras. Posicionado entre <identity> e
+ * <agent_schedule> pra maximizar primacy.
+ */
+function renderPrinciples(principlesText: string | null | undefined): string {
+  if (!principlesText || !principlesText.trim()) return "";
+  return `<principles>
+${principlesText.trim()}
+</principles>`;
+}
+
+/**
+ * Renderiza instruções extras editáveis pelo admin (per-agente) como bloco
+ * com tag XML configurável (data_update_rules, context_rules, etc).
+ * Vazio = string vazia (filtrada pelo .filter(Boolean) no array final).
+ */
+function renderExtraRules(tag: string, text: string | null | undefined): string {
+  if (!text || !text.trim()) return "";
+  return `<${tag}>
+${text.trim()}
+</${tag}>`;
+}
+
+/**
+ * Renderiza a agenda real da agente lendo de scheduling_config (fonte única).
+ * Em linguagem natural pra o LLM consumir sem precisar interpretar JSON.
+ *
+ * Elimina drift: se admin muda config no banco, LLM vê nova janela
+ * automaticamente — não depende de admin sincronizar texto manualmente.
+ */
+function renderAgentSchedule(config: SchedulingConfig | null | undefined): string {
+  if (!config) return "";
+  const lines: string[] = [];
+
+  // Dias úteis vs fim de semana
+  if (config.skip_weekends === false) {
+    lines.push("- Dias atendidos: segunda a domingo (incluindo fins de semana)");
+  } else {
+    lines.push("- Dias atendidos: segunda a sexta (sábado e domingo bloqueados)");
+  }
+
+  // Janelas — prioriza available_windows; cai pra available_hours como fallback
+  if (config.available_windows && config.available_windows.length > 0) {
+    const w = config.available_windows.map((win) => `${win.from}–${win.to}`).join(" e ");
+    lines.push(`- Janelas de atendimento: ${w}`);
+  } else if (config.available_hours && config.available_hours.length > 0) {
+    lines.push(`- Horários disponíveis: ${config.available_hours.join(", ")}`);
+  }
+
+  // Duração da reunião
+  if (config.slot_duration_minutes) {
+    lines.push(`- Duração de cada reunião: ${config.slot_duration_minutes} minutos`);
+  }
+
+  // Antecedência mínima
+  if (config.skip_today !== false) {
+    lines.push("- Antecedência mínima: amanhã (não agenda pra hoje)");
+  }
+
+  if (lines.length === 0) return "";
+
+  return `<agent_schedule>
+Sua agenda real (use como fonte ÚNICA de verdade — nunca afirme janela diferente do que está aqui):
+${lines.join("\n")}
+
+Quando o casal pedir horário fora dessa janela, trate como escolha comercial da marca, não como incapacidade pessoal. NUNCA confabule disponibilidade que não está nessa lista.
+</agent_schedule>`;
+}
+
 function renderVoice(voice: VoiceConfig): string {
   const toneTags = voice.tone_tags?.join(", ") || "";
   const rules = voice.rules || voice.custom_rules || [];
@@ -288,30 +415,78 @@ ${forbiddenPhrases.map((p) => `- "${p}"`).join("\n")}
 </voice>`;
 }
 
+// Biblioteca de descrições padrão das boundaries — usada quando o admin
+// NÃO customizou o texto. Mantém paridade com versões anteriores do prompt.
+// Quando o admin edita item.custom_text via UI, esse override prevalece.
+const LIBRARY_DESCRIPTIONS: Record<string, string> = {
+  never_price: "NUNCA fale preço ou valor do serviço — apenas a especialista humana fala isso na reunião",
+  never_transfer_explicit: "NUNCA diga 'vou passar', 'vou transferir', 'outra pessoa vai te atender' — handoff é invisível",
+  never_ai_mention: "NUNCA mencione IA, robô, modelo, prompt, agente, chatbot, sistema, bastidores, automação",
+  never_invent: "NUNCA dê informação sobre destino, política, prazo ou pacote sem ter chamado search_knowledge_base",
+  never_cliche: "NUNCA use clichês: 'casamento dos sonhos', 'experiência premium', 'deixe conosco', 'transformamos sonhos em realidade'",
+  never_emoji_first: "ZERO emoji na primeira mensagem (rapport ainda não estabelecido)",
+  never_dash_separator: "ZERO travessões (—) ou hífens longos como separador de frases. Use vírgula, ponto, reticências",
+  never_promise_deadline: "NUNCA prometa prazo específico (vou te responder em X minutos, etc)",
+  never_negotiate_writing: "NUNCA negocie por escrito — negociação é só com a especialista humana",
+  never_mention_competitor: "NUNCA mencione concorrente por nome",
+  never_justify_question: "NUNCA justifique excessivamente uma pergunta (\"perdão por perguntar mas...\")",
+  never_blame_customer: "NUNCA culpe o cliente por algo (mesmo se ele errou)",
+  never_repeat_info: "NUNCA repita informação que o lead já deu",
+  never_repeat_words: "NUNCA repita as mesmas palavras 2 turnos seguidos",
+  never_ask_known_data: "NUNCA pergunte dado que já está no card (form_data)",
+  never_assume_in_question: "NUNCA assuma resposta na pergunta ('vocês querem casar no Caribe ou nas Maldivas?' assume região)",
+  never_stack_questions: "NUNCA empilhe perguntas sobre temas DIFERENTES na mesma mensagem. Pode fazer 2 perguntas COMPLEMENTARES sobre o mesmo tema.",
+};
+
+/**
+ * Resolve o texto final de um item da biblioteca pra ir no prompt.
+ *
+ * Ordem de prioridade:
+ * 1. custom_text (override do admin via UI)
+ * 2. LIBRARY_DESCRIPTIONS[library_id] (texto padrão hardcoded — mantém paridade
+ *    com versões anteriores)
+ * 3. text (label da biblioteca, ex "Nunca falar preço")
+ * 4. fallback genérico
+ */
+function resolveBoundaryText(item: {
+  text?: string;
+  custom_text?: string;
+  library_id?: string;
+}): string {
+  if (item.custom_text && item.custom_text.trim()) return item.custom_text.trim();
+  if (item.library_id && LIBRARY_DESCRIPTIONS[item.library_id]) {
+    return LIBRARY_DESCRIPTIONS[item.library_id];
+  }
+  return (item.text || "").trim() || "(boundary sem texto)";
+}
+
 function renderBoundaries(boundaries: BoundariesConfig): string {
+  // Formato novo (by_category) — preferencial. UI V3 salva nesse formato.
+  // Fallback: formato legacy (library_active + custom + custom_by_category).
+  const byCategory = boundaries.by_category as
+    | Record<string, Array<{ text?: string; description?: string; enabled?: boolean; library_id?: string; custom_text?: string }>>
+    | undefined;
+
+  if (byCategory && Object.keys(byCategory).length > 0) {
+    const categorias = Object.entries(byCategory)
+      .map(([cat, items]) => {
+        const enabledItems = (items || []).filter((it) => it?.enabled === true);
+        if (enabledItems.length === 0) return null;
+        const lines = enabledItems.map((it) => `- ${resolveBoundaryText(it)}`);
+        return `## ${cat}\n${lines.join("\n")}`;
+      })
+      .filter((s): s is string => !!s);
+
+    if (categorias.length === 0) {
+      return `<boundaries>\n(Nenhuma linha vermelha ativa.)\n</boundaries>`;
+    }
+    return `<boundaries>\n${categorias.join("\n\n")}\n</boundaries>`;
+  }
+
+  // ── Fallback: legacy ────────────────────────────────────────────────
   const libraryActive = boundaries.library_active || [];
   const custom = boundaries.custom || [];
   const customByCat = boundaries.custom_by_category || {};
-
-  // Mapeamento da biblioteca padrão (mesmo nomes que a Estela usa em prod)
-  const LIBRARY_DESCRIPTIONS: Record<string, string> = {
-    never_price: "NUNCA fale preço ou valor do serviço — apenas a especialista humana fala isso na reunião",
-    never_transfer_explicit: "NUNCA diga 'vou passar', 'vou transferir', 'outra pessoa vai te atender' — handoff é invisível",
-    never_ai_mention: "NUNCA mencione IA, robô, modelo, prompt, agente, chatbot, sistema, bastidores, automação",
-    never_invent: "NUNCA dê informação sobre destino, política, prazo ou pacote sem ter chamado search_knowledge_base",
-    never_cliche: "NUNCA use clichês: 'casamento dos sonhos', 'experiência premium', 'deixe conosco', 'transformamos sonhos em realidade'",
-    never_emoji_first: "ZERO emoji na primeira mensagem (rapport ainda não estabelecido)",
-    never_dash_separator: "ZERO travessões (—) ou hífens longos como separador de frases. Use vírgula, ponto, reticências",
-    never_promise_deadline: "NUNCA prometa prazo específico (vou te responder em X minutos, etc)",
-    never_negotiate_writing: "NUNCA negocie por escrito — negociação é só com a especialista humana",
-    never_mention_competitor: "NUNCA mencione concorrente por nome",
-    never_justify_question: "NUNCA justifique excessivamente uma pergunta (\"perdão por perguntar mas...\")",
-    never_blame_customer: "NUNCA culpe o cliente por algo (mesmo se ele errou)",
-    never_repeat_info: "NUNCA repita informação que o lead já deu",
-    never_repeat_words: "NUNCA repita as mesmas palavras 2 turnos seguidos",
-    never_ask_known_data: "NUNCA pergunte dado que já está no card (form_data)",
-    never_assume_in_question: "NUNCA assuma resposta na pergunta ('vocês querem casar no Caribe ou nas Maldivas?' assume região)",
-  };
 
   const libRules = libraryActive
     .map((id) => LIBRARY_DESCRIPTIONS[id] || `(boundary desconhecida: ${id})`)
@@ -638,7 +813,7 @@ function renderQualificationResult(
 - **Status:** ${status}
 - **Score:** ${result.score}${breakdownStr}
 
-Este resultado é fonte de verdade. Use-o pra decidir o desfecho. O \`turn_policy\` abaixo já vai te dizer qual momento usar.
+Este resultado é referência determinística e cobre 95% dos casos. EXCEÇÃO única: quando seus princípios (especialmente "faço a conta de viabilidade antes de qualificar") indicarem inviabilidade econômica clara que o score técnico não captura (ex: valor por convidado < R$ 800 após conversão de moeda), o caráter sobrepõe o score — vá para desfecho_nao_qualificado mesmo que aqui apareça \`QUALIFICOU\`. O \`turn_policy\` abaixo te diz qual momento usar.
 </qualification_result>`;
 }
 
@@ -930,32 +1105,49 @@ ${isLast
 </turn_policy>`;
 }
 
-function renderTools(tools: string[]): string {
-  if (tools.length === 0) return "";
+/**
+ * Descrições padrão das tools built-in. Mantém paridade com versões
+ * anteriores. Quando o agente define `tool_descriptions[tool_name]`, esse
+ * override prevalece sobre o texto aqui.
+ */
+export const DEFAULT_TOOL_DESCRIPTIONS: Record<string, string> = {
+  calculate_qualification_score:
+    "Aplica fórmulas determinísticas de scoring. Args: { fields: { destino, valor_total, num_convidados, ...} }. Retorna { score, breakdown, qualificado }. Use ao fim da sondagem. NOTA: se o contexto já exibe <qualification_result>, esta tool NÃO é necessária — use o valor do contexto.",
+  search_knowledge_base:
+    "Busca na base de conhecimento (FAQ, destinos, processo Welcome). Args: { query: string }. Retorna { results: [...] }. Use quando lead pergunta algo factual.",
+  check_calendar:
+    "Verifica horários DISPONÍVEIS na agenda real da Wedding Planner. Use quando o lead pedir uma data ou horário diferente dos que estão em <proposed_slots> (ex: 'tem dia 17?', 'consegue antes de quinta?', 'manhã do dia 20?', 'na semana que vem?'). Args (todos OPCIONAIS): { data_inicio: 'DD/MM' ou 'DD/MM/YYYY' (default = amanhã), data_fim: idem (default = data_inicio + janela configurada), quantidade: int 1-15 (default 6) }. Retorna { slots_disponiveis: [{date, time, weekday}], note?: string }. Se `slots_disponiveis` vier vazio, leia `note` pra entender o motivo (final de semana, range fora da janela, tudo ocupado) e explique honestamente ao lead. NUNCA invente horários — sempre chame esta tool antes de oferecer outra data.",
+  confirm_meeting_slot:
+    "[OBRIGATÓRIA SEMPRE QUE COMBINAR REUNIÃO] CRIA a reunião na agenda real da Wedding Planner. SEMPRE chame esta tool (NÃO chame `create_task` pra isso!) quando você combinar QUALQUER data e hora com o casal — seja um dos 3 horários de <proposed_slots>, seja uma data que o lead sugeriu por conta própria, seja ajuste em cima de uma sugestão. Regra simples: se você falar 'fica reservado/marcado/agendado', VOCÊ DEVE ter chamado esta tool no mesmo turno. Nunca deixe confirmação verbal sem agendamento real. Args: { date: 'DD/MM/YYYY', time: 'HH:MM' } — use EXATAMENTE a data e hora combinadas. Retorna { reuniao_id, status }. Se retornar erro de conflito, peça pro casal escolher outro horário. Esta é a ÚNICA forma de a reunião realmente entrar na agenda da Wedding Planner.",
+  request_handoff:
+    "Pede transferência pra humano (handoff_actions roda automaticamente). Args: { motivo: string }. Use em loop_incompreensao, alta_intencao_bloqueada, pedido_humano explícito.",
+  update_contact:
+    "Atualiza dados do contato. Args: { contato_id, nome?, email?, data_nascimento? }. NUNCA atualize telefone.",
+  assign_tag:
+    "Aplica tag no card. Args: { card_id, tag_name, color? }. Use em sinais indiretos, momentos especiais, desfechos.",
+  create_task:
+    "Cria TAREFA genérica do CRM (lembrete interno, follow-up administrativo). Args: { titulo, descricao, data_inicio, assignee_id, tipo }. NÃO use pra reunião com a Wedding Planner — pra isso use `confirm_meeting_slot`.",
+};
 
-  const TOOL_DESCRIPTIONS: Record<string, string> = {
-    calculate_qualification_score:
-      "Aplica fórmulas determinísticas de scoring. Args: { fields: { destino, valor_total, num_convidados, ...} }. Retorna { score, breakdown, qualificado }. Use ao fim da sondagem.",
-    search_knowledge_base:
-      "Busca na base de conhecimento (FAQ, destinos, processo Welcome). Args: { query: string }. Retorna { results: [...] }. Use quando lead pergunta algo factual.",
-    check_calendar:
-      "Verifica horários DISPONÍVEIS na agenda real da Wedding Planner. Use quando o lead pedir uma data ou horário diferente dos que estão em <proposed_slots> (ex: 'tem dia 17?', 'consegue antes de quinta?', 'manhã do dia 20?', 'na semana que vem?'). Args (todos OPCIONAIS): { data_inicio: 'DD/MM' ou 'DD/MM/YYYY' (default = amanhã), data_fim: idem (default = data_inicio + janela configurada), quantidade: int 1-15 (default 6) }. Retorna { slots_disponiveis: [{date, time, weekday}], note?: string }. Se `slots_disponiveis` vier vazio, leia `note` pra entender o motivo (final de semana, range fora da janela, tudo ocupado) e explique honestamente ao lead. NUNCA invente horários — sempre chame esta tool antes de oferecer outra data.",
-    confirm_meeting_slot:
-      "[OBRIGATÓRIA SEMPRE QUE COMBINAR REUNIÃO] CRIA a reunião na agenda real da Wedding Planner. SEMPRE chame esta tool (NÃO chame `create_task` pra isso!) quando você combinar QUALQUER data e hora com o casal — seja um dos 3 horários de <proposed_slots>, seja uma data que o lead sugeriu por conta própria, seja ajuste em cima de uma sugestão. Regra simples: se você falar 'fica reservado/marcado/agendado', VOCÊ DEVE ter chamado esta tool no mesmo turno. Nunca deixe confirmação verbal sem agendamento real. Args: { date: 'DD/MM/YYYY', time: 'HH:MM' } — use EXATAMENTE a data e hora combinadas. Retorna { reuniao_id, status }. Se retornar erro de conflito, peça pro casal escolher outro horário. Esta é a ÚNICA forma de a reunião realmente entrar na agenda da Wedding Planner.",
-    request_handoff:
-      "Pede transferência pra humano (handoff_actions roda automaticamente). Args: { motivo: string }. Use em loop_incompreensao, alta_intencao_bloqueada, pedido_humano explícito.",
-    update_contact:
-      "Atualiza dados do contato. Args: { contato_id, nome?, email?, data_nascimento? }. NUNCA atualize telefone.",
-    assign_tag:
-      "Aplica tag no card. Args: { card_id, tag_name, color? }. Use em sinais indiretos, momentos especiais, desfechos.",
-    create_task:
-      "Cria TAREFA genérica do CRM (lembrete interno, follow-up administrativo). Args: { titulo, descricao, data_inicio, assignee_id, tipo }. NÃO use pra reunião com a Wedding Planner — pra isso use `confirm_meeting_slot`.",
-  };
+function resolveToolDescription(
+  tool: string,
+  overrides?: Record<string, string> | null,
+): string {
+  const o = overrides?.[tool]?.trim();
+  if (o) return o;
+  return DEFAULT_TOOL_DESCRIPTIONS[tool] || "(sem descrição)";
+}
+
+function renderTools(
+  tools: string[],
+  overrides?: Record<string, string> | null,
+): string {
+  if (tools.length === 0) return "";
 
   return `<tools_available>
 Tools que você pode chamar (no campo \`tool_calls\` do output JSON):
 
-${tools.map((t) => `- **${t}**: ${TOOL_DESCRIPTIONS[t] || "(sem descrição)"}`).join("\n")}
+${tools.map((t) => `- **${t}**: ${resolveToolDescription(t, overrides)}`).join("\n")}
 
 ## Quando NÃO chamar tool
 - Em mensagem trivial (cumprimento, reconhecimento curto)
@@ -965,7 +1157,42 @@ ${tools.map((t) => `- **${t}**: ${TOOL_DESCRIPTIONS[t] || "(sem descrição)"}`)
 }
 
 function renderSchemaReminder(): string {
-  return `<output_format>
+  return `<self_analysis_protocol>
+ANTES de gerar messages, você DEVE preencher honestamente o bloco \`self_analysis\` do output. Esses campos guiam o validator. Mentir aqui não te salva — o validator pode comparar com o histórico e te corrigir.
+
+PASSO A PASSO (rode esse raciocínio internamente, depois preencha):
+
+1. **contradicao_detectada**: olhe TUDO que o lead disse na conversa. Há conflito factual entre declarações dele? Use julgamento real:
+   - "Frio + Mendoza/Patagônia/Europa central no inverno" → NÃO é contradição (Mendoza é fria; Patagônia é fria).
+   - "Frio + Trancoso/Caribe/Punta Cana/Maldivas" → É contradição (são quentes o ano todo).
+   - "Casamento íntimo/intimista + 150 convidados" → É contradição.
+   - "Família ajuda + estamos sozinhos no investimento" → É contradição.
+   - Se há contradição real, preencha { campos: [...], descricao: "..." }. Senão, null.
+
+2. **pitch_saturado_self + pitch_count_recent**: conte ofertas REAIS de slot suas nos últimos 5 turns. "Marcar uma reunião por vídeo" no contexto da abertura NÃO conta. "Vocês podem qua 20/05 às 10h?" CONTA. "Qual desses horários funciona?" depois de já ter ofertado CONTA também (re-pitch). Se count >= 2 → saturado=true.
+
+3. **inviabilidade_calc + valor_por_convidado_brl**:
+   - Se tem ww_orcamento_faixa E ww_num_convidados em BRL: calcule. Converta moeda estrangeira ANTES (1 EUR ≈ R$ 6, 1 USD ≈ R$ 5).
+   - < R$ 800/conv → "abaixo_minimo_resistente"
+   - R$ 800-1200/conv → "fronteira_defensiva"
+   - ≥ R$ 1200 → null (fluxo normal)
+   - Faltam dados → null
+   - SEMPRE preencha valor_por_convidado_brl quando dá pra calcular.
+
+4. **pendencia_resolver**: você prometeu retornar em turn anterior? ("deixa eu verificar", "vou confirmar", "te chamo de volta"). Se sim E não cumpriu, preencha a frase. Senão null.
+
+5. **sinais_defensivos_lead**: lead deu sinais de estar testando você com número defensivo? (orçamento baixo + destino premium + grupo grande, OU hesitação ao falar valor, OU "tô com vergonha"). Só TRUE se há evidência. Senão FALSE.
+
+6. **pergunta_lead_nao_respondida**: olhe a ÚLTIMA mensagem do lead. Ele fez uma pergunta factual (algo terminado em "?", ou frase com verbo interrogativo)? Sua mensagem candidata RESPONDE essa pergunta?
+   - Se ele perguntou "quanto custa?" e você só pulou pra "vocês têm destino em mente?" sem mencionar valor → preencha com "quanto custa".
+   - Se ele perguntou "vocês cobram?" e você desviou → preencha.
+   - Se a pergunta é AMBÍGUA (ex: "quanto custa" sem objeto claro), CLARIFICAR conta como responder: "do casamento todo ou do nosso honorário?" → preencha null. Mas pular pra outro tema sem clarificar → preencha com a pergunta.
+   - Se ele não fez pergunta, ou você está respondendo, → null.
+
+REGRA DE OURO: seja HONESTO. Se a self_analysis aponta inviabilidade, contradição, ou que você pulou a pergunta do lead, ALINHE suas messages com isso — não tente esconder. O validator compara o que você preencheu com o que mandou e te corrige se houver dissonância. MENTIR no self_analysis te denuncia mais que ser honesto e ajustar.
+</self_analysis_protocol>
+
+<output_format>
 Retorne JSON ESTRITO conforme schema:
 
 \`\`\`json

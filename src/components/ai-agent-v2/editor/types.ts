@@ -76,6 +76,15 @@ export interface BookMeetingConfig {
   } | null
 }
 
+export interface AutoHandoffInvisibleConfig {
+  /** Quando ligado, dispara handoff invisível quando validator bloqueia N+ mensagens nos últimos M turnos. */
+  enabled: boolean
+  /** Quantos bloqueios do validador disparam o handoff. Default 3. */
+  block_threshold: number
+  /** Janela de turnos olhada pra contar bloqueios. Default 5. */
+  window_turns: number
+}
+
 export interface HandoffActions {
   change_stage_id: string | null
   apply_tag: { color: string; name: string } | null
@@ -84,6 +93,8 @@ export interface HandoffActions {
   pause_permanently: boolean
   /** Agendamento automático de reunião com closer (opcional). */
   book_meeting: BookMeetingConfig | null
+  /** Auto-handoff invisível por bloqueios consecutivos do validador. */
+  auto_handoff_invisible?: AutoHandoffInvisibleConfig | null
 }
 
 export interface IntelligentDecision {
@@ -244,6 +255,14 @@ export interface AgentEditorForm {
    * null = defaults seguros (3 dias × 1 horário, formato curto).
    */
   scheduling_config: SchedulingConfig | null
+
+  /**
+   * Override per-agente das descrições das tools built-in que vão pro prompt.
+   * Chave = nome da tool (ex "request_handoff"). Valor = texto que substitui
+   * o default hardcoded no router. Chave ausente = usa default.
+   * Vazio {} = todas as tools usam default.
+   */
+  tool_descriptions: Record<string, string>
 }
 
 export const HANDOFF_SIGNALS_CATALOG: Array<{ slug: string; label: string; defaultDescription: string }> = [
@@ -300,6 +319,12 @@ export const DEFAULT_CONTEXT_FIELDS: ContextFieldsConfig = {
   evidence_level: {},
 }
 
+export const DEFAULT_AUTO_HANDOFF_INVISIBLE: AutoHandoffInvisibleConfig = {
+  enabled: true,
+  block_threshold: 3,
+  window_turns: 5,
+}
+
 export const DEFAULT_HANDOFF_ACTIONS: HandoffActions = {
   change_stage_id: null,
   apply_tag: null,
@@ -307,6 +332,7 @@ export const DEFAULT_HANDOFF_ACTIONS: HandoffActions = {
   transition_message: null,
   pause_permanently: false,
   book_meeting: null,
+  auto_handoff_invisible: DEFAULT_AUTO_HANDOFF_INVISIBLE,
 }
 
 export const DEFAULT_PROMPTS_EXTRA: Omit<AgentPrompts, 'main'> = {

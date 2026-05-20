@@ -34,9 +34,8 @@ export interface AgentRow {
   boundaries_config: Record<string, unknown> | null;
   listening_config: Record<string, unknown> | null;
   handoff_actions: Record<string, unknown> | null;
-  handoff_signals: unknown;
-  intelligent_decisions: Record<string, unknown> | null;
-  context_fields_config: Record<string, unknown> | null;
+  // handoff_signals, intelligent_decisions, context_fields_config DEPRECATED 2026-05-20
+  // — engine V2 ignora. Mantidas no banco por compat com layout antigo / router V1.
   engine: string;
   timings: { debounce_seconds?: number; typing_delay_seconds?: number; max_message_blocks?: number } | null;
   /**
@@ -763,16 +762,63 @@ export async function executePatriciaToolCall(
       }
 
       case "request_handoff": {
-        // Aplica handoff_actions do agente (similar a v1, simplificado)
+        // Aplica handoff_actions do agente: muda stage + (opcional) pausa
+        // permanentemente o agente pra esse card + notifica responsável.
+        // Sem pause+notify, o agente continua respondendo e ninguém vê o pedido.
         if (!cardId) {
           return { tool_name: call.tool_name, ok: false, error: "card_id ausente", duration_ms: Date.now() - startedAt };
         }
-        const ha = agent.handoff_actions || {};
-        const updates: Record<string, unknown> = { handoff_pending: true };
-        if (ha.change_stage_id) updates.etapa_id = ha.change_stage_id;
-        const { error } = await supabase.from("cards").update(updates).eq("id", cardId);
-        if (error) throw error;
-        return { tool_name: call.tool_name, ok: true, result: { applied: updates }, duration_ms: Date.now() - startedAt };
+        const ha = (agent.handoff_actions || {}) as Record<string, unknown>;
+        const motivo = (call.args && typeof call.args === "object" ? (call.args as Record<string, unknown>).motivo : null) || "handoff_solicitado";
+
+        // 1. Update do card: muda stage + (se configurado) pausa permanente
+        const updates: Record<string, unknown> = {};
+        if (ha.change_stage_id) updates.pipeline_stage_id = ha.change_stage_id;
+
+        if (ha.pause_permanently === true) {
+          updates.ai_pause_config = {
+            permanent: true,
+            reason: typeof motivo === "string" ? motivo : "handoff_solicitado",
+            paused_at: new Date().toISOString(),
+          };
+        }
+
+        if (Object.keys(updates).length > 0) {
+          const { error } = await supabase.from("cards").update(updates).eq("id", cardId);
+          if (error) throw error;
+        }
+
+        // 2. Notificar humano responsável (se configurado)
+        const notifyEnabled = ha.notify_responsible === true;
+        const bookMeeting = (ha.book_meeting || {}) as Record<string, unknown>;
+        const responsavelId = (bookMeeting.responsavel_id as string | undefined) || (ha.responsavel_id as string | undefined) || agent.wedding_planner_profile_id;
+
+        let notified = false;
+        if (notifyEnabled && responsavelId) {
+          const { error: notifyErr } = await supabase.from("notifications").insert({
+            user_id: responsavelId,
+            org_id: agent.org_id,
+            type: "handoff_agente",
+            title: `${agent.nome} pediu handoff`,
+            body: typeof motivo === "string" ? motivo : "Agente travou e solicitou humano.",
+            card_id: cardId,
+            url: `/cards/${cardId}`,
+            metadata: { agent_id: agent.id, motivo, severity: "high" },
+          });
+          if (notifyErr) {
+            // Log mas não derruba o handoff — o stage mudou e a pausa foi setada.
+            console.warn(`[request_handoff] falha ao notificar responsável: ${notifyErr.message}`);
+          } else {
+            notified = true;
+          }
+        }
+
+        return {
+          tool_name: call.tool_name,
+          ok: true,
+          result: { applied: updates, notified, responsavel_id: responsavelId || null },
+          duration_ms: Date.now() - startedAt,
+        };
       }
 
       case "update_contact": {

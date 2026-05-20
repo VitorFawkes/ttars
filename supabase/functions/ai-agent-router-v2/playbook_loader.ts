@@ -116,6 +116,33 @@ export interface IdentityConfig {
   role_custom?: string | null;
   mission_one_liner?: string;
   company_description_override?: string | null;
+  /**
+   * Princípios de caráter da agente (per-agente, não global). Quando preenchido,
+   * o engine renderiza um bloco `<principles>` separado entre `<identity>` e
+   * `<agent_schedule>`. Hospeda "como eu penso" — meta-cognição que cobre
+   * famílias de casos em vez de listas de regras específicas. Vazio = bloco
+   * omitido (zero overhead de tokens).
+   */
+  principles_text?: string | null;
+}
+
+/**
+ * Config de agenda do agente (lido de `ai_agents.scheduling_config`).
+ * Usado pelo engine pra (a) gerar slots reais via check_calendar e (b) injetar
+ * bloco `<agent_schedule>` em linguagem natural pro LLM ler como fonte única
+ * de verdade — sem confabular janela diferente.
+ */
+export interface SchedulingConfig {
+  max_days?: number;
+  date_format?: 'short' | 'long';
+  total_slots?: number;
+  skip_weekends?: boolean;
+  available_hours?: string[];
+  available_windows?: Array<{ from: string; to: string }>;
+  max_slots_per_day?: number;
+  search_window_days?: number;
+  slot_duration_minutes?: number;
+  skip_today?: boolean;
 }
 
 export interface VoiceConfig {
@@ -140,9 +167,35 @@ export interface VoiceConfig {
   custom_rules?: string[];
 }
 
+/**
+ * Item unificado do formato novo (by_category) — agrega biblioteca + custom.
+ * UI V3 salva nesse formato. Quando `by_category` está presente, o router
+ * prioriza ele sobre os campos legacy.
+ */
+export interface BoundaryItem {
+  /** Texto/label visível na UI (ex "Nunca falar preço"). */
+  text?: string;
+  /** Subtítulo descritivo opcional — exibido na UI. */
+  description?: string;
+  /** Se a regra está ativa pra esse agente. */
+  enabled?: boolean;
+  /** ID original da biblioteca; ausente em itens custom. */
+  library_id?: string;
+  /** Override do texto que vai pro LLM. Quando preenchido, sobrescreve
+   *  LIBRARY_DESCRIPTIONS[library_id]. Permite admin customizar regras
+   *  pré-fabricadas sem perder o ID. */
+  custom_text?: string;
+}
+
 export interface BoundariesConfig {
+  /** Formato novo unificado (UI V3 — Marco 3.3). Quando presente, o router
+   *  ignora os campos legacy abaixo. */
+  by_category?: Record<string, BoundaryItem[]>;
+  /** @deprecated Legacy: IDs da biblioteca marcados como ativos. */
   library_active?: string[];
+  /** @deprecated Legacy: linhas custom sem categoria. */
   custom?: string[];
+  /** @deprecated Legacy: linhas custom por categoria (strings simples). */
   custom_by_category?: Record<string, string[]>;
 }
 
