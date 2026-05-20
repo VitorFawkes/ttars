@@ -20,6 +20,8 @@ import {
     type CatalogSort,
 } from '@/hooks/useCatalog'
 import type { LibrarySearchResult, LibraryCategory } from '@/hooks/useLibrary'
+import { useHotelSearch, useHotelDetails, type HotelSearchResult } from '@/hooks/useHotelSearch'
+import { toast } from 'sonner'
 
 interface Props {
     /** Filtra resultados por categoria. Aceita string do tipo "hotel"|"experience"|etc */
@@ -88,6 +90,72 @@ export function CatalogPickerPanel({
         limit: 30,
     })
     const { data: topRegions } = useCatalogTopRegions(5)
+
+    // Hotel: também busca no Google Hotels (SerpAPI) em paralelo quando há query.
+    // Resultados aparecem MESCLADOS aos do catálogo, sem aba separada — quem
+    // mexe não precisa diferenciar de onde veio.
+    const isHotel = category === 'hotel'
+    const trimmedSearch = search.trim()
+    // WIP: integração com Google Hotels (SerpAPI) ainda não conectada ao render.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { data: externalHotels = [], isLoading: _isLoadingExternal } = useHotelSearch(
+        trimmedSearch,
+        { enabled: isHotel && trimmedSearch.length >= 3 }
+    )
+    const hotelDetails = useHotelDetails()
+
+    // IDs já no catálogo interno — pra não duplicar com resultado externo
+    const internalNames = new Set(
+        (items ?? []).map((it) => it.name.toLowerCase().trim())
+    )
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _externalUnique = externalHotels.filter(
+        (h) => !internalNames.has(h.name.toLowerCase().trim())
+    )
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _handleSelectExternal = async (hotel: HotelSearchResult) => {
+        // Busca detalhes completos (fotos HD, amenidades) → vira item de proposta.
+        try {
+            const details = await hotelDetails.mutateAsync(hotel.externalId)
+            const adapted: LibrarySearchResult = {
+                id: details.externalId,
+                category: 'hotel',
+                name: details.name,
+                content: {
+                    hotel: {
+                        hotel_name: details.name,
+                        location_city: details.city ?? null,
+                        address: details.address ?? null,
+                        description: details.description ?? null,
+                        star_rating: details.starRating ?? null,
+                        guest_rating: details.guestRating ?? null,
+                        amenities: details.amenities ?? [],
+                        images: (details.photos ?? []).map((p) => p.url),
+                        image_url: details.photos?.[0]?.url ?? null,
+                        _catalog: {
+                            provider: details.provider,
+                            external_id: details.externalId,
+                        },
+                    },
+                } as unknown as LibrarySearchResult['content'],
+                base_price: 0,
+                currency: 'BRL',
+                tags: [],
+                supplier: details.provider,
+                destination: details.city ?? null,
+                created_by: null,
+                is_shared: true,
+                usage_count: 0,
+                created_at: new Date().toISOString(),
+                similarity_score: 0,
+                thumbnail_url: details.photos?.[0]?.url ?? hotel.thumbnailUrl ?? null,
+            } as unknown as LibrarySearchResult
+            onSelect(adapted)
+        } catch (err) {
+            toast.error('Erro ao importar dados do hotel: ' + (err as Error).message)
+        }
+    }
 
     const total = items?.[0]?.total_count ?? 0
 
@@ -170,17 +238,25 @@ export function CatalogPickerPanel({
                         <Loader2 className="mb-3 h-7 w-7 animate-spin text-blue-500" />
                         <p className="text-sm text-slate-500">Buscando…</p>
                     </div>
-                ) : !items || items.length === 0 ? (
+                ) : (!items || items.length === 0) && externalUnique.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                         <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
-                            <Library className="h-6 w-6 text-slate-400" />
+                            {isLoadingExternal ? (
+                                <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                            ) : (
+                                <Library className="h-6 w-6 text-slate-400" />
+                            )}
                         </div>
                         <p className="text-sm font-medium text-slate-700">
-                            {search.length > 0 ? 'Nenhum resultado' : 'Catálogo vazio'}
+                            {isLoadingExternal
+                                ? 'Buscando…'
+                                : search.length > 0
+                                  ? 'Nenhum resultado'
+                                  : 'Catálogo vazio'}
                         </p>
                         <p className="mt-1 text-xs text-slate-500">
                             {search.length > 0
-                                ? `Não encontramos "${search}" no catálogo da Welcome Trips`
+                                ? `Não encontramos "${search}" no catálogo`
                                 : 'O time ainda não usou esse tipo de item em propostas'}
                         </p>
                         {onCreateNew ? (
@@ -192,16 +268,37 @@ export function CatalogPickerPanel({
                     </div>
                 ) : (
                     <>
-                        <div className="mb-2 px-2 text-xs text-slate-500">
-                            <span className="font-medium text-slate-700">{total}</span>{' '}
-                            {total === 1 ? 'item encontrado' : 'itens encontrados'}
+                        <div className="mb-2 flex items-center justify-between px-2 text-xs text-slate-500">
+                            <span>
+                                <span className="font-medium text-slate-700">
+                                    {total + externalUnique.length}
+                                </span>{' '}
+                                {total + externalUnique.length === 1 ? 'item' : 'itens'}
+                            </span>
+                            {isLoadingExternal ? (
+                                <span className="inline-flex items-center gap-1">
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                    buscando mais opções…
+                                </span>
+                            ) : null}
                         </div>
                         <div className="space-y-1.5">
-                            {items.map((item) => (
+                            {(items ?? []).map((item) => (
                                 <CatalogPickerRow
                                     key={item.id}
                                     item={item}
                                     onSelect={() => onSelect(adaptCatalogToLibrary(item))}
+                                />
+                            ))}
+                            {externalUnique.map((hotel) => (
+                                <ExternalHotelRow
+                                    key={`ext-${hotel.externalId}`}
+                                    hotel={hotel}
+                                    loading={
+                                        hotelDetails.isPending &&
+                                        hotelDetails.variables === hotel.externalId
+                                    }
+                                    onSelect={() => handleSelectExternal(hotel)}
                                 />
                             ))}
                         </div>
@@ -209,18 +306,70 @@ export function CatalogPickerPanel({
                 )}
             </div>
 
-            {/* Footer: fallback Iterpec */}
-            {onFallbackIterpec ? (
+            {/* Footer: cotação ao vivo apenas pra tipos onde o catálogo não cobre
+                (transfer/tour/car exigem formulário Iterpec). Pra hotel a busca
+                já mescla SerpAPI inline, então não mostramos. */}
+            {onFallbackIterpec && !isHotel ? (
                 <div className="border-t border-slate-100 bg-slate-50/50 px-5 py-3 text-center">
                     <button
                         onClick={onFallbackIterpec}
                         className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
                     >
-                        Não encontrou? Buscar mais opções na Iterpec →
+                        Cotar nova opção ao vivo →
                     </button>
                 </div>
             ) : null}
         </div>
+    )
+}
+
+function ExternalHotelRow({
+    hotel,
+    loading,
+    onSelect,
+}: {
+    hotel: HotelSearchResult
+    loading: boolean
+    onSelect: () => void
+}) {
+    const placeholder =
+        'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23f1f5f9"/></svg>'
+    return (
+        <button
+            onClick={onSelect}
+            disabled={loading}
+            className="group flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white p-2.5 text-left transition-all hover:border-blue-300 hover:bg-blue-50/40 hover:shadow-sm disabled:opacity-60"
+        >
+            <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100">
+                <img
+                    src={hotel.thumbnailUrl || placeholder}
+                    alt={hotel.name}
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                />
+            </div>
+            <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-slate-900 group-hover:text-blue-700">
+                    {hotel.name}
+                </p>
+                {hotel.address ? (
+                    <div className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
+                        <MapPin className="h-3 w-3" />
+                        <span className="truncate">{hotel.address}</span>
+                    </div>
+                ) : null}
+                <div className="mt-0.5 text-xs text-slate-400">
+                    Importar dados de hotel
+                </div>
+            </div>
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400 transition group-hover:bg-blue-500 group-hover:text-white">
+                {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                    <Plus className="h-4 w-4" />
+                )}
+            </div>
+        </button>
     )
 }
 
