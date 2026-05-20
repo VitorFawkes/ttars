@@ -413,6 +413,11 @@ if [ "$ALERT_RULES_CHECK" = "200" ] || [ "$ALERT_RULES_CHECK" = "206" ]; then
 
   test_query "card_alert_rules.recipient_mode column" \
     "card_alert_rules?select=id,recipient_mode,recipient_target&limit=1"
+
+  # ── A2: resolve_alert_recipients RPC (Marco A.2, 20260520c) ──
+  test_rpc "resolve_alert_recipients RPC" \
+    "resolve_alert_recipients" \
+    '{"p_rule_id":"00000000-0000-0000-0000-000000000000","p_card_id":"00000000-0000-0000-0000-000000000000"}'
 fi
 
 # ── M1: Travel Planner tables (só após promoção para produção) ──
