@@ -223,6 +223,7 @@ serve(async (req) => {
               whatsapp_message_id: echoJson.whatsapp_message_id ?? null,
               origem: "send-echo-template",
               is_from_me: true,
+              sender_phone: r.to,
               metadata: {
                 template_name: body.template_name,
                 language_code: language,
@@ -240,6 +241,7 @@ serve(async (req) => {
         results.push({ to: r.to, ok: false, error: errorMsg });
 
         // Registra falha em whatsapp_messages pra o relatório
+        // (com body_parameters/button_parameters pra permitir Reenviar)
         if (supabase && body.card_id && r.contact_id) {
           await supabase.from("whatsapp_messages").insert({
             org_id: body.org_id ?? null,
@@ -253,8 +255,12 @@ serve(async (req) => {
             is_from_me: true,
             has_error: true,
             error_message: errorMsg,
+            sender_phone: r.to,
             metadata: {
               template_name: body.template_name,
+              language_code: language,
+              body_parameters: r.body_parameters || [],
+              button_parameters: r.button_parameters || [],
               envio_lote_id: envioLoteId,
               echo_status: echoResp.status,
             },
