@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-20
 > **Trigger:** ALWAYS ON
-> **Stats:** 207 tabelas | 193 paginas | 300 hooks | 23 views | 762 components
+> **Stats:** 207 tabelas | 193 paginas | 302 hooks | 23 views | 762 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **300 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **302 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -333,6 +333,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useEngajamentoConversas()` | `useEngajamentoConversas.ts` |
 | `useEstelaScoringRules()` | `useEstelaScoringRules.ts` |
 | `useEstelaScoringRules 2()` | `useEstelaScoringRules 2.ts` |
+| `useFirstAccessOfDay()` | `useFirstAccessOfDay.ts` |
 | `useFlightLookup()` | `useFlightLookup.ts` |
 | `useFotos()` | `useFotos.ts` |
 | `useFutureOpportunities()` | `useFutureOpportunities.ts` |
@@ -367,6 +368,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useOrganizations()` | `useOrganizations.ts` |
 | `useOutboundQueue()` | `useOutboundQueue.ts` |
 | `useParticipant()` | `useParticipant.ts` |
+| `usePendingNotifications()` | `usePendingNotifications.ts` |
 | `usePhaseCapabilities()` | `usePhaseCapabilities.ts` |
 | `usePhaseSort()` | `usePhaseSort.ts` |
 | `usePhaseVisibilityRules()` | `usePhaseVisibilityRules.ts` |
