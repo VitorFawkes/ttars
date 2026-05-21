@@ -18,8 +18,8 @@ function PoweredByGuesties() {
     <div className="mt-8 py-5 px-6 flex items-baseline justify-center gap-2">
       <span className="text-xs text-slate-400">Powered by</span>
       <span
-        className="text-base text-slate-500"
-        style={{ fontFamily: "'Glacial Indifference', 'Inter', sans-serif" }}
+        className="text-base"
+        style={{ fontFamily: "'Glacial Indifference', 'Inter', sans-serif", color: '#5170ff' }}
       >
         guesties :)
       </span>
