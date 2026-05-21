@@ -15,7 +15,7 @@ export default function ConvidadosLayout() {
 
 function PoweredByGuesties() {
   return (
-    <div className="mt-8 py-5 px-6 border-t border-slate-200 flex items-center justify-center gap-2">
+    <div className="mt-8 py-5 px-6 flex items-center justify-center gap-2">
       <span className="text-xs text-slate-400 font-medium">Powered by</span>
       <img
         src="/guesties-logo.png"
