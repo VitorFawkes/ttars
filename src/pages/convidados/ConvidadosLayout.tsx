@@ -15,13 +15,14 @@ export default function ConvidadosLayout() {
 
 function PoweredByGuesties() {
   return (
-    <div className="mt-8 py-5 px-6 flex items-center justify-center gap-2">
-      <span className="text-xs text-slate-400 font-medium">Powered by</span>
-      <img
-        src="/guesties-logo.png"
-        alt="Guesties"
-        className="h-5 w-auto opacity-70"
-      />
+    <div className="mt-8 py-5 px-6 flex items-baseline justify-center gap-2">
+      <span className="text-xs text-slate-400">Powered by</span>
+      <span
+        className="text-base text-slate-500"
+        style={{ fontFamily: "'Glacial Indifference', 'Inter', sans-serif" }}
+      >
+        guesties :)
+      </span>
     </div>
   )
 }
