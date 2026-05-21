@@ -369,13 +369,15 @@ export function useCardGifts(cardId: string) {
             quantity: number
             unitPrice: number
             contacts: { id: string; name: string }[]
+            notes?: string
         }) => {
             const results: { contactId: string; assignmentId: string; itemId: string }[] = []
+            const newNote = input.notes?.trim() || null
 
             for (const contact of input.contacts) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const { data: existing } = await (supabase as any).from('card_gift_assignments')
-                    .select('id, status')
+                    .select('id, status, notes')
                     .eq('card_id', cardId)
                     .eq('contato_id', contact.id)
                     .maybeSingle()
@@ -383,6 +385,16 @@ export function useCardGifts(cardId: string) {
                 let assignmentId: string
                 if (existing && existing.status !== 'cancelado') {
                     assignmentId = existing.id
+                    if (newNote) {
+                        const prevNotes: string = existing.notes ?? ''
+                        const mergedNotes = prevNotes.includes(newNote)
+                            ? prevNotes
+                            : (prevNotes ? `${prevNotes}\n${newNote}` : newNote)
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        await (supabase as any).from('card_gift_assignments')
+                            .update({ notes: mergedNotes, updated_at: new Date().toISOString() })
+                            .eq('id', assignmentId)
+                    }
                 } else {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const { data: newAssignment, error: aErr } = await (supabase as any).from('card_gift_assignments')
@@ -391,6 +403,7 @@ export function useCardGifts(cardId: string) {
                             contato_id: contact.id,
                             gift_type: 'trip',
                             assigned_by: profile?.id,
+                            notes: newNote,
                         })
                         .select('id')
                         .single()
@@ -434,6 +447,7 @@ export function useCardGifts(cardId: string) {
             queryClient.invalidateQueries({ queryKey })
             queryClient.invalidateQueries({ queryKey: ['inventory-products'] })
             queryClient.invalidateQueries({ queryKey: ['inventory-stats'] })
+            queryClient.invalidateQueries({ queryKey: ['all-gift-assignments'] })
         },
     })
 
