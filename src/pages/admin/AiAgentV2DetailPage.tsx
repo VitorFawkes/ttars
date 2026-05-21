@@ -4,7 +4,7 @@ import {
   ArrowLeft, Save, Bot, Sparkles, Brain, Wrench,
   MessageSquare, BarChart3,
   Database, Radio, ImageIcon, Power, Handshake, BookOpen, PlayCircle, ShieldAlert,
-  GitBranch, Settings, Zap, Send, MessageCircle, Target, Stethoscope, Cog, Wand2,
+  GitBranch, Settings, Zap, Send, MessageCircle, Target, Stethoscope, Cog,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { supabase } from '@/lib/supabase'
@@ -35,7 +35,6 @@ import { TabPlaybook } from '@/components/ai-agent-v2/editor/playbook/TabPlayboo
 import { HealthSection } from '@/components/ai-agent-v2/editor/playbook/v3/health/HealthSection'
 import { HandoffSection as HandoffSectionV3 } from '@/components/ai-agent-v2/editor/playbook/v3/handoff/HandoffSection'
 import { TecnicoSection } from '@/components/ai-agent-v2/editor/playbook/v3/tecnico/TecnicoSection'
-import { useV3Layout } from '@/components/ai-agent-v2/editor/playbook/v3/useV3Layout'
 import { TabPontuacao } from '@/components/ai-agent-v2/editor/TabPontuacao'
 import {
   type AgentEditorForm,
@@ -95,7 +94,8 @@ export default function AiAgentDetailPage() {
   const { id } = useParams<{ id: string }>()
   const isNew = id === 'new'
   const { slug: currentProduct } = useCurrentProductMeta()
-  const { enabled: v3Enabled, toggle: toggleV3 } = useV3Layout()
+  // V2 layout matado em 2026-05-21 — V3 vira único.
+  const v3Enabled = true
 
   const { data: existingAgent, isLoading: loadingAgent } = useAiAgentDetail(isNew ? undefined : id)
 
@@ -385,27 +385,6 @@ export default function AiAgentDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {!isNew && !v3Enabled && (
-            <button
-              type="button"
-              onClick={toggleV3}
-              className="text-xs px-3 py-1.5 rounded-md border font-medium inline-flex items-center gap-1.5 transition-colors bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
-              title="Voltar ao layout novo (recomendado)"
-            >
-              <Wand2 className="w-3.5 h-3.5" />
-              Voltar pro layout novo
-            </button>
-          )}
-          {!isNew && v3Enabled && (
-            <button
-              type="button"
-              onClick={toggleV3}
-              className="text-[11px] text-slate-400 hover:text-slate-600 underline-offset-2 hover:underline"
-              title="Voltar ao layout antigo (fallback de emergência)"
-            >
-              voltar p/ layout antigo
-            </button>
-          )}
           {dirty && <span className="text-xs text-amber-600">• alterações não salvas</span>}
           <Button onClick={handleSave} disabled={saving || !dirty} className="gap-2">
             <Save className="w-4 h-4" />
