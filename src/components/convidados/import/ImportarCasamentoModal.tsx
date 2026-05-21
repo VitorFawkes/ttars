@@ -35,6 +35,49 @@ interface GroupState {
   loadingMatch: boolean
 }
 
+/** Webhook do n8n que sincroniza contatos com o ActiveCampaign. O fluxo lá
+ *  recebe o payload, normaliza e empurra pra lista correta da campanha. */
+const ACTIVECAMPAIGN_WEBHOOK_URL = 'https://n8n-n8n.ymnmx7.easypanel.host/webhook-test/guesties'
+
+/** Monta o payload da planilha (todos os convidados de todos os grupos não
+ *  pulados) e dispara o webhook do n8n. Promise rejeita se HTTP != 2xx. */
+async function sendActiveCampaignWebhook(groupStates: GroupState[]): Promise<void> {
+  const guests = groupStates
+    .filter(gs => gs.action.kind !== 'skip')
+    .flatMap(gs => gs.group.guests.map(g => ({
+      nome: g.nome,
+      sobrenome: g.sobrenome,
+      email: g.email,
+      telefone: g.telefone,
+      telefone_normalizado: g.telefoneNorm,
+      casamento: {
+        codigo: gs.group.codigo,
+        titulo: gs.group.titulo,
+        local: gs.group.local,
+        data_evento: gs.group.data_evento_iso,
+        site_casamento: gs.group.site_casamento,
+        data_final_acao: gs.group.data_final_acao_iso,
+        link_atendimento: gs.group.link_atendimento,
+      },
+    })))
+
+  const payload = {
+    source: 'convidados_import_xlsx',
+    imported_at: new Date().toISOString(),
+    total: guests.length,
+    guests,
+  }
+
+  const res = await fetch(ACTIVECAMPAIGN_WEBHOOK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    throw new Error(`webhook respondeu ${res.status}`)
+  }
+}
+
 export function ImportarCasamentoModal({ open, onClose }: ImportarCasamentoModalProps) {
   const { org } = useOrg()
   const navigate = useNavigate()
@@ -46,6 +89,10 @@ export function ImportarCasamentoModal({ open, onClose }: ImportarCasamentoModal
   const [groupStates, setGroupStates] = useState<GroupState[]>([])
   const [importError, setImportError] = useState<string | null>(null)
   const [summary, setSummary] = useState<ImportSummary | null>(null)
+  // Default ON — usuário pediu o checkbox especificamente, então a expectativa
+  // é que o sync com ActiveCampaign seja o caminho padrão.
+  const [sendToActiveCampaign, setSendToActiveCampaign] = useState(true)
+  const [acWebhookStatus, setAcWebhookStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
 
   const { execute, progress, running } = useImportarCasamento()
 
@@ -60,6 +107,8 @@ export function ImportarCasamentoModal({ open, onClose }: ImportarCasamentoModal
       setGroupStates([])
       setImportError(null)
       setSummary(null)
+      setSendToActiveCampaign(true)
+      setAcWebhookStatus('idle')
     }
   }, [open])
 
@@ -142,6 +191,20 @@ export function ImportarCasamentoModal({ open, onClose }: ImportarCasamentoModal
       const result = await execute(plans)
       setSummary(result)
       setStep('results')
+
+      // Dispara webhook do n8n pra sincronizar com ActiveCampaign. Roda
+      // depois do import e em fire-and-forget — falha aqui não desfaz o
+      // import bem-sucedido, só mostra aviso no resultado.
+      if (sendToActiveCampaign && groupStates.length > 0) {
+        sendActiveCampaignWebhook(groupStates).then(
+          () => setAcWebhookStatus('sent'),
+          (err) => {
+            console.error('[ImportarCasamento] webhook AC falhou:', err)
+            setAcWebhookStatus('error')
+          },
+        )
+        setAcWebhookStatus('sending')
+      }
     } catch (e) {
       console.error('[ImportarCasamento] erro:', e)
       setImportError(formatImportError(e))
@@ -198,13 +261,21 @@ export function ImportarCasamentoModal({ open, onClose }: ImportarCasamentoModal
             />
           )}
           {step === 'preview' && (
-            <PreviewStep groupStates={groupStates} />
+            <PreviewStep
+              groupStates={groupStates}
+              sendToActiveCampaign={sendToActiveCampaign}
+              onToggleActiveCampaign={setSendToActiveCampaign}
+            />
           )}
           {step === 'importing' && (
             <ImportingStep progress={progress} />
           )}
           {step === 'results' && summary && (
-            <ResultsStep summary={summary} onGoCard={(id) => { onClose(); navigate(`/convidados/casamento/${id}`) }} />
+            <ResultsStep
+              summary={summary}
+              acWebhookStatus={sendToActiveCampaign ? acWebhookStatus : 'idle'}
+              onGoCard={(id) => { onClose(); navigate(`/convidados/casamento/${id}`) }}
+            />
           )}
         </div>
 
@@ -582,7 +653,13 @@ function OptionRow({ selected, onClick, icon, title, subtitle, children }: Optio
 
 // ─── Step: Preview ───────────────────────────────────────────────────────
 
-function PreviewStep({ groupStates }: { groupStates: GroupState[] }) {
+interface PreviewStepProps {
+  groupStates: GroupState[]
+  sendToActiveCampaign: boolean
+  onToggleActiveCampaign: (next: boolean) => void
+}
+
+function PreviewStep({ groupStates, sendToActiveCampaign, onToggleActiveCampaign }: PreviewStepProps) {
   const summary = useMemo(() => {
     let toCreate = 0
     let toUpdate = 0
@@ -619,6 +696,26 @@ function PreviewStep({ groupStates }: { groupStates: GroupState[] }) {
           {summary.invalidRows} linha(s) com telefone ou email inválido. Vou pular essas linhas durante o import.
         </div>
       )}
+
+      <label className="flex items-center gap-3 border border-slate-200 rounded-md p-3 cursor-pointer hover:bg-slate-50/60 transition-colors">
+        <input
+          type="checkbox"
+          checked={sendToActiveCampaign}
+          onChange={e => onToggleActiveCampaign(e.target.checked)}
+          className="rounded border-slate-300"
+        />
+        <img
+          src="/images-removebg-preview.png"
+          alt="ActiveCampaign"
+          className="h-6 w-auto shrink-0"
+        />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-slate-900">Enviar para o ActiveCampaign?</p>
+          <p className="text-xs text-slate-500">
+            Sincroniza os contatos da planilha com a lista do ActiveCampaign após o import.
+          </p>
+        </div>
+      </label>
 
       <div className="flex flex-col gap-2">
         {groupStates.filter(gs => gs.action.kind !== 'skip').map(gs => (
@@ -701,7 +798,13 @@ function ImportingStep({ progress }: { progress: { current: number, total: numbe
 
 // ─── Step: Results ───────────────────────────────────────────────────────
 
-function ResultsStep({ summary, onGoCard }: { summary: ImportSummary, onGoCard: (cardId: string) => void }) {
+interface ResultsStepProps {
+  summary: ImportSummary
+  acWebhookStatus: 'idle' | 'sending' | 'sent' | 'error'
+  onGoCard: (cardId: string) => void
+}
+
+function ResultsStep({ summary, acWebhookStatus, onGoCard }: ResultsStepProps) {
   const totalErrors = summary.results.reduce((acc, r) => acc + r.rowErrors.length, 0)
   return (
     <div className="flex flex-col gap-3">
@@ -711,6 +814,10 @@ function ResultsStep({ summary, onGoCard }: { summary: ImportSummary, onGoCard: 
         <SummaryCard label="Convidados novos" value={summary.guestsCreated} tone="emerald" />
         <SummaryCard label="Já existiam" value={summary.guestsSkipped} tone="slate" />
       </div>
+
+      {acWebhookStatus !== 'idle' && (
+        <AcWebhookStatusBanner status={acWebhookStatus} />
+      )}
 
       {totalErrors > 0 && (
         <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-md px-3 py-2 text-sm">
@@ -749,6 +856,31 @@ function ResultsStep({ summary, onGoCard }: { summary: ImportSummary, onGoCard: 
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+function AcWebhookStatusBanner({ status }: { status: 'sending' | 'sent' | 'error' }) {
+  if (status === 'sending') {
+    return (
+      <div className="bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-md px-3 py-2 text-sm flex items-center gap-2">
+        <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+        <span>Enviando contatos para o ActiveCampaign…</span>
+      </div>
+    )
+  }
+  if (status === 'sent') {
+    return (
+      <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-md px-3 py-2 text-sm flex items-center gap-2">
+        <CheckCircle2 className="w-4 h-4 shrink-0" />
+        <span>Contatos enviados para o ActiveCampaign.</span>
+      </div>
+    )
+  }
+  return (
+    <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-md px-3 py-2 text-sm flex items-start gap-2">
+      <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+      <span>O import deu certo, mas falhou ao enviar para o ActiveCampaign. Tenta rodar de novo ou avisa o time.</span>
     </div>
   )
 }
