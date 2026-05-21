@@ -82,7 +82,7 @@ export default function GiftKanbanBoard({ assignments }: Props) {
     return (
         <>
             <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-                <div className="flex gap-3 items-stretch min-h-[420px] h-[calc(100vh-360px)]">
+                <div className="flex gap-3 items-stretch min-h-[420px] h-[calc(100vh-360px)] w-full overflow-x-auto">
                     {COLUMN_ORDER.map(status => (
                         <GiftKanbanColumn
                             key={status}

@@ -21,7 +21,7 @@ export default function GiftKanbanColumn({ status, tone, assignments, onOpenAssi
     const { setNodeRef, isOver } = useDroppable({ id: status })
 
     return (
-        <div className="flex flex-col flex-1 min-w-[260px] min-h-0">
+        <div className="flex flex-col flex-1 min-w-[200px] min-h-0">
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col h-full min-h-0 overflow-hidden">
                 <div className="relative px-3 py-2.5 border-b border-slate-100 bg-white shrink-0">
                     <span className={cn('absolute left-0 top-0 bottom-0 w-[3px]', tone.accent)} />
