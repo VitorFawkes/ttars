@@ -5,32 +5,32 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-05-19
+> **Last Updated:** 2026-05-21
 > **Trigger:** ALWAYS ON
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
-> **Stats:** 204 tabelas | 161 paginas | 300 hooks | 23 views | 750 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
+> **Stats:** 207 tabelas | 161 paginas | 300 hooks | 23 views | 751 components
 
 ---
 

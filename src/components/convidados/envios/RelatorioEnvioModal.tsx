@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { X, CheckCircle2, AlertTriangle, Phone, Loader2, RefreshCw } from 'lucide-react'
-import { supabase } from '../../../lib/supabase'
 import { sbAny } from '../../../hooks/convidados/_supabaseUntyped'
 import { cn } from '../../../lib/utils'
+import { ReenviarFalhasModal } from './ReenviarFalhasModal'
 
 interface RelatorioEnvioModalProps {
   open: boolean
@@ -56,7 +56,7 @@ const ACK_LABEL: Record<number, string> = {
 }
 
 export function RelatorioEnvioModal({ open, onClose, loteId, weddingTitulo, templateSlug }: RelatorioEnvioModalProps) {
-  const [resending, setResending] = useState(false)
+  const [showReenviar, setShowReenviar] = useState(false)
 
   const loteQuery = useQuery<LoteRow | null>({
     queryKey: ['envio-lote-detail', loteId],
@@ -87,51 +87,6 @@ export function RelatorioEnvioModal({ open, onClose, loteId, weddingTitulo, temp
   })
 
   const failedMessages = (messagesQuery.data ?? []).filter(m => m.has_error)
-
-  const handleResend = async () => {
-    const lote = loteQuery.data
-    if (!lote || failedMessages.length === 0 || resending) return
-    setResending(true)
-    try {
-      // Monta recipients a partir dos failed messages do lote
-      const recipients = failedMessages
-        .map(m => {
-          const tel = (m.sender_phone || m.contatos?.telefone || '').replace(/\D/g, '')
-          if (!tel || !m.contact_id) return null
-          return {
-            to: tel,
-            contact_id: m.contact_id,
-            body_parameters: m.metadata?.body_parameters ?? [],
-            button_parameters: m.metadata?.button_parameters ?? undefined,
-          }
-        })
-        .filter((r): r is NonNullable<typeof r> => r !== null)
-
-      if (recipients.length === 0) {
-        setResending(false)
-        return
-      }
-
-      const CHUNK = 50
-      for (let i = 0; i < recipients.length; i += CHUNK) {
-        await supabase.functions.invoke('send-echo-template', {
-          body: {
-            template_name: lote.template_slug,
-            language: 'pt_BR',
-            phone_number_id: lote.phone_number_id,
-            card_id: lote.card_id,
-            org_id: lote.org_id,
-            recipients: recipients.slice(i, i + CHUNK),
-          },
-        })
-      }
-      onClose()
-    } catch (err) {
-      console.error('[resend] falha:', err)
-    } finally {
-      setResending(false)
-    }
-  }
 
   if (!open) return null
 
@@ -231,14 +186,10 @@ export function RelatorioEnvioModal({ open, onClose, loteId, weddingTitulo, temp
             {failedMessages.length > 0 && !enviando && (
               <button
                 type="button"
-                onClick={handleResend}
-                disabled={resending}
-                className={cn(
-                  'inline-flex items-center gap-1.5 h-9 px-3 text-sm font-medium text-white rounded-md transition-colors',
-                  resending ? 'bg-indigo-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700',
-                )}
+                onClick={() => setShowReenviar(true)}
+                className="inline-flex items-center gap-1.5 h-9 px-3 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors"
               >
-                {resending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                <RefreshCw className="w-4 h-4" />
                 Reenviar falhas ({failedMessages.length})
               </button>
             )}
@@ -252,6 +203,25 @@ export function RelatorioEnvioModal({ open, onClose, loteId, weddingTitulo, temp
           </div>
         </div>
       </div>
+
+      {showReenviar && lote && (
+        <ReenviarFalhasModal
+          open={showReenviar}
+          onClose={() => { setShowReenviar(false); onClose() }}
+          loteId={loteId}
+          cardId={lote.card_id}
+          orgId={lote.org_id}
+          phoneNumberId={lote.phone_number_id}
+          templateSlug={lote.template_slug}
+          failures={failedMessages.map(m => ({
+            id: m.id,
+            contact_id: m.contact_id,
+            sender_phone: m.sender_phone,
+            contatos: m.contatos,
+            metadata: m.metadata,
+          }))}
+        />
+      )}
     </div>
   )
 }
