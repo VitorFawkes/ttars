@@ -38,6 +38,8 @@ export function CasamentosBoard() {
   const { data, isLoading, isError } = useWeddingsWithGuestCounts()
   const { prefs, setPref, toggleEtapa } = useConvidadosPreferences()
   const [page, setPage] = useState(1)
+  // Busca não persiste — zera sempre que entra na aba
+  const [search, setSearch] = useState('')
 
   // Estatísticas (sempre baseadas no conjunto total, não no filtrado)
   const stats = useMemo(() => {
@@ -66,7 +68,7 @@ export function CasamentosBoard() {
   }, [data])
 
   const filtered = useMemo(() => {
-    const term = prefs.casamentosSearch.trim().toLowerCase()
+    const term = search.trim().toLowerCase()
     const etapas = prefs.etapaFilter
     return data.filter(w => {
       if (prefs.pendentesOnly && w.counts.total > 0) return false
@@ -74,7 +76,7 @@ export function CasamentosBoard() {
       if (term && !w.titulo.toLowerCase().includes(term)) return false
       return true
     })
-  }, [data, prefs.casamentosSearch, prefs.etapaFilter, prefs.pendentesOnly])
+  }, [data, search, prefs.etapaFilter, prefs.pendentesOnly])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
 
@@ -85,12 +87,12 @@ export function CasamentosBoard() {
   const start = (page - 1) * PAGE_SIZE
   const visible = filtered.slice(start, start + PAGE_SIZE)
   const hasAnyFilter =
-    prefs.casamentosSearch.trim().length > 0 ||
+    search.trim().length > 0 ||
     prefs.etapaFilter.length > 0 ||
     prefs.pendentesOnly
 
   const clearAllFilters = () => {
-    setPref('casamentosSearch', '')
+    setSearch('')
     setPref('etapaFilter', [])
     setPref('pendentesOnly', false)
     setPage(1)
@@ -167,9 +169,9 @@ export function CasamentosBoard() {
             <Search className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              value={prefs.casamentosSearch}
+              value={search}
               onChange={(e) => {
-                setPref('casamentosSearch', e.target.value)
+                setSearch(e.target.value)
                 setPage(1)
               }}
               placeholder="Buscar casamento pelo nome do casal..."
