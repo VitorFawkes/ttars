@@ -1,4 +1,5 @@
-import { Heart, Users, Settings, CalendarDays, Send } from 'lucide-react'
+import { useState } from 'react'
+import { Heart, Users, Settings, CalendarDays, Send, FileUp } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { cn } from '../../lib/utils'
 import { useConvidadosPreferences } from '../../hooks/convidados/useConvidadosPreferences'
@@ -6,9 +7,11 @@ import { CasamentosBoard } from '../../components/convidados/casamentos/Casament
 import { ConvidadosBoard } from '../../components/convidados/lista/ConvidadosBoard'
 import { EnviosDoDiaBoard } from '../../components/convidados/envios/EnviosDoDiaBoard'
 import { FiltersBar } from '../../components/convidados/lista/FiltersBar'
+import { ImportarCasamentoModal } from '../../components/convidados/import/ImportarCasamentoModal'
 
 export default function ConvidadosPage() {
   const { prefs, setPref } = useConvidadosPreferences()
+  const [importOpen, setImportOpen] = useState(false)
 
   return (
     <div className="px-6 py-4 flex flex-col gap-4">
@@ -43,6 +46,14 @@ export default function ConvidadosPage() {
             <CalendarDays className="w-3.5 h-3.5" />
             Calendário
           </Link>
+          <button
+            type="button"
+            onClick={() => setImportOpen(true)}
+            className="inline-flex items-center gap-1.5 px-2.5 h-8 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors"
+          >
+            <FileUp className="w-3.5 h-3.5" />
+            Importar planilha
+          </button>
           <Link
             to="/convidados/fluxo"
             className="inline-flex items-center gap-1.5 px-2.5 h-8 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors"
@@ -64,6 +75,8 @@ export default function ConvidadosPage() {
         />
       )}
       {prefs.modo === 'envios_hoje' && <EnviosDoDiaBoard />}
+
+      <ImportarCasamentoModal open={importOpen} onClose={() => setImportOpen(false)} />
     </div>
   )
 }
