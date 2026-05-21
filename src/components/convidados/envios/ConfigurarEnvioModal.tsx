@@ -22,6 +22,10 @@ interface ConfigurarEnvioModalProps {
   cardId: string
   weddingTitulo: string
   templateSlug: string
+  /** Quando passado, restringe os destinatários a esses IDs de wedding_guests
+   *  e ignora o filtro padrão "excluir nao_vai". Usado pela aba Envio Específico
+   *  para mandar template ad-hoc para um público escolhido manualmente. */
+  targetGuestIds?: string[]
 }
 
 interface CardExtras {
@@ -114,7 +118,7 @@ function fieldPreview(
   return resolveField(key, stub, card) || '—'
 }
 
-export function ConfigurarEnvioModal({ open, onClose, cardId, weddingTitulo, templateSlug }: ConfigurarEnvioModalProps) {
+export function ConfigurarEnvioModal({ open, onClose, cardId, weddingTitulo, templateSlug, targetGuestIds }: ConfigurarEnvioModalProps) {
   const varCount = getTemplateVarCount(templateSlug)
   const showButton = hasButtonVar(templateSlug)
 
@@ -168,10 +172,16 @@ export function ConfigurarEnvioModal({ open, onClose, cardId, weddingTitulo, tem
   }, [open, phoneNumberId, linhas])
 
   // Convidados ativos = não declinaram (status != 'nao_vai').
-  const recipients = useMemo(
-    () => guests.filter(g => g.status_rsvp !== 'nao_vai' && (g.telefone ?? '').trim().length > 0),
-    [guests],
-  )
+  // Quando `targetGuestIds` veio (aba Envio Específico), respeita a seleção
+  // manual do usuário — inclusive permitindo "nao_vai" se ele marcou — e
+  // continua filtrando por telefone presente.
+  const recipients = useMemo(() => {
+    if (targetGuestIds && targetGuestIds.length > 0) {
+      const set = new Set(targetGuestIds)
+      return guests.filter(g => set.has(g.id) && (g.telefone ?? '').trim().length > 0)
+    }
+    return guests.filter(g => g.status_rsvp !== 'nao_vai' && (g.telefone ?? '').trim().length > 0)
+  }, [guests, targetGuestIds])
 
   const firstContact = recipients[0] ?? null
 
