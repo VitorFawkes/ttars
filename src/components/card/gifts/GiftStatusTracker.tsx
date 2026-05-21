@@ -1,10 +1,11 @@
-import { Check, Clock, Truck, PackageCheck, XCircle, ChevronRight, Loader2, Trash2 } from 'lucide-react'
+import { Check, Clock, Truck, PackageCheck, XCircle, ChevronRight, Loader2, Trash2, Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { GiftAssignment } from '@/hooks/useCardGifts'
 
 const steps = [
-    { key: 'pendente', label: 'Pendente', icon: Clock },
+    { key: 'pendente', label: 'Solicitado', icon: Clock },
     { key: 'preparando', label: 'Preparando', icon: PackageCheck },
+    { key: 'a_enviar', label: 'A enviar', icon: Send },
     { key: 'enviado', label: 'Enviado', icon: Truck },
     { key: 'entregue', label: 'Entregue', icon: Check },
 ] as const

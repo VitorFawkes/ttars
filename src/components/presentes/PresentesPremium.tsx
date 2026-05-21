@@ -9,8 +9,9 @@ const formatBRL = (value: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 
 const statusOptions = [
-    { value: 'pendente', label: 'Pendente', color: 'bg-slate-100 text-slate-600' },
+    { value: 'pendente', label: 'Solicitado', color: 'bg-slate-100 text-slate-600' },
     { value: 'preparando', label: 'Preparando', color: 'bg-amber-100 text-amber-700' },
+    { value: 'a_enviar', label: 'A enviar', color: 'bg-indigo-100 text-indigo-700' },
     { value: 'enviado', label: 'Enviado', color: 'bg-blue-100 text-blue-700' },
     { value: 'entregue', label: 'Entregue', color: 'bg-emerald-100 text-emerald-700' },
     { value: 'cancelado', label: 'Cancelado', color: 'bg-red-100 text-red-600' },

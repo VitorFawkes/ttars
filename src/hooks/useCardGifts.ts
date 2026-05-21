@@ -6,7 +6,7 @@ export interface GiftAssignment {
     id: string
     card_id: string
     contato_id: string | null
-    status: 'pendente' | 'preparando' | 'enviado' | 'entregue' | 'cancelado'
+    status: 'pendente' | 'preparando' | 'a_enviar' | 'enviado' | 'entregue' | 'cancelado'
     scheduled_ship_date: string | null
     delivery_address: string | null
     delivery_date: string | null
@@ -45,7 +45,7 @@ export function getContactDisplayName(contato: { nome: string; sobrenome: string
     return contato.sobrenome ? `${contato.nome} ${contato.sobrenome}` : contato.nome
 }
 
-const STATUS_ORDER: GiftAssignment['status'][] = ['pendente', 'preparando', 'enviado', 'entregue']
+const STATUS_ORDER: GiftAssignment['status'][] = ['pendente', 'preparando', 'a_enviar', 'enviado', 'entregue']
 
 export function getNextStatus(status: GiftAssignment['status']): GiftAssignment['status'] | null {
     const idx = STATUS_ORDER.indexOf(status)

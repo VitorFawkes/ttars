@@ -112,10 +112,10 @@ export default function OperationsView() {
             const [pendingRes, overdueRes] = await Promise.all([
                 supabase.from('card_gift_assignments')
                     .select('id', { count: 'exact', head: true })
-                    .in('status', ['pendente', 'preparando']),
+                    .in('status', ['pendente', 'preparando', 'a_enviar']),
                 supabase.from('card_gift_assignments')
                     .select('id, contato:contato_id(nome), scheduled_ship_date')
-                    .in('status', ['pendente', 'preparando'])
+                    .in('status', ['pendente', 'preparando', 'a_enviar'])
                     .lt('scheduled_ship_date', today)
                     .order('scheduled_ship_date', { ascending: true })
                     .limit(10),

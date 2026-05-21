@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Gift, Plus, Minus, Loader2, AlertTriangle, Trash2, ChevronDown, ChevronRight, Calendar, Check, Clock, Truck, PackageCheck, Users, X, Package, PenLine, Search, Info } from 'lucide-react'
+import { Gift, Plus, Minus, Loader2, AlertTriangle, Trash2, ChevronDown, ChevronRight, Calendar, Check, Clock, Truck, PackageCheck, Send, Users, X, Package, PenLine, Search, Info } from 'lucide-react'
 import { SectionCollapseToggle } from './DynamicSectionWidget'
 import { useCardGifts, useGiftAssignment, getNextStatus, getContactDisplayName } from '@/hooks/useCardGifts'
 import type { GiftAssignment } from '@/hooks/useCardGifts'
@@ -29,13 +29,24 @@ interface GiftsWidgetProps {
 const STATUS_ICON: Record<string, typeof Clock> = {
     pendente: Clock,
     preparando: PackageCheck,
+    a_enviar: Send,
     enviado: Truck,
     entregue: Check,
+}
+
+const STATUS_LABEL: Record<string, string> = {
+    pendente: 'Solicitado',
+    preparando: 'Preparando',
+    a_enviar: 'A enviar',
+    enviado: 'Enviado',
+    entregue: 'Entregue',
+    cancelado: 'Cancelado',
 }
 
 const STATUS_COLOR: Record<string, string> = {
     pendente: 'bg-slate-100 text-slate-600',
     preparando: 'bg-amber-100 text-amber-700',
+    a_enviar: 'bg-indigo-100 text-indigo-700',
     enviado: 'bg-blue-100 text-blue-700',
     entregue: 'bg-emerald-100 text-emerald-700',
     cancelado: 'bg-red-100 text-red-700',
@@ -110,7 +121,7 @@ export default function GiftsWidget({ cardId, card, isExpanded, onToggleCollapse
                                     return (
                                         <span key={status} className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium', STATUS_COLOR[status] || 'bg-slate-100 text-slate-600')}>
                                             <Icon className="h-3 w-3" />
-                                            {count} {status}
+                                            {count} {STATUS_LABEL[status] || status}
                                         </span>
                                     )
                                 })}
@@ -933,7 +944,7 @@ function ContactGiftCard({
                 </div>
                 <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium', STATUS_COLOR[assignment.status])}>
                     <StatusIcon className="h-3 w-3" />
-                    {assignment.status}
+                    {STATUS_LABEL[assignment.status] || assignment.status}
                 </span>
                 {isOpen ? <ChevronDown className="h-4 w-4 text-slate-400" /> : <ChevronRight className="h-4 w-4 text-slate-400" />}
             </button>

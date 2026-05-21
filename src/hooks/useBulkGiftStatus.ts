@@ -11,7 +11,7 @@ export function useBulkGiftStatus() {
     return useMutation({
         mutationFn: async ({ assignmentIds, newStatus, assignmentItems }: {
             assignmentIds: string[]
-            newStatus: 'pendente' | 'preparando' | 'enviado' | 'entregue' | 'cancelado'
+            newStatus: 'pendente' | 'preparando' | 'a_enviar' | 'enviado' | 'entregue' | 'cancelado'
             /** Items per assignment for stock return on cancel. Key = assignmentId */
             assignmentItems?: Record<string, GiftItem[]>
         }) => {
