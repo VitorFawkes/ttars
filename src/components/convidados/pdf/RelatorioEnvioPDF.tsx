@@ -134,6 +134,13 @@ const styles = StyleSheet.create({
 
   empty: { fontSize: 10, color: C.slate500, textAlign: 'center', padding: 12, fontStyle: 'italic' },
 
+  // Disclaimer
+  disclaimer: { marginTop: 32, padding: 16, borderRadius: 6, backgroundColor: C.goldSoft, borderLeftWidth: 3, borderLeftStyle: 'solid', borderLeftColor: C.gold },
+  disclaimerTitle: { fontFamily: FONT_SANS_BOLD, fontSize: 10, color: C.goldDark, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 },
+  disclaimerItem: { marginBottom: 8 },
+  disclaimerError: { fontFamily: FONT_SANS_BOLD, fontSize: 9, color: C.rose, marginBottom: 2 },
+  disclaimerExplain: { fontSize: 9.5, color: C.slate700, lineHeight: 1.4 },
+
   // Footer
   footer: { position: 'absolute', bottom: 24, left: 56, right: 56, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   footerTxt: { fontSize: 7.5, color: C.slate400 },
@@ -274,6 +281,31 @@ export function RelatorioEnvioPDF({ wedding, lote, mensagens }: RelatorioEnvioPd
 
           {recebeuSorted.length === 0 && naoRecebeuSorted.length === 0 && (
             <Text style={styles.empty}>Sem mensagens registradas neste lote.</Text>
+          )}
+
+          {/* Disclaimer com explicação dos erros mais comuns do WhatsApp */}
+          {naoRecebeuSorted.length > 0 && (
+            <View style={styles.disclaimer} wrap={false}>
+              <Text style={styles.disclaimerTitle}>Como interpretar as falhas</Text>
+              <View style={styles.disclaimerItem}>
+                <Text style={styles.disclaimerError}>Message undeliverable</Text>
+                <Text style={styles.disclaimerExplain}>
+                  Número errado ou não está cadastrado no WhatsApp. Verifique variações do número (com/sem 9° dígito, com/sem código do país) antes de reenviar.
+                </Text>
+              </View>
+              <View style={styles.disclaimerItem}>
+                <Text style={styles.disclaimerError}>User's number is part of an experiment</Text>
+                <Text style={styles.disclaimerExplain}>
+                  Esse número foi selecionado pela Meta para um experimento e não vai receber mensagens via API. Não há solução do nosso lado.
+                </Text>
+              </View>
+              <View style={styles.disclaimerItem}>
+                <Text style={styles.disclaimerError}>This message was not delivered to maintain healthy ecosystem engagement</Text>
+                <Text style={styles.disclaimerExplain}>
+                  Limite temporário aplicado pela Meta pra preservar a integridade do canal. Tente reenviar em 24 horas.
+                </Text>
+              </View>
+            </View>
           )}
         </View>
         <FooterPage />
