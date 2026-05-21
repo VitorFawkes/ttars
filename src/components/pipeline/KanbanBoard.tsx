@@ -1042,10 +1042,12 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                                         <FilterEmptyState />
                                     </div>
                                 ) : displayPhases.map((phase) => {
-                                    // Filter ALL stages (incluindo terminais) por phase
+                                    // Etapas terminais (is_terminal=true) NÃO viram coluna no kanban —
+                                    // cards parados nelas aparecem no painel lateral "Cancelados" (KanbanCancelladosColumn).
                                     const phaseStages = (stages || []).filter((s) =>
-                                        s.phase_id === phase.id ||
-                                        (!s.phase_id && s.fase === phase.name)
+                                        (s.phase_id === phase.id ||
+                                            (!s.phase_id && s.fase === phase.name)) &&
+                                        s.is_terminal !== true
                                     )
 
                                     if (phaseStages.length === 0) return null
