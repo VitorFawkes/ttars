@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { X, Send, Loader2, GripVertical } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
-import { AVAILABLE_FIELDS, type FieldDescriptor, type FieldKey } from '../../../hooks/convidados/useTemplateVarConfig'
+import { AVAILABLE_FIELDS, hasButtonVar as hasButtonVarForSlug, type FieldDescriptor, type FieldKey } from '../../../hooks/convidados/useTemplateVarConfig'
 import { cn } from '../../../lib/utils'
 
 interface FailedMessage {
@@ -153,7 +153,9 @@ export function ReenviarFalhasModal({
     () => Math.max(...items.map(i => i.body_parameters.length), 0),
     [items],
   )
-  const hasButtonVar = items.some(i => i.button_parameter !== '')
+  // Sempre mostra coluna Botão — o usuário precisa poder preencher mesmo se
+  // o envio original veio vazio (caso comum em reenvio de falhas tipo #131008).
+  const hasButtonVar = hasButtonVarForSlug(templateSlug)
 
   if (!open) return null
 
