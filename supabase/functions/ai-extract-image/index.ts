@@ -71,7 +71,7 @@ Responda APENAS com um JSON válido no formato:
 }`;
 
 // Prompt especializado para extração de voos com modo
-function getFlightExtractionPrompt(mode: ExtractionMode): string {
+function getFlightExtractionPrompt(mode: ExtractionMode, currentYear: number): string {
     const modeInstructions: Record<ExtractionMode, string> = {
         'ida_volta': `MODO: IDA + VOLTA
 A imagem contém uma TABELA DE VOOS com opções de IDA e VOLTA.
@@ -95,7 +95,7 @@ Extraia todos os voos como opções de um único trecho de volta.`,
 
         'separate_legs': `MODO: TRECHOS SEPARADOS
 Cada linha/voo da imagem é um TRECHO DIFERENTE (conexões, multi-city).
-Extraia cada voo como um segment separado.`,
+Extraia cada voo como um segment separado, na ordem em que aparece na imagem.`,
     };
 
     return `Você é um assistente especializado em extrair informações de VOOS de imagens de reservas/cotações.
@@ -104,26 +104,130 @@ ${modeInstructions[mode]}
 
 EXTRAIA TODOS OS VOOS da imagem. Cada voo deve ter:
 - segment_order: número sequencial (1, 2, 3...)
-- airline_code: código IATA da companhia (AD=Azul, G3=GOL, LA=LATAM, etc.)
+- airline_code: código IATA da companhia (AD=Azul, G3=GOL, LA=LATAM, AA=American, IB=Iberia, etc.)
 - airline_name: nome completo da companhia
 - flight_number: número do voo (apenas números, sem prefixo da cia)
 - departure_date: data de saída no formato YYYY-MM-DD
 - departure_time: hora de saída no formato HH:MM
-- departure_airport: código IATA do aeroporto (CGH, GRU, CWB, etc.)
+- departure_airport: código IATA do aeroporto (3 letras maiúsculas)
 - departure_city: nome da cidade
 - arrival_date: data de chegada no formato YYYY-MM-DD
 - arrival_time: hora de chegada no formato HH:MM
-- arrival_airport: código IATA do aeroporto
+- arrival_airport: código IATA do aeroporto (3 letras maiúsculas)
 - arrival_city: nome da cidade
 - cabin_class: classe (Economy, Business, First)
 - baggage_included: informação de bagagem se disponível
 - price: valor numérico do voo (sem formatação, apenas número)
 
-IMPORTANTE:
-- Aeroporto CGH = São Paulo Congonhas
-- Aeroporto GRU = São Paulo Guarulhos
-- Aeroporto CWB = Curitiba Afonso Pena
-- Se o preço tiver centavos (ex: R$ 370,94), use 370.94
+═══════════════════════════════════════════════════════════════════
+🚨 REGRAS CRÍTICAS DE INFERÊNCIA — siga todas
+═══════════════════════════════════════════════════════════════════
+
+📍 CÓDIGO IATA DE AEROPORTO É OBRIGATÓRIO — NUNCA retorne null/None.
+Quando a imagem mostra apenas o nome da CIDADE e/ou nome do AEROPORTO
+(sem citar o IATA), VOCÊ DEVE inferir o código IATA correspondente.
+NUNCA deixe departure_airport ou arrival_airport vazio, null ou "None".
+
+Mapeamento que você DEVE conhecer (não é exaustivo — use seu conhecimento
+geográfico se faltar):
+
+Brasil:
+- São Paulo Guarulhos → GRU
+- São Paulo Congonhas → CGH
+- Rio de Janeiro Galeão → GIG
+- Rio de Janeiro Santos Dumont → SDU
+- Brasília → BSB
+- Belo Horizonte Confins / Tancredo Neves → CNF
+- Belo Horizonte Pampulha → PLU
+- Curitiba Afonso Pena → CWB
+- Porto Alegre Salgado Filho → POA
+- Recife Guararapes → REC
+- Salvador → SSA
+- Fortaleza → FOR
+- Manaus → MAO
+- Belém → BEL
+- Florianópolis Hercílio Luz → FLN
+- Vitória Eurico de Aguiar Salles → VIX
+- Cuiabá → CGB
+- Campo Grande → CGR
+- Goiânia → GYN
+- Foz do Iguaçu → IGU
+- Londrina → LDB
+- Maringá → MGF
+- Navegantes → NVT
+- Joinville → JOI
+- Chapecó → XAP
+- Caxias do Sul → CXJ
+- Pelotas → PET
+- Bonito → BYO
+- Campo Grande → CGR
+- Aracaju → AJU
+- Maceió → MCZ
+- João Pessoa → JPA
+- Natal → NAT
+- São Luís → SLZ
+- Teresina → THE
+- Palmas → PMW
+- Macapá → MCP
+- Porto Velho → PVH
+- Rio Branco → RBR
+- Boa Vista → BVB
+- Jericoacoara → JJD
+- Trancoso/Porto Seguro → BPS
+- Ilhéus → IOS
+- Fernando de Noronha → FEN
+- Lençóis (Chapada) → LEC
+
+América/Mundo (referências comuns):
+- Buenos Aires Ezeiza → EZE; Aeroparque → AEP
+- Santiago → SCL
+- Lima → LIM
+- Bogotá → BOG
+- México DF → MEX
+- Cancún → CUN
+- Miami → MIA; Orlando → MCO; Nova York JFK → JFK; LaGuardia → LGA; Newark → EWR
+- Los Angeles → LAX
+- Lisboa → LIS
+- Porto → OPO
+- Madri Barajas → MAD
+- Barcelona → BCN
+- Roma Fiumicino → FCO
+- Paris Charles de Gaulle → CDG; Orly → ORY
+- Londres Heathrow → LHR; Gatwick → LGW
+- Frankfurt → FRA; Munique → MUC
+- Amsterdã → AMS
+- Reykjavik Keflavík → KEF
+- Dubai → DXB
+- Doha → DOH
+- Tóquio Narita → NRT; Haneda → HND
+- Denpasar (Bali) → DPS
+- Sydney → SYD
+
+Se a coluna disser algo como "Londrina - Governador José Richa" → use LDB.
+Se disser "Curitiba - Afonso Pena" → use CWB.
+Se disser "Belo Horizonte - Tancredo Neves" → use CNF (Confins).
+Se disser "Jericoacoara - Aeroporto Jericoacoara" → use JJD.
+Se a tabela mostrar somente nome da cidade, faça inferência segura pelo
+aeroporto principal/mais comum daquela cidade.
+
+📅 ANO DA DATA — se a imagem mostra a data SEM ANO (ex: "02/jul.", "qui. 10/ago.",
+"29 de agosto"), use o ANO CORRENTE: ${currentYear}.
+NUNCA use 2020, 2019 ou qualquer ano antigo "por padrão".
+Se a imagem mostra ano explícito (ex: "29/08/2026", "10/06/2026"), use esse ano.
+
+Quando o voo cruza meia-noite (chegada no dia seguinte ao da saída — ex:
+saída 02/jul. 22:30, chegada 03/jul. 07:05), o arrival_date DEVE ser
+o dia da chegada, não o da saída.
+
+🏷️ COMPANHIAS — sempre devolva o airline_code IATA correto:
+AD=Azul, G3=GOL, LA=LATAM, AA=American Airlines, IB=Iberia, BA=British Airways,
+AF=Air France, KL=KLM, LH=Lufthansa, AZ=ITA Airways/Alitalia, TP=TAP,
+EK=Emirates, QR=Qatar, TK=Turkish, UA=United, DL=Delta, B6=JetBlue, NK=Spirit,
+AC=Air Canada, AV=Avianca, CM=Copa, JJ/LA=LATAM Brasil.
+
+💰 PREÇO — se tiver centavos (ex: R$ 370,94), use 370.94 (ponto como decimal).
+
+═══════════════════════════════════════════════════════════════════
 
 Responda APENAS com um JSON válido no formato:
 {
@@ -195,8 +299,9 @@ Retorne o resultado como um array "items" com um único objeto contendo:
 - confidence: número de 0 a 1 indicando confiança na extração`;
             userMessage = `Extraia todos os dados deste voucher/confirmação de ${voucherType || 'viagem'}.`;
         } else if (flightExtraction && extractionMode) {
-            systemPrompt = getFlightExtractionPrompt(extractionMode as ExtractionMode);
-            userMessage = "Extraia TODOS os voos desta imagem de cotação/reserva aérea.";
+            const currentYear = new Date().getUTCFullYear();
+            systemPrompt = getFlightExtractionPrompt(extractionMode as ExtractionMode, currentYear);
+            userMessage = `Extraia TODOS os voos desta imagem de cotação/reserva aérea. Data atual de referência: ${new Date().toISOString().slice(0, 10)}.`;
         } else {
             systemPrompt = GENERIC_PROMPT;
             userMessage = "Extraia todas as informações de viagem desta imagem de orçamento.";
