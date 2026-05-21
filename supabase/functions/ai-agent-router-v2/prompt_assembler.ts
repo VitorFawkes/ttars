@@ -50,6 +50,15 @@ export interface BuildSinglePromptInput {
      * o default (DEFAULT_TOOL_DESCRIPTIONS). Vazio/undefined → usa default.
      */
     tool_descriptions?: Record<string, string> | null;
+    /**
+     * Cérebro analítico estruturado (UI v3). Substitui prompts_extra.context
+     * (texto livre legacy). 5 sub-rotinas configuráveis: detect_contradictions,
+     * detect_pending_promises, detect_unanswered_questions, detect_pitch_saturation,
+     * audit_viability. Cada uma: { enabled, instruction, ...params }. Quando
+     * presente e tem rotinas habilitadas, monta <context_rules> a partir
+     * disso. Quando ausente/vazio, fallback pro prompts_extra.context.
+     */
+    cognitive_audit_config?: Record<string, unknown> | null;
   };
   business: {
     company_name?: string | null;
@@ -169,10 +178,16 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
   const agentScheduleBlock = renderAgentSchedule(agent.scheduling_config);
 
   // -------- Extra prompts editáveis pelo admin (per-agente) ---------------
-  // ai_agents.prompts_extra.context vira <context_rules>, data_update vira
-  // <data_update_rules>. Validator/formatting são lidos por outros módulos.
-  // Vazio = bloco omitido (zero overhead de tokens).
-  const contextRulesBlock = renderExtraRules("context_rules", agent.prompts_extra?.context);
+  // CONTEXT RULES (cérebro analítico):
+  //   Formato preferido: agent.cognitive_audit_config (struct da UI v3 — 5
+  //   sub-rotinas com toggle + instrução + params estruturados). Quando tem
+  //   rotinas habilitadas, monta o <context_rules> programaticamente.
+  //   Fallback: prompts_extra.context (texto livre legado).
+  const contextRulesBlock = renderCognitiveAudit(
+    agent.cognitive_audit_config,
+    agent.prompts_extra?.context,
+  );
+  // DATA UPDATE RULES: ainda texto livre (Fase 4 da reforma vai estruturar).
   const dataUpdateRulesBlock = renderExtraRules("data_update_rules", agent.prompts_extra?.data_update);
 
   // -------- Voice ---------------------------------------------------------
@@ -368,6 +383,124 @@ function renderExtraRules(tag: string, text: string | null | undefined): string 
   return `<${tag}>
 ${text.trim()}
 </${tag}>`;
+}
+
+/**
+ * Cérebro analítico estruturado — renderiza <context_rules> a partir do
+ * struct cognitive_audit_config (UI v3) com fallback pro texto livre legado
+ * (prompts_extra.context).
+ *
+ * Cada sub-rotina enabled vira um parágrafo numerado dentro do bloco. Quando
+ * `instruction` está vazia, usa o default hardcoded espelhado da UI. Quando
+ * preenchida, usa a instrução custom do admin.
+ *
+ * Routines avançadas (saturação e viabilidade) anexam parâmetros estruturados
+ * como bullet pra que o LLM tenha valores concretos:
+ *   - saturação: lista de pitch_keywords + window + threshold
+ *   - viabilidade: campos + zonas + cotações de moeda
+ */
+function renderCognitiveAudit(
+  config: Record<string, unknown> | null | undefined,
+  legacyText: string | null | undefined,
+): string {
+  const cfg = (config || {}) as Record<string, { enabled?: boolean; instruction?: string; [k: string]: unknown }>;
+  const keys = [
+    'detect_contradictions',
+    'detect_pending_promises',
+    'detect_unanswered_questions',
+    'detect_pitch_saturation',
+    'audit_viability',
+  ];
+
+  const DEFAULTS: Record<string, { label: string; instruction: string }> = {
+    detect_contradictions: {
+      label: 'CONTRADIÇÕES DO LEAD',
+      instruction:
+        'Compare a última mensagem do lead com tudo que ele disse antes na MESMA conversa. Se há contradição factual relevante (clima vs destino, orçamento vs expectativa, presença de família, data passada vs futura), registre em `contradicao_detectada` como objeto { campos: [...], descricao: "..." }. Se não há, omita o campo.',
+    },
+    detect_pending_promises: {
+      label: 'PROMESSAS PENDENTES',
+      instruction:
+        'Identifique a última promessa explícita que você fez e ainda não cumpriu ("vou verificar", "confirmo por email", "vou ver agenda"). Registre em `pendencias_patricia` como string curta. Se não há promessa pendente, omita o campo.',
+    },
+    detect_unanswered_questions: {
+      label: 'PEDIDOS NÃO RESPONDIDOS',
+      instruction:
+        'Liste até 3 perguntas que o lead fez nos últimos 3 turnos dele que você ainda não respondeu diretamente. Registre em `perguntas_pendentes`.',
+    },
+    detect_pitch_saturation: {
+      label: 'SATURAÇÃO DE PITCH',
+      instruction:
+        'Releia seus 5 últimos turnos. Conte ocorrências de oferta do pitch principal. Se >= 2 nos últimos 5 turnos, marque `pitch_saturado = true`.',
+    },
+    audit_viability: {
+      label: 'AUDITORIA DE VIABILIDADE',
+      instruction:
+        'Quando temos orçamento e número de convidados, converta moeda estrangeira se necessário, calcule valor_por_convidado = orçamento / convidados, e classifique nas zonas configuradas. Use o resultado pra decidir próxima ação.',
+    },
+  };
+
+  const blocks: string[] = [];
+  let idx = 1;
+  for (const key of keys) {
+    const routine = cfg[key];
+    if (!routine || routine.enabled !== true) continue;
+
+    const def = DEFAULTS[key];
+    const instruction = (routine.instruction && typeof routine.instruction === 'string' && routine.instruction.trim())
+      ? routine.instruction.trim()
+      : def.instruction;
+
+    const lines = [`${idx}. ${def.label} — ${instruction}`];
+
+    // Sub-params estruturados
+    if (key === 'detect_pitch_saturation') {
+      const keywords = Array.isArray(routine.pitch_keywords) ? routine.pitch_keywords : [];
+      const win = typeof routine.window_turns === 'number' ? routine.window_turns : 5;
+      const thr = typeof routine.threshold === 'number' ? routine.threshold : 2;
+      if (keywords.length > 0) {
+        lines.push(`   - Frases que contam como pitch: ${keywords.map((k) => `"${k}"`).join(', ')}`);
+      }
+      lines.push(`   - Janela: últimos ${win} turnos do agente. Threshold: ${thr} ocorrência(s).`);
+    }
+
+    if (key === 'audit_viability') {
+      const budgetField = (routine.budget_field as string | undefined) ?? '';
+      const guestsField = (routine.guests_field as string | undefined) ?? '';
+      const zones = Array.isArray(routine.zones) ? routine.zones as Array<{ max_per_guest_brl?: number; label?: string; action?: string }> : [];
+      const rates = Array.isArray(routine.currency_rates) ? routine.currency_rates as Array<{ from?: string; to_brl?: number }> : [];
+      if (budgetField && guestsField) {
+        lines.push(`   - Campos: orçamento=\`${budgetField}\`, convidados=\`${guestsField}\``);
+      }
+      if (rates.length > 0) {
+        lines.push(`   - Cotações: ${rates.map((r) => `1 ${r.from} ≈ R$ ${r.to_brl}`).join(', ')}`);
+      }
+      if (zones.length > 0) {
+        const sorted = [...zones].sort((a, b) => (a.max_per_guest_brl ?? 0) - (b.max_per_guest_brl ?? 0));
+        lines.push(`   - Zonas (R$/convidado):`);
+        sorted.forEach((z) => {
+          lines.push(`     • até R$ ${z.max_per_guest_brl}/conv → \`${z.label}\` → ${z.action}`);
+        });
+      }
+    }
+
+    blocks.push(lines.join('\n'));
+    idx++;
+  }
+
+  if (blocks.length > 0) {
+    return `<context_rules>
+${blocks.join('\n\n')}
+</context_rules>`;
+  }
+
+  // Fallback: texto livre legado
+  if (legacyText && legacyText.trim()) {
+    return `<context_rules>
+${legacyText.trim()}
+</context_rules>`;
+  }
+  return '';
 }
 
 /**
