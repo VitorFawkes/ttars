@@ -169,14 +169,21 @@ serve(async (req) => {
     }
 
     try {
-      const echoPayload = {
+      // Monta payload pro Echo. button_parameters só vai se houver parâmetros
+      // não-vazios — Meta rejeita array vazio (#131008 Required parameter is missing)
+      // pra templates que não têm botão dinâmico.
+      const buttonParams = (r.button_parameters ?? []).filter(p => p != null && String(p).trim().length > 0);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const echoPayload: Record<string, any> = {
         to: r.to,
         template_name: body.template_name,
         language_code: language,
         phone_number_id: body.phone_number_id,
         body_parameters: r.body_parameters || [],
-        button_parameters: r.button_parameters || [],
       };
+      if (buttonParams.length > 0) {
+        echoPayload.button_parameters = buttonParams;
+      }
 
       const echoResp = await fetch(sendTemplateUrl, {
         method: "POST",
