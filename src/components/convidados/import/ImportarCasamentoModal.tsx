@@ -37,7 +37,7 @@ interface GroupState {
 
 /** Webhook do n8n que sincroniza contatos com o ActiveCampaign. O fluxo lá
  *  recebe o payload, normaliza e empurra pra lista correta da campanha. */
-const ACTIVECAMPAIGN_WEBHOOK_URL = 'https://n8n-n8n.ymnmx7.easypanel.host/webhook-test/guesties'
+const ACTIVECAMPAIGN_WEBHOOK_URL = 'https://n8n-n8n.ymnmx7.easypanel.host/webhook/guesties'
 
 /** Monta o payload da planilha (todos os convidados de todos os grupos não
  *  pulados) e dispara o webhook do n8n. Promise rejeita se HTTP != 2xx. */
