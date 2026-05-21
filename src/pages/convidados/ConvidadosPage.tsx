@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Heart, Users, Settings, CalendarDays, Send, FileUp } from 'lucide-react'
+import { Heart, Users, Settings, CalendarDays, Send, FileUp, MailPlus } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { cn } from '../../lib/utils'
 import { useConvidadosPreferences } from '../../hooks/convidados/useConvidadosPreferences'
 import { CasamentosBoard } from '../../components/convidados/casamentos/CasamentosBoard'
 import { ConvidadosBoard } from '../../components/convidados/lista/ConvidadosBoard'
 import { EnviosDoDiaBoard } from '../../components/convidados/envios/EnviosDoDiaBoard'
+import { EnvioEspecificoBoard } from '../../components/convidados/envios/EnvioEspecificoBoard'
 import { FiltersBar } from '../../components/convidados/lista/FiltersBar'
 import { ImportarCasamentoModal } from '../../components/convidados/import/ImportarCasamentoModal'
 
@@ -35,6 +36,12 @@ export default function ConvidadosPage() {
             icon={<Send className="w-3.5 h-3.5" />}
             label="Envios do dia"
             onClick={() => setPref('modo', 'envios_hoje')}
+          />
+          <ModeButton
+            active={prefs.modo === 'envio_especifico'}
+            icon={<MailPlus className="w-3.5 h-3.5" />}
+            label="Envio específico"
+            onClick={() => setPref('modo', 'envio_especifico')}
           />
         </div>
 
@@ -75,6 +82,7 @@ export default function ConvidadosPage() {
         />
       )}
       {prefs.modo === 'envios_hoje' && <EnviosDoDiaBoard />}
+      {prefs.modo === 'envio_especifico' && <EnvioEspecificoBoard />}
 
       <ImportarCasamentoModal open={importOpen} onClose={() => setImportOpen(false)} />
     </div>
