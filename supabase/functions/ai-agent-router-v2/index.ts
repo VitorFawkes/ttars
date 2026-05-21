@@ -1292,8 +1292,79 @@ Deno.serve(async (req) => {
     // ai_conversation_state.extracted_variables.tracked_data adiante). Quando há
     // card, também grava em cards.produto_data pra o CRM enxergar.
     // ------------------------------------------------------------------
-    const cardPatch = singleAgentResult.output.card_patch || {};
-    const contactPatch = singleAgentResult.output.contact_patch || {};
+    const cardPatchRaw = singleAgentResult.output.card_patch || {};
+    const contactPatchRaw = singleAgentResult.output.contact_patch || {};
+
+    // ── Cerca de segurança: validar contra business_config ───────────────
+    // O admin configura quais campos a agente pode atualizar na aba
+    // "Regras de Negócio" (auto_update_fields / contact_update_fields /
+    // protected_fields). Aqui filtramos o que o LLM gerou contra essas
+    // listas, ANTES de qualquer normalização/persistência. Campos fora
+    // da allowlist são descartados silenciosamente com log.
+    //
+    // SEMPRE permitidos no card (mesmo sem allowlist): campos system que
+    // o próprio router/tools precisam atualizar (ai_resumo, ai_contexto,
+    // pipeline_stage_id, titulo + os 2 auxiliares de conversão de moeda).
+    const SYSTEM_ALWAYS_ALLOWED_CARD = new Set([
+      "titulo", "ai_resumo", "ai_contexto", "pipeline_stage_id",
+      "ww_orcamento_moeda_original", "ww_orcamento_cotacao_usada",
+    ]);
+    // SEMPRE bloqueados no contato (proteção dura): telefone nunca é
+    // sobrescrito pelo agente — é a chave de identidade.
+    const SYSTEM_NEVER_ALLOWED_CONTACT = new Set(["telefone", "id", "org_id"]);
+
+    const businessAutoUpdate: string[] = Array.isArray(business?.auto_update_fields)
+      ? (business?.auto_update_fields as string[]) : [];
+    const businessProtected: string[] = Array.isArray(business?.protected_fields)
+      ? (business?.protected_fields as string[]) : [];
+    const businessContactUpdate: string[] = Array.isArray(business?.contact_update_fields)
+      ? (business?.contact_update_fields as string[]) : [];
+
+    const cardAllowlistEnabled = businessAutoUpdate.length > 0;
+    const cardAllowlist = new Set([...SYSTEM_ALWAYS_ALLOWED_CARD, ...businessAutoUpdate]);
+    const cardDenylist = new Set(businessProtected);
+
+    const cardPatch: Record<string, unknown> = {};
+    const cardFiltered: string[] = [];
+    for (const [k, v] of Object.entries(cardPatchRaw)) {
+      if (cardDenylist.has(k)) {
+        cardFiltered.push(`${k}(protected)`);
+        continue;
+      }
+      if (cardAllowlistEnabled && !cardAllowlist.has(k)) {
+        cardFiltered.push(`${k}(not_in_allowlist)`);
+        continue;
+      }
+      cardPatch[k] = v;
+    }
+    if (cardFiltered.length > 0) {
+      console.warn(`[v2] card_patch filtrado por business_config: ${cardFiltered.join(", ")}`);
+    }
+
+    // Contato: SEMPRE filtra o que o admin não autorizou. Fallback pra
+    // ["nome", "email", "data_nascimento"] se admin não configurou nada
+    // (mantém compat com agentes legados sem business_config completo).
+    const contactAllowlistEffective = businessContactUpdate.length > 0
+      ? businessContactUpdate.filter((k) => !SYSTEM_NEVER_ALLOWED_CONTACT.has(k))
+      : ["nome", "email", "data_nascimento"];
+    const contactAllowlist = new Set(contactAllowlistEffective);
+
+    const contactPatch: Record<string, unknown> = {};
+    const contactFiltered: string[] = [];
+    for (const [k, v] of Object.entries(contactPatchRaw)) {
+      if (SYSTEM_NEVER_ALLOWED_CONTACT.has(k)) {
+        contactFiltered.push(`${k}(system_never)`);
+        continue;
+      }
+      if (!contactAllowlist.has(k)) {
+        contactFiltered.push(`${k}(not_in_allowlist)`);
+        continue;
+      }
+      contactPatch[k] = v;
+    }
+    if (contactFiltered.length > 0) {
+      console.warn(`[v2] contact_patch filtrado por business_config: ${contactFiltered.join(", ")}`);
+    }
 
     // Auto-normalização de moeda estrangeira: se o LLM gravou moeda original
     // (EUR/USD/GBP) + cotação mas esqueceu de converter o valor em BRL,
@@ -1350,10 +1421,11 @@ Deno.serve(async (req) => {
     }
 
     if (Object.keys(contactPatch).length > 0) {
-      const allowed = ["nome", "email", "data_nascimento"];
+      // contactPatch já vem filtrado contra contact_update_fields (linhas acima).
+      // Aqui só removemos valores null pra não sobrescrever com vazio.
       const safe: Record<string, unknown> = {};
-      for (const k of allowed) {
-        if (contactPatch[k] != null) safe[k] = contactPatch[k];
+      for (const [k, v] of Object.entries(contactPatch)) {
+        if (v != null) safe[k] = v;
       }
       if (Object.keys(safe).length > 0) {
         const { error } = await supabase.from("contatos").update(safe).eq("id", contactId);
