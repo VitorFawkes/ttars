@@ -482,6 +482,7 @@ export default function AiAgentDetailPage() {
             agentId={id}
             agentName={form.nome}
             companyName={''}
+            produto={existingAgent?.produto ?? null}
           />
         )}
         {activeTab === 'saude' && !isNew && id && (

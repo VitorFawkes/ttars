@@ -111,19 +111,39 @@ export interface PlaybookFewShotExample {
   enabled: boolean;
 }
 
+/**
+ * Princípio estruturado (formato novo — UI v3 maio/26).
+ *
+ * Substitui o legado `principles_text` (texto livre). Quando o array
+ * `principles` está presente E não vazio, o router usa esse formato e
+ * ignora o texto legado. Mantém formato legado por compat — quando o
+ * agente nunca foi salvo pela UI nova, o array vem ausente/vazio.
+ */
+export interface IdentityPrinciple {
+  key: string;
+  title: string;
+  body: string;
+  enabled: boolean;
+  order: number;
+}
+
 export interface IdentityConfig {
   role?: string;
   role_custom?: string | null;
   mission_one_liner?: string;
   company_description_override?: string | null;
   /**
-   * Princípios de caráter da agente (per-agente, não global). Quando preenchido,
-   * o engine renderiza um bloco `<principles>` separado entre `<identity>` e
-   * `<agent_schedule>`. Hospeda "como eu penso" — meta-cognição que cobre
-   * famílias de casos em vez de listas de regras específicas. Vazio = bloco
-   * omitido (zero overhead de tokens).
+   * @deprecated Texto livre antigo dos princípios. Substituído por
+   * `principles` array. Router prefere o array quando presente.
    */
   principles_text?: string | null;
+  /**
+   * Princípios de caráter estruturados (per-agente, não global). Cada item
+   * com `enabled=true` vira uma linha numerada dentro do bloco
+   * `<principles>` no prompt. Renderizado em ordem (`order` ascendente).
+   * Vazio/ausente = bloco omitido (zero overhead de tokens).
+   */
+  principles?: IdentityPrinciple[] | null;
 }
 
 /**

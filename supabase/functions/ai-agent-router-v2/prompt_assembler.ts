@@ -156,10 +156,11 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
   const headerBlock = renderHeader(agent.nome, identity, resolvedBusiness);
 
   // -------- Principles (per-agente, opcional) -----------------------------
-  // Quando preenchido em identity_config.principles_text, vira bloco separado
-  // entre <identity> e <agent_schedule>. Hospeda "como eu penso" — meta-cognição
-  // que cobre famílias de casos em vez de listas de regras específicas.
-  const principlesBlock = renderPrinciples(identity.principles_text);
+  // Formato preferido: identity.principles (array estruturado da UI v3).
+  // Fallback: identity.principles_text (formato livre legado).
+  // Renderizado como bloco <principles> entre <identity> e <agent_schedule>.
+  // Hospeda "como eu penso" — meta-cognição que cobre famílias de casos.
+  const principlesBlock = renderPrinciples(identity);
 
   // -------- Agent schedule (fonte única de verdade da agenda) -------------
   // Lido de ai_agents.scheduling_config; injetado em linguagem natural pro LLM
@@ -308,11 +309,52 @@ ${methodology}
  * Hospeda "como eu penso" da agente: meta-cognição que cobre famílias de
  * casos em vez de listas de regras. Posicionado entre <identity> e
  * <agent_schedule> pra maximizar primacy.
+ *
+ * Formato preferido: `identity.principles` (array estruturado da UI v3,
+ * cada item com title + body + enabled + order). Quando o array está
+ * presente e tem itens habilitados, renderiza como lista numerada com
+ * título em destaque + corpo abaixo.
+ *
+ * Fallback: `identity.principles_text` (texto livre legado, formato pré-v3).
+ * Quando agente ainda não foi migrado pela UI nova, renderiza o texto
+ * inteiro como antes — paridade total com versão anterior.
  */
-function renderPrinciples(principlesText: string | null | undefined): string {
-  if (!principlesText || !principlesText.trim()) return "";
+function renderPrinciples(identity: IdentityConfig | null | undefined): string {
+  if (!identity) return "";
+
+  const arr = Array.isArray(identity.principles) ? identity.principles : null;
+  if (arr && arr.length > 0) {
+    const enabled = arr
+      .filter((p) => p?.enabled === true)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    if (enabled.length === 0) return "";
+
+    const lines: string[] = [];
+    enabled.forEach((p, idx) => {
+      const title = (p.title || "").trim();
+      const body = (p.body || "").trim();
+      if (!title && !body) return;
+      const num = idx + 1;
+      if (title && body) {
+        lines.push(`${num}. **${title}** — ${body}`);
+      } else if (title) {
+        lines.push(`${num}. **${title}**`);
+      } else {
+        lines.push(`${num}. ${body}`);
+      }
+    });
+
+    if (lines.length === 0) return "";
+    return `<principles>
+${lines.join("\n\n")}
+</principles>`;
+  }
+
+  // Fallback: formato legado (texto livre)
+  const text = identity.principles_text;
+  if (!text || !text.trim()) return "";
   return `<principles>
-${principlesText.trim()}
+${text.trim()}
 </principles>`;
 }
 

@@ -16,6 +16,9 @@ interface Props {
   agentId: string
   agentName: string
   companyName: string
+  /** Slug do produto do agente (WEDDING, TRIPS...). Propagado pra editores
+   *  que precisam do catálogo de variáveis CRM correto. */
+  produto?: string | null
 }
 
 type SectionKey =
@@ -44,7 +47,7 @@ const SECTION_DEF: Record<SectionKey, { title: string; subtitle: string; icon: t
 const V3_SECTIONS: SectionKey[] = ['quem_ela_e', 'como_ela_conversa', 'examples']
 const V2_SECTIONS: SectionKey[] = ['identity', 'voice', 'moments', 'qualification', 'boundaries', 'signals', 'examples']
 
-export function TabPlaybook({ agentId, agentName, companyName }: Props) {
+export function TabPlaybook({ agentId, agentName, companyName, produto }: Props) {
   const { enabled: v3Enabled, toggle: toggleV3 } = useV3Layout()
   const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
     quem_ela_e: true,
@@ -114,9 +117,9 @@ export function TabPlaybook({ agentId, agentName, companyName }: Props) {
                 </button>
                 {expanded[key] && (
                   <div className="px-4 py-4 border-t border-slate-100 bg-slate-50/30">
-                    {key === 'quem_ela_e' && <QuemElaESection agentId={agentId} agentName={agentName} companyName={companyName} />}
+                    {key === 'quem_ela_e' && <QuemElaESection agentId={agentId} agentName={agentName} companyName={companyName} produto={produto} />}
                     {key === 'como_ela_conversa' && <ComoConversaSection agentId={agentId} agentName={agentName} companyName={companyName} />}
-                    {key === 'identity' && <IdentitySection agentId={agentId} agentName={agentName} companyName={companyName} />}
+                    {key === 'identity' && <IdentitySection agentId={agentId} agentName={agentName} companyName={companyName} produto={produto} />}
                     {key === 'voice' && <VoiceSection agentId={agentId} agentName={agentName} companyName={companyName} />}
                     {key === 'moments' && <MomentsSection agentId={agentId} agentName={agentName} companyName={companyName} />}
                     {key === 'qualification' && <QualificationSection agentId={agentId} />}

@@ -8,6 +8,8 @@ interface Props {
   agentId: string
   agentName: string
   companyName: string
+  /** Slug do produto do agente — propaga pro IdentitySection (catálogo de variáveis CRM). */
+  produto?: string | null
 }
 
 /**
@@ -26,7 +28,7 @@ interface Props {
  * Próxima iteração: incorporar Modo de interação + Linhas WhatsApp ativas + Modo teste,
  * que hoje vivem em abas separadas do AiAgentDetailPage.
  */
-export function QuemElaESection({ agentId, agentName, companyName }: Props) {
+export function QuemElaESection({ agentId, agentName, companyName, produto }: Props) {
   return (
     <div className="space-y-8">
       {/* Banner explicativo */}
@@ -50,7 +52,7 @@ export function QuemElaESection({ agentId, agentName, companyName }: Props) {
         title="Identidade"
         subtitle="Quem ela é, missão dela, qual empresa representa."
       />
-      <IdentitySection agentId={agentId} agentName={agentName} companyName={companyName} />
+      <IdentitySection agentId={agentId} agentName={agentName} companyName={companyName} produto={produto} />
 
       {/* Bloco 2 — Voz */}
       <div className="pt-4 border-t border-slate-100">
