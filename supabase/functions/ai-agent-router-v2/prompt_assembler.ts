@@ -22,6 +22,8 @@ import type {
 } from "./playbook_loader.ts";
 import { resolveMomentParts } from "./playbook_loader.ts";
 import { resolvePlaceholdersDeep, type ResolverContext } from "./placeholder_resolver.ts";
+import { getDefaultsForAgent, type AgentDefaults } from "./defaults/index.ts";
+import type { CognitiveAuditConfigFromDB } from "./defaults/patricia_diff_cognitivo.ts";
 
 export interface BuildSinglePromptInput {
   agent: {
@@ -175,15 +177,20 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
   const fewShotExamples = rawExamples.map((e) => resolvePlaceholdersDeep(e, resolverCtx));
   const scoringRules = rawScoringRules.map((r) => resolvePlaceholdersDeep(r, resolverCtx));
 
+  // Defaults curados por agente (texto monolítico do prompt + funções builder).
+  // Quando o agente tem defaults curados (hoje: só Patricia), substituem o
+  // que viria de configs fragmentadas no banco. Mantém prompt-first.
+  // Para outros agentes single_agent_v2 futuros, defaults é null e mantém
+  // o comportamento de ler do banco (compatibilidade).
+  const defaults = getDefaultsForAgent(agent.id);
+
   // -------- Header / identity ---------------------------------------------
   const headerBlock = renderHeader(agent.nome, identity, resolvedBusiness);
 
-  // -------- Principles (per-agente, opcional) -----------------------------
-  // Formato preferido: identity.principles (array estruturado da UI v3).
-  // Fallback: identity.principles_text (formato livre legado).
-  // Renderizado como bloco <principles> entre <identity> e <agent_schedule>.
-  // Hospeda "como eu penso" — meta-cognição que cobre famílias de casos.
-  const principlesBlock = renderPrinciples(identity);
+  // -------- Principles ----------------------------------------------------
+  // Com defaults curados: texto monolítico vem do código (defaults.principles_text).
+  // Sem defaults: lê do banco (identity.principles array → fallback principles_text).
+  const principlesBlock = renderPrinciples(identity, defaults);
 
   // -------- Agent schedule (fonte única de verdade da agenda) -------------
   // Lido de ai_agents.scheduling_config; injetado em linguagem natural pro LLM
@@ -191,29 +198,32 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
   // que o admin escreveria manualmente em principles_text.
   const agentScheduleBlock = renderAgentSchedule(agent.scheduling_config);
 
-  // -------- Extra prompts editáveis pelo admin (per-agente) ---------------
-  // CONTEXT RULES (cérebro analítico):
-  //   Formato preferido: agent.cognitive_audit_config (struct da UI v3 — 5
-  //   sub-rotinas com toggle + instrução + params estruturados). Quando tem
-  //   rotinas habilitadas, monta o <context_rules> programaticamente.
-  //   Fallback: prompts_extra.context (texto livre legado).
+  // -------- Cérebro analítico (DIFF COGNITIVO) ----------------------------
+  // Com defaults curados: buildDiffCognitivo lê toggles + params do banco
+  // (cognitive_audit_config.audit_viability.zones/currency_rates) e gera
+  // texto monolítico do código (admin não edita instruções, só toggles + números).
+  // Sem defaults: comportamento antigo (struct → renderiza routines).
   const contextRulesBlock = renderCognitiveAudit(
     agent.cognitive_audit_config,
-    agent.prompts_extra?.context,
+    defaults,
   );
-  // DATA UPDATE RULES:
-  //   Formato preferido: agent.data_update_rules (array da UI v3).
-  //   Fallback: prompts_extra.data_update (texto livre legado).
+
+  // -------- Data update rules ---------------------------------------------
+  // Com defaults curados: texto monolítico do código (defaults.data_update_rules_text).
+  // Sem defaults: lê do banco (data_update_rules array → fallback prompts_extra.data_update).
   const dataUpdateRulesBlock = renderDataUpdateRules(
     agent.data_update_rules,
-    agent.prompts_extra?.data_update,
+    defaults,
   );
 
   // -------- Voice ---------------------------------------------------------
   const voiceBlock = renderVoice(voice);
 
   // -------- Boundaries ----------------------------------------------------
-  const boundariesBlock = renderBoundaries(boundaries);
+  // Com defaults curados: buildBoundaries lê brand_active + competitors do banco
+  // e renderiza Grupo A (admin) + Grupo B (design da IA, hardcoded).
+  // Sem defaults: comportamento antigo (by_category novo → fallback library_active legacy).
+  const boundariesBlock = renderBoundaries(boundaries, defaults);
 
   // -------- Listening -----------------------------------------------------
   const listeningBlock = renderListening(listening);
@@ -337,23 +347,30 @@ ${methodology}
 }
 
 /**
- * Renderiza os princípios de caráter da agente (per-agente). Quando vazio,
- * retorna string vazia — `.filter(Boolean)` no array de blocos remove.
+ * Renderiza o bloco <principles> do prompt — "como eu penso" do agente.
  *
- * Hospeda "como eu penso" da agente: meta-cognição que cobre famílias de
- * casos em vez de listas de regras. Posicionado entre <identity> e
- * <agent_schedule> pra maximizar primacy.
+ * Estratégia (decidida em 2026-05-21):
+ * - Agente com defaults curados (Patricia): texto monolítico vem do código
+ *   (defaults.principles_text). Garante coerência narrativa.
+ * - Agente sem defaults curados: lê do banco — formato preferido `principles[]`
+ *   (array da UI v3); fallback `principles_text` (texto legado).
  *
- * Formato preferido: `identity.principles` (array estruturado da UI v3,
- * cada item com title + body + enabled + order). Quando o array está
- * presente e tem itens habilitados, renderiza como lista numerada com
- * título em destaque + corpo abaixo.
- *
- * Fallback: `identity.principles_text` (texto livre legado, formato pré-v3).
- * Quando agente ainda não foi migrado pela UI nova, renderiza o texto
- * inteiro como antes — paridade total com versão anterior.
+ * Posicionado entre <identity> e <agent_schedule> pra maximizar primacy.
  */
-function renderPrinciples(identity: IdentityConfig | null | undefined): string {
+function renderPrinciples(
+  identity: IdentityConfig | null | undefined,
+  defaults: AgentDefaults | null,
+): string {
+  // Defaults curados ganham: texto monolítico do código
+  if (defaults) {
+    const text = defaults.principles_text.trim();
+    if (!text) return "";
+    return `<principles>
+${text}
+</principles>`;
+  }
+
+  // Sem defaults: comportamento antigo (banco)
   if (!identity) return "";
 
   const arr = Array.isArray(identity.principles) ? identity.principles : null;
@@ -405,17 +422,29 @@ ${text.trim()}
 }
 
 /**
- * Regras estruturadas de gravação de dados no CRM — renderiza
- * <data_update_rules> a partir do array data_update_rules (UI v3) com
- * fallback pro texto livre legado (prompts_extra.data_update).
+ * Renderiza <data_update_rules> — regras de gravação de campos do card.
  *
- * Cada item enabled vira parágrafo numerado "N. **Title** — instruction".
- * Ordenado por `order` ascendente.
+ * Com defaults curados (Patricia): texto monolítico do código.
+ * Sem defaults: lê do banco — array `data_update_rules[]` (UI v3) → fallback
+ * texto legado de `prompts_extra.data_update`.
+ *
+ * FUTURO: parte dessas regras vira código de validação no validator
+ * (especialmente normalização numérica + conversão de moeda).
  */
 function renderDataUpdateRules(
   rules: Array<{ key?: string; title?: string; instruction?: string; enabled?: boolean; order?: number }> | null | undefined,
-  legacyText: string | null | undefined,
+  defaults: AgentDefaults | null,
 ): string {
+  // Defaults curados ganham
+  if (defaults) {
+    const text = defaults.data_update_rules_text.trim();
+    if (!text) return "";
+    return `<data_update_rules>
+${text}
+</data_update_rules>`;
+  }
+
+  // Sem defaults: comportamento antigo
   const arr = Array.isArray(rules) ? rules : [];
   const enabled = arr
     .filter((r) => r?.enabled === true)
@@ -437,33 +466,46 @@ ${lines.join('\n\n')}
 </data_update_rules>`;
     }
   }
-
-  // Fallback: texto livre legado
-  if (legacyText && legacyText.trim()) {
-    return `<data_update_rules>
-${legacyText.trim()}
-</data_update_rules>`;
-  }
   return '';
 }
 
 /**
- * Cérebro analítico estruturado — renderiza <context_rules> a partir do
- * struct cognitive_audit_config (UI v3) com fallback pro texto livre legado
- * (prompts_extra.context).
+ * Renderiza <context_rules> — cérebro analítico (DIFF COGNITIVO).
  *
- * Cada sub-rotina enabled vira um parágrafo numerado dentro do bloco. Quando
- * `instruction` está vazia, usa o default hardcoded espelhado da UI. Quando
- * preenchida, usa a instrução custom do admin.
+ * Com defaults curados (Patricia): chama defaults.buildDiffCognitivo(config),
+ * que monta texto monolítico do código respeitando toggles do banco (5 routines
+ * ON/OFF) + params editáveis de audit_viability (zones, currency_rates).
  *
- * Routines avançadas (saturação e viabilidade) anexam parâmetros estruturados
- * como bullet pra que o LLM tenha valores concretos:
- *   - saturação: lista de pitch_keywords + window + threshold
- *   - viabilidade: campos + zonas + cotações de moeda
+ * Sem defaults: comportamento antigo — struct → renderiza routines com
+ * instructions e params editáveis pelo admin (incluindo textarea de "instrução"
+ * por routine, que viola feedback_no_raw_prompts_in_ui mas é o legado).
  */
 function renderCognitiveAudit(
   config: Record<string, unknown> | null | undefined,
-  legacyText: string | null | undefined,
+  defaults: AgentDefaults | null,
+): string {
+  // Defaults curados ganham
+  if (defaults) {
+    const text = defaults.buildDiffCognitivo(
+      (config ?? null) as CognitiveAuditConfigFromDB | null,
+    ).trim();
+    if (!text) return "";
+    return `<context_rules>
+${text}
+</context_rules>`;
+  }
+
+  // Sem defaults: comportamento antigo (mantém pra outros agentes single_agent_v2 futuros)
+  return renderCognitiveAuditLegacy(config);
+}
+
+/**
+ * Implementação legada de renderCognitiveAudit — mantida pra agentes
+ * single_agent_v2 sem defaults curados. Será removida quando todos os agentes
+ * tiverem defaults no código.
+ */
+function renderCognitiveAuditLegacy(
+  config: Record<string, unknown> | null | undefined,
 ): string {
   const cfg = (config || {}) as Record<string, { enabled?: boolean; instruction?: string; [k: string]: unknown }>;
   const keys = [
@@ -556,12 +598,9 @@ ${blocks.join('\n\n')}
 </context_rules>`;
   }
 
-  // Fallback: texto livre legado
-  if (legacyText && legacyText.trim()) {
-    return `<context_rules>
-${legacyText.trim()}
-</context_rules>`;
-  }
+  // Sem routines configuradas e sem defaults curados → bloco vazio.
+  // (Suporte ao prompts_extra.context como fallback foi removido em 2026-05-21
+  // junto com a eliminação do duplo prompt da Patricia.)
   return '';
 }
 
@@ -697,9 +736,23 @@ function resolveBoundaryText(item: {
   return (item.text || "").trim() || "(boundary sem texto)";
 }
 
-function renderBoundaries(boundaries: BoundariesConfig): string {
-  // Formato novo (by_category) — preferencial. UI V3 salva nesse formato.
-  // Fallback: formato legacy (library_active + custom + custom_by_category).
+function renderBoundaries(
+  boundaries: BoundariesConfig,
+  defaults: AgentDefaults | null,
+): string {
+  // Defaults curados (Patricia): renderiza Grupo A (admin escolhe via brand_active)
+  // + Grupo B (design da IA, hardcoded no defaults/patricia_boundaries.ts).
+  if (defaults) {
+    const brandActive = (boundaries as unknown as { brand_active?: string[] }).brand_active;
+    const competitors = (boundaries as unknown as { competitors_to_avoid?: string[] }).competitors_to_avoid;
+    const text = defaults.buildBoundaries(brandActive, competitors).trim();
+    if (!text) return "";
+    return `<boundaries>
+${text}
+</boundaries>`;
+  }
+
+  // Sem defaults: comportamento antigo (by_category novo → fallback library_active legacy)
   const byCategory = boundaries.by_category as
     | Record<string, Array<{ text?: string; description?: string; enabled?: boolean; library_id?: string; custom_text?: string }>>
     | undefined;
