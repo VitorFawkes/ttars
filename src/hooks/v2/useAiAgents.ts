@@ -29,13 +29,10 @@ export interface AiAgent {
   first_message_config: Record<string, unknown> | null
   outbound_trigger_config: Record<string, unknown> | null
   // C1 — configurações avançadas do agente (JSONB, populadas pelo editor C2)
-  handoff_signals?: Array<{ slug: string; enabled: boolean; description: string }> | null
-  intelligent_decisions?: Record<string, { enabled: boolean; config: Record<string, unknown> }> | null
   validator_rules?: Array<{ id: string; condition: string; action: 'block' | 'correct' | 'ignore'; enabled: boolean }> | null
   timings?: { debounce_seconds: number; typing_delay_seconds: number; max_message_blocks: number } | null
   pipeline_models?: Record<string, { model: string; temperature: number; max_tokens: number }> | null
   multimodal_config?: { audio: boolean; image: boolean; pdf: boolean } | null
-  context_fields_config?: { visible_fields?: string[]; updatable_fields?: string[]; evidence_level?: Record<string, 'low' | 'medium' | 'high'> } | null
   handoff_actions?: { change_stage_id?: string | null; apply_tag?: { color: string; name: string } | null; notify_responsible?: boolean; transition_message?: string | null; pause_permanently?: boolean } | null
   prompts_extra?: { context?: string; data_update?: string; formatting?: string; validator?: string } | null
   // Configs de agendamento (Patricia / single_agent_v2). Migrações 2026-05-13.

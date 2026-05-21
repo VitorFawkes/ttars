@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Save, Bot, Sparkles, Brain, Wrench,
   MessageSquare, BarChart3,
-  Database, Radio, ImageIcon, Power, Handshake, Lightbulb, BookOpen, PlayCircle, ShieldAlert,
+  Database, Radio, ImageIcon, Power, Handshake, BookOpen, PlayCircle, ShieldAlert,
   GitBranch, Settings, Zap, Send, MessageCircle, Target, Stethoscope, Cog, Wand2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -21,11 +21,8 @@ import { TabPrompts } from '@/components/ai-agent-v2/editor/TabPrompts'
 import { TabModelosComportamento } from '@/components/ai-agent-v2/editor/TabModelosComportamento'
 import { TabFerramentas } from '@/components/ai-agent-v2/editor/TabFerramentas'
 import { TabMemoria } from '@/components/ai-agent-v2/editor/TabMemoria'
-import { TabContextoCampos } from '@/components/ai-agent-v2/editor/TabContextoCampos'
 import { TabMultimodal } from '@/components/ai-agent-v2/editor/TabMultimodal'
 import { TabAtivacao } from '@/components/ai-agent-v2/editor/TabAtivacao'
-import { TabHandoff } from '@/components/ai-agent-v2/editor/TabHandoff'
-import { TabDecisoes } from '@/components/ai-agent-v2/editor/TabDecisoes'
 import { TabValidatorRules } from '@/components/ai-agent-v2/editor/TabValidatorRules'
 import { TabConhecimento } from '@/components/ai-agent-v2/editor/TabConhecimento'
 import { TabTeste } from '@/components/ai-agent-v2/editor/TabTeste'
@@ -43,8 +40,8 @@ import { TabPontuacao } from '@/components/ai-agent-v2/editor/TabPontuacao'
 import {
   type AgentEditorForm,
   DEFAULT_TIMINGS, DEFAULT_PIPELINE_MODELS, DEFAULT_MEMORY,
-  DEFAULT_MULTIMODAL, DEFAULT_CONTEXT_FIELDS, DEFAULT_HANDOFF_ACTIONS,
-  DEFAULT_PROMPTS_EXTRA, HANDOFF_SIGNALS_CATALOG,
+  DEFAULT_MULTIMODAL, DEFAULT_HANDOFF_ACTIONS,
+  DEFAULT_PROMPTS_EXTRA,
   DEFAULT_FIRST_MESSAGE, DEFAULT_OUTBOUND_TRIGGER,
 } from '@/components/ai-agent-v2/editor/types'
 
@@ -65,11 +62,8 @@ const DEFAULT_FORM: AgentEditorForm = {
   assigned_skill_ids: [],
   skill_config_overrides: {},
   memory_config: { ...DEFAULT_MEMORY },
-  context_fields_config: { ...DEFAULT_CONTEXT_FIELDS },
   multimodal_config: { ...DEFAULT_MULTIMODAL },
-  handoff_signals: HANDOFF_SIGNALS_CATALOG.map(s => ({ slug: s.slug, enabled: false, description: s.defaultDescription })),
   handoff_actions: { ...DEFAULT_HANDOFF_ACTIONS },
-  intelligent_decisions: {},
   validator_rules: [],
   routing_keywords: '',
   escalation_message: '',
@@ -129,12 +123,6 @@ export default function AiAgentDetailPage() {
     const escalationRules = a.escalation_rules as Array<Record<string, unknown>>
     const promptsExtra = a.prompts_extra as Partial<AgentEditorForm['prompts_extra']> | null | undefined
 
-    const storedSignals = (a.handoff_signals ?? []) as AgentEditorForm['handoff_signals']
-    const mergedSignals = HANDOFF_SIGNALS_CATALOG.map(cat => {
-      const found = storedSignals.find(s => s.slug === cat.slug)
-      return found ?? { slug: cat.slug, enabled: false, description: cat.defaultDescription }
-    })
-
     setForm({
       nome: a.nome,
       descricao: a.descricao || '',
@@ -166,11 +154,8 @@ export default function AiAgentDetailPage() {
           return acc
         }, {} as Record<string, Record<string, unknown>>),
       memory_config: { ...DEFAULT_MEMORY, ...((a.memory_config ?? {}) as unknown as AgentEditorForm['memory_config']) },
-      context_fields_config: { ...DEFAULT_CONTEXT_FIELDS, ...((a.context_fields_config ?? {}) as unknown as AgentEditorForm['context_fields_config']) },
       multimodal_config: { ...DEFAULT_MULTIMODAL, ...((a.multimodal_config ?? {}) as AgentEditorForm['multimodal_config']) },
-      handoff_signals: mergedSignals,
       handoff_actions: { ...DEFAULT_HANDOFF_ACTIONS, ...((a.handoff_actions ?? {}) as AgentEditorForm['handoff_actions']) },
-      intelligent_decisions: (a.intelligent_decisions ?? {}) as AgentEditorForm['intelligent_decisions'],
       validator_rules: (a.validator_rules ?? []) as AgentEditorForm['validator_rules'],
       routing_keywords: keywords?.join(', ') || '',
       escalation_message: (escalationRules?.[0]?.message as string) || '',
@@ -230,11 +215,8 @@ export default function AiAgentDetailPage() {
         pipeline_models: form.pipeline_models,
         timings: form.timings,
         memory_config: form.memory_config,
-        context_fields_config: form.context_fields_config,
         multimodal_config: form.multimodal_config,
-        handoff_signals: form.handoff_signals,
         handoff_actions: form.handoff_actions,
-        intelligent_decisions: form.intelligent_decisions,
         validator_rules: form.validator_rules,
         fallback_message: form.fallback_message || null,
         n8n_webhook_url: form.n8n_webhook_url || null,
@@ -370,12 +352,6 @@ export default function AiAgentDetailPage() {
       ...(v3Enabled ? [] : [{ id: 'conhecimento', label: 'Conhecimento', icon: BookOpen } as EditorTab]),
       ...technicalTabs,
       { id: 'handoff', label: 'Handoff', icon: Handshake },
-      // Aba "Decisões inteligentes" removida do V3 (engine V2 ignora o campo
-      // intelligent_decisions — só selecionado no SELECT, nunca lido em prompt
-      // ou condicional). Conteúdo equivalente vive nos Princípios de caráter
-      // dentro do Playbook > Identidade. Aba clássica ainda existe via toggle
-      // "voltar p/ layout antigo" (TabDecisoes) — limpeza completa depois.
-      ...(v3Enabled ? [] : [{ id: 'decisoes', label: 'Decisões inteligentes', icon: Lightbulb } as EditorTab]),
       { id: 'ativacao', label: 'Ativação', icon: Power },
       { id: 'teste', label: 'Teste ao vivo', icon: PlayCircle, disabled: isN8n, disabledHint: 'Julia roda no n8n — teste lá' },
     ]
@@ -544,26 +520,18 @@ export default function AiAgentDetailPage() {
           />
         )}
         {activeTab === 'memoria' && !isN8n && <TabMemoria form={form} setForm={setFormWrapper} />}
-        {activeTab === 'contexto' && <TabContextoCampos form={form} setForm={setFormWrapper} agentId={isNew ? undefined : id} />}
         {activeTab === 'multimodal' && !isN8n && <TabMultimodal form={form} setForm={setFormWrapper} />}
         {activeTab === 'tecnico' && (
           <TecnicoSection form={form} setForm={setFormWrapper} isN8n={isN8n} />
         )}
         {activeTab === 'handoff' && (
-          // Agentes com playbook usam SEMPRE a v3 — ela tem o cross-org check
-          // pra responsavel/stage. A v1 (TabHandoff) usa useCurrentProductMeta
-          // que pega org/produto da sessão do admin, não do agente, e pode
-          // resultar em stage_id de pipeline errado salvo silenciosamente.
-          (v3Enabled || form.playbook_enabled)
-            ? <HandoffSectionV3
-                form={form}
-                setForm={setFormWrapper}
-                agentOrgId={existingAgent?.org_id ?? null}
-                agentProductSlug={existingAgent?.produto ? existingAgent.produto.toLowerCase() : null}
-              />
-            : <TabHandoff form={form} setForm={setFormWrapper} />
+          <HandoffSectionV3
+            form={form}
+            setForm={setFormWrapper}
+            agentOrgId={existingAgent?.org_id ?? null}
+            agentProductSlug={existingAgent?.produto ? existingAgent.produto.toLowerCase() : null}
+          />
         )}
-        {activeTab === 'decisoes' && <TabDecisoes form={form} setForm={setFormWrapper} agentId={isNew ? undefined : id} />}
         {activeTab === 'validador' && !isN8n && <TabValidatorRules form={form} setForm={setFormWrapper} />}
         {activeTab === 'ativacao' && (
           <TabAtivacao

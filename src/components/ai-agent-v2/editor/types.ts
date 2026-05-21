@@ -30,18 +30,6 @@ export interface MultimodalConfig {
   pdf: boolean
 }
 
-export interface ContextFieldsConfig {
-  visible_fields: string[]
-  updatable_fields: string[]
-  evidence_level: Record<string, 'low' | 'medium' | 'high'>
-}
-
-export interface HandoffSignal {
-  slug: string
-  enabled: boolean
-  description: string
-}
-
 /**
  * Configuração de agendamento automático de reunião com closer/especialista
  * quando o agente identifica lead qualificado.
@@ -95,11 +83,6 @@ export interface HandoffActions {
   book_meeting: BookMeetingConfig | null
   /** Auto-handoff invisível por bloqueios consecutivos do validador. */
   auto_handoff_invisible?: AutoHandoffInvisibleConfig | null
-}
-
-export interface IntelligentDecision {
-  enabled: boolean
-  config: Record<string, unknown>
 }
 
 export interface ValidatorRule {
@@ -221,12 +204,9 @@ export interface AgentEditorForm {
   skill_config_overrides: Record<string, Record<string, unknown>>
 
   memory_config: MemoryConfig
-  context_fields_config: ContextFieldsConfig
   multimodal_config: MultimodalConfig
 
-  handoff_signals: HandoffSignal[]
   handoff_actions: HandoffActions
-  intelligent_decisions: Record<string, IntelligentDecision>
   validator_rules: ValidatorRule[]
 
   routing_keywords: string
@@ -265,29 +245,6 @@ export interface AgentEditorForm {
   tool_descriptions: Record<string, string>
 }
 
-export const HANDOFF_SIGNALS_CATALOG: Array<{ slug: string; label: string; defaultDescription: string }> = [
-  { slug: 'cliente_insatisfeito', label: 'Cliente insatisfeito', defaultDescription: 'Tom frustrado, críticas repetidas, ironia evidente ao longo da conversa.' },
-  { slug: 'pedido_humano', label: 'Pedido explícito por humano', defaultDescription: 'Cliente sinaliza em qualquer linguagem que quer falar com outra pessoa.' },
-  { slug: 'fora_escopo', label: 'Situação fora do escopo', defaultDescription: 'Tema que o agente não domina (ex: jurídico, cancelamento complexo, reembolso).' },
-  { slug: 'informacao_sensivel', label: 'Informação sensível/crítica', defaultDescription: 'Cobrança errada, dado pessoal comprometido, risco reputacional.' },
-  { slug: 'loop_incompreensao', label: 'Loop de incompreensão', defaultDescription: 'Agente já tentou múltiplas vezes e o cliente não avançou.' },
-  { slug: 'regulatorio', label: 'Assunto regulatório', defaultDescription: 'Tema que exige humano por política (devolução, cancelamento de contrato).' },
-  { slug: 'alta_intencao_bloqueada', label: 'Alta intenção de compra bloqueada', defaultDescription: 'Cliente próximo de fechar mas o agente não consegue avançar sozinho.' },
-  { slug: 'conversa_longa', label: 'Tempo de conversa estourado', defaultDescription: 'Conversa muito longa sem resolução clara.' },
-]
-
-export const INTELLIGENT_DECISIONS_CATALOG: Array<{ key: string; label: string; description: string }> = [
-  { key: 'criar_reuniao', label: 'Quando criar reunião', description: 'Agente decide quando marcar reunião. Pré-requisitos configuráveis.' },
-  { key: 'atualizar_contato', label: 'Quando atualizar contato', description: 'Atualiza dado novo com evidência clara.' },
-  { key: 'aplicar_tag', label: 'Quando aplicar tag', description: 'Aplica tags em cards com base em sinais da conversa.' },
-  { key: 'buscar_kb', label: 'Quando buscar na Knowledge Base', description: 'Consulta a base de conhecimento para responder fatos específicos.' },
-  { key: 'pedir_contexto', label: 'Pedir contexto vs responder', description: 'Decide se arrisca uma resposta ou pede mais informação.' },
-  { key: 'ajuste_tom', label: 'Ajuste de tom em tempo real', description: 'Adapta o tom ao humor do cliente.' },
-  { key: 'consolidar_resumo', label: 'Consolidar resumo do card', description: 'Atualiza o resumo do card quando há fato novo relevante.' },
-  { key: 'reapresentacao', label: 'Re-apresentação', description: 'Decide quando voltar a se apresentar.' },
-  { key: 'escalar_agente_ia', label: 'Escalar para outro agente IA', description: 'Encaminha para outro agente da conta quando o tema é dele.' },
-]
-
 export const DEFAULT_TIMINGS: AgentTimings = {
   debounce_seconds: 20,
   typing_delay_seconds: 4,
@@ -311,12 +268,6 @@ export const DEFAULT_MULTIMODAL: MultimodalConfig = {
   audio: true,
   image: true,
   pdf: false,
-}
-
-export const DEFAULT_CONTEXT_FIELDS: ContextFieldsConfig = {
-  visible_fields: ['nome', 'telefone', 'email', 'produto', 'etapa', 'ai_resumo', 'ai_contexto'],
-  updatable_fields: ['email', 'cidade', 'empresa'],
-  evidence_level: {},
 }
 
 export const DEFAULT_AUTO_HANDOFF_INVISIBLE: AutoHandoffInvisibleConfig = {
