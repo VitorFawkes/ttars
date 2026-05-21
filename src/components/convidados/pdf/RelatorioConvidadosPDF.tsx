@@ -1,26 +1,12 @@
-import { Document, Page, View, Text, StyleSheet, Font } from '@react-pdf/renderer'
+import { Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer'
 import type { Guest, RsvpCounts } from '../../../hooks/convidados/types'
 
 // ── Fontes ──────────────────────────────────────────────────────────────
-// Playfair Display pra nome do casal (serif elegante). Inter pro resto.
-// Fallback automático pra Helvetica se carregamento falhar.
-Font.register({
-  family: 'Playfair Display',
-  fonts: [
-    { src: 'https://fonts.gstatic.com/s/playfairdisplay/v37/nuFvD-vYSZviVYUb_rj3ij__anPXJzDwcbmjWBN2PKdFvUDQZNLo_U2r.ttf', fontWeight: 400 },
-    { src: 'https://fonts.gstatic.com/s/playfairdisplay/v37/nuFRD-vYSZviVYUb_rj3ij__anPXJzDgcZ5dHKEJfocGGfdEZUFAvkk.ttf', fontWeight: 400, fontStyle: 'italic' },
-    { src: 'https://fonts.gstatic.com/s/playfairdisplay/v37/nuFvD-vYSZviVYUb_rj3ij__anPXJzDwcbmjWBN2PKdFvUDQZNLo_U2r.ttf', fontWeight: 700 },
-  ],
-})
-Font.register({
-  family: 'Inter',
-  fonts: [
-    { src: 'https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50ojIw2boKoduKmMEVuLyfMZhrib2Bg-4.ttf', fontWeight: 400 },
-    { src: 'https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50ojIw2boKoduKmMEVuI6fMZhrib2Bg-4.ttf', fontWeight: 500 },
-    { src: 'https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50ojIw2boKoduKmMEVuFuYMZhrib2Bg-4.ttf', fontWeight: 700 },
-    { src: 'https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50ojIw2boKoduKmMEVuGKYMZhrib2Bg-4.ttf', fontWeight: 800 },
-  ],
-})
+// Usa fontes built-in do PDF — Helvetica (sans) e Times (serif). Sem
+// dependência de Google Fonts (URLs mudam e quebram offline).
+const FONT_SANS = 'Helvetica'
+const FONT_SANS_BOLD = 'Helvetica-Bold'
+const FONT_SERIF_ITALIC = 'Times-Italic'
 
 // ── Tipos ──────────────────────────────────────────────────────────────
 export interface RelatorioPdfProps {
@@ -85,7 +71,7 @@ const C = {
 
 // ── Estilos ────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  page: { padding: 0, fontFamily: 'Inter', backgroundColor: C.white, color: C.slate900 },
+  page: { padding: 0, fontFamily: FONT_SANS, backgroundColor: C.white, color: C.slate900 },
   pageContent: { paddingHorizontal: 56, paddingVertical: 56 },
 
   // Capa
@@ -95,7 +81,7 @@ const styles = StyleSheet.create({
   capaMonograma: { fontSize: 18, color: C.rose },
   capaCenter: { alignItems: 'center', textAlign: 'center', marginTop: 'auto', marginBottom: 'auto' },
   capaLabel: { fontSize: 11, color: C.slate500, letterSpacing: 4, textTransform: 'uppercase', marginBottom: 24, fontWeight: 500 },
-  capaCasal: { fontFamily: 'Playfair Display', fontStyle: 'italic', fontSize: 56, color: C.slate900, lineHeight: 1.1 },
+  capaCasal: { fontFamily: FONT_SERIF_ITALIC, fontSize: 56, color: C.slate900, lineHeight: 1.1 },
   capaDivisor: { width: 60, height: 1, backgroundColor: C.rose, marginVertical: 24 },
   capaDetalhe: { fontSize: 14, color: C.slate700, marginBottom: 6 },
   capaDetalheStrong: { fontSize: 14, color: C.slate900, fontWeight: 600 },
@@ -106,7 +92,7 @@ const styles = StyleSheet.create({
   // Cabeçalho de seção
   sectionHeader: { marginBottom: 24 },
   sectionEyebrow: { fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', fontWeight: 500, marginBottom: 6 },
-  sectionTitle: { fontFamily: 'Playfair Display', fontSize: 28, fontWeight: 700, lineHeight: 1.2 },
+  sectionTitle: { fontFamily: FONT_SANS_BOLD, fontSize: 28, lineHeight: 1.2 },
   sectionSubtitle: { fontSize: 11, color: C.slate500, marginTop: 6 },
 
   // Stats
