@@ -4,7 +4,7 @@ import { X, CheckCircle2, AlertTriangle, Phone, Loader2, RefreshCw } from 'lucid
 import { sbAny } from '../../../hooks/convidados/_supabaseUntyped'
 import { cn } from '../../../lib/utils'
 import { ReenviarFalhasModal } from './ReenviarFalhasModal'
-import { BaixarPdfButton } from '../pdf/BaixarPdfButton'
+import { BaixarEnvioPdfButton } from '../pdf/BaixarEnvioPdfButton'
 
 interface RelatorioEnvioModalProps {
   open: boolean
@@ -184,7 +184,7 @@ export function RelatorioEnvioModal({ open, onClose, loteId, weddingTitulo, temp
               : ''}
           </div>
           <div className="flex items-center gap-2">
-            {lote?.card_id && <BaixarPdfButton cardId={lote.card_id} label="Baixar PDF do casamento" />}
+            <BaixarEnvioPdfButton loteId={loteId} label="Baixar PDF" />
             {failedMessages.length > 0 && !enviando && (
               <button
                 type="button"
