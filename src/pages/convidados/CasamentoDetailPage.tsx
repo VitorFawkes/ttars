@@ -39,6 +39,7 @@ import { mockHotelRooms } from '../../hooks/convidados/mockHotel'
 import { NovoGuestModal } from '../../components/convidados/NovoGuestModal'
 import { GuestKanbanBoard } from '../../components/convidados/guests/GuestKanbanBoard'
 import { Button } from '../../components/ui/Button'
+import { BaixarPdfButton } from '../../components/convidados/pdf/BaixarPdfButton'
 
 const MONTH_FULL = [
   'janeiro','fevereiro','março','abril','maio','junho',
@@ -189,6 +190,7 @@ export default function CasamentoDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {cardId && <BaixarPdfButton cardId={cardId} />}
           <a
             href={`/cards/${wedding.id}`}
             target="_blank"

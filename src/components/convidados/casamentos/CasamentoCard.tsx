@@ -5,6 +5,7 @@ import { cn } from '../../../lib/utils'
 import { mockHotelRooms } from '../../../hooks/convidados/mockHotel'
 import { useUpdateWeddingEtapa } from '../../../hooks/convidados/useUpdateWeddingEtapa'
 import { useWeddingFluxo } from '../../../hooks/convidados/useWeddingFluxo'
+import { BaixarPdfButton } from '../pdf/BaixarPdfButton'
 import {
   ETAPA_LABEL,
   type EtapaConvidados,
@@ -115,6 +116,9 @@ export function CasamentoCard({ wedding, onDrillIn }: CasamentoCardProps) {
         </div>
 
         <div className="flex items-center gap-0.5 shrink-0">
+          <span onClick={stop} onPointerDown={stopPointer}>
+            <BaixarPdfButton cardId={wedding.id} variant="icon" />
+          </span>
           <EtapaActionButton
             cardId={wedding.id}
             currentEtapa={wedding.etapa}
