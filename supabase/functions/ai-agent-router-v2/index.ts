@@ -131,7 +131,7 @@ Deno.serve(async (req) => {
           identity_config, voice_config, boundaries_config, listening_config,
           handoff_actions,
           engine, timings, multimodal_config, wedding_planner_profile_id, scheduling_config,
-          fallback_message, prompts_extra, tool_descriptions, cognitive_audit_config
+          fallback_message, prompts_extra, tool_descriptions, cognitive_audit_config, data_update_rules
         )
       `)
       .eq("phone_line_id", lineRow.id)
@@ -1254,6 +1254,7 @@ Deno.serve(async (req) => {
         prompts_extra: (agent as unknown as { prompts_extra?: BuildSinglePromptInput["agent"]["prompts_extra"] }).prompts_extra,
         tool_descriptions: (agent as unknown as { tool_descriptions?: BuildSinglePromptInput["agent"]["tool_descriptions"] }).tool_descriptions ?? null,
         cognitive_audit_config: (agent as unknown as { cognitive_audit_config?: Record<string, unknown> | null }).cognitive_audit_config ?? null,
+        data_update_rules: (agent as unknown as { data_update_rules?: BuildSinglePromptInput["agent"]["data_update_rules"] }).data_update_rules ?? null,
       },
       business: business ? {
         company_name: business.company_name,

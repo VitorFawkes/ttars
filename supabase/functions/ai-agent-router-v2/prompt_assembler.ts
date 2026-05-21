@@ -59,6 +59,20 @@ export interface BuildSinglePromptInput {
      * disso. Quando ausente/vazio, fallback pro prompts_extra.context.
      */
     cognitive_audit_config?: Record<string, unknown> | null;
+    /**
+     * Regras estruturadas de gravação de dados no CRM (UI v3). Substitui
+     * prompts_extra.data_update (texto livre legacy). Array de
+     * { key, title, instruction, enabled, order }. Quando tem itens
+     * habilitados, monta <data_update_rules> com cada um como parágrafo
+     * numerado. Vazio = fallback pro texto legado.
+     */
+    data_update_rules?: Array<{
+      key?: string;
+      title?: string;
+      instruction?: string;
+      enabled?: boolean;
+      order?: number;
+    }> | null;
   };
   business: {
     company_name?: string | null;
@@ -187,8 +201,13 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
     agent.cognitive_audit_config,
     agent.prompts_extra?.context,
   );
-  // DATA UPDATE RULES: ainda texto livre (Fase 4 da reforma vai estruturar).
-  const dataUpdateRulesBlock = renderExtraRules("data_update_rules", agent.prompts_extra?.data_update);
+  // DATA UPDATE RULES:
+  //   Formato preferido: agent.data_update_rules (array da UI v3).
+  //   Fallback: prompts_extra.data_update (texto livre legado).
+  const dataUpdateRulesBlock = renderDataUpdateRules(
+    agent.data_update_rules,
+    agent.prompts_extra?.data_update,
+  );
 
   // -------- Voice ---------------------------------------------------------
   const voiceBlock = renderVoice(voice);
@@ -383,6 +402,49 @@ function renderExtraRules(tag: string, text: string | null | undefined): string 
   return `<${tag}>
 ${text.trim()}
 </${tag}>`;
+}
+
+/**
+ * Regras estruturadas de gravação de dados no CRM — renderiza
+ * <data_update_rules> a partir do array data_update_rules (UI v3) com
+ * fallback pro texto livre legado (prompts_extra.data_update).
+ *
+ * Cada item enabled vira parágrafo numerado "N. **Title** — instruction".
+ * Ordenado por `order` ascendente.
+ */
+function renderDataUpdateRules(
+  rules: Array<{ key?: string; title?: string; instruction?: string; enabled?: boolean; order?: number }> | null | undefined,
+  legacyText: string | null | undefined,
+): string {
+  const arr = Array.isArray(rules) ? rules : [];
+  const enabled = arr
+    .filter((r) => r?.enabled === true)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+  if (enabled.length > 0) {
+    const lines = enabled.map((r, idx) => {
+      const title = (r.title || '').trim();
+      const instruction = (r.instruction || '').trim();
+      const num = idx + 1;
+      if (title && instruction) return `${num}. **${title}** — ${instruction}`;
+      if (title) return `${num}. **${title}**`;
+      return `${num}. ${instruction}`;
+    }).filter((s) => s.length > 0);
+
+    if (lines.length > 0) {
+      return `<data_update_rules>
+${lines.join('\n\n')}
+</data_update_rules>`;
+    }
+  }
+
+  // Fallback: texto livre legado
+  if (legacyText && legacyText.trim()) {
+    return `<data_update_rules>
+${legacyText.trim()}
+</data_update_rules>`;
+  }
+  return '';
 }
 
 /**
