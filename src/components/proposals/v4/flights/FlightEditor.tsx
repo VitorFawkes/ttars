@@ -9,11 +9,36 @@
  * - Visual limpo e escaneável
  */
 
-import { useCallback, useState, useRef, useEffect, useMemo } from 'react'
-import { Plus, Star, Trash2, Sparkles } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Plus, Star, Trash2, Sparkles, Pencil, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { type FlightsData, type FlightLeg, type FlightOption, AIRLINES } from './types'
 import { FlightImageExtractor } from './FlightImageExtractor'
+
+// Opções fixas pra bagagem (em vez de texto livre que vira bagunça)
+const BAGGAGE_OPTIONS = [
+    { value: '', label: 'Sem bagagem' },
+    { value: 'Bagagem de mão 10kg', label: 'Bagagem de mão (10kg)' },
+    { value: '1 mala 23kg', label: '1 mala despachada (23kg)' },
+    { value: '2 malas 23kg', label: '2 malas despachadas (23kg)' },
+    { value: '1 mala 32kg', label: '1 mala despachada (32kg)' },
+    { value: '2 malas 32kg', label: '2 malas despachadas (32kg)' },
+] as const
+
+const CABIN_OPTIONS = [
+    { value: 'economy', label: 'Econômica' },
+    { value: 'premium_economy', label: 'Premium Economy' },
+    { value: 'business', label: 'Executiva' },
+    { value: 'first', label: 'Primeira Classe' },
+] as const
+
+const FARE_FAMILY_OPTIONS = [
+    { value: 'light', label: 'Light' },
+    { value: 'plus', label: 'Plus' },
+    { value: 'max', label: 'Max' },
+    { value: 'premium', label: 'Premium' },
+] as const
 
 interface FlightEditorProps {
     data: FlightsData | null
@@ -409,10 +434,8 @@ interface FlightRowProps {
 }
 
 function FlightRow({ option, onUpdate, onRemove, onSetRecommended }: FlightRowProps) {
-    const [isEditing, setIsEditing] = useState(false)
-
-    // Calcular duração — tolera lixo tipo "23:40 (+1)" e "+1 day", devolve '' se inválido
-    const duration = (() => {
+    // Duração tolerante a lixo tipo "23:40 (+1)"
+    const duration = useMemo(() => {
         const parse = (raw?: string | null): { h: number; m: number; extraDays: number } | null => {
             if (!raw) return null
             const s = String(raw)
@@ -432,228 +455,295 @@ function FlightRow({ option, onUpdate, onRemove, onSetRecommended }: FlightRowPr
         const h = Math.floor(mins / 60)
         const m = mins % 60
         if (!Number.isFinite(h) || h < 0) return ''
-        return `${h}h${m > 0 ? m.toString().padStart(2, '0') : ''}`
-    })()
+        return m > 0 ? `${h}h${m.toString().padStart(2, '0')}` : `${h}h`
+    }, [option.departure_time, option.arrival_time])
 
-    // Formatar preço
     const formattedPrice = option.price > 0
         ? `R$ ${option.price.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
         : ''
 
-    if (isEditing) {
-        return (
-            <FlightRowEdit
-                option={option}
-                onUpdate={onUpdate}
-                onClose={() => setIsEditing(false)}
-            />
-        )
-    }
+    const stopsLabel = (() => {
+        const s = Number(option.stops ?? 0)
+        if (!Number.isFinite(s) || s <= 0) return 'direto'
+        return s === 1 ? '1 escala' : `${s} escalas`
+    })()
+
+    // Marca "(+1)" / "(+2)" no horário de chegada se o input do usuário tem o sufixo
+    const arrivalSuffix = (() => {
+        if (!option.arrival_time) return ''
+        const plus = String(option.arrival_time).match(/\+(\d+)/)
+        return plus ? ` (+${plus[1]})` : ''
+    })()
+    const arrivalDisplay = (option.arrival_time?.match(/(\d{1,2}:\d{2})/)?.[1]) || '--:--'
+    const departureDisplay = (option.departure_time?.match(/(\d{1,2}:\d{2})/)?.[1]) || '--:--'
+
+    const airline = AIRLINES.find(a => a.code === option.airline_code)
 
     return (
         <div
             className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all group",
+                "grid items-center gap-3 rounded-lg border px-3 py-2 transition-all group",
+                "grid-cols-[auto_minmax(150px,1.5fr)_minmax(180px,1.8fr)_minmax(80px,auto)_minmax(90px,auto)_auto]",
                 option.is_recommended
-                    ? "bg-amber-100 border border-amber-300"
-                    : "bg-white border border-slate-200 hover:border-slate-300"
+                    ? "bg-amber-50 border-amber-200"
+                    : "bg-white border-slate-200 hover:border-slate-300"
             )}
-            onClick={() => setIsEditing(true)}
         >
-            {/* Star */}
+            {/* Estrela "recomendado" */}
             <button
-                onClick={(e) => {
-                    e.stopPropagation()
-                    onSetRecommended()
-                }}
+                onClick={onSetRecommended}
                 className={cn(
                     "p-0.5 transition-colors",
                     option.is_recommended ? "text-amber-500" : "text-slate-300 hover:text-amber-400"
                 )}
+                title={option.is_recommended ? "Opção recomendada" : "Marcar como recomendada"}
             >
                 <Star className={cn("h-4 w-4", option.is_recommended && "fill-amber-500")} />
             </button>
 
-            {/* Companhia + Voo */}
-            <div className="flex items-center gap-1">
-                <span className="text-sm font-semibold text-slate-700">
-                    {option.airline_name || AIRLINES.find(a => a.code === option.airline_code)?.name || option.airline_code}
-                </span>
+            {/* Companhia + número do voo */}
+            <div className="flex items-center gap-2 min-w-0">
                 <span className={cn(
-                    "px-1.5 py-0.5 rounded text-[10px] font-bold",
-                    AIRLINES.find(a => a.code === option.airline_code)?.color || "bg-slate-100 text-slate-700"
+                    "px-1.5 py-0.5 rounded text-[10px] font-bold flex-shrink-0",
+                    airline?.color || "bg-slate-100 text-slate-700"
                 )}>
-                    {option.airline_code}
+                    {option.airline_code || '--'}
                 </span>
-                <span className="font-mono text-sm text-slate-600">
-                    {option.flight_number || '----'}
-                </span>
+                <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-medium text-slate-900 truncate">
+                        {option.airline_name || airline?.name || option.airline_code || 'Companhia'}
+                    </span>
+                    <span className="font-mono text-xs text-slate-500 truncate">
+                        {option.flight_number || '----'}
+                    </span>
+                </div>
             </div>
 
-            {/* Separador */}
-            <span className="text-slate-300">|</span>
-
-            {/* Horários */}
-            <div className="flex items-center gap-1">
-                <span className="text-sm font-medium">
-                    {option.departure_time || '--:--'}
+            {/* Horários + duração + escalas */}
+            <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-slate-900 tabular-nums">
+                    {departureDisplay}
                 </span>
-                <span className="text-slate-400 text-xs">→</span>
-                <span className="text-sm font-medium">
-                    {option.arrival_time || '--:--'}
+                <ArrowRight className="h-3 w-3 text-slate-400 flex-shrink-0" />
+                <span className="text-sm font-medium text-slate-900 tabular-nums">
+                    {arrivalDisplay}
+                    {arrivalSuffix && (
+                        <span className="ml-0.5 text-xs text-amber-600 font-semibold">{arrivalSuffix}</span>
+                    )}
                 </span>
                 {duration && (
-                    <span className="text-xs text-slate-400 ml-1">
-                        ({duration})
+                    <span className="text-xs text-slate-500 ml-1">
+                        · {duration}
                     </span>
                 )}
             </div>
 
-            {/* Spacer */}
-            <div className="flex-1" />
+            {/* Escalas */}
+            <span className="text-xs text-slate-500">
+                {stopsLabel}
+            </span>
 
             {/* Preço */}
             <span className={cn(
-                "font-bold text-sm",
-                option.is_recommended ? "text-amber-700" : "text-slate-700"
+                "text-sm font-semibold tabular-nums text-right",
+                option.is_recommended ? "text-amber-700" : "text-slate-900"
             )}>
                 {formattedPrice || 'R$ --'}
             </span>
 
-            {/* Delete */}
-            <button
-                onClick={(e) => {
-                    e.stopPropagation()
-                    onRemove()
-                }}
-                className="p-1 text-slate-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-            >
-                <Trash2 className="h-4 w-4" />
-            </button>
+            {/* Ações: editar + remover */}
+            <div className="flex items-center gap-1">
+                <FlightOptionPopover option={option} onUpdate={onUpdate} />
+                <button
+                    onClick={onRemove}
+                    className="p-1 text-slate-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                    title="Remover esta opção"
+                >
+                    <Trash2 className="h-4 w-4" />
+                </button>
+            </div>
         </div>
     )
 }
 
 // ============================================
-// Componente de Edição de Linha
+// Popover de Edição (substitui o expand inline)
 // ============================================
 
-interface FlightRowEditProps {
+function FlightOptionPopover({
+    option,
+    onUpdate,
+}: {
     option: FlightOption
     onUpdate: (updates: Partial<FlightOption>) => void
-    onClose: () => void
-}
-
-function FlightRowEdit({ option, onUpdate, onClose }: FlightRowEditProps) {
-    const containerRef = useRef<HTMLDivElement>(null)
-
-    // Fechar ao clicar fora
-    useEffect(() => {
-        const handleClickOutside = (e: MouseEvent) => {
-            if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-                onClose()
-            }
-        }
-        document.addEventListener('mousedown', handleClickOutside)
-        return () => document.removeEventListener('mousedown', handleClickOutside)
-    }, [onClose])
-
-    // Fechar com Escape
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onClose()
-        }
-        document.addEventListener('keydown', handleKeyDown)
-        return () => document.removeEventListener('keydown', handleKeyDown)
-    }, [onClose])
-
+}) {
     return (
-        <div
-            ref={containerRef}
-            className="bg-white border-2 border-blue-400 rounded-lg p-3 shadow-lg space-y-3"
-        >
-            {/* Linha 1: Companhia, Voo, Horários */}
-            <div className="flex items-center gap-3">
-                <select
-                    value={option.airline_code}
-                    onChange={(e) => {
-                        const airline = AIRLINES.find(a => a.code === e.target.value)
-                        onUpdate({
-                            airline_code: e.target.value,
-                            airline_name: airline?.name || e.target.value
-                        })
-                    }}
-                    className="px-2 py-1.5 text-sm font-medium border border-slate-200 rounded"
+        <Popover>
+            <PopoverTrigger asChild>
+                <button
+                    className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"
+                    title="Editar detalhes desta opção"
                 >
-                    {AIRLINES.map(a => (
-                        <option key={a.code} value={a.code}>{a.name}</option>
-                    ))}
-                </select>
-
-                <input
-                    type="text"
-                    value={option.flight_number}
-                    onChange={(e) => onUpdate({ flight_number: e.target.value.toUpperCase() })}
-                    placeholder="Voo"
-                    className="w-20 px-2 py-1.5 text-sm font-mono border border-slate-200 rounded text-center"
-                    autoFocus
-                />
-
-                <input
-                    type="time"
-                    value={option.departure_time}
-                    onChange={(e) => onUpdate({ departure_time: e.target.value })}
-                    className="px-2 py-1.5 text-sm border border-slate-200 rounded"
-                />
-                <span className="text-slate-400">→</span>
-                <input
-                    type="time"
-                    value={option.arrival_time}
-                    onChange={(e) => onUpdate({ arrival_time: e.target.value })}
-                    className="px-2 py-1.5 text-sm border border-slate-200 rounded"
-                />
-            </div>
-
-            {/* Linha 2: Classe, Bagagem, Preço */}
-            <div className="flex items-center gap-3">
-                <select
-                    value={option.fare_family}
-                    onChange={(e) => onUpdate({ fare_family: e.target.value })}
-                    className="px-2 py-1.5 text-sm border border-slate-200 rounded"
-                >
-                    <option value="light">Light</option>
-                    <option value="plus">Plus</option>
-                    <option value="max">Max</option>
-                    <option value="premium">Premium</option>
-                </select>
-
-                <input
-                    type="text"
-                    value={option.baggage}
-                    onChange={(e) => onUpdate({ baggage: e.target.value })}
-                    placeholder="Bagagem (ex: 23kg)"
-                    className="flex-1 px-2 py-1.5 text-sm border border-slate-200 rounded"
-                />
-
-                <div className="flex items-center gap-1">
-                    <span className="text-sm text-slate-500">R$</span>
-                    <input
-                        type="number"
-                        value={option.price || ''}
-                        onChange={(e) => onUpdate({ price: parseFloat(e.target.value) || 0 })}
-                        placeholder="0"
-                        className="w-24 px-2 py-1.5 text-sm font-bold border border-slate-200 rounded text-right"
-                    />
+                    <Pencil className="h-3.5 w-3.5" />
+                </button>
+            </PopoverTrigger>
+            <PopoverContent
+                align="end"
+                side="bottom"
+                className="w-[360px] p-0"
+            >
+                <div className="border-b border-slate-200 px-4 py-2.5">
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Detalhes da opção
+                    </h4>
                 </div>
 
-                <button
-                    onClick={onClose}
-                    className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                >
-                    OK
-                </button>
-            </div>
-        </div>
+                <div className="px-4 py-3 space-y-3">
+                    {/* Companhia + número */}
+                    <div className="grid grid-cols-3 gap-2">
+                        <label className="col-span-2 block">
+                            <span className="mb-1 block text-[11px] font-medium text-slate-600">Companhia</span>
+                            <select
+                                value={option.airline_code}
+                                onChange={(e) => {
+                                    const a = AIRLINES.find(x => x.code === e.target.value)
+                                    onUpdate({
+                                        airline_code: e.target.value,
+                                        airline_name: a?.name || e.target.value,
+                                    })
+                                }}
+                                className="h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm"
+                            >
+                                {AIRLINES.map(a => (
+                                    <option key={a.code} value={a.code}>{a.name}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="block">
+                            <span className="mb-1 block text-[11px] font-medium text-slate-600">Nº voo</span>
+                            <input
+                                type="text"
+                                value={option.flight_number || ''}
+                                onChange={(e) => onUpdate({ flight_number: e.target.value.toUpperCase() })}
+                                placeholder="LA1234"
+                                className="h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm font-mono text-center"
+                            />
+                        </label>
+                    </div>
+
+                    {/* Horários */}
+                    <div className="grid grid-cols-2 gap-2">
+                        <label className="block">
+                            <span className="mb-1 block text-[11px] font-medium text-slate-600">Saída</span>
+                            <input
+                                type="time"
+                                value={(option.departure_time || '').match(/(\d{1,2}:\d{2})/)?.[1] || ''}
+                                onChange={(e) => onUpdate({ departure_time: e.target.value })}
+                                className="h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm tabular-nums"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="mb-1 block text-[11px] font-medium text-slate-600">Chegada</span>
+                            <input
+                                type="time"
+                                value={(option.arrival_time || '').match(/(\d{1,2}:\d{2})/)?.[1] || ''}
+                                onChange={(e) => {
+                                    // Preserva sufixo "+N" caso já existisse
+                                    const existing = String(option.arrival_time || '')
+                                    const plus = existing.match(/(\(?\+\d+\)?)$/)?.[0] || ''
+                                    onUpdate({ arrival_time: plus ? `${e.target.value} ${plus}` : e.target.value })
+                                }}
+                                className="h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm tabular-nums"
+                            />
+                        </label>
+                    </div>
+
+                    {/* Dia seguinte */}
+                    <label className="flex items-center gap-2 text-xs text-slate-700">
+                        <input
+                            type="checkbox"
+                            checked={/\+\d+/.test(String(option.arrival_time || ''))}
+                            onChange={(e) => {
+                                const time = (option.arrival_time || '').match(/(\d{1,2}:\d{2})/)?.[1] || ''
+                                onUpdate({ arrival_time: e.target.checked ? `${time} (+1)` : time })
+                            }}
+                            className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600"
+                        />
+                        Chega no dia seguinte
+                    </label>
+
+                    {/* Escalas */}
+                    <label className="block">
+                        <span className="mb-1 block text-[11px] font-medium text-slate-600">Paradas</span>
+                        <select
+                            value={String(option.stops ?? 0)}
+                            onChange={(e) => onUpdate({ stops: Number(e.target.value) })}
+                            className="h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm"
+                        >
+                            <option value="0">Voo direto</option>
+                            <option value="1">1 escala</option>
+                            <option value="2">2 escalas</option>
+                            <option value="3">3 escalas</option>
+                        </select>
+                    </label>
+
+                    {/* Classe + tarifa */}
+                    <div className="grid grid-cols-2 gap-2">
+                        <label className="block">
+                            <span className="mb-1 block text-[11px] font-medium text-slate-600">Classe</span>
+                            <select
+                                value={option.cabin_class || 'economy'}
+                                onChange={(e) => onUpdate({ cabin_class: e.target.value })}
+                                className="h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm"
+                            >
+                                {CABIN_OPTIONS.map(c => (
+                                    <option key={c.value} value={c.value}>{c.label}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="block">
+                            <span className="mb-1 block text-[11px] font-medium text-slate-600">Tarifa</span>
+                            <select
+                                value={option.fare_family || ''}
+                                onChange={(e) => onUpdate({ fare_family: e.target.value })}
+                                className="h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm"
+                            >
+                                <option value="">—</option>
+                                {FARE_FAMILY_OPTIONS.map(f => (
+                                    <option key={f.value} value={f.value}>{f.label}</option>
+                                ))}
+                            </select>
+                        </label>
+                    </div>
+
+                    {/* Bagagem */}
+                    <label className="block">
+                        <span className="mb-1 block text-[11px] font-medium text-slate-600">Bagagem</span>
+                        <select
+                            value={option.baggage || ''}
+                            onChange={(e) => onUpdate({ baggage: e.target.value })}
+                            className="h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm"
+                        >
+                            {BAGGAGE_OPTIONS.map(b => (
+                                <option key={b.value} value={b.value}>{b.label}</option>
+                            ))}
+                        </select>
+                    </label>
+
+                    {/* Preço */}
+                    <label className="block">
+                        <span className="mb-1 block text-[11px] font-medium text-slate-600">Preço total (R$)</span>
+                        <input
+                            type="number"
+                            value={option.price || ''}
+                            onChange={(e) => onUpdate({ price: parseFloat(e.target.value) || 0 })}
+                            placeholder="0"
+                            className="h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm font-semibold tabular-nums text-right"
+                        />
+                    </label>
+                </div>
+            </PopoverContent>
+        </Popover>
     )
 }
 
