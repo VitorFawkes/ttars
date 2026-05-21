@@ -931,3 +931,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-21T12:04:59Z | supabase/migrations/20260521_guest_confirmacao_via_extras.sql | applied_to_prod
 2026-05-21T12:35:43Z | supabase/migrations/20260521b_guest_confirmacao_phone_variants.sql | applied_to_prod
 2026-05-21T12:37:46Z | supabase/migrations/20260521c_phone_variants_v2.sql | applied_to_prod
+2026-05-21T17:52:06Z | supabase/migrations/20260521_gift_status_add_a_enviar.sql | applied_to_prod
