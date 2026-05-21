@@ -36,9 +36,10 @@ WHERE id = '4d96d9b4-e909-4441-bd85-d3f807cccfa7';
 -- ============================================================================
 -- 3. data_update_rules (NOVO fragmentado em 8 items)
 --    Texto canônico vive em patricia_data_update_rules.ts.
+--    Coluna tem NOT NULL constraint → seta array vazio em vez de NULL.
 -- ============================================================================
 UPDATE ai_agents
-SET data_update_rules = NULL
+SET data_update_rules = '[]'::jsonb
 WHERE id = '4d96d9b4-e909-4441-bd85-d3f807cccfa7';
 
 -- ============================================================================
