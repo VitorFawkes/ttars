@@ -283,7 +283,7 @@ function LegBlock({
     onSetRecommended
 }: LegBlockProps) {
     // Support both 'leg_type' (builder) and 'type' (legacy) field names
-    const legType = leg.leg_type || (leg as any).type || 'outbound'
+    const legType = leg.leg_type || (leg as { type?: string }).type || 'outbound'
     const colors = {
         outbound: { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', label: 'bg-blue-600' },
         return: { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700', label: 'bg-green-600' },
@@ -411,15 +411,27 @@ interface FlightRowProps {
 function FlightRow({ option, onUpdate, onRemove, onSetRecommended }: FlightRowProps) {
     const [isEditing, setIsEditing] = useState(false)
 
-    // Calcular duração
+    // Calcular duração — tolera lixo tipo "23:40 (+1)" e "+1 day", devolve '' se inválido
     const duration = (() => {
-        if (!option.departure_time || !option.arrival_time) return ''
-        const [dh, dm] = option.departure_time.split(':').map(Number)
-        const [ah, am] = option.arrival_time.split(':').map(Number)
-        let mins = (ah * 60 + am) - (dh * 60 + dm)
+        const parse = (raw?: string | null): { h: number; m: number; extraDays: number } | null => {
+            if (!raw) return null
+            const s = String(raw)
+            const hhmm = s.match(/(\d{1,2}):(\d{2})/)
+            if (!hhmm) return null
+            const h = Number(hhmm[1])
+            const m = Number(hhmm[2])
+            if (!Number.isFinite(h) || !Number.isFinite(m)) return null
+            const plus = s.match(/\(?\+(\d+)\)?/)
+            return { h, m, extraDays: plus ? Number(plus[1]) : 0 }
+        }
+        const dep = parse(option.departure_time)
+        const arr = parse(option.arrival_time)
+        if (!dep || !arr) return ''
+        let mins = (arr.h * 60 + arr.m) - (dep.h * 60 + dep.m) + arr.extraDays * 24 * 60
         if (mins < 0) mins += 24 * 60
         const h = Math.floor(mins / 60)
         const m = mins % 60
+        if (!Number.isFinite(h) || h < 0) return ''
         return `${h}h${m > 0 ? m.toString().padStart(2, '0') : ''}`
     })()
 

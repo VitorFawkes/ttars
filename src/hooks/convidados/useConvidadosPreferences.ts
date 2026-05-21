@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useOrg } from '../../contexts/OrgContext'
 import { ETAPA_ORDER, STATUS_RSVP_LIST, type EtapaConvidados, type StatusRSVP } from './types'
 
-export type ConvidadosModo = 'casamentos' | 'convidados' | 'envios_hoje'
+export type ConvidadosModo = 'casamentos' | 'convidados' | 'envios_hoje' | 'envio_especifico'
 
 export interface ConvidadosPreferences {
   modo: ConvidadosModo
@@ -48,6 +48,7 @@ function readPrefs(key: string | null): ConvidadosPreferences {
       modo:
         parsed.modo === 'convidados' ? 'convidados'
         : parsed.modo === 'envios_hoje' ? 'envios_hoje'
+        : parsed.modo === 'envio_especifico' ? 'envio_especifico'
         : 'casamentos',
       search: typeof parsed.search === 'string' ? parsed.search : '',
       casamentosSearch: typeof parsed.casamentosSearch === 'string' ? parsed.casamentosSearch : '',

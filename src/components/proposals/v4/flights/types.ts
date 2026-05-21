@@ -229,17 +229,32 @@ export function formatPrice(price: number, currency: string = 'BRL'): string {
 }
 
 /**
- * Helper para calcular duração do voo
+ * Helper para calcular duração do voo.
+ * Tolera lixo no input ("23:40 (+1)", " 22:30 ", "+2 day") — extrai
+ * HH:MM e o offset de dias em "(+N)" e devolve '' se input inválido.
  */
 export function calculateDuration(departure: string, arrival: string): string {
     if (!departure || !arrival) return ''
 
-    const [depH, depM] = departure.split(':').map(Number)
-    const [arrH, arrM] = arrival.split(':').map(Number)
+    const parse = (raw: string): { h: number; m: number; extraDays: number } | null => {
+        const s = String(raw)
+        const hhmm = s.match(/(\d{1,2}):(\d{2})/)
+        if (!hhmm) return null
+        const h = Number(hhmm[1])
+        const m = Number(hhmm[2])
+        if (!Number.isFinite(h) || !Number.isFinite(m)) return null
+        const plus = s.match(/\(?\+(\d+)\)?/)
+        return { h, m, extraDays: plus ? Number(plus[1]) : 0 }
+    }
 
-    let totalMinutes = (arrH * 60 + arrM) - (depH * 60 + depM)
-    if (totalMinutes < 0) totalMinutes += 24 * 60 // Atravessa meia-noite
+    const dep = parse(departure)
+    const arr = parse(arrival)
+    if (!dep || !arr) return ''
 
+    let totalMinutes = (arr.h * 60 + arr.m) - (dep.h * 60 + dep.m) + arr.extraDays * 24 * 60
+    if (totalMinutes < 0) totalMinutes += 24 * 60
+
+    if (!Number.isFinite(totalMinutes) || totalMinutes < 0) return ''
     const hours = Math.floor(totalMinutes / 60)
     const minutes = totalMinutes % 60
 
