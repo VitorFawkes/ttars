@@ -4020,8 +4020,13 @@ export type Database = {
           phase_id: string | null
           pipeline_id: string | null
           product: string | null
+          recipient_mode: string
+          recipient_target: Json
           send_email: boolean
           severity: string
+          show_in_bell: boolean
+          show_in_kanban_banner: boolean
+          show_in_modal: boolean
           stage_id: string | null
           title_template: string
           trigger_mode: string
@@ -4041,8 +4046,13 @@ export type Database = {
           phase_id?: string | null
           pipeline_id?: string | null
           product?: string | null
+          recipient_mode?: string
+          recipient_target?: Json
           send_email?: boolean
           severity?: string
+          show_in_bell?: boolean
+          show_in_kanban_banner?: boolean
+          show_in_modal?: boolean
           stage_id?: string | null
           title_template: string
           trigger_mode?: string
@@ -4062,8 +4072,13 @@ export type Database = {
           phase_id?: string | null
           pipeline_id?: string | null
           product?: string | null
+          recipient_mode?: string
+          recipient_target?: Json
           send_email?: boolean
           severity?: string
+          show_in_bell?: boolean
+          show_in_kanban_banner?: boolean
+          show_in_modal?: boolean
           stage_id?: string | null
           title_template?: string
           trigger_mode?: string
@@ -7256,6 +7271,97 @@ export type Database = {
           },
         ]
       }
+      envio_lotes: {
+        Row: {
+          card_id: string
+          created_at: string
+          failed: number
+          finished_at: string | null
+          id: string
+          org_id: string
+          phone_number_id: string
+          sent: number
+          started_at: string
+          status: string
+          template_slug: string
+          total: number
+          triggered_by: string | null
+        }
+        Insert: {
+          card_id: string
+          created_at?: string
+          failed?: number
+          finished_at?: string | null
+          id?: string
+          org_id?: string
+          phone_number_id: string
+          sent?: number
+          started_at?: string
+          status?: string
+          template_slug: string
+          total?: number
+          triggered_by?: string | null
+        }
+        Update: {
+          card_id?: string
+          created_at?: string
+          failed?: number
+          finished_at?: string | null
+          id?: string
+          org_id?: string
+          phone_number_id?: string
+          sent?: number
+          started_at?: string
+          status?: string
+          template_slug?: string
+          total?: number
+          triggered_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "envio_lotes_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "envio_lotes_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_archived_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "envio_lotes_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_acoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "envio_lotes_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_contatos_summary"
+            referencedColumns: ["card_id"]
+          },
+          {
+            foreignKeyName: "envio_lotes_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_deleted_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "envio_lotes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       external_refs: {
         Row: {
           business_unit: string
@@ -7638,6 +7744,67 @@ export type Database = {
             columns: ["source_card_id"]
             isOneToOne: false
             referencedRelation: "view_deleted_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      guest_rsvp_events: {
+        Row: {
+          applied: boolean
+          card_id: string | null
+          contact_id: string | null
+          created_at: string
+          decision: string
+          id: string
+          message_id: string | null
+          org_id: string | null
+          raw_text: string | null
+          source: string
+        }
+        Insert: {
+          applied?: boolean
+          card_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          decision: string
+          id?: string
+          message_id?: string | null
+          org_id?: string | null
+          raw_text?: string | null
+          source?: string
+        }
+        Update: {
+          applied?: boolean
+          card_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          decision?: string
+          id?: string
+          message_id?: string | null
+          org_id?: string | null
+          raw_text?: string | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_rsvp_events_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "vw_weddings_messages_unified"
+            referencedColumns: ["message_id"]
+          },
+          {
+            foreignKeyName: "guest_rsvp_events_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guest_rsvp_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -12471,22 +12638,32 @@ export type Database = {
           category: string
           check_in_time: string | null
           check_out_time: string | null
+          client_profile_tags: string[] | null
           content: Json
           created_at: string | null
           created_by: string | null
           currency: string | null
           destination: string | null
+          external_provider_id: string | null
           gallery_urls: string[] | null
           id: string
+          is_archived: boolean | null
           is_shared: boolean
           last_used_at: string | null
           location_city: string | null
           location_country: string | null
           name: string
           name_search: string | null
+          org_id: string
           ownership_type: string | null
+          region: string | null
+          region_country: string | null
+          region_search: string | null
           saved_from_proposal_id: string | null
+          season_tags: string[] | null
+          source_provider: string | null
           star_rating: number | null
+          sub_category: string | null
           supplier: string | null
           tags: string[] | null
           thumbnail_url: string | null
@@ -12500,22 +12677,32 @@ export type Database = {
           category: string
           check_in_time?: string | null
           check_out_time?: string | null
+          client_profile_tags?: string[] | null
           content?: Json
           created_at?: string | null
           created_by?: string | null
           currency?: string | null
           destination?: string | null
+          external_provider_id?: string | null
           gallery_urls?: string[] | null
           id?: string
+          is_archived?: boolean | null
           is_shared?: boolean
           last_used_at?: string | null
           location_city?: string | null
           location_country?: string | null
           name: string
           name_search?: string | null
+          org_id?: string
           ownership_type?: string | null
+          region?: string | null
+          region_country?: string | null
+          region_search?: string | null
           saved_from_proposal_id?: string | null
+          season_tags?: string[] | null
+          source_provider?: string | null
           star_rating?: number | null
+          sub_category?: string | null
           supplier?: string | null
           tags?: string[] | null
           thumbnail_url?: string | null
@@ -12529,22 +12716,32 @@ export type Database = {
           category?: string
           check_in_time?: string | null
           check_out_time?: string | null
+          client_profile_tags?: string[] | null
           content?: Json
           created_at?: string | null
           created_by?: string | null
           currency?: string | null
           destination?: string | null
+          external_provider_id?: string | null
           gallery_urls?: string[] | null
           id?: string
+          is_archived?: boolean | null
           is_shared?: boolean
           last_used_at?: string | null
           location_city?: string | null
           location_country?: string | null
           name?: string
           name_search?: string | null
+          org_id?: string
           ownership_type?: string | null
+          region?: string | null
+          region_country?: string | null
+          region_search?: string | null
           saved_from_proposal_id?: string | null
+          season_tags?: string[] | null
+          source_provider?: string | null
           star_rating?: number | null
+          sub_category?: string | null
           supplier?: string | null
           tags?: string[] | null
           thumbnail_url?: string | null
@@ -12571,6 +12768,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "view_profiles_complete"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposal_library_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
@@ -15021,6 +15225,47 @@ export type Database = {
             columns: ["phase_id"]
             isOneToOne: false
             referencedRelation: "pipeline_phases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      template_var_configs: {
+        Row: {
+          button_var: string | null
+          created_at: string
+          id: string
+          org_id: string
+          phone_number_id: string | null
+          template_slug: string
+          updated_at: string
+          vars: Json
+        }
+        Insert: {
+          button_var?: string | null
+          created_at?: string
+          id?: string
+          org_id?: string
+          phone_number_id?: string | null
+          template_slug: string
+          updated_at?: string
+          vars?: Json
+        }
+        Update: {
+          button_var?: string | null
+          created_at?: string
+          id?: string
+          org_id?: string
+          phone_number_id?: string | null
+          template_slug?: string
+          updated_at?: string
+          vars?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "template_var_configs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -18446,44 +18691,6 @@ export type Database = {
           sent_by_user_name: string | null
           status: string | null
         }
-        Insert: {
-          ack_status?: number | null
-          attributed_agent_id?: never
-          attribution_mode?: never
-          body?: string | null
-          card_id?: string | null
-          contact_id?: string | null
-          customer_phone?: string | null
-          direction?: string | null
-          ecko_agent_id?: string | null
-          is_read?: boolean | null
-          message_id?: string | null
-          metadata?: Json | null
-          phone_line_label?: string | null
-          sent_at?: string | null
-          sent_by_user_id?: string | null
-          sent_by_user_name?: string | null
-          status?: string | null
-        }
-        Update: {
-          ack_status?: number | null
-          attributed_agent_id?: never
-          attribution_mode?: never
-          body?: string | null
-          card_id?: string | null
-          contact_id?: string | null
-          customer_phone?: string | null
-          direction?: string | null
-          ecko_agent_id?: string | null
-          is_read?: boolean | null
-          message_id?: string | null
-          metadata?: Json | null
-          phone_line_label?: string | null
-          sent_at?: string | null
-          sent_by_user_id?: string | null
-          sent_by_user_name?: string | null
-          status?: string | null
-        }
         Relationships: [
           {
             foreignKeyName: "whatsapp_messages_card_id_fkey"
@@ -20065,12 +20272,19 @@ export type Database = {
           p_attribution_modes?: string[]
           p_cold_threshold_hours?: number
           p_from: string
+          p_hour_filter?: number
+          p_inbound_max?: number
+          p_inbound_min?: number
           p_include_test_lines?: boolean
           p_limit?: number
           p_line_labels?: string[]
+          p_meeting_states?: string[]
           p_page?: number
+          p_stage_names?: string[]
+          p_stage_phases?: string[]
           p_state_filter?: string[]
           p_to: string
+          p_weekday_filter?: number
         }
         Returns: Json
       }
@@ -20247,6 +20461,21 @@ export type Database = {
           card_id: string
           org_id: string
           pessoa_principal_id: string
+        }[]
+      }
+      catalog_top_regions: {
+        Args: { p_limit?: number }
+        Returns: {
+          item_count: number
+          region: string
+          total_uses: number
+        }[]
+      }
+      catalog_top_tags: {
+        Args: { p_limit?: number }
+        Returns: {
+          item_count: number
+          tag: string
         }[]
       }
       check_auth_rate_limit: { Args: { p_email: string }; Returns: Json }
@@ -20851,6 +21080,10 @@ export type Database = {
         }
         Returns: Json
       }
+      increment_envio_lote_failed: {
+        Args: { p_lote_id: string }
+        Returns: undefined
+      }
       increment_library_usage: {
         Args: { library_id: string }
         Returns: undefined
@@ -21001,6 +21234,8 @@ export type Database = {
         Args: { p_options?: Json; p_sub_card_id: string }
         Returns: Json
       }
+      monde_items_in_archived_cards_count: { Args: never; Returns: number }
+      monde_reconcile_divergence_count: { Args: never; Returns: number }
       mover_card: {
         Args: {
           p_card_id: string
@@ -21243,6 +21478,54 @@ export type Database = {
         Args: { event_id: string }
         Returns: Json
       }
+      proposal_library_extract_from_item: {
+        Args: { p_item: Database["public"]["Tables"]["proposal_items"]["Row"] }
+        Returns: {
+          amenities: string[] | null
+          base_price: number | null
+          cancellation_policy: string | null
+          category: string
+          check_in_time: string | null
+          check_out_time: string | null
+          client_profile_tags: string[] | null
+          content: Json
+          created_at: string | null
+          created_by: string | null
+          currency: string | null
+          destination: string | null
+          external_provider_id: string | null
+          gallery_urls: string[] | null
+          id: string
+          is_archived: boolean | null
+          is_shared: boolean
+          last_used_at: string | null
+          location_city: string | null
+          location_country: string | null
+          name: string
+          name_search: string | null
+          org_id: string
+          ownership_type: string | null
+          region: string | null
+          region_country: string | null
+          region_search: string | null
+          saved_from_proposal_id: string | null
+          season_tags: string[] | null
+          source_provider: string | null
+          star_rating: number | null
+          sub_category: string | null
+          supplier: string | null
+          tags: string[] | null
+          thumbnail_url: string | null
+          updated_at: string | null
+          usage_count: number
+        }
+        SetofOptions: {
+          from: "proposal_items"
+          to: "proposal_library"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       provision_account_with_workspace: {
         Args: {
           p_account_name: string
@@ -21289,6 +21572,10 @@ export type Database = {
       recalculate_contact_stats_for: {
         Args: { p_contact_id: string }
         Returns: undefined
+      }
+      reconcile_card_monde_venda: {
+        Args: { p_card_id: string; p_venda_num: string }
+        Returns: Json
       }
       record_auth_attempt: {
         Args: { p_email: string; p_success: boolean; p_user_agent?: string }
@@ -21368,6 +21655,12 @@ export type Database = {
       reset_user_password: {
         Args: { p_new_password: string; p_user_id: string }
         Returns: undefined
+      }
+      resolve_alert_recipients: {
+        Args: { p_card_id: string; p_rule_id: string }
+        Returns: {
+          user_id: string
+        }[]
       }
       resolve_card_owner_contact: {
         Args: { p_contato_id: string }
@@ -21613,6 +21906,48 @@ export type Database = {
           supplier: string
           tags: string[]
           thumbnail_url: string
+          usage_count: number
+        }[]
+      }
+      search_proposal_library_v2: {
+        Args: {
+          p_categories?: string[]
+          p_include_archived?: boolean
+          p_limit?: number
+          p_offset?: number
+          p_price_max?: number
+          p_price_min?: number
+          p_profile_tags?: string[]
+          p_region?: string
+          p_search?: string
+          p_sort?: string
+          p_stars?: number[]
+          p_sub_categories?: string[]
+          p_tags?: string[]
+        }
+        Returns: {
+          amenities: string[]
+          base_price: number
+          category: string
+          client_profile_tags: string[]
+          content: Json
+          created_at: string
+          currency: string
+          gallery_urls: string[]
+          id: string
+          last_used_at: string
+          name: string
+          region: string
+          region_country: string
+          season_tags: string[]
+          similarity_score: number
+          source_provider: string
+          star_rating: number
+          sub_category: string
+          supplier: string
+          tags: string[]
+          thumbnail_url: string
+          total_count: number
           usage_count: number
         }[]
       }

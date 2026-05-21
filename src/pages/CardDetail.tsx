@@ -28,6 +28,7 @@ import { useProductContext } from '../hooks/useProductContext'
 import { useProductPipelineId } from '../hooks/useCurrentProductMeta'
 import { usePipelineGovernance, getDiasAtrasoDataPrevista, useDataPrevistaTrackedStageIds } from '../hooks/usePipelineGovernance'
 import OverdueDataPrevistaOverlay from '../components/card/OverdueDataPrevistaOverlay'
+import { CancellationSection } from '../components/card/cancelamento/CancellationSection'
 
 type Card = Database['public']['Tables']['cards']['Row']
 
@@ -281,6 +282,12 @@ export default function CardDetail() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Cancellation Section — banner âmbar (em curso) ou cinza (concluído).
+                O gatilho de abertura vive no mega-menu "Ações" → "Cancelar viagem". */}
+            {card.id && card.produto === 'TRIPS' && (
+                <CancellationSection cardId={card.id} />
             )}
 
             {/* Sticky Header */}

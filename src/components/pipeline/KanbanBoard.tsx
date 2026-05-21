@@ -43,6 +43,11 @@ import { useStageSort } from '../../hooks/usePhaseSort'
 import { useDataPrevistaTrackedStageIds } from '../../hooks/usePipelineGovernance'
 import { sortCards } from '../../lib/sortCards'
 import { useCardConciergeStatsBatch } from '../../hooks/concierge/useCardConciergeStats'
+import { useOrg } from '../../contexts/OrgContext'
+import { KanbanCancellationLane } from '../kanban/KanbanCancellationLane'
+import { KanbanCancelladosColumn } from '../kanban/KanbanCancelladosColumn'
+import { useIncluirCanceladosToggle } from '../../hooks/cancelamento/useCancelamento'
+import { Archive } from 'lucide-react'
 
 const SCROLL_KEY_PREFIX = 'kanban-scroll-left'
 
@@ -68,7 +73,9 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
     const { products } = useProducts()
     const pipelineId = products.find(p => p.slug === productFilter)?.pipeline_id ?? undefined
     const { validateMove, validateMoveSync, hasAsyncRules } = useQualityGate(pipelineId)
-    const { session } = useAuth()
+    const { session, profile } = useAuth()
+    const { org } = useOrg()
+    const [incluirCancelados, setIncluirCancelados] = useIncluirCanceladosToggle()
     // Pre-fetch para expansão de fases — valor usado indiretamente via cache do React Query
     useMyAssistCardIds(viewMode === 'AGENT' && subView === 'MY_QUEUE')
 
@@ -391,8 +398,12 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
         const explicitTargetPhaseId = (targetStage as any)?.target_phase_id as string | null
         const isCrossPhaseMove = sourcePhaseId && destPhaseId && sourcePhaseId !== destPhaseId
         const handoffPhaseId = explicitTargetPhaseId || (isCrossPhaseMove ? destPhaseId : null)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova
+        const isSharedHandoff = (targetStage as any)?.handoff_compartilhado === true
 
-        if (handoffPhaseId) {
+        // Handoff compartilhado: pula StageChangeModal de owner-selection.
+        // Card transita sem dono fixo; visibilidade fica por fase do time.
+        if (handoffPhaseId && !isSharedHandoff) {
             // Validar async rules ANTES de abrir o modal de handoff
             if (hasAsyncRules(stageId)) {
                 try {
@@ -793,6 +804,33 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
             targetPhaseId: nextPhase?.id,
             targetPhaseName: nextPhase?.name || nextPhaseCap?.slug || 'Próxima Fase'
         })
+        // HANDOFF COMPARTILHADO: pula StageChangeModal e marca ganho sem owner
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova
+        if (targetStage && (targetStage as any).handoff_compartilhado === true) {
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { error } = await (supabase as any).rpc('marcar_ganho', {
+                    p_card_id: cardId,
+                    p_novo_dono_id: null,
+                })
+                if (error) throw error
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (supabase as any).rpc('materialize_stage_entry_tasks_for_card', {
+                    p_card_id: cardId,
+                })
+                queryClient.invalidateQueries({ queryKey: ['cards'] })
+                queryClient.invalidateQueries({ queryKey: ['dashboard-funnel'] })
+                queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+                queryClient.invalidateQueries({ queryKey: ['unread-delegated-tasks'] })
+                setPendingMove(null)
+                setActiveCard(null)
+            } catch (err) {
+                console.error('Erro ao marcar como ganho (compartilhado):', err)
+                const msg = err instanceof Error ? err.message : 'Erro desconhecido'
+                toast.error('Erro ao marcar como ganho', { description: msg })
+            }
+            return
+        }
         if (tryAutoConfirmStageChange(cardId, nextPhase?.id)) return
         setStageChangeModalOpen(true)
     }
@@ -825,6 +863,37 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
             } catch (err) {
                 console.error('[QualityGate] Win validation failed — move allowed (fail-open):', err)
             }
+        }
+
+        // HANDOFF COMPARTILHADO: se 1ª etapa de Pós-Venda é compartilhada,
+        // chama marcar_ganho sem owner e materializa tarefas do template
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova
+        const isSharedHandoff = (targetStage as any)?.handoff_compartilhado === true
+        if (isSharedHandoff) {
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { error } = await (supabase as any).rpc('marcar_ganho', {
+                    p_card_id: pendingMove.cardId,
+                    p_novo_dono_id: null,
+                })
+                if (error) throw error
+                // Materializar tarefas + notificar time (marcar_ganho não passa por mover_card)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (supabase as any).rpc('materialize_stage_entry_tasks_for_card', {
+                    p_card_id: pendingMove.cardId,
+                })
+                queryClient.invalidateQueries({ queryKey: ['cards'] })
+                queryClient.invalidateQueries({ queryKey: ['dashboard-funnel'] })
+                queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+                queryClient.invalidateQueries({ queryKey: ['unread-delegated-tasks'] })
+                setPendingMove(null)
+                setActiveCard(null)
+            } catch (err) {
+                console.error('Erro ao marcar como ganho (compartilhado):', err)
+                const msg = err instanceof Error ? err.message : 'Erro desconhecido'
+                toast.error('Erro ao marcar como ganho', { description: msg })
+            }
+            return
         }
 
         if (tryAutoConfirmStageChange(pendingMove.cardId, pendingMove.targetPhaseId)) return
@@ -926,6 +995,26 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
 
     return (
         <div className={cn("flex flex-col h-full", className)}>
+            {/* Toolbar: toggle "Incluir cancelados" (apenas TRIPS) */}
+            {productFilter === 'TRIPS' && (
+                <div className="flex justify-end px-4 pt-1 pb-1">
+                    <button
+                        type="button"
+                        onClick={() => setIncluirCancelados(!incluirCancelados)}
+                        className={cn(
+                            "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border transition-colors",
+                            incluirCancelados
+                                ? "bg-slate-200 border-slate-300 text-slate-800"
+                                : "bg-white border-slate-200 text-slate-500 hover:text-slate-700 hover:border-slate-300",
+                        )}
+                        title="Mostrar viagens com cancelamento total (arquivadas)"
+                    >
+                        <Archive className="w-3.5 h-3.5" />
+                        {incluirCancelados ? "Cancelados visíveis" : "Incluir cancelados"}
+                    </button>
+                </div>
+            )}
+
             {/* Scroll Area with Arrows */}
             <div className="flex-1 relative min-h-0">
                 {/* Scroll Arrows - Elite UX */}
@@ -953,10 +1042,12 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                                         <FilterEmptyState />
                                     </div>
                                 ) : displayPhases.map((phase) => {
-                                    // Filter ALL stages (incluindo terminais) por phase
+                                    // Etapas terminais (is_terminal=true) NÃO viram coluna no kanban —
+                                    // cards parados nelas aparecem no painel lateral "Cancelados" (KanbanCancelladosColumn).
                                     const phaseStages = (stages || []).filter((s) =>
-                                        s.phase_id === phase.id ||
-                                        (!s.phase_id && s.fase === phase.name)
+                                        (s.phase_id === phase.id ||
+                                            (!s.phase_id && s.fase === phase.name)) &&
+                                        s.is_terminal !== true
                                     )
 
                                     if (phaseStages.length === 0) return null
@@ -1008,6 +1099,23 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
                                         </KanbanPhaseGroup>
                                     )
                                 })}
+
+                                {/* Coluna virtual "Cancelamento" — aparece SOMENTE pro Travel Planner
+                                    (user com team.phase.slug === 'planner') quando há viagens em
+                                    cancelamento aberto onde ele é TP. Some quando vazia.
+                                    Não aparece pra Pós-Venda (que trabalha em cima da operação). */}
+                                {productFilter === 'TRIPS' && profile?.team?.phase?.slug === 'planner' && (
+                                    <KanbanCancellationLane
+                                        tpOwnerId={profile?.id ?? undefined}
+                                        orgId={org?.id ?? undefined}
+                                    />
+                                )}
+
+                                {/* Coluna "Cancelados" — cards totalmente cancelados (etapa terminal).
+                                    Aparece quando toggle "Incluir cancelados" está ligado. */}
+                                {productFilter === 'TRIPS' && incluirCancelados && (
+                                    <KanbanCancelladosColumn pipelineId={pipelineId} orgId={org?.id ?? undefined} />
+                                )}
                             </div>
                             <DragOverlay dropAnimation={null}>
                                 {activeCard ? (

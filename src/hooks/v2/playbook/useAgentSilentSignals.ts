@@ -1,6 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 
+/**
+ * Padrões de detecção opcionais — palavras-chave que o router usa como
+ * fallback ao LLM quando o agente faz pergunta indireta sobre o tema do
+ * sinal. NULL = só LLM detecta. Quando configurado, router roda matching
+ * de regex (mesma lógica dos antigos blocos hardcoded da Patricia).
+ */
+export interface SignalDetectionPatterns {
+  question_keywords?: string[]
+  answer_yes_keywords?: string[]
+  answer_no_keywords?: string[]
+  max_answer_length?: number
+}
+
 export interface PlaybookSilentSignal {
   id: string
   agent_id: string
@@ -11,6 +24,7 @@ export interface PlaybookSilentSignal {
   how_to_use: string | null
   enabled: boolean
   display_order: number
+  detection_patterns?: SignalDetectionPatterns | null
 }
 
 export type PlaybookSignalInput = Omit<PlaybookSilentSignal, 'id' | 'agent_id'>

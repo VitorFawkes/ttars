@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, Plus, X, FolderPlus, Trash2, Check } from 'lucide-react'
+import { Loader2, Plus, X, FolderPlus, Trash2, Check, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -138,6 +138,26 @@ export function BoundariesSection({ agentId, agentName, companyName }: Props) {
     scheduleSave(next)
   }
 
+  /**
+   * Override do texto que vai pro LLM. Quando string vazia, limpa o override
+   * (volta a usar o texto padrão da biblioteca). Usado pelo popover de edição
+   * inline (botão lápis ao lado de cada item enabled).
+   */
+  const setCustomText = (cat: string, idx: number, value: string) => {
+    const items = byCategory[cat] ?? []
+    const trimmed = value.trim()
+    const next = {
+      ...byCategory,
+      [cat]: items.map((it, i) =>
+        i === idx
+          ? { ...it, custom_text: trimmed.length > 0 ? trimmed : undefined }
+          : it,
+      ),
+    }
+    setByCategory(next)
+    scheduleSave(next)
+  }
+
   const addItem = (cat: string, textOverride?: string) => {
     const text = (textOverride ?? newItemByCategory[cat] ?? '').trim()
     if (!text) return
@@ -239,46 +259,13 @@ export function BoundariesSection({ agentId, agentName, companyName }: Props) {
                 ) : (
                   <ul className="space-y-1">
                     {items.map((it, i) => (
-                      <li
+                      <BoundaryItemRow
                         key={i}
-                        className={cn(
-                          'flex items-start gap-2 p-2 rounded-md border transition-colors',
-                          it.enabled
-                            ? 'bg-rose-50 border-rose-200'
-                            : 'bg-white border-slate-200',
-                        )}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={it.enabled}
-                          onChange={() => toggleItem(cat, i)}
-                          className="mt-0.5 cursor-pointer"
-                          title={it.enabled ? 'Desativar' : 'Ativar'}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <span className={cn(
-                            'text-sm',
-                            it.enabled ? 'text-slate-900 font-medium' : 'text-slate-500',
-                          )}>
-                            {it.text}
-                          </span>
-                          {it.description && (
-                            <p className={cn(
-                              'text-xs mt-0.5',
-                              it.enabled ? 'text-slate-500' : 'text-slate-400',
-                            )}>
-                              {it.description}
-                            </p>
-                          )}
-                        </div>
-                        <button
-                          onClick={() => removeItem(cat, i)}
-                          className="text-slate-400 hover:text-red-600 p-0.5"
-                          title="Remover"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </li>
+                        item={it}
+                        onToggle={() => toggleItem(cat, i)}
+                        onRemove={() => removeItem(cat, i)}
+                        onSaveCustomText={(text) => setCustomText(cat, i, text)}
+                      />
                     ))}
                   </ul>
                 )}
@@ -318,5 +305,143 @@ export function BoundariesSection({ agentId, agentName, companyName }: Props) {
         )}
       </div>
     </div>
+  )
+}
+
+/**
+ * Item de regra com inline-edit do texto que vai pro LLM.
+ *
+ * Visual padrão: checkbox + label + descrição + botão remover.
+ * Quando o usuário clica no lápis, abre textarea inline pra customizar o
+ * `custom_text` (override do padrão). Salvar fecha; limpar e salvar volta
+ * a usar o texto padrão da biblioteca.
+ */
+function BoundaryItemRow({
+  item,
+  onToggle,
+  onRemove,
+  onSaveCustomText,
+}: {
+  item: BoundaryItem
+  onToggle: () => void
+  onRemove: () => void
+  onSaveCustomText: (text: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+
+  const hasCustomText = !!(item.custom_text && item.custom_text.trim())
+  const startEdit = () => {
+    // Pré-preenche com custom_text se existir, senão com description (texto
+    // padrão da biblioteca) — admin enxerga o ponto de partida.
+    setDraft(item.custom_text || item.description || item.text || '')
+    setEditing(true)
+  }
+  const save = () => {
+    onSaveCustomText(draft)
+    setEditing(false)
+  }
+  const cancel = () => {
+    setEditing(false)
+    setDraft('')
+  }
+  const reset = () => {
+    onSaveCustomText('')
+    setEditing(false)
+  }
+
+  return (
+    <li
+      className={cn(
+        'rounded-md border transition-colors',
+        item.enabled ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-200',
+      )}
+    >
+      <div className="flex items-start gap-2 p-2">
+        <input
+          type="checkbox"
+          checked={item.enabled}
+          onChange={onToggle}
+          className="mt-0.5 cursor-pointer"
+          title={item.enabled ? 'Desativar' : 'Ativar'}
+        />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span
+              className={cn(
+                'text-sm',
+                item.enabled ? 'text-slate-900 font-medium' : 'text-slate-500',
+              )}
+            >
+              {item.text}
+            </span>
+            {hasCustomText && (
+              <span
+                className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 font-medium"
+                title="Texto customizado para o agente"
+              >
+                editado
+              </span>
+            )}
+          </div>
+          {item.description && !hasCustomText && (
+            <p
+              className={cn(
+                'text-xs mt-0.5',
+                item.enabled ? 'text-slate-500' : 'text-slate-400',
+              )}
+            >
+              {item.description}
+            </p>
+          )}
+          {hasCustomText && (
+            <p className="text-xs mt-0.5 text-slate-700 italic">
+              {item.custom_text}
+            </p>
+          )}
+        </div>
+        {item.enabled && !editing && (
+          <button
+            onClick={startEdit}
+            className="text-slate-400 hover:text-indigo-600 p-0.5"
+            title="Editar texto que vai pro agente"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+        )}
+        <button
+          onClick={onRemove}
+          className="text-slate-400 hover:text-red-600 p-0.5"
+          title="Remover"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {editing && (
+        <div className="border-t border-rose-200 bg-white/60 p-2 space-y-2">
+          <label className="block text-[11px] text-slate-600 font-medium">
+            Texto que o agente vê (substitui o padrão da biblioteca)
+          </label>
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={3}
+            className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs"
+            placeholder={item.description || 'Escreva a regra com as palavras que vão pro agente'}
+            autoFocus
+          />
+          <div className="flex gap-2 justify-end">
+            {hasCustomText && (
+              <Button size="sm" variant="ghost" onClick={reset} title="Volta a usar o texto padrão da biblioteca">
+                Resetar pro padrão
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={cancel}>Cancelar</Button>
+            <Button size="sm" onClick={save}>Salvar</Button>
+          </div>
+        </div>
+      )}
+    </li>
   )
 }

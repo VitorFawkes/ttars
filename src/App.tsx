@@ -26,6 +26,7 @@ import ProposalBuilderElite from './pages/ProposalBuilderElite'
 import BuilderPageV5 from './components/proposals/v5/BuilderPage'
 import PortalEditor from './pages/PortalEditor'
 import ProposalsPage from './pages/ProposalsPage'
+import CatalogoPage from './pages/CatalogoPage'
 import ProposalView from './pages/public/ProposalView'
 import TripPortalPublic from './pages/public/TripPortalPublic'
 import AnalyticsPage from './pages/analytics/AnalyticsPage'
@@ -91,6 +92,7 @@ import HelpCenter from './pages/help/HelpCenter'
 import UserManagement from './pages/admin/UserManagement'
 import CategoryManagement from './pages/admin/CategoryManagement'
 import LossReasonManagement from './pages/admin/LossReasonManagement'
+import CancellationReasonManagement from './pages/admin/CancellationReasonManagement'
 import LeadSourcesManagement from './pages/admin/LeadSourcesManagement'
 import TagManagement from './pages/admin/TagManagement'
 import PhaseVisibilitySettings from './pages/admin/PhaseVisibilitySettings'
@@ -136,9 +138,12 @@ import AiAgentBuilderWizard from './pages/admin/AiAgentBuilderWizard'
 import OutboundQueuePage from './pages/admin/OutboundQueuePage'
 import { lazy, Suspense } from 'react'
 const MobileCardCreate = lazy(() => import('./pages/mobile/MobileCardCreate'))
+const PatriciaProtoPage = lazy(() => import('./pages/_proto/patricia/PatriciaProtoPage'))
 import { ToastProvider } from './contexts/ToastContext'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import { Toaster, toast } from 'sonner'
+import { SupabaseOutageBanner } from './components/shared/SupabaseOutageBanner'
+import { reportSupabaseNetworkError } from './lib/supabaseHealth'
 
 function isNetworkError(error: Error): boolean {
     const msg = error.message?.toLowerCase() ?? ''
@@ -162,6 +167,7 @@ const queryClient = new QueryClient({
                     id: 'query-error-schema',
                 })
             } else if (isNetworkError(error)) {
+                reportSupabaseNetworkError()
                 toast.error('Erro de conexão', {
                     description: 'Verifique sua conexão com a internet e tente novamente.',
                     id: 'query-error-network',
@@ -174,6 +180,9 @@ const queryClient = new QueryClient({
     mutationCache: new MutationCache({
         onError: (error) => {
             console.error('[MutationCache] Mutation error:', error.message)
+            if (error instanceof Error && isNetworkError(error)) {
+                reportSupabaseNetworkError()
+            }
         },
     }),
     defaultOptions: {
@@ -217,6 +226,7 @@ function App() {
         <AuthProvider>
           <OrgProvider>
           <ToastProvider>
+            <SupabaseOutageBanner />
             <Toaster richColors position="top-right" />
             <BrowserRouter>
               <Routes>
@@ -235,6 +245,9 @@ function App() {
 
                 {/* Mobile Routes (authenticated, no sidebar) */}
                 <Route path="/m/novo-card" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" /></div>}><MobileCardCreate /></Suspense>} />
+
+                {/* Prototype Routes — TEMPORÁRIO. Remover quando o redesign for aplicado em src/pages/admin/AiAgentV2DetailPage.tsx. */}
+                <Route path="/proto/patricia" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" /></div>}><PatriciaProtoPage /></Suspense>} />
 
                 {/* Protected Routes */}
                 <Route element={<Layout />}>
@@ -260,6 +273,7 @@ function App() {
                   <Route path="/tasks" element={<Tasks />} />
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/proposals" element={<ProposalsPage />} />
+                  <Route path="/catalogo" element={<CatalogoPage />} />
                   <Route path="/reactivation" element={<ReactivationPage />} />
                   <Route path="/nps" element={<NPSPage />} />
                   <Route path="/sdr/pontuacoes" element={<PontuacoesPage />} />
@@ -375,6 +389,7 @@ function App() {
                     <Route path="customization/alert-rules" element={<CardAlertRulesPage />} />
                     <Route path="customization/categories" element={<CategoryManagement />} />
                     <Route path="customization/loss-reasons" element={<LossReasonManagement />} />
+                    <Route path="customization/cancellation-reasons" element={<CancellationReasonManagement />} />
                     <Route path="customization/lead-sources" element={<LeadSourcesManagement />} />
                     <Route path="customization/tags" element={<TagManagement />} />
 

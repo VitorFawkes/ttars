@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
-import { X, Save, Eye, EyeOff, GripVertical } from 'lucide-react';
+import { X, Save, Eye, EyeOff, GripVertical, Users } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import type { Database } from '../../../database.types';
+import StageEntryTaskTemplatesEditor from './StageEntryTaskTemplatesEditor';
 import {
     DndContext,
     closestCenter,
@@ -98,6 +99,7 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
         supports_win: false,
         win_action: 'advance_to_next' as string,
         owner_label: '',
+        handoff_compartilhado: false,
     });
 
     useEffect(() => {
@@ -108,9 +110,28 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
                 supports_win: phase.supports_win ?? false,
                 win_action: phase.win_action ?? 'advance_to_next',
                 owner_label: phase.owner_label ?? '',
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types pendentes
+                handoff_compartilhado: Boolean((phase as any).handoff_compartilhado),
             });
         }
     }, [phase?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Etapas da fase (pra mostrar editores de template quando handoff compartilhado está ativo)
+    const { data: phaseStages } = useQuery({
+        queryKey: ['pipeline-stages-for-phase', phase?.id],
+        queryFn: async () => {
+            if (!phase?.id) return [];
+            const { data, error } = await supabase
+                .from('pipeline_stages')
+                .select('id, nome, ordem, ativo')
+                .eq('phase_id', phase.id)
+                .eq('ativo', true)
+                .order('ordem');
+            if (error) throw error;
+            return data ?? [];
+        },
+        enabled: isOpen && !!phase?.id && phaseConfig.handoff_compartilhado,
+    });
 
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -130,17 +151,20 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
     });
 
     const { data: settings } = useQuery({
-        queryKey: ['pipeline-card-settings', phase?.name],
+        queryKey: ['pipeline-card-settings', phase?.id],
         queryFn: async () => {
-            if (!phase?.name) return null;
+            if (!phase?.id) return null;
+            // Filtrar por phase_id é mais preciso que fase (text), evita confusão
+            // quando há rows com mesmo nome mas phase_id diferente.
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data } = await (supabase.from('pipeline_card_settings') as any)
                 .select('*')
-                .eq('fase', phase.name)
-                .single();
+                .eq('phase_id', phase.id)
+                .is('usuario_id', null)
+                .maybeSingle();
             return data;
         },
-        enabled: isOpen && !!phase?.name
+        enabled: isOpen && !!phase?.id
     });
 
     // --- Sync State ---
@@ -148,20 +172,23 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
 
     useEffect(() => {
         if (systemFields) {
-            // Default order: existing settings or alphabetical
-            let initialOrder = systemFields.map(f => f.key);
+            // system_fields tem 1 row por produto pra mesmo `key` — deduplica antes de usar.
+            const uniqueKeys = Array.from(new Set(systemFields.map(f => f.key)));
+            let initialOrder = uniqueKeys;
             let initialVisible = new Set<string>();
 
             if (settings) {
                 if (settings.ordem_kanban && Array.isArray(settings.ordem_kanban)) {
-                    // Merge saved order with new fields
-                    const savedOrder = settings.ordem_kanban;
+                    // Merge saved order with new fields, deduplicando (rows antigas podem
+                    // ter duplicatas vindas do bug pré-correção de 2026-05-18).
+                    const savedOrderRaw = settings.ordem_kanban as string[];
+                    const savedOrder = Array.from(new Set(savedOrderRaw));
                     const newFields = initialOrder.filter(f => !savedOrder.includes(f));
                     initialOrder = [...savedOrder, ...newFields];
                 }
 
                 if (settings.campos_kanban && Array.isArray(settings.campos_kanban)) {
-                    initialVisible = new Set(settings.campos_kanban);
+                    initialVisible = new Set(settings.campos_kanban as string[]);
                 }
             } else {
                 // Default visible fields if no settings
@@ -187,32 +214,29 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
                     supports_win: phaseConfig.supports_win,
                     win_action: phaseConfig.win_action || null,
                     owner_label: phaseConfig.owner_label || null,
-                })
+                    handoff_compartilhado: phaseConfig.handoff_compartilhado,
+                } as Partial<PipelinePhase>)
                 .eq('id', phase.id);
 
             if (phaseError) throw phaseError;
 
             // 2. Salvar campos do Kanban em pipeline_card_settings
-            //    Tabela não tem unique em `fase` (existem duplicatas) — fazer UPDATE por id ou INSERT.
+            //    Unique constraint: (phase_id, usuario_id). Usar UPSERT com onConflict
+            //    pra evitar duplicatas quando o GET falha por `.single()` em fases
+            //    com nome duplicado (ex: existem 2 rows pra fase "SDR").
             const basePayload = {
                 fase: phase.name,
+                phase_id: phase.id,
+                usuario_id: null,
                 campos_kanban: Array.from(visibleFields),
                 ordem_kanban: orderedFields,
                 updated_at: new Date().toISOString()
             };
 
-            if (settings?.id) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { error } = await (supabase.from('pipeline_card_settings') as any)
-                    .update(basePayload)
-                    .eq('id', settings.id);
-                if (error) throw error;
-            } else {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const { error } = await (supabase.from('pipeline_card_settings') as any)
-                    .insert(basePayload);
-                if (error) throw error;
-            }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error } = await (supabase.from('pipeline_card_settings') as any)
+                .upsert(basePayload, { onConflict: 'phase_id,usuario_id' });
+            if (error) throw error;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['pipeline-card-settings'] });
@@ -341,6 +365,72 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
                                 />
                             </div>
                         </div>
+                    </div>
+
+                    {/* Passagem de bastão — Handoff Compartilhado */}
+                    <div className="mb-6">
+                        <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                            <Users className="w-4 h-4 text-indigo-500" />
+                            Passagem de Bastão
+                        </h3>
+                        <div className="flex items-start justify-between p-3 bg-gray-50 rounded-lg">
+                            <div className="flex-1 mr-3">
+                                <span className="text-sm font-medium text-gray-900">Handoff Compartilhado</span>
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                    Quando ativo, cards chegam nesta fase sem responsável fixo. Todos os membros do time
+                                    de {phaseConfig.owner_label || phase?.name || 'da fase'} verão o card no Kanban e
+                                    poderão pegar as tarefas que aparecerem.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setPhaseConfig(prev => ({ ...prev, handoff_compartilhado: !prev.handoff_compartilhado }))
+                                }
+                                className={cn(
+                                    'relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0',
+                                    phaseConfig.handoff_compartilhado ? 'bg-indigo-600' : 'bg-gray-300'
+                                )}
+                            >
+                                <span
+                                    className={cn(
+                                        'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                                        phaseConfig.handoff_compartilhado ? 'translate-x-6' : 'translate-x-1'
+                                    )}
+                                />
+                            </button>
+                        </div>
+
+                        {phaseConfig.handoff_compartilhado && (
+                            <div className="mt-3 p-3 bg-indigo-50/40 rounded-lg border border-indigo-100 space-y-3">
+                                <div>
+                                    <h4 className="text-sm font-medium text-slate-900">
+                                        Tarefas criadas automaticamente na entrada
+                                    </h4>
+                                    <p className="text-xs text-slate-500 mt-0.5">
+                                        Estas tarefas serão geradas (sem responsável) toda vez que um card entrar
+                                        nas etapas desta fase. Qualquer membro do time pode puxá-las pra si.
+                                    </p>
+                                </div>
+
+                                {(phaseStages ?? []).length === 0 ? (
+                                    <p className="text-xs text-slate-500 italic">
+                                        Salve a configuração primeiro para listar as etapas.
+                                    </p>
+                                ) : (
+                                    (phaseStages ?? []).map(stage => (
+                                        <details key={stage.id} className="bg-white rounded border border-slate-200">
+                                            <summary className="px-3 py-2 text-sm font-medium text-slate-800 cursor-pointer hover:bg-slate-50 rounded">
+                                                {stage.nome}
+                                            </summary>
+                                            <div className="p-3 border-t border-slate-100">
+                                                <StageEntryTaskTemplatesEditor stageId={stage.id} />
+                                            </div>
+                                        </details>
+                                    ))
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     <div className="border-t border-gray-200 pt-5 mb-4">

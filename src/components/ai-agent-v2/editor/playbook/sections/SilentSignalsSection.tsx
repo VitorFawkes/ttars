@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Loader2, Plus, Trash2, Save } from 'lucide-react'
+import { Loader2, Plus, Trash2, Save, ChevronDown, ChevronRight, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
-import { useAgentSilentSignals, type PlaybookSilentSignal, type PlaybookSignalInput } from '@/hooks/v2/playbook/useAgentSilentSignals'
+import { useAgentSilentSignals, type PlaybookSilentSignal, type PlaybookSignalInput, type SignalDetectionPatterns } from '@/hooks/v2/playbook/useAgentSilentSignals'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { SingleFieldPicker } from '@/components/ai-agent-v2/editor/CRMFieldPicker'
 import { SuggestVariationsButton } from '../shared/SuggestVariationsButton'
+import { cn } from '@/lib/utils'
 
 interface Props {
   agentId: string
@@ -78,8 +79,32 @@ function SignalEditorCard({
   const [hint, setHint] = useState(signal.detection_hint)
   const [crmField, setCrmField] = useState<string | null>(signal.crm_field_key ?? null)
   const [howTo, setHowTo] = useState(signal.how_to_use ?? '')
+  const [patterns, setPatterns] = useState<SignalDetectionPatterns | null>(
+    signal.detection_patterns ?? null,
+  )
+  const [showPatterns, setShowPatterns] = useState(false)
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
+
+  const patternsActive = !!patterns && (
+    (patterns.question_keywords?.length ?? 0) > 0 ||
+    (patterns.answer_yes_keywords?.length ?? 0) > 0 ||
+    (patterns.answer_no_keywords?.length ?? 0) > 0
+  )
+
+  const updatePatterns = (patch: Partial<SignalDetectionPatterns>) => {
+    setPatterns(prev => {
+      const next = { ...(prev ?? {}), ...patch }
+      // Limpa o objeto inteiro se todas as listas ficarem vazias
+      const empty =
+        (!next.question_keywords || next.question_keywords.length === 0) &&
+        (!next.answer_yes_keywords || next.answer_yes_keywords.length === 0) &&
+        (!next.answer_no_keywords || next.answer_no_keywords.length === 0) &&
+        !next.max_answer_length
+      return empty ? null : next
+    })
+    setDirty(true)
+  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -92,6 +117,7 @@ function SignalEditorCard({
         how_to_use: howTo.trim() || null,
         enabled: signal.enabled,
         display_order: signal.display_order,
+        detection_patterns: patterns,
       })
       toast.success('Sinal salvo'); setDirty(false)
     } catch (err) { console.error(err); toast.error('Não consegui salvar.') }
@@ -137,6 +163,70 @@ function SignalEditorCard({
           className="w-full min-h-[40px] rounded-md border border-slate-200 px-3 py-1.5 text-sm" />
       </div>
 
+      {/* Palavras-chave de detecção (fallback ao LLM) */}
+      <div className="border-t border-slate-100 pt-2">
+        <button
+          type="button"
+          onClick={() => setShowPatterns(s => !s)}
+          className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-indigo-700"
+        >
+          {showPatterns ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+          <Zap className={cn('w-3.5 h-3.5', patternsActive ? 'text-amber-500' : 'text-slate-400')} />
+          <span className="font-medium">Palavras-chave de detecção</span>
+          {patternsActive && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">
+              ativo
+            </span>
+          )}
+          <span className="text-[11px] text-slate-400 ml-1">(opcional — fallback ao LLM)</span>
+        </button>
+
+        {showPatterns && (
+          <div className="mt-2 space-y-2 bg-slate-50 border border-slate-200 rounded-md p-3">
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              Quando o agente faz a pergunta sobre o tema e o lead responde, o sistema também tenta
+              detectar a resposta com essas palavras (proteção caso o LLM esqueça de registrar).
+              Deixe tudo vazio pra confiar só no LLM.
+            </p>
+            <KeywordListField
+              label="Quando o AGENTE pergunta (palavras que aparecem na pergunta dele)"
+              hint="Ex: família, ajuda, apoio, pais, sogros, sozinhos"
+              value={patterns?.question_keywords ?? []}
+              onChange={(v) => updatePatterns({ question_keywords: v })}
+            />
+            <KeywordListField
+              label="Resposta POSITIVA do lead"
+              hint="Ex: sim, ajudam, contribuem, pais"
+              value={patterns?.answer_yes_keywords ?? []}
+              onChange={(v) => updatePatterns({ answer_yes_keywords: v })}
+            />
+            <KeywordListField
+              label="Resposta NEGATIVA do lead"
+              hint="Ex: não, nenhuma, sozinhos, conta própria"
+              value={patterns?.answer_no_keywords ?? []}
+              onChange={(v) => updatePatterns({ answer_no_keywords: v })}
+            />
+            <div>
+              <label className="block text-[11px] text-slate-500 mb-1">
+                Resposta longa demais ignora detecção (caracteres)
+              </label>
+              <input
+                type="number"
+                min={20}
+                max={1000}
+                value={patterns?.max_answer_length ?? 200}
+                onChange={(e) => {
+                  const v = Number(e.target.value) || 200
+                  updatePatterns({ max_answer_length: Math.max(20, Math.min(1000, v)) })
+                }}
+                className="w-24 rounded-md border border-slate-200 px-2 py-1 text-xs"
+              />
+              <span className="text-[11px] text-slate-400 ml-2">default 200</span>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="flex justify-between pt-1">
         <Button variant="outline" size="sm" onClick={onRemove} className="gap-1 text-slate-500 hover:text-red-600">
           <Trash2 className="w-3.5 h-3.5" />
@@ -147,6 +237,84 @@ function SignalEditorCard({
             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Salvar
           </Button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Chip-list editor de palavras-chave. Cada chip = uma palavra/expressão.
+ * Suporta entrada via Enter ou vírgula. Não usa regex — palavras são
+ * escapadas no router antes de virar pattern.
+ */
+function KeywordListField({
+  label, hint, value, onChange,
+}: {
+  label: string
+  hint: string
+  value: string[]
+  onChange: (next: string[]) => void
+}) {
+  const [draft, setDraft] = useState('')
+
+  const addKeyword = (raw: string) => {
+    const text = raw.trim()
+    if (!text) return
+    if (value.some(v => v.toLowerCase() === text.toLowerCase())) return
+    onChange([...value, text])
+  }
+
+  const removeKeyword = (idx: number) => {
+    onChange(value.filter((_, i) => i !== idx))
+  }
+
+  return (
+    <div>
+      <label className="block text-[11px] text-slate-600 font-medium mb-1">{label}</label>
+      <div className="flex flex-wrap gap-1 mb-1">
+        {value.length === 0 && (
+          <span className="text-[11px] text-slate-400 italic">(nenhuma palavra-chave)</span>
+        )}
+        {value.map((kw, i) => (
+          <span
+            key={i}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border border-slate-200 text-[11px] text-slate-700"
+          >
+            {kw}
+            <button
+              type="button"
+              onClick={() => removeKeyword(i)}
+              className="text-slate-400 hover:text-red-600"
+              title="Remover"
+            >
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-1">
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ',') {
+              e.preventDefault()
+              addKeyword(draft)
+              setDraft('')
+            }
+          }}
+          onBlur={() => { if (draft) { addKeyword(draft); setDraft('') } }}
+          placeholder={hint}
+          className="flex-1 rounded-md border border-slate-200 px-2 py-1 text-xs bg-white"
+        />
+        <button
+          type="button"
+          onClick={() => { addKeyword(draft); setDraft('') }}
+          className="px-2 rounded-md border border-slate-200 text-xs text-slate-600 hover:bg-slate-100"
+          title="Adicionar"
+        >
+          +
+        </button>
       </div>
     </div>
   )

@@ -13,11 +13,15 @@ import DeleteCardModal from '../card/DeleteCardModal'
 import { TagBadge } from '../card/TagBadge'
 import { useCardTags } from '../../hooks/useCardTags'
 import { useSeenCards } from '../../hooks/useSeenCards'
+import { useUnreadDelegatedTaskCards } from '../../hooks/useUnreadDelegatedTaskCards'
+import { useSharedHandoffStageIds } from '../../hooks/useSharedHandoffStageIds'
 import { isGanhoDireto, getPhaseOwnerName } from '../../lib/pipeline/phaseLabels'
 import { calculateExpectedPosVendaStage, isStageMismatch } from '../../lib/pipeline/posVendaStageRule'
 import { useCardTeamCounts } from '../../hooks/useCardTeamCounts'
 import { TIPO_LABEL, type CardConciergeStats } from '../../hooks/concierge/types'
 import { getDiasAtrasoDataPrevista } from '../../hooks/usePipelineGovernance'
+import { useCancellationOverlay, modoCancelamentoLabel } from '../../hooks/cancelamento/useCancelamento'
+import { useOrg } from '../../contexts/OrgContext'
 
 type Card = Database['public']['Views']['view_cards_acoes']['Row']
 
@@ -35,6 +39,7 @@ interface KanbanCardProps {
 
 import { GroupBadge } from './GroupBadge'
 import SubCardBadge from './SubCardBadge'
+import { KanbanCardPendenciaFaixa } from './KanbanCardPendenciaFaixa'
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 
@@ -112,8 +117,18 @@ function formatTempoAberto(createdAt: string | null | undefined): TempoAberto | 
 
 function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataPrevistaTracked = false }: KanbanCardProps) {
     const navigate = useNavigate()
+    const { org } = useOrg()
+    const cancelOverlay = useCancellationOverlay(card.id ?? undefined, org?.id)
     const { isNew, markSeen } = useSeenCards()
-    const isUnseen = isNew(card.id!, card.created_at)
+    const isUnseen = isNew(card.id!, card.created_at, card.dono_atual_id)
+    const { hasUnread } = useUnreadDelegatedTaskCards()
+    const showDelegatedDot = hasUnread(card.id)
+    // Etapa compartilhada (sem dono fixo) — badge visual quando card sem owner principal
+    const { data: sharedStageIds } = useSharedHandoffStageIds()
+    const isInSharedStage = !!card.pipeline_stage_id
+        && Array.isArray(sharedStageIds)
+        && sharedStageIds.includes(card.pipeline_stage_id)
+    const isSharedCardNoOwner = isInSharedStage && !card.dono_atual_id
     // Lookup O(1) no Map batched (vinda do KanbanBoard via useCardConciergeStatsBatch).
     // Antes: cada KanbanCard disparava sua própria query → N+1 em pipelines com 100+ cards.
     const conciergeStats = card.id ? conciergeStatsMap?.get(card.id) ?? null : null
@@ -477,39 +492,49 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
         if (fieldId === 'orcamento') {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const cardAny = card as any
+            const totalFechado = Number(cardAny.total_fechado) || 0
             const valorFinal = Number(cardAny.valor_final) || 0
             const valorEstimado = Number(cardAny.valor_estimado) || 0
+            const formatBRL = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 
-            // Prioridade 1: valor_final > 0 → fechado de verdade (soma dos produtos), emerald
+            // Prioridade 1: total_fechado > 0 → tem produto cadastrado, mostra fechado / previsto
+            if (totalFechado > 0) {
+                return (
+                    <div key={fieldId} className="flex items-center text-xs mt-1 tabular-nums">
+                        <DollarSign className="mr-1.5 h-3 w-3 flex-shrink-0 text-emerald-600" />
+                        <span className="truncate block flex-1">
+                            <span className="text-emerald-700 font-medium">{formatBRL(totalFechado)}</span>
+                            {valorEstimado > 0 && (
+                                <span className="text-slate-400"> / {formatBRL(valorEstimado)}</span>
+                            )}
+                        </span>
+                    </div>
+                )
+            }
+            // Prioridade 2: valor_final legado (sub-cards ou cards ganhos que já passaram pelo trigger)
             if (valorFinal > 0) {
                 return (
-                    <div key={fieldId} className="flex items-center text-xs text-emerald-600 mt-1">
+                    <div key={fieldId} className="flex items-center text-xs text-emerald-600 mt-1 tabular-nums">
                         <DollarSign className="mr-1.5 h-3 w-3 flex-shrink-0" />
-                        <span className="truncate block flex-1 font-medium">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorFinal)}
-                        </span>
+                        <span className="truncate block flex-1 font-medium">{formatBRL(valorFinal)}</span>
                     </div>
                 )
             }
-            // Prioridade 2: valor_estimado > 0 → orçamento previsto, cinza (não é fechado)
+            // Prioridade 3: valor_estimado > 0 → só orçamento previsto, sem produto cadastrado
             if (valorEstimado > 0) {
                 return (
-                    <div key={fieldId} className="flex items-center text-xs text-slate-500 mt-1">
+                    <div key={fieldId} className="flex items-center text-xs text-slate-500 mt-1 tabular-nums">
                         <DollarSign className="mr-1.5 h-3 w-3 flex-shrink-0" />
-                        <span className="truncate block flex-1">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorEstimado)}
-                        </span>
+                        <span className="truncate block flex-1">{formatBRL(valorEstimado)}</span>
                     </div>
                 )
             }
-            // Prioridade 3: orçamento dentro de produto_data (legado)
+            // Prioridade 4: orçamento dentro de produto_data (legado bem antigo)
             if (!value?.total) return null
             return (
-                <div key={fieldId} className="flex items-center text-xs text-slate-500 mt-1">
+                <div key={fieldId} className="flex items-center text-xs text-slate-500 mt-1 tabular-nums">
                     <DollarSign className="mr-1.5 h-3 w-3 flex-shrink-0" />
-                    <span className="truncate block flex-1">
-                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value.total)}
-                    </span>
+                    <span className="truncate block flex-1">{formatBRL(value.total)}</span>
                 </div>
             )
         }
@@ -610,9 +635,15 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
     // epoca_viagem e data_exata_da_viagem renderizam a mesma Data Viagem Completa — desduplica
     const dedupeTripDate = (arr: string[]) =>
         arr.includes('epoca_viagem') ? arr.filter(f => f !== 'data_exata_da_viagem') : arr
+    // Dedup geral: ordem_kanban pode conter duplicatas (system_fields tem 1 row por produto, e o
+    // PhaseSettingsDrawer escrevia o array bruto).
+    const dedupe = (arr: string[]) => Array.from(new Set(arr))
 
-    const fieldsToShow = dedupeTripDate(rawFieldsToShow)
-    const orderedFields = dedupeTripDate(rawOrderedFields)
+    const fieldsToShow = dedupe(dedupeTripDate(rawFieldsToShow))
+    const orderedFields = dedupe(dedupeTripDate(rawOrderedFields))
+    // ordem_kanban define a ordem; campos_kanban define a visibilidade. Render só os visíveis.
+    const visibleSet = new Set(fieldsToShow)
+    const fieldsToRender = orderedFields.filter(f => visibleSet.has(f))
 
     return (
         <div
@@ -627,6 +658,7 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
                 isDragging && "opacity-0",
                 conciergeStats?.vencidos && conciergeStats.vencidos > 0 && "border-l-4 border-l-red-300",
                 isDataPrevistaOverdue && "border-l-4 border-l-red-500 ring-1 ring-red-200",
+                cancelOverlay && "border-2 border-amber-500 animate-pulse",
                 card.status_comercial === 'ganho' && isGanhoDireto(card) && "border-amber-300 bg-amber-50/40 opacity-80",
                 card.status_comercial === 'ganho' && !(isGanhoDireto(card)) && "border-green-300 bg-green-50/40 opacity-80",
                 card.status_comercial === 'perdido' && "border-red-300 bg-red-50/40 opacity-80",
@@ -646,6 +678,32 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
                         : undefined
             }
         >
+            <KanbanCardPendenciaFaixa cardId={card.id!} />
+            {cancelOverlay && (
+                <span
+                    className={cn(
+                        "absolute -top-2 -right-1 z-40 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border shadow-sm pointer-events-none",
+                        cancelOverlay.modo_cancelamento === 'total'
+                            ? "bg-red-100 text-red-800 border-red-300"
+                            : cancelOverlay.modo_cancelamento === 'mudanca_brusca'
+                                ? "bg-violet-100 text-violet-800 border-violet-300"
+                                : "bg-amber-100 text-amber-800 border-amber-300",
+                    )}
+                    title="Esta viagem está em cancelamento"
+                >
+                    ⚠ {modoCancelamentoLabel(cancelOverlay.modo_cancelamento)}
+                </span>
+            )}
+            {showDelegatedDot && (
+                <span
+                    className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5 z-30 pointer-events-none"
+                    title="Você tem uma tarefa atribuída neste card"
+                    aria-label="Tarefa nova atribuída"
+                >
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
+                </span>
+            )}
             <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2 flex-wrap">
                     <span className={cn(
@@ -837,6 +895,17 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
                 {card.titulo}
             </span>
 
+            {/* Handoff Compartilhado — card sem dono fixo, visível pra todo o time */}
+            {isSharedCardNoOwner && (
+                <div
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 -mt-0.5 self-start"
+                    title="Card compartilhado entre membros do time. Coordenação via tarefas delegadas."
+                >
+                    <Users className="h-3 w-3" />
+                    Time
+                </div>
+            )}
+
             {/* Contato Principal — fixo abaixo do título, controlado via pipeline_card_settings */}
             {card.pessoa_nome && fieldsToShow.includes('pessoa_nome') && (
                 <div className="flex items-center text-xs text-gray-500 -mt-0.5">
@@ -872,10 +941,10 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
 
 
                 {/* Dynamic Fields */}
-                {orderedFields.filter(f => f !== 'task_status').map(fieldId => renderDynamicField(fieldId))}
+                {fieldsToRender.filter(f => f !== 'task_status').map(fieldId => renderDynamicField(fieldId))}
 
                 {/* Task Status always at bottom of fields, above owner */}
-                {renderDynamicField('task_status')}
+                {visibleSet.has('task_status') && renderDynamicField('task_status')}
 
                 {/* Anexos count */}
                 {(() => {

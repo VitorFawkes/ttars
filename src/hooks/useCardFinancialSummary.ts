@@ -19,6 +19,7 @@ export interface FinancialItem {
     observacoes: string | null
     last_change_summary: string | null
     last_change_at: string | null
+    monde_venda_num: string | null
 }
 
 export interface CardFinancialSummary {
@@ -40,7 +41,7 @@ export function useCardFinancialSummary(cardId: string, card: Card): CardFinanci
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data, error } = await (supabase.from('card_financial_items') as any)
-                .select('id, description, sale_value, supplier_cost, is_ready, notes, fornecedor, representante, documento, data_inicio, data_fim, observacoes, last_change_summary, last_change_at')
+                .select('id, description, sale_value, supplier_cost, is_ready, notes, fornecedor, representante, documento, data_inicio, data_fim, observacoes, last_change_summary, last_change_at, monde_venda_num')
                 .eq('card_id', cardId)
                 .is('archived_at', null)
                 .order('created_at')

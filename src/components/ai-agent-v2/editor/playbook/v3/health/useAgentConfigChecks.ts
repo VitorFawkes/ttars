@@ -42,7 +42,6 @@ interface AgentRow {
   id: string
   nome: string
   system_prompt: string | null
-  intelligent_decisions: Record<string, unknown> | null
 }
 
 function useAgentRow(agentId?: string) {
@@ -53,7 +52,7 @@ function useAgentRow(agentId?: string) {
       if (!agentId) return null
       const { data, error } = await supabase
         .from('ai_agents')
-        .select('id, nome, system_prompt, intelligent_decisions')
+        .select('id, nome, system_prompt')
         .eq('id', agentId)
         .maybeSingle()
       if (error) throw error
@@ -83,19 +82,20 @@ export function useAgentConfigChecks(agentId?: string): {
 
     const out: HealthAlert[] = []
     const agent = agentRowQ.data
+    void agent // evita warning unused (mantido pro caso de checks futuros)
 
-    // ── Check 1: KB vazio + buscar_kb ligado ──
-    const id = agent?.intelligent_decisions as Record<string, { enabled?: boolean }> | null
-    const buscarKbEnabled = id?.buscar_kb?.enabled === true
-    if (buscarKbEnabled && (kbLinks?.length ?? 0) === 0) {
+    // ── Check 1: agente tem moments mas nenhuma Knowledge Base vinculada ──
+    // Sem KB, a ferramenta search_knowledge_base não retorna nada e o agente
+    // improvisa fatos sobre destino, prazo, processo.
+    if ((moments?.length ?? 0) > 0 && (kbLinks?.length ?? 0) === 0) {
       out.push({
-        id: 'kb-empty-but-enabled',
+        id: 'kb-empty-but-has-moments',
         severity: 'warning',
         category: 'Conhecimento',
         title: 'Knowledge Base vazio',
-        detail: 'A decisão "buscar_kb" está LIGADA mas nenhuma base está vinculada. A agente vai improvisar fatos sobre destino, prazo, processo.',
+        detail: 'Nenhuma base de conhecimento está vinculada. A ferramenta search_knowledge_base não vai retornar nada e o agente pode improvisar fatos.',
         suggestion: 'Vincule pelo menos uma base com 5-10 itens críticos.',
-        navigateTo: 'moments', // não tem aba dedicada hoje, vai pra Conhecimento via decisões
+        navigateTo: 'moments',
       })
     }
 

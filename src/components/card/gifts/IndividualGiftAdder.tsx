@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Gift, Search, Package, PenLine, Loader2, Plus, X, Check, Users, AlertTriangle } from 'lucide-react'
 import { useInventoryProducts, type InventoryProduct } from '@/hooks/useInventoryProducts'
+import InventoryImageHoverPreview from '@/components/inventory/InventoryImageHoverPreview'
 import { cn } from '@/lib/utils'
 
 const formatBRL = (v: number) =>
@@ -138,26 +139,27 @@ export default function IndividualGiftAdder({ contacts, onSubmit, onCancel, isSu
                                 {showList && products.length > 0 && (
                                     <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                                         {products.map(p => (
-                                            <button
-                                                key={p.id}
-                                                onClick={() => { setSelectedProduct(p); setShowList(false); setSearch('') }}
-                                                disabled={p.current_stock === 0}
-                                                className={cn(
-                                                    'w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center justify-between text-sm',
-                                                    p.current_stock === 0 && 'opacity-40 cursor-not-allowed'
-                                                )}
-                                            >
-                                                <div className="flex items-center gap-2 min-w-0">
-                                                    <Package className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                                                    <span className="truncate">{p.name}</span>
-                                                    {p.unit_price > 0 && (
-                                                        <span className="text-xs text-slate-400 shrink-0">{formatBRL(p.unit_price)}</span>
+                                            <InventoryImageHoverPreview key={p.id} imagePath={p.image_path} productName={p.name}>
+                                                <button
+                                                    onClick={() => { setSelectedProduct(p); setShowList(false); setSearch('') }}
+                                                    disabled={p.current_stock === 0}
+                                                    className={cn(
+                                                        'w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center justify-between text-sm',
+                                                        p.current_stock === 0 && 'opacity-40 cursor-not-allowed'
                                                     )}
-                                                </div>
-                                                <span className={cn('text-xs shrink-0', p.current_stock === 0 ? 'text-red-500' : 'text-slate-400')}>
-                                                    {p.current_stock === 0 ? 'Sem estoque' : `${p.current_stock} disp.`}
-                                                </span>
-                                            </button>
+                                                >
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <Package className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                                        <span className="truncate">{p.name}</span>
+                                                        {p.unit_price > 0 && (
+                                                            <span className="text-xs text-slate-400 shrink-0">{formatBRL(p.unit_price)}</span>
+                                                        )}
+                                                    </div>
+                                                    <span className={cn('text-xs shrink-0', p.current_stock === 0 ? 'text-red-500' : 'text-slate-400')}>
+                                                        {p.current_stock === 0 ? 'Sem estoque' : `${p.current_stock} disp.`}
+                                                    </span>
+                                                </button>
+                                            </InventoryImageHoverPreview>
                                         ))}
                                     </div>
                                 )}

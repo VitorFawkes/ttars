@@ -16,7 +16,6 @@ export interface TransformIntoSubCardResult {
     parent_id: string
     mode: 'incremental'
     category: SubCardCategory
-    task_id?: string | null
     error?: string
 }
 

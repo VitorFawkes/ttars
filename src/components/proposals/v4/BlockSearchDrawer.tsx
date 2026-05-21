@@ -8,17 +8,16 @@
  * - Clear loading/error states
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
-import { useLibrarySearch, type LibrarySearchResult, type LibraryCategory } from '@/hooks/useLibrary'
+import { type LibrarySearchResult, type LibraryCategory } from '@/hooks/useLibrary'
+import { CatalogPickerPanel } from '@/components/catalog/CatalogPickerPanel'
 import { useProposalBuilder } from '@/hooks/useProposalBuilder'
 import { AIImageExtractor } from '@/components/proposals/AIImageExtractor'
 import type { ExtractedItem } from '@/hooks/useAIExtract'
 import {
     X,
-    Search,
     Plus,
     Building2,
     Plane,
@@ -36,20 +35,18 @@ import {
     Minus,
     Table,
     Type,
-    AlertCircle,
-    Globe,
 } from 'lucide-react'
 import type { BlockType } from '@/pages/ProposalBuilderV4'
 import type { ProposalItemType } from '@/types/proposals'
 import { createInitialCruiseData } from './cruises/types'
 import { createInitialInsuranceData } from './insurance/types'
 import { HotelCatalogPicker } from './HotelCatalogPicker'
-import { FlightLookupPicker } from './FlightLookupPicker'
 import { TransferCatalogPicker } from './TransferCatalogPicker'
 import { TourCatalogPicker } from './TourCatalogPicker'
 import { CarRentalPicker } from './CarRentalPicker'
+import { DuffelFlightPicker } from './DuffelFlightPicker'
 import type { HotelDetailsResult } from '@/hooks/useHotelSearch'
-import type { FlightLookupResult } from '@/hooks/useFlightLookup'
+import type { FlightOffer } from '@/hooks/useDuffelFlightSearch'
 import type { IterpecTransferResult, IterpecTourResult, IterpecCarResult } from '@/types/iterpec'
 
 interface BlockSearchDrawerProps {
@@ -147,7 +144,8 @@ const BLOCK_TO_ITEM: Record<BlockType, ProposalItemType> = {
 const AI_ENABLED_BLOCKS: BlockType[] = ['flight']
 
 // Blocks that support library search
-const LIBRARY_ENABLED_BLOCKS: BlockType[] = ['hotel', 'flight', 'experience', 'transfer', 'insurance']
+// Voo NÃO entra no catálogo (preços/horários são voláteis — vai e volta a cada busca).
+const LIBRARY_ENABLED_BLOCKS: BlockType[] = ['hotel', 'experience', 'transfer', 'insurance']
 
 // Blocks that support external catalog/lookup
 const CATALOG_ENABLED_BLOCKS: BlockType[] = ['hotel', 'flight', 'transfer', 'experience', 'car']
@@ -160,8 +158,7 @@ export function BlockSearchDrawer({
     sectionId,
     onClose,
 }: BlockSearchDrawerProps) {
-    const [search, setSearch] = useState('')
-    const [activeTab, setActiveTab] = useState<TabType>('create')
+    const [, setSearch] = useState('')
     const [isCreating, setIsCreating] = useState(false)
     const { addItemFromLibrary, addItem, updateItem } = useProposalBuilder()
 
@@ -170,14 +167,28 @@ export function BlockSearchDrawer({
     const hasLibrarySupport = blockType && LIBRARY_ENABLED_BLOCKS.includes(blockType)
     const hasCatalogSupport = blockType && CATALOG_ENABLED_BLOCKS.includes(blockType)
 
+    // Default tab: se tipo aceita catálogo, abre direto nele (time já tem itens cadastrados).
+    // Senão, vai pra "Criar Novo" (textos, divisores, etc).
+    const [activeTab, setActiveTab] = useState<TabType>('library')
+
+    // Resetar aba ao abrir/trocar tipo de bloco.
+    // Voo: abre na busca ao vivo (Duffel).
+    // Hotel/Experiência/Transfer/Seguro: abre no Catálogo.
+    // Texto/Divisor/Imagem: abre em Criar Novo.
+    useEffect(() => {
+        if (isOpen && blockType) {
+            if (blockType === 'flight' && hasCatalogSupport) {
+                setActiveTab('catalog')
+            } else if (hasLibrarySupport) {
+                setActiveTab('library')
+            } else {
+                setActiveTab('create')
+            }
+        }
+    }, [isOpen, blockType, hasLibrarySupport, hasCatalogSupport])
+
     // Get library category for this block type
     const libraryCategory = blockType ? BLOCK_TO_LIBRARY_CATEGORY[blockType] : undefined
-
-    // Search library (only when on library tab and has 2+ chars)
-    const { data: results = [], isLoading, error } = useLibrarySearch(
-        { search, category: libraryCategory },
-        isOpen && search.length >= 2 && activeTab === 'library' && !!hasLibrarySupport
-    )
 
     // Handle creating empty item
     const handleCreateEmpty = useCallback(async () => {
@@ -372,68 +383,94 @@ export function BlockSearchDrawer({
         onClose()
     }, [sectionId, addItem, updateItem, onClose])
 
-    // Handle flight import from lookup
+    // Handle flight import from Duffel offer
     // Formato: rich_content.flights.legs[].options[]
     // Alinhado com readFlightData.ts que lê rich_content.flights namespace
-    const handleFlightImport = useCallback((flight: FlightLookupResult) => {
+    const handleDuffelOfferImport = useCallback((offer: FlightOffer) => {
         if (!sectionId) return
 
-        const depTime = flight.departure.scheduledTime
-            ? formatTimeFromISO(flight.departure.scheduledTime)
-            : ''
-        const arrTime = flight.arrival.scheduledTime
-            ? formatTimeFromISO(flight.arrival.scheduledTime)
-            : ''
+        const pricePerSlice = offer.slices.length > 0
+            ? offer.total_amount / offer.slices.length
+            : offer.total_amount
 
-        const title = `${flight.airline.name} ${flight.flightNumber}`
+        const cabinLabel: Record<string, string> = {
+            economy: 'economy',
+            premium_economy: 'premium_economy',
+            business: 'business',
+            first: 'first',
+        }
+
+        const ts = Date.now()
+        const legs = offer.slices.map((slice, idx) => {
+            const firstSeg = slice.segments[0]
+            const lastSeg = slice.segments[slice.segments.length - 1]
+            const depTime = firstSeg?.departure_datetime
+                ? new Date(firstSeg.departure_datetime).toISOString().slice(11, 16)
+                : ''
+            const arrTime = lastSeg?.arrival_datetime
+                ? new Date(lastSeg.arrival_datetime).toISOString().slice(11, 16)
+                : ''
+            const flightNumbers = slice.segments.map((s) => s.flight_number).filter(Boolean).join(' + ')
+            const dateOnly = firstSeg?.departure_datetime
+                ? firstSeg.departure_datetime.slice(0, 10)
+                : ''
+
+            return {
+                id: `leg-${ts}-${idx}`,
+                leg_type: idx === 0 ? 'outbound' : 'return',
+                label: idx === 0 ? 'IDA' : 'VOLTA',
+                origin_code: slice.origin.iata_code,
+                origin_city: slice.origin.city_name || '',
+                destination_code: slice.destination.iata_code,
+                destination_city: slice.destination.city_name || '',
+                date: dateOnly,
+                ordem: idx,
+                options: [
+                    {
+                        id: `opt-${ts}-${idx}`,
+                        airline_code: offer.owner.iata_code,
+                        airline_name: offer.owner.name,
+                        flight_number: flightNumbers || `${offer.owner.iata_code}—`,
+                        departure_time: depTime,
+                        arrival_time: arrTime,
+                        cabin_class: cabinLabel[offer.cabin_class] ?? 'economy',
+                        fare_family: '',
+                        equipment: firstSeg?.aircraft || '',
+                        stops: slice.stops,
+                        baggage: offer.baggage_summary || '',
+                        price: Math.round(pricePerSlice * 100) / 100,
+                        currency: offer.total_currency,
+                        is_recommended: true,
+                        enabled: true,
+                        ordem: 0,
+                        duration_minutes: slice.duration_minutes,
+                    },
+                ],
+            }
+        })
+
+        const title = legs.length > 1
+            ? `${offer.owner.name} ${legs[0].origin_code} ↔ ${legs[0].destination_code}`
+            : `${offer.owner.name} ${legs[0]?.origin_code ?? ''} → ${legs[0]?.destination_code ?? ''}`
+
         const itemId = addItem(sectionId, 'flight', title)
         updateItem(itemId, {
+            base_price: offer.total_amount,
             rich_content: {
                 flights: {
-                    legs: [
-                        {
-                            id: `leg-${Date.now()}`,
-                            leg_type: 'outbound',
-                            label: 'IDA',
-                            origin_code: flight.departure.iata,
-                            origin_city: flight.departure.city || '',
-                            destination_code: flight.arrival.iata,
-                            destination_city: flight.arrival.city || '',
-                            date: flight.departureDate,
-                            ordem: 0,
-                            options: [
-                                {
-                                    id: `opt-${Date.now()}`,
-                                    airline_code: flight.airline.iata,
-                                    airline_name: flight.airline.name,
-                                    flight_number: flight.flightNumber,
-                                    departure_time: depTime,
-                                    arrival_time: arrTime,
-                                    cabin_class: 'economy',
-                                    fare_family: '',
-                                    equipment: flight.aircraft || '',
-                                    stops: 0,
-                                    baggage: '',
-                                    price: 0,
-                                    currency: 'BRL',
-                                    is_recommended: true,
-                                    enabled: true,
-                                    ordem: 0,
-                                },
-                            ],
-                        },
-                    ],
+                    legs,
                     show_prices: true,
                     allow_mix_airlines: true,
-                    _catalog: {
-                        provider: flight.provider,
-                        departure_terminal: flight.departure.terminal,
-                        arrival_terminal: flight.arrival.terminal,
-                        duration_minutes: flight.durationMinutes,
-                        status: flight.status,
+                    _duffel: {
+                        provider: 'duffel',
+                        offer_id: offer.id,
+                        expires_at: offer.expires_at,
+                        base_amount: offer.base_amount,
+                        tax_amount: offer.tax_amount,
                     },
                 },
-            },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } as any,
         })
         onClose()
     }, [sectionId, addItem, updateItem, onClose])
@@ -548,9 +585,9 @@ export function BlockSearchDrawer({
     // Close drawer and reset
     const handleClose = useCallback(() => {
         setSearch('')
-        setActiveTab('create')
+        setActiveTab(hasLibrarySupport ? 'library' : 'create')
         onClose()
-    }, [onClose])
+    }, [onClose, hasLibrarySupport])
 
     if (!isOpen || !blockType) return null
 
@@ -559,7 +596,13 @@ export function BlockSearchDrawer({
     const colors = BLOCK_COLORS[blockType] || BLOCK_COLORS.custom
 
     // Count available tabs
-    const tabCount = 1 + (hasLibrarySupport ? 1 : 0) + (hasAISupport ? 1 : 0) + (hasCatalogSupport ? 1 : 0)
+    // Iterpec foi removido como aba (resultados mesclados no Catálogo).
+    // Pra voo, a aba "Buscar voos" (Duffel) aparece pq é o método principal.
+    const tabCount =
+        1 +
+        (hasLibrarySupport ? 1 : 0) +
+        (hasAISupport ? 1 : 0) +
+        (blockType === 'flight' && hasCatalogSupport ? 1 : 0)
 
     return (
         <>
@@ -631,7 +674,7 @@ export function BlockSearchDrawer({
                             Criar Novo
                         </button>
 
-                        {/* Library Tab */}
+                        {/* Catálogo Tab (substitui Biblioteca antiga, usa o Catálogo unificado) */}
                         {hasLibrarySupport && (
                             <button
                                 onClick={() => setActiveTab('library')}
@@ -644,12 +687,16 @@ export function BlockSearchDrawer({
                                 )}
                             >
                                 <Library className="h-4 w-4" />
-                                Biblioteca
+                                Catálogo
                             </button>
                         )}
 
-                        {/* Catalog Tab */}
-                        {hasCatalogSupport && (
+                        {/* Aba "Buscar voos" só aparece pra voo (Duffel) — pra hotel
+                            a busca já mescla LiteAPI inline no Catálogo; pra
+                            transfer/tour/car o link "Cotar nova opção ao vivo" no
+                            rodapé do catálogo muda o conteúdo do mesmo painel sem
+                            virar outra aba. */}
+                        {hasCatalogSupport && blockType === 'flight' && (
                             <button
                                 onClick={() => setActiveTab('catalog')}
                                 className={cn(
@@ -660,8 +707,8 @@ export function BlockSearchDrawer({
                                         : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
                                 )}
                             >
-                                <Globe className="h-4 w-4" />
-                                Catálogo
+                                <Plane className="h-4 w-4" />
+                                Buscar voos
                             </button>
                         )}
 
@@ -738,160 +785,22 @@ export function BlockSearchDrawer({
                             {hasLibrarySupport && (
                                 <div className="mt-6 p-4 bg-slate-50 rounded-xl">
                                     <p className="text-xs text-slate-500">
-                                        <strong className="text-slate-700">Dica:</strong> Use a aba "Biblioteca" para buscar itens que voce ja cadastrou anteriormente.
+                                        <strong className="text-slate-700">Dica:</strong> A aba "Catálogo" tem todos os itens que o time já usou em propostas — pode ser mais rápido que criar do zero.
                                     </p>
                                 </div>
                             )}
                         </div>
                     )}
 
-                    {/* LIBRARY TAB */}
+                    {/* LIBRARY TAB → agora usa o Catálogo unificado */}
                     {activeTab === 'library' && hasLibrarySupport && (
-                        <>
-                            {/* Search Input */}
-                            <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50">
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                                    <Input
-                                        placeholder={`Buscar ${label.toLowerCase()} na biblioteca...`}
-                                        value={search}
-                                        onChange={(e) => setSearch(e.target.value)}
-                                        className="pl-10 h-11 bg-white"
-                                        autoFocus
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Results Area */}
-                            <div className="p-4">
-                                {/* Error State */}
-                                {error && (
-                                    <div className="flex flex-col items-center justify-center py-12 text-center">
-                                        <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mb-4">
-                                            <AlertCircle className="h-7 w-7 text-red-500" />
-                                        </div>
-                                        <p className="text-sm font-medium text-slate-900 mb-1">
-                                            Erro ao buscar
-                                        </p>
-                                        <p className="text-xs text-slate-500 mb-4">
-                                            Nao foi possivel carregar a biblioteca
-                                        </p>
-                                        <Button variant="outline" size="sm" onClick={() => setSearch('')}>
-                                            Tentar novamente
-                                        </Button>
-                                    </div>
-                                )}
-
-                                {/* Loading State */}
-                                {isLoading && !error && (
-                                    <div className="flex flex-col items-center justify-center py-12">
-                                        <Loader2 className="h-8 w-8 animate-spin text-blue-500 mb-3" />
-                                        <p className="text-sm text-slate-500">
-                                            Buscando "{search}"...
-                                        </p>
-                                    </div>
-                                )}
-
-                                {/* Empty Search State */}
-                                {!isLoading && !error && search.length < 2 && (
-                                    <div className="flex flex-col items-center justify-center py-12 text-center">
-                                        <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mb-4">
-                                            <Library className="h-7 w-7 text-slate-400" />
-                                        </div>
-                                        <p className="text-sm font-medium text-slate-700 mb-1">
-                                            Buscar na biblioteca
-                                        </p>
-                                        <p className="text-xs text-slate-500">
-                                            Digite pelo menos 2 caracteres para buscar
-                                        </p>
-                                    </div>
-                                )}
-
-                                {/* No Results */}
-                                {!isLoading && !error && search.length >= 2 && results.length === 0 && (
-                                    <div className="flex flex-col items-center justify-center py-12 text-center">
-                                        <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mb-4">
-                                            <Search className="h-7 w-7 text-slate-400" />
-                                        </div>
-                                        <p className="text-sm font-medium text-slate-700 mb-1">
-                                            Nenhum resultado
-                                        </p>
-                                        <p className="text-xs text-slate-500 mb-4">
-                                            Nao encontramos "{search}" na biblioteca
-                                        </p>
-                                        <Button onClick={() => setActiveTab('create')}>
-                                            <Plus className="h-4 w-4 mr-2" />
-                                            Criar Novo
-                                        </Button>
-                                    </div>
-                                )}
-
-                                {/* Results List */}
-                                {!isLoading && !error && results.length > 0 && (
-                                    <div className="space-y-2">
-                                        {results.map((item) => (
-                                            <button
-                                                key={item.id}
-                                                onClick={() => handleSelect(item)}
-                                                className="w-full p-3 flex items-center gap-3 bg-white rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all text-left group"
-                                            >
-                                                {/* Thumbnail */}
-                                                <div className="w-14 h-14 rounded-lg bg-slate-100 flex-shrink-0 overflow-hidden">
-                                                    {item.thumbnail_url ? (
-                                                        <img
-                                                            src={item.thumbnail_url}
-                                                            alt={item.name}
-                                                            className="w-full h-full object-cover"
-                                                        />
-                                                    ) : (
-                                                        <div className={cn(
-                                                            "w-full h-full flex items-center justify-center",
-                                                            colors.bg, colors.text
-                                                        )}>
-                                                            <Icon className="h-5 w-5" />
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                {/* Info */}
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="font-medium text-slate-900 truncate group-hover:text-blue-700">
-                                                        {item.name}
-                                                    </p>
-                                                    {item.destination && (
-                                                        <p className="text-xs text-slate-500 mt-0.5">
-                                                            {item.destination}
-                                                        </p>
-                                                    )}
-                                                    {item.supplier && (
-                                                        <p className="text-xs text-slate-400 mt-0.5">
-                                                            {item.supplier}
-                                                        </p>
-                                                    )}
-                                                </div>
-
-                                                {/* Price */}
-                                                {item.base_price && Number(item.base_price) > 0 && (
-                                                    <div className="text-right flex-shrink-0">
-                                                        <p className="text-sm font-semibold text-emerald-600">
-                                                            {new Intl.NumberFormat('pt-BR', {
-                                                                style: 'currency',
-                                                                currency: item.currency || 'BRL',
-                                                            }).format(Number(item.base_price))}
-                                                        </p>
-                                                    </div>
-                                                )}
-
-                                                {/* Arrow */}
-                                                <div className="text-slate-300 group-hover:text-blue-500 transition-colors">
-                                                    <Plus className="h-5 w-5" />
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </>
+                        <CatalogPickerPanel
+                            category={libraryCategory}
+                            label={label}
+                            onSelect={handleSelect}
+                            onCreateNew={() => setActiveTab('create')}
+                            onFallbackIterpec={hasCatalogSupport ? () => setActiveTab('catalog') : undefined}
+                        />
                     )}
 
                     {/* AI TAB */}
@@ -903,17 +812,28 @@ export function BlockSearchDrawer({
                         </div>
                     )}
 
-                    {/* CATALOG TAB */}
+                    {/* PAINEL DE COTAÇÃO AO VIVO (Iterpec) — sem ser aba.
+                        Acessado apenas via "Cotar nova opção ao vivo" no rodapé
+                        do CatalogPickerPanel. Header com botão Voltar pro Catálogo.
+                        Pra voo, é a aba principal (Duffel) e não tem "voltar". */}
                     {activeTab === 'catalog' && hasCatalogSupport && (
                         <div className="p-4">
+                            {blockType !== 'flight' && (
+                                <button
+                                    onClick={() => setActiveTab('library')}
+                                    className="mb-3 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-900"
+                                >
+                                    ← Voltar ao catálogo
+                                </button>
+                            )}
                             {blockType === 'hotel' && (
                                 <HotelCatalogPicker
                                     onImport={handleHotelImport}
                                 />
                             )}
                             {blockType === 'flight' && (
-                                <FlightLookupPicker
-                                    onImport={handleFlightImport}
+                                <DuffelFlightPicker
+                                    onImport={handleDuffelOfferImport}
                                 />
                             )}
                             {blockType === 'transfer' && (
@@ -940,19 +860,3 @@ export function BlockSearchDrawer({
 }
 
 export default BlockSearchDrawer
-
-/** Extrai HH:MM de um ISO timestamp (ex: "2026-07-16 01:50Z" → "01:50") */
-function formatTimeFromISO(iso: string): string {
-    try {
-        // Tenta parsear como Date
-        const d = new Date(iso)
-        if (!isNaN(d.getTime())) {
-            return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false })
-        }
-        // Fallback: extrair HH:MM de string tipo "2026-07-16 01:50Z"
-        const match = iso.match(/(\d{2}):(\d{2})/)
-        return match ? `${match[1]}:${match[2]}` : ''
-    } catch {
-        return ''
-    }
-}

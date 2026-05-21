@@ -3013,13 +3013,15 @@ export default function ImportacaoPosVendaPage() {
                 return (active ?? arr[0]) ?? null
             }
 
-            // Check by numero_venda_monde — só cards do workspace ativo (senão link quebra)
+            // Check by numero_venda_monde — só cards do workspace ativo e não arquivados.
+            // Card arquivado é tratado como inexistente em qualquer operação Monde (regra absoluta).
             for (const vchunk of chunked(trip.vendaNums, 10)) {
                 let query = supabase
                     .from('cards')
                     .select(CARD_AUDIT_SELECT)
                     .in('produto_data->>numero_venda_monde', vchunk)
                     .is('deleted_at', null)
+                    .is('archived_at', null)
                 if (activeOrgId) query = query.eq('org_id', activeOrgId)
                 const { data: cards } = await query
 
@@ -3049,6 +3051,7 @@ export default function ImportacaoPosVendaPage() {
                         .eq('pessoa_principal_id', contatoId)
                         .in('pipeline_stage_id', POS_VENDA_STAGES)
                         .is('deleted_at', null)
+                        .is('archived_at', null)
                         .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
                         .limit(1)
                     if (activeOrgId) query = query.eq('org_id', activeOrgId)
@@ -3094,6 +3097,7 @@ export default function ImportacaoPosVendaPage() {
                             .in('pessoa_principal_id', contatoIds)
                             .in('pipeline_stage_id', POS_VENDA_STAGES)
                             .is('deleted_at', null)
+                            .is('archived_at', null)
                             .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
                             .limit(5)
                         if (activeOrgId) q = q.eq('org_id', activeOrgId)
@@ -3130,6 +3134,7 @@ export default function ImportacaoPosVendaPage() {
                         .ilike('titulo', `%${primeiroNome.replace(/[%_]/g, '')}%${segundoNome.replace(/[%_]/g, '')}%`)
                         .in('pipeline_stage_id', POS_VENDA_STAGES)
                         .is('deleted_at', null)
+                        .is('archived_at', null)
                         .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
                         .limit(10)
                     if (activeOrgId) q = q.eq('org_id', activeOrgId)
@@ -3529,6 +3534,7 @@ export default function ImportacaoPosVendaPage() {
                             .select(CARD_AUDIT_SELECT)
                             .in('produto_data->>numero_venda_monde', vchunk)
                             .is('deleted_at', null)
+                            .is('archived_at', null)
                             .limit(20)
                         if (activeOrgId) query = query.eq('org_id', activeOrgId)
                         const { data: cards } = await query
@@ -3567,6 +3573,7 @@ export default function ImportacaoPosVendaPage() {
                             .eq('pessoa_principal_id', contatoId)
                             .in('pipeline_stage_id', POS_VENDA_STAGES)
                             .is('deleted_at', null)
+                            .is('archived_at', null)
                             .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
                             .lte('data_viagem_inicio', trip.dataFim || trip.dataInicio)
                             .gte('data_viagem_fim', trip.dataInicio)
@@ -3628,6 +3635,7 @@ export default function ImportacaoPosVendaPage() {
                                 .in('pessoa_principal_id', contatoIds)
                                 .in('pipeline_stage_id', POS_VENDA_STAGES)
                                 .is('deleted_at', null)
+                                .is('archived_at', null)
                                 .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
                                 .limit(5)
                             if (activeOrgId) q = q.eq('org_id', activeOrgId)
@@ -3670,6 +3678,7 @@ export default function ImportacaoPosVendaPage() {
                             .ilike('titulo', `%${primeiroNome.replace(/[%_]/g, '')}%${segundoNome.replace(/[%_]/g, '')}%`)
                             .in('pipeline_stage_id', POS_VENDA_STAGES)
                             .is('deleted_at', null)
+                            .is('archived_at', null)
                             .or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
                             .limit(10)
                         if (activeOrgId) q = q.eq('org_id', activeOrgId)

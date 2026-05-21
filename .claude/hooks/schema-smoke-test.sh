@@ -337,6 +337,49 @@ if [ "$STAGING_MODE" = "false" ]; then
     echo "  FAIL: $ZUMBI cards com itens Monde zumbi (mesma venda re-importada com conteúdo diferente, mas linhas antigas não foram arquivadas) — rodar cleanup retroativo" >&2
     FAILED=$((FAILED + 1))
   fi
+
+  # ── Items Monde em cards arquivados (regra absoluta: card arquivado = inexistente) ──
+  # Esperado: 0 sempre. Trigger BEFORE INSERT/UPDATE em card_financial_items
+  # (20260519c) + cascata trg_propagate_card_archived (20260515e) impedem.
+  # Se subir, há um caminho que está bypassando a guarda — investigar.
+  TOTAL=$((TOTAL + 1))
+  ARCHIVED_LEAK=$(curl -s \
+    -X POST \
+    "${URL}/rest/v1/rpc/monde_items_in_archived_cards_count" \
+    -H "apikey: ${ANON}" \
+    -H "Authorization: Bearer ${KEY}" \
+    -H "Content-Type: application/json" \
+    -d '{}' \
+    --max-time 10)
+
+  if [ -z "$ARCHIVED_LEAK" ] || ! echo "$ARCHIVED_LEAK" | grep -qE '^[0-9]+$'; then
+    echo "  FAIL: monde_items_in_archived_cards_count → resposta inesperada: $ARCHIVED_LEAK" >&2
+    FAILED=$((FAILED + 1))
+  elif [ "$ARCHIVED_LEAK" != "0" ]; then
+    echo "  FAIL: $ARCHIVED_LEAK items financeiros ativos em cards arquivados — guarda BEFORE INSERT/UPDATE foi furada" >&2
+    FAILED=$((FAILED + 1))
+  fi
+
+  # ── Reconcile: divergência entre card_financial_items e arquivo Monde ──
+  # Esperado: 0 após backfill (20260519d). Casos legacy (pending_sale ausente)
+  # não contam. Se subir, algum caminho de criação/atualização não passou pelo
+  # reconcile_card_monde_venda — investigar ImportacaoPosVendaPage ou outra rota.
+  TOTAL=$((TOTAL + 1))
+  RECONCILE_DIV=$(curl -s \
+    -X POST \
+    "${URL}/rest/v1/rpc/monde_reconcile_divergence_count" \
+    -H "apikey: ${ANON}" \
+    -H "Authorization: Bearer ${KEY}" \
+    -H "Content-Type: application/json" \
+    -d '{}' \
+    --max-time 10)
+
+  if [ -z "$RECONCILE_DIV" ] || ! echo "$RECONCILE_DIV" | grep -qE '^[0-9]+$'; then
+    echo "  FAIL: monde_reconcile_divergence_count → resposta inesperada: $RECONCILE_DIV" >&2
+    FAILED=$((FAILED + 1))
+  elif [ "$RECONCILE_DIV" != "0" ]; then
+    echo "  WARN: $RECONCILE_DIV pares (card, venda) divergem do arquivo Monde — chamar reconcile_card_monde_venda" >&2
+  fi
 fi
 
 # ── NPS feature (nps_surveys + nps_responses) ──
@@ -354,6 +397,27 @@ if [ "$NPS_CHECK" = "200" ] || [ "$NPS_CHECK" = "206" ]; then
 
   test_query "nps_responses table" \
     "nps_responses?select=id,survey_id,org_id,card_id,score,comment,responded_at&limit=1"
+fi
+
+# ── A1: Card Alert Rules — canais e destinatários (Marco A.1, 20260520a) ──
+# Detectar se as colunas de canais foram adicionadas
+ALERT_RULES_CHECK=$(curl -s -o /dev/null -w "%{http_code}" \
+  "${URL}/rest/v1/card_alert_rules?select=show_in_modal&limit=1" \
+  -H "apikey: ${ANON}" \
+  -H "Authorization: Bearer ${KEY}" \
+  --max-time 10)
+
+if [ "$ALERT_RULES_CHECK" = "200" ] || [ "$ALERT_RULES_CHECK" = "206" ]; then
+  test_query "card_alert_rules.show_in_modal column" \
+    "card_alert_rules?select=id,show_in_modal,show_in_kanban_banner,show_in_bell&limit=1"
+
+  test_query "card_alert_rules.recipient_mode column" \
+    "card_alert_rules?select=id,recipient_mode,recipient_target&limit=1"
+
+  # ── A2: resolve_alert_recipients RPC (Marco A.2, 20260520c) ──
+  test_rpc "resolve_alert_recipients RPC" \
+    "resolve_alert_recipients" \
+    '{"p_rule_id":"00000000-0000-0000-0000-000000000000","p_card_id":"00000000-0000-0000-0000-000000000000"}'
 fi
 
 # ── M1: Travel Planner tables (só após promoção para produção) ──
@@ -389,6 +453,38 @@ if [ "$VIAGENS_CHECK" = "200" ] || [ "$VIAGENS_CHECK" = "206" ]; then
 
   test_rpc_exists "confirmar_viagem RPC exists" "confirmar_viagem" \
     '{"p_token":"__nonexistent__"}'
+
+  # Cancelamento de viagem pós-aceite
+  test_query "motivos_cancelamento table" \
+    "motivos_cancelamento?select=id,nome,escopo,ativo&limit=1"
+
+  test_query "viagens cancelamento columns" \
+    "viagens?select=id,modo_cancelamento,motivo_cancelamento_id,cancelamento_aberto_em,cancelamento_concluido_em,cancelamento_stage_anterior_id&limit=1"
+
+  test_query "trip_items cancelado columns" \
+    "trip_items?select=id,cancelado_em,cancelado_por,cancelado_motivo&limit=1"
+
+  test_query "pipeline_stages is_terminal column" \
+    "pipeline_stages?select=id,nome,is_terminal&limit=1"
+
+  test_query "stage Cancelada existe no pipeline Trips" \
+    "pipeline_stages?nome=eq.Cancelada&is_terminal=eq.true&select=id"
+
+  # RPCs de cancelamento
+  test_rpc_exists "abrir_cancelamento RPC exists" "abrir_cancelamento" \
+    '{"p_viagem_id":"00000000-0000-0000-0000-000000000000","p_modo":"parcial"}'
+
+  test_rpc_exists "concluir_cancelamento RPC exists" "concluir_cancelamento" \
+    '{"p_viagem_id":"00000000-0000-0000-0000-000000000000"}'
+
+  test_rpc_exists "reabrir_cancelamento RPC exists" "reabrir_cancelamento" \
+    '{"p_viagem_id":"00000000-0000-0000-0000-000000000000"}'
+
+  test_rpc_exists "cancelar_item_viagem RPC exists" "cancelar_item_viagem" \
+    '{"p_item_id":"00000000-0000-0000-0000-000000000000"}'
+
+  test_rpc_exists "descancelar_item_viagem RPC exists" "descancelar_item_viagem" \
+    '{"p_item_id":"00000000-0000-0000-0000-000000000000"}'
 fi
 
 if [ $FAILED -gt 0 ]; then

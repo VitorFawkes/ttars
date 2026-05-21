@@ -7,30 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-21
 > **Trigger:** ALWAYS ON
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
-> **Stats:** 208 tabelas | 161 paginas | 302 hooks | 23 views | 758 components
+> **Stats:** 208 tabelas | 196 paginas | 314 hooks | 23 views | 778 components
 
 ---
 
@@ -192,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **302 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **314 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -218,6 +195,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useBriefingIA()` | `useBriefingIA.ts` |
 | `useChatIA()` | `useChatIA.ts` |
 | `useContactSearch()` | `useContactSearch.ts` |
+| `useDuffelFlightSearch()` | `useDuffelFlightSearch.ts` |
 | `useEmailNotificationPreferences()` | `useEmailNotificationPreferences.ts` |
 | `useGlobalSearch()` | `useGlobalSearch.ts` |
 | `useHotelSearch()` | `useHotelSearch.ts` |
@@ -289,6 +267,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAgentBoundaries()` | `useAgentBoundaries.ts` |
 | `useAgentBusinessConfig()` | `useAgentBusinessConfig.ts` |
 | `useAgentBusinessConfig()` | `useAgentBusinessConfig.ts` |
+| `useAgentCognitiveAudit()` | `useAgentCognitiveAudit.ts` |
+| `useAgentDataUpdateRules()` | `useAgentDataUpdateRules.ts` |
 | `useAgentDiscoveryFlag()` | `useAgentDiscoveryFlag.ts` |
 | `useAgentEngine()` | `useAgentEngine.ts` |
 | `useAgentFewShotExamples()` | `useAgentFewShotExamples.ts` |
@@ -336,6 +316,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAutomations()` | `useAutomations.ts` |
 | `useBulkGiftStatus()` | `useBulkGiftStatus.ts` |
 | `useBulkLeadActions()` | `useBulkLeadActions.ts` |
+| `useCancelamento()` | `useCancelamento.ts` |
+| `useCatalog()` | `useCatalog.ts` |
 | `useChecklist()` | `useChecklist.ts` |
 | `useChecklistTarefa()` | `useChecklistTarefa.ts` |
 | `useConciergePreferences()` | `useConciergePreferences.ts` |
@@ -352,9 +334,11 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useEditarTituloTarefa()` | `useEditarTituloTarefa.ts` |
 | `useEmpresaPessoas()` | `useEmpresaPessoas.ts` |
 | `useEmpresas()` | `useEmpresas.ts` |
+| `useEngajamentoConversas()` | `useEngajamentoConversas.ts` |
 | `useEnvioStatus()` | `useEnvioStatus.ts` |
 | `useEnviosLotesDoDia()` | `useEnviosLotesDoDia.ts` |
 | `useEstelaScoringRules()` | `useEstelaScoringRules.ts` |
+| `useFirstAccessOfDay()` | `useFirstAccessOfDay.ts` |
 | `useFlightLookup()` | `useFlightLookup.ts` |
 | `useFluxoConfig()` | `useFluxoConfig.ts` |
 | `useFotos()` | `useFotos.ts` |
@@ -393,6 +377,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useOrganizations()` | `useOrganizations.ts` |
 | `useOutboundQueue()` | `useOutboundQueue.ts` |
 | `useParticipant()` | `useParticipant.ts` |
+| `usePendingNotifications()` | `usePendingNotifications.ts` |
 | `usePhaseCapabilities()` | `usePhaseCapabilities.ts` |
 | `usePhaseSort()` | `usePhaseSort.ts` |
 | `usePhaseVisibilityRules()` | `usePhaseVisibilityRules.ts` |
@@ -442,6 +427,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useWeddingFluxo()` | `useWeddingFluxo.ts` |
 | `useWeddings()` | `useWeddings.ts` |
 | `useWeddingsWithGuestCounts()` | `useWeddingsWithGuestCounts.ts` |
+| `useWorkspaceMembers()` | `useWorkspaceMembers.ts` |
 
 #### Pipeline & Cards
 | Hook | File |
@@ -460,6 +446,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useCardCreationRules()` | `useCardCreationRules.ts` |
 | `useCardFinancialSummary()` | `useCardFinancialSummary.ts` |
 | `useCardGifts()` | `useCardGifts.ts` |
+| `useCardMondeVendas()` | `useCardMondeVendas.ts` |
 | `useCardObservacoes()` | `useCardObservacoes.ts` |
 | `useCardPeople()` | `useCardPeople.ts` |
 | `useCardRulesSettings()` | `useCardRulesSettings.ts` |
@@ -489,6 +476,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `usePromoteSubCard()` | `usePromoteSubCard.ts` |
 | `useRecordCardOpen()` | `useRecordCardOpen.ts` |
 | `useSeenCards()` | `useSeenCards.ts` |
+| `useSharedHandoffStageIds()` | `useSharedHandoffStageIds.ts` |
 | `useStageFieldConfirmations()` | `useStageFieldConfirmations.ts` |
 | `useStageLookup()` | `useStageLookup.ts` |
 | `useStageRequirements()` | `useStageRequirements.ts` |
@@ -498,6 +486,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useTeamFilterMembers()` | `useTeamFilterMembers.ts` |
 | `useTransformIntoSubCard()` | `useTransformIntoSubCard.ts` |
 | `useTripsFilters()` | `useTripsFilters.ts` |
+| `useUnreadDelegatedTaskCards()` | `useUnreadDelegatedTaskCards.ts` |
 
 #### Proposals
 | Hook | File |
@@ -550,9 +539,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `FutureOpportunitySection` | `src/components/card/FutureOpportunitySection.tsx` | Future opportunity section widget |
 | `DeveloperDocs` | `src/pages/DeveloperDocs.tsx` | **Swagger UI API Documentation** |
 | `AssistantStatsWidget` | `src/components/dashboard/AssistantStatsWidget.tsx` | Dashboard widget for assistant stats |
-| `DuplicateCardBanner` | `src/components/card/DuplicateCardBanner.tsx` | Aviso amarelo de possível duplicata no CreateCardModal |
-| `MergeCardsModal` | `src/components/card/MergeCardsModal.tsx` | Modal de agrupar (fundir) cards — busca por contato principal |
-| `AIChatPicker` | `src/components/card/AIChatPicker.tsx` | Seletor de conversa IA por contato — lista os cards onde o contato participou + abre AIChat |
 
 ---
 
@@ -576,7 +562,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **161 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **196 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -598,6 +584,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `CardDetail` | `src/pages/CardDetail.tsx` |
 | `CardViagem` | `src/pages/CardViagem.tsx` |
 | `Cards` | `src/pages/Cards.tsx` |
+| `CatalogoPage` | `src/pages/CatalogoPage.tsx` |
 | `CreateCardFromEcho` | `src/pages/CreateCardFromEcho.tsx` |
 | `Empresas` | `src/pages/Empresas.tsx` |
 | `ForgotPassword` | `src/pages/ForgotPassword.tsx` |
@@ -619,6 +606,23 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `Tasks` | `src/pages/Tasks.tsx` |
 | `ViagemStandalone` | `src/pages/ViagemStandalone.tsx` |
 | `ViagensPage` | `src/pages/ViagensPage.tsx` |
+| `01-MasterLayout` | `src/pages/_proto/patricia/01-MasterLayout.tsx` |
+| `02-TabIdentidade` | `src/pages/_proto/patricia/02-TabIdentidade.tsx` |
+| `03-TabModoInteracao` | `src/pages/_proto/patricia/03-TabModoInteracao.tsx` |
+| `04-TabPlaybook` | `src/pages/_proto/patricia/04-TabPlaybook.tsx` |
+| `Atalhos` | `src/pages/_proto/patricia/Atalhos.tsx` |
+| `Cap1Identidade` | `src/pages/_proto/patricia/Cap1Identidade.tsx` |
+| `Cap2ComoFala` | `src/pages/_proto/patricia/Cap2ComoFala.tsx` |
+| `Cap3Conversa` | `src/pages/_proto/patricia/Cap3Conversa.tsx` |
+| `Cap4SabeNegocio` | `src/pages/_proto/patricia/Cap4SabeNegocio.tsx` |
+| `Cap5PodeFazer` | `src/pages/_proto/patricia/Cap5PodeFazer.tsx` |
+| `Cap6ChamaHumano` | `src/pages/_proto/patricia/Cap6ChamaHumano.tsx` |
+| `Cap7Linhas` | `src/pages/_proto/patricia/Cap7Linhas.tsx` |
+| `ModoAvancado` | `src/pages/_proto/patricia/ModoAvancado.tsx` |
+| `PatriciaProtoPage` | `src/pages/_proto/patricia/PatriciaProtoPage.tsx` |
+| `PatriciaShell` | `src/pages/_proto/patricia/PatriciaShell.tsx` |
+| `TrilhaHome` | `src/pages/_proto/patricia/TrilhaHome.tsx` |
+| `Ui` | `src/pages/_proto/patricia/Ui.tsx` |
 | `AiAgentAnalyticsPage` | `src/pages/admin/AiAgentAnalyticsPage.tsx` |
 | `AiAgentBuilderWizard` | `src/pages/admin/AiAgentBuilderWizard.tsx` |
 | `AiAgentConversationsPage` | `src/pages/admin/AiAgentConversationsPage.tsx` |
@@ -631,6 +635,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `AiSkillManagerPage` | `src/pages/admin/AiSkillManagerPage.tsx` |
 | `Arquivados` | `src/pages/admin/Arquivados.tsx` |
 | `CRMHealth` | `src/pages/admin/CRMHealth.tsx` |
+| `CancellationReasonManagement` | `src/pages/admin/CancellationReasonManagement.tsx` |
 | `CardAlertRulesPage` | `src/pages/admin/CardAlertRulesPage.tsx` |
 | `CardCreationRulesPage` | `src/pages/admin/CardCreationRulesPage.tsx` |
 | `CategoryManagement` | `src/pages/admin/CategoryManagement.tsx` |
@@ -706,6 +711,22 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `PipelineStagesChart` | `src/pages/analytics-new/pipeline/PipelineStagesChart.tsx` |
 | `PipelineTasksSection` | `src/pages/analytics-new/pipeline/PipelineTasksSection.tsx` |
 | `PipelineTopDeals` | `src/pages/analytics-new/pipeline/PipelineTopDeals.tsx` |
+| `EngajamentoBreakdownLinhas` | `src/pages/analytics-new/whatsapp/EngajamentoBreakdownLinhas.tsx` |
+| `EngajamentoConversaDrawer` | `src/pages/analytics-new/whatsapp/EngajamentoConversaDrawer.tsx` |
+| `EngajamentoConversasView` | `src/pages/analytics-new/whatsapp/EngajamentoConversasView.tsx` |
+| `EngajamentoDistribuicoes` | `src/pages/analytics-new/whatsapp/EngajamentoDistribuicoes.tsx` |
+| `EngajamentoFRTBuckets` | `src/pages/analytics-new/whatsapp/EngajamentoFRTBuckets.tsx` |
+| `EngajamentoFiltros` | `src/pages/analytics-new/whatsapp/EngajamentoFiltros.tsx` |
+| `EngajamentoFunil` | `src/pages/analytics-new/whatsapp/EngajamentoFunil.tsx` |
+| `EngajamentoHeatmap` | `src/pages/analytics-new/whatsapp/EngajamentoHeatmap.tsx` |
+| `EngajamentoHeroKpis` | `src/pages/analytics-new/whatsapp/EngajamentoHeroKpis.tsx` |
+| `EngajamentoReunioes` | `src/pages/analytics-new/whatsapp/EngajamentoReunioes.tsx` |
+| `EngajamentoSecondaryKpis` | `src/pages/analytics-new/whatsapp/EngajamentoSecondaryKpis.tsx` |
+| `EngajamentoSegmentos` | `src/pages/analytics-new/whatsapp/EngajamentoSegmentos.tsx` |
+| `EngajamentoTabela` | `src/pages/analytics-new/whatsapp/EngajamentoTabela.tsx` |
+| `EngajamentoTimeMetrics` | `src/pages/analytics-new/whatsapp/EngajamentoTimeMetrics.tsx` |
+| `EngajamentoTimelineDiaria` | `src/pages/analytics-new/whatsapp/EngajamentoTimelineDiaria.tsx` |
+| `EngajamentoVelocidadeDia` | `src/pages/analytics-new/whatsapp/EngajamentoVelocidadeDia.tsx` |
 | `AnalyticsPage` | `src/pages/analytics/AnalyticsPage.tsx` |
 | `ResumoView` | `src/pages/analytics/views/ResumoView.tsx` |
 | `SaudeView` | `src/pages/analytics/views/SaudeView.tsx` |
@@ -1088,16 +1109,6 @@ pipeline_stages → pipeline_phases (target_phase_id) — handoff entre fases
 | `CardHeader` | CardDetail | Titulo, fase, owner |
 | `SectionRenderer` | CardDetail | Todas as secoes dinamicas |
 | `CreateCardModal` | Pipeline, Dashboard | Criacao de novos cards |
-
-### 16.4 Pickers Reutilizaveis (ai-agent/editor)
-
-| Componente | Arquivo | Uso |
-|------------|---------|-----|
-| `CRMFieldPicker` | `src/components/ai-agent/editor/CRMFieldPicker.tsx` | Selecao de campos do CRM (single/multi) com busca e agrupamento |
-| `SearchPicker` | `src/components/ai-agent/editor/pickers.tsx` | Base generica single-select com busca |
-| `TagPicker` | `src/components/ai-agent/editor/pickers.tsx` | Selecao de tag existente com criacao inline |
-| `AgentPicker` | `src/components/ai-agent/editor/pickers.tsx` | Selecao de outro agente IA da org |
-| `StagePicker` | `src/components/ai-agent/editor/pickers.tsx` | Selecao de etapa do pipeline |
 
 
 

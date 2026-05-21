@@ -34,9 +34,8 @@ export interface AgentRow {
   boundaries_config: Record<string, unknown> | null;
   listening_config: Record<string, unknown> | null;
   handoff_actions: Record<string, unknown> | null;
-  handoff_signals: unknown;
-  intelligent_decisions: Record<string, unknown> | null;
-  context_fields_config: Record<string, unknown> | null;
+  // handoff_signals, intelligent_decisions, context_fields_config DEPRECATED 2026-05-20
+  // — engine V2 ignora. Mantidas no banco por compat com layout antigo / router V1.
   engine: string;
   timings: { debounce_seconds?: number; typing_delay_seconds?: number; max_message_blocks?: number } | null;
   /**
@@ -557,24 +556,29 @@ export async function executePatriciaToolCall(
           cur.setDate(cur.getDate() + 1);
         }
 
-        // Busca reuniões da WP no range
+        // Busca reuniões da WP no range — tabela canônica é `tarefas` com
+        // tipo='reuniao' (mesma que a página Agenda usa). Antes lia de
+        // `reunioes` (legado, só 7 entries) e mostrava slots "livres" que
+        // na verdade estavam ocupados. Corrigido 18/05.
         const occupied = new Set<string>();
         try {
           const endPlus = new Date(rangeEnd);
           endPlus.setDate(endPlus.getDate() + 1);
           const { data: meetings, error: meetErr } = await supabase
-            .from("reunioes")
-            .select("data_inicio")
+            .from("tarefas")
+            .select("data_vencimento")
             .eq("org_id", agent.org_id)
+            .eq("tipo", "reuniao")
             .eq("responsavel_id", agent.wedding_planner_profile_id)
-            .gte("data_inicio", rangeStart.toISOString())
-            .lt("data_inicio", endPlus.toISOString())
-            .in("status", ["agendada", "confirmada", "agendado", "confirmado"]);
+            .is("deleted_at", null)
+            .gte("data_vencimento", rangeStart.toISOString())
+            .lt("data_vencimento", endPlus.toISOString())
+            .in("status", ["agendada", "confirmada", "agendado", "confirmado", "pendente"]);
           if (meetErr) {
-            console.warn("[tool check_calendar] erro lendo reunioes:", meetErr.message);
+            console.warn("[tool check_calendar] erro lendo tarefas:", meetErr.message);
           } else if (Array.isArray(meetings)) {
             for (const m of meetings) {
-              const di = m.data_inicio as string | null;
+              const di = (m as { data_vencimento: string | null }).data_vencimento;
               if (!di) continue;
               const md = new Date(di);
               const yyyy = md.getFullYear();
@@ -678,32 +682,34 @@ export async function executePatriciaToolCall(
           return { tool_name: call.tool_name, ok: false, error: "formato inválido. Esperado { date: 'DD/MM' ou 'DD/MM/YYYY', time: 'HH:MM' } ou { iso: 'YYYY-MM-DDTHH:MM:00' }", duration_ms: Date.now() - startedAt };
         }
 
+        // IMPORTANTE: A página "Agenda" do app lê da tabela `tarefas` com
+        // tipo='reuniao' (via useCalendarMeetings). A tabela `reunioes` é
+        // legado/secundária. Antes a tool inseria em `reunioes` e a reunião
+        // não aparecia em Agenda — corrigido 18/05.
+        //
         // Re-checa disponibilidade ANTES de criar (entre sugestão e
         // confirmação alguém pode ter agendado outra coisa).
         const { data: existing, error: chkErr } = await supabase
-          .from("reunioes")
-          .select("id")
+          .from("tarefas")
+          .select("id,card_id")
+          .eq("tipo", "reuniao")
           .eq("responsavel_id", agent.wedding_planner_profile_id)
-          .eq("data_inicio", isoLocal)
-          .in("status", ["agendada", "confirmada", "agendado", "confirmado"])
-          .limit(1);
+          .eq("data_vencimento", isoLocal)
+          .is("deleted_at", null)
+          .in("status", ["agendada", "confirmada", "agendado", "confirmado", "pendente"])
+          .limit(5);
         if (chkErr) {
           console.warn("[tool confirm_meeting_slot] check conflito falhou:", chkErr.message);
         }
         if (Array.isArray(existing) && existing.length > 0) {
-          // Já existe — verifica se é do mesmo card (idempotência) ou de outro
-          const { data: sameCard } = await supabase
-            .from("reunioes")
-            .select("id,card_id")
-            .eq("responsavel_id", agent.wedding_planner_profile_id)
-            .eq("data_inicio", isoLocal)
-            .eq("card_id", cardId)
-            .maybeSingle();
+          // Idempotência: se já tem reunião desse mesmo card no mesmo horário,
+          // retorna sucesso sem duplicar.
+          const sameCard = existing.find((row) => (row as { card_id: string }).card_id === cardId);
           if (sameCard) {
             return {
               tool_name: call.tool_name,
               ok: true,
-              result: { reuniao_id: sameCard.id, status: "already_scheduled", iso: isoLocal },
+              result: { reuniao_id: (sameCard as { id: string }).id, status: "already_scheduled", iso: isoLocal },
               duration_ms: Date.now() - startedAt,
             };
           }
@@ -726,14 +732,16 @@ export async function executePatriciaToolCall(
           : "Reunião Wedding Planner";
 
         const { data: inserted, error: insErr } = await supabase
-          .from("reunioes")
+          .from("tarefas")
           .insert({
             card_id: cardId,
             org_id: agent.org_id,
-            responsavel_id: agent.wedding_planner_profile_id,
-            data_inicio: isoLocal,
-            status: "agendada",
+            tipo: "reuniao",
             titulo: meetingTitle,
+            responsavel_id: agent.wedding_planner_profile_id,
+            data_vencimento: isoLocal,
+            status: "agendada",
+            metadata: { duration_minutes: 30, source: "ai_agent_v2" },
           })
           .select("id")
           .single();
@@ -754,16 +762,63 @@ export async function executePatriciaToolCall(
       }
 
       case "request_handoff": {
-        // Aplica handoff_actions do agente (similar a v1, simplificado)
+        // Aplica handoff_actions do agente: muda stage + (opcional) pausa
+        // permanentemente o agente pra esse card + notifica responsável.
+        // Sem pause+notify, o agente continua respondendo e ninguém vê o pedido.
         if (!cardId) {
           return { tool_name: call.tool_name, ok: false, error: "card_id ausente", duration_ms: Date.now() - startedAt };
         }
-        const ha = agent.handoff_actions || {};
-        const updates: Record<string, unknown> = { handoff_pending: true };
-        if (ha.change_stage_id) updates.etapa_id = ha.change_stage_id;
-        const { error } = await supabase.from("cards").update(updates).eq("id", cardId);
-        if (error) throw error;
-        return { tool_name: call.tool_name, ok: true, result: { applied: updates }, duration_ms: Date.now() - startedAt };
+        const ha = (agent.handoff_actions || {}) as Record<string, unknown>;
+        const motivo = (call.args && typeof call.args === "object" ? (call.args as Record<string, unknown>).motivo : null) || "handoff_solicitado";
+
+        // 1. Update do card: muda stage + (se configurado) pausa permanente
+        const updates: Record<string, unknown> = {};
+        if (ha.change_stage_id) updates.pipeline_stage_id = ha.change_stage_id;
+
+        if (ha.pause_permanently === true) {
+          updates.ai_pause_config = {
+            permanent: true,
+            reason: typeof motivo === "string" ? motivo : "handoff_solicitado",
+            paused_at: new Date().toISOString(),
+          };
+        }
+
+        if (Object.keys(updates).length > 0) {
+          const { error } = await supabase.from("cards").update(updates).eq("id", cardId);
+          if (error) throw error;
+        }
+
+        // 2. Notificar humano responsável (se configurado)
+        const notifyEnabled = ha.notify_responsible === true;
+        const bookMeeting = (ha.book_meeting || {}) as Record<string, unknown>;
+        const responsavelId = (bookMeeting.responsavel_id as string | undefined) || (ha.responsavel_id as string | undefined) || agent.wedding_planner_profile_id;
+
+        let notified = false;
+        if (notifyEnabled && responsavelId) {
+          const { error: notifyErr } = await supabase.from("notifications").insert({
+            user_id: responsavelId,
+            org_id: agent.org_id,
+            type: "handoff_agente",
+            title: `${agent.nome} pediu handoff`,
+            body: typeof motivo === "string" ? motivo : "Agente travou e solicitou humano.",
+            card_id: cardId,
+            url: `/cards/${cardId}`,
+            metadata: { agent_id: agent.id, motivo, severity: "high" },
+          });
+          if (notifyErr) {
+            // Log mas não derruba o handoff — o stage mudou e a pausa foi setada.
+            console.warn(`[request_handoff] falha ao notificar responsável: ${notifyErr.message}`);
+          } else {
+            notified = true;
+          }
+        }
+
+        return {
+          tool_name: call.tool_name,
+          ok: true,
+          result: { applied: updates, notified, responsavel_id: responsavelId || null },
+          duration_ms: Date.now() - startedAt,
+        };
       }
 
       case "update_contact": {
@@ -808,15 +863,21 @@ export async function executePatriciaToolCall(
         if (!cardId) {
           return { tool_name: call.tool_name, ok: false, error: "card_id ausente", duration_ms: Date.now() - startedAt };
         }
+        // Tarefas internas vão em `tarefas` (NÃO em `activities` — essa é audit log).
+        // Bug observado 2026-05-18: Patricia chamava create_task pra agendar
+        // reunião com Diana e falhava com "assignee_id column not found" porque
+        // o código antigo apontava pra tabela errada. Corrigido pra `tarefas`
+        // com as colunas reais: titulo / data_vencimento / responsavel_id.
         const { data, error } = await supabase
-          .from("activities")
+          .from("tarefas")
           .insert({
             card_id: cardId,
             tipo: call.args.tipo || "tarefa",
             titulo: call.args.titulo || "Tarefa",
             descricao: call.args.descricao || null,
-            data_inicio: call.args.data_inicio || null,
-            assignee_id: call.args.assignee_id || null,
+            data_vencimento: call.args.data_inicio || call.args.data_vencimento || null,
+            responsavel_id: call.args.assignee_id || call.args.responsavel_id || null,
+            status: "pendente",
             org_id: agent.org_id,
           })
           .select("id")

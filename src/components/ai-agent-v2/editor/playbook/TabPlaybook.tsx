@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { BookOpen, ChevronDown, ChevronRight, User, UserCircle, Volume2, Clock, MessagesSquare, Target, Shield, Eye, MessageSquareQuote, Sparkles } from 'lucide-react'
+import { BookOpen, ChevronDown, ChevronRight, User, UserCircle, Volume2, Clock, MessagesSquare, Target, Shield, Eye, MessageSquareQuote, Sparkles, Brain, Database } from 'lucide-react'
 import { IdentitySection } from './sections/IdentitySection'
 import { VoiceSection } from './sections/VoiceSection'
 import { MomentsSection } from './sections/MomentsSection'
@@ -7,6 +7,8 @@ import { QualificationSection } from './sections/QualificationSection'
 import { BoundariesSection } from './sections/BoundariesSection'
 import { SilentSignalsSection } from './sections/SilentSignalsSection'
 import { ExamplesSection } from './sections/ExamplesSection'
+import { CognitiveAuditSection } from './sections/CognitiveAuditSection'
+import { DataUpdateRulesSection } from './sections/DataUpdateRulesSection'
 import { V1V2ComparisonCard } from './V1V2ComparisonCard'
 import { useV3Layout } from './v3/useV3Layout'
 import { QuemElaESection } from './v3/quem-ela-e/QuemElaESection'
@@ -16,11 +18,16 @@ interface Props {
   agentId: string
   agentName: string
   companyName: string
+  /** Slug do produto do agente (WEDDING, TRIPS...). Propagado pra editores
+   *  que precisam do catálogo de variáveis CRM correto. */
+  produto?: string | null
 }
 
 type SectionKey =
   | 'quem_ela_e'        // v3: agrega identity + voice + boundaries
   | 'como_ela_conversa' // v3: agrega moments + sondagem + pontuação + conhecimento
+  | 'cerebro_analitico' // v3: cérebro analítico (5 sub-rotinas)
+  | 'data_update_rules' // v3: regras de gravação no CRM
   | 'identity'          // legado v2
   | 'voice'             // legado v2
   | 'moments'           // legado v2
@@ -32,6 +39,8 @@ type SectionKey =
 const SECTION_DEF: Record<SectionKey, { title: string; subtitle: string; icon: typeof User }> = {
   quem_ela_e:        { title: 'Quem ela é', subtitle: 'Identidade, voz e linhas vermelhas — tudo que define a personalidade', icon: UserCircle },
   como_ela_conversa: { title: 'Como ela conversa', subtitle: 'Roteiro, sondagem, pontuação e conhecimento', icon: MessagesSquare },
+  cerebro_analitico: { title: 'Cabeça da conversa', subtitle: 'O que o agente roda mentalmente a cada turno: contradições, promessas, viabilidade, saturação de pitch', icon: Brain },
+  data_update_rules: { title: 'Como ela grava dados no CRM', subtitle: 'Regras de normalização, conversão e proteção de campos antes de atualizar o card', icon: Database },
   identity:          { title: 'Identidade', subtitle: 'Quem é a agente e qual a missão dela', icon: User },
   voice:             { title: 'Voz', subtitle: 'Como ela soa: tom, frases típicas e proibidas', icon: Volume2 },
   moments:           { title: 'Momentos da conversa', subtitle: 'Fases do funil + jogadas situacionais (objeções, etc.)', icon: Clock },
@@ -41,14 +50,16 @@ const SECTION_DEF: Record<SectionKey, { title: string; subtitle: string; icon: t
   examples:          { title: 'Exemplos prontos', subtitle: 'Conversas de referência pra calibrar o tom', icon: MessageSquareQuote },
 }
 
-const V3_SECTIONS: SectionKey[] = ['quem_ela_e', 'como_ela_conversa', 'examples']
-const V2_SECTIONS: SectionKey[] = ['identity', 'voice', 'moments', 'qualification', 'boundaries', 'signals', 'examples']
+const V3_SECTIONS: SectionKey[] = ['quem_ela_e', 'como_ela_conversa', 'cerebro_analitico', 'data_update_rules', 'examples']
+const V2_SECTIONS: SectionKey[] = ['identity', 'voice', 'moments', 'qualification', 'cerebro_analitico', 'data_update_rules', 'boundaries', 'signals', 'examples']
 
-export function TabPlaybook({ agentId, agentName, companyName }: Props) {
+export function TabPlaybook({ agentId, agentName, companyName, produto }: Props) {
   const { enabled: v3Enabled, toggle: toggleV3 } = useV3Layout()
   const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
     quem_ela_e: true,
     como_ela_conversa: true,
+    cerebro_analitico: false,
+    data_update_rules: false,
     identity: true,
     voice: false,
     moments: false,
@@ -114,15 +125,17 @@ export function TabPlaybook({ agentId, agentName, companyName }: Props) {
                 </button>
                 {expanded[key] && (
                   <div className="px-4 py-4 border-t border-slate-100 bg-slate-50/30">
-                    {key === 'quem_ela_e' && <QuemElaESection agentId={agentId} agentName={agentName} companyName={companyName} />}
+                    {key === 'quem_ela_e' && <QuemElaESection agentId={agentId} agentName={agentName} companyName={companyName} produto={produto} />}
                     {key === 'como_ela_conversa' && <ComoConversaSection agentId={agentId} agentName={agentName} companyName={companyName} />}
-                    {key === 'identity' && <IdentitySection agentId={agentId} agentName={agentName} companyName={companyName} />}
+                    {key === 'identity' && <IdentitySection agentId={agentId} agentName={agentName} companyName={companyName} produto={produto} />}
                     {key === 'voice' && <VoiceSection agentId={agentId} agentName={agentName} companyName={companyName} />}
                     {key === 'moments' && <MomentsSection agentId={agentId} agentName={agentName} companyName={companyName} />}
                     {key === 'qualification' && <QualificationSection agentId={agentId} />}
                     {key === 'boundaries' && <BoundariesSection agentId={agentId} agentName={agentName} companyName={companyName} />}
                     {key === 'signals' && <SilentSignalsSection agentId={agentId} agentName={agentName} companyName={companyName} />}
                     {key === 'examples' && <ExamplesSection agentId={agentId} agentName={agentName} companyName={companyName} />}
+                    {key === 'cerebro_analitico' && <CognitiveAuditSection agentId={agentId} produto={produto} />}
+                    {key === 'data_update_rules' && <DataUpdateRulesSection agentId={agentId} produto={produto} />}
                   </div>
                 )}
               </div>

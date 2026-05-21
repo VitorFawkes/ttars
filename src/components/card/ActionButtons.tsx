@@ -15,6 +15,7 @@ import {
     MoreHorizontal,
     Megaphone,
     MapPin,
+    AlertOctagon,
 } from 'lucide-react'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
@@ -23,6 +24,7 @@ import { useArchiveCard } from '@/hooks/useArchiveCard'
 import { useAIExtractionReview } from '@/hooks/useAIExtractionReview'
 import { useAIConversationExtraction } from '@/hooks/useAIConversationExtraction'
 import { usePromoteSubCard } from '@/hooks/usePromoteSubCard'
+import { useCancellationStateByCard } from '@/hooks/cancelamento/useCancelamento'
 import { cn } from '@/lib/utils'
 import DeleteCardModal from './DeleteCardModal'
 import BriefingIAModal from './BriefingIAModal'
@@ -92,6 +94,7 @@ export default function ActionButtons({ card, onAlertClick }: ActionButtonsProps
 
     const promoteSubCard = usePromoteSubCard()
     const aiReview = useAIExtractionReview(card.id)
+    const { data: cancellationState } = useCancellationStateByCard(card.id)
     const aiConversation = useAIConversationExtraction(card.id)
 
     const cardType = (card as Record<string, unknown>).card_type as string | undefined
@@ -396,6 +399,19 @@ export default function ActionButtons({ card, onAlertClick }: ActionButtonsProps
                     onClick: () => { setMenuOpen(false); setShowTranscriptionIA(true) },
                     disabled: aiBusy,
                     show: true,
+                },
+                {
+                    key: 'open-cancelamento',
+                    label: 'Cancelar viagem',
+                    desc: cancellationState?.modo_cancelamento && !cancellationState.cancelamento_concluido_em
+                        ? 'Cancelamento em curso — abrir painel'
+                        : 'Cancelamento total, parcial ou mudança brusca',
+                    icon: AlertOctagon,
+                    onClick: () => {
+                        setMenuOpen(false)
+                        window.dispatchEvent(new CustomEvent('open-cancellation', { detail: { cardId: card.id } }))
+                    },
+                    show: isTrips && card.status_comercial !== 'perdido',
                 },
             ],
         },

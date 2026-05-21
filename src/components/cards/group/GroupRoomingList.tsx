@@ -26,6 +26,23 @@ interface RoomingItem {
     type: string | null; // adulto, crianca
     cardId: string;
     cardTitle: string | null;
+    isMain: boolean;
+}
+
+interface RoomingContact {
+    id: string;
+    nome: string;
+    email: string | null;
+    telefone: string | null;
+    tipo_pessoa: string | null;
+}
+
+interface RoomingChildCard {
+    id: string;
+    titulo: string | null;
+    pessoa_principal_id: string | null;
+    pessoa_principal: RoomingContact | null;
+    cards_contatos: Array<{ contato: RoomingContact | null }> | null;
 }
 
 export function GroupRoomingList({ parentId }: RoomingListProps) {
@@ -38,12 +55,20 @@ export function GroupRoomingList({ parentId }: RoomingListProps) {
 
     const fetchRoomingList = useCallback(async () => {
         try {
-            // Fetch all child cards and their linked contacts
+            // Fetch all child cards, the main contact and the linked travel companions
             const { data, error } = await supabase
                 .from('cards')
                 .select(`
                     id,
                     titulo,
+                    pessoa_principal_id,
+                    pessoa_principal:contatos!cards_pessoa_principal_id_fkey(
+                        id,
+                        nome,
+                        email,
+                        telefone,
+                        tipo_pessoa
+                    ),
                     cards_contatos(
                         contato: contatos(
                             id,
@@ -58,21 +83,38 @@ export function GroupRoomingList({ parentId }: RoomingListProps) {
 
             if (error) throw error;
 
-            // Flatten the data
             const flattened: RoomingItem[] = [];
-            data?.forEach((card: any) => {
-                card.cards_contatos?.forEach((cc: any) => {
-                    if (cc.contato) {
-                        flattened.push({
-                            contactId: cc.contato.id,
-                            name: cc.contato.nome,
-                            email: cc.contato.email,
-                            phone: cc.contato.telefone,
-                            type: cc.contato.tipo_pessoa,
-                            cardId: card.id,
-                            cardTitle: card.titulo
-                        });
-                    }
+            const rows = (data ?? []) as unknown as RoomingChildCard[];
+            rows.forEach((card) => {
+                const mainId = card.pessoa_principal_id;
+                const main = card.pessoa_principal;
+
+                if (main) {
+                    flattened.push({
+                        contactId: main.id,
+                        name: main.nome,
+                        email: main.email,
+                        phone: main.telefone,
+                        type: main.tipo_pessoa,
+                        cardId: card.id,
+                        cardTitle: card.titulo,
+                        isMain: true,
+                    });
+                }
+
+                card.cards_contatos?.forEach((cc) => {
+                    if (!cc.contato) return;
+                    if (mainId && cc.contato.id === mainId) return; // dedup
+                    flattened.push({
+                        contactId: cc.contato.id,
+                        name: cc.contato.nome,
+                        email: cc.contato.email,
+                        phone: cc.contato.telefone,
+                        type: cc.contato.tipo_pessoa,
+                        cardId: card.id,
+                        cardTitle: card.titulo,
+                        isMain: false,
+                    });
                 });
             });
 
@@ -98,13 +140,18 @@ export function GroupRoomingList({ parentId }: RoomingListProps) {
         const headers = ['Nome', 'Tipo', 'Email', 'Telefone', 'Vinculado a'];
         const csvContent = [
             headers.join(','),
-            ...filteredItems.map(item => [
-                `"${item.name}"`,
-                `"${item.type === 'crianca' ? 'Não Adulto' : 'Adulto'}"`,
-                `"${item.email || ''}"`,
-                `"${item.phone || ''}"`,
-                `"${item.cardTitle || ''}"`
-            ].join(','))
+            ...filteredItems.map(item => {
+                const tipo = item.isMain
+                    ? 'Titular'
+                    : item.type === 'crianca' ? 'Não Adulto' : 'Adulto';
+                return [
+                    `"${item.name}"`,
+                    `"${tipo}"`,
+                    `"${item.email || ''}"`,
+                    `"${item.phone || ''}"`,
+                    `"${item.cardTitle || ''}"`
+                ].join(',');
+            })
         ].join('\n');
 
         const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -177,12 +224,18 @@ export function GroupRoomingList({ parentId }: RoomingListProps) {
                                         {item.name || 'Nome não informado'}
                                     </TableCell>
                                     <TableCell className="px-6 py-4">
-                                        <Badge variant="outline" className={`border-0 ${item.type === 'crianca'
-                                            ? 'bg-blue-100 text-blue-800'
-                                            : 'bg-gray-100 text-gray-800'
-                                            }`}>
-                                            {item.type === 'crianca' ? 'Não Adulto' : 'Adulto'}
-                                        </Badge>
+                                        {item.isMain ? (
+                                            <Badge variant="outline" className="border-0 bg-indigo-100 text-indigo-800">
+                                                Titular
+                                            </Badge>
+                                        ) : (
+                                            <Badge variant="outline" className={`border-0 ${item.type === 'crianca'
+                                                ? 'bg-blue-100 text-blue-800'
+                                                : 'bg-gray-100 text-gray-800'
+                                                }`}>
+                                                {item.type === 'crianca' ? 'Não Adulto' : 'Adulto'}
+                                            </Badge>
+                                        )}
                                     </TableCell>
                                     <TableCell className="px-6 py-4 text-gray-600">
                                         {item.email || item.phone || '-'}
@@ -206,7 +259,7 @@ export function GroupRoomingList({ parentId }: RoomingListProps) {
             <div className="bg-gray-50 px-6 py-3 border-t border-gray-200 text-xs text-gray-500 flex justify-between rounded-b-lg">
                 <span>Total de Passageiros: {filteredItems.length}</span>
                 <span>
-                    {filteredItems.filter(i => i.type === 'adulto').length} Adultos, {filteredItems.filter(i => i.type === 'crianca').length} Não Adultos
+                    {filteredItems.filter(i => i.isMain).length} Titulares, {filteredItems.filter(i => !i.isMain && i.type !== 'crianca').length} Adultos, {filteredItems.filter(i => !i.isMain && i.type === 'crianca').length} Não Adultos
                 </span>
             </div>
         </div>
