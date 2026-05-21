@@ -1,21 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { X, ExternalLink, Loader2, AlertTriangle, Check, Crown, Calendar, MapPin, Truck, Package, Trash2 } from 'lucide-react'
+import { X, ExternalLink, Loader2, AlertTriangle, Check, Crown, Calendar, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import type { GiftAssignmentFull } from '@/hooks/useAllGiftAssignments'
-import { useUpdateGiftNotes, useUpdateGiftStatus, type GiftKanbanStatus } from '@/hooks/useGiftStatusKanban'
+import { useUpdateGiftStatus, type GiftKanbanStatus } from '@/hooks/useGiftStatusKanban'
 import { useBulkGiftStatus } from '@/hooks/useBulkGiftStatus'
-import { getGiftItemName } from '@/hooks/useCardGifts'
+import { useGiftAssignment, type GiftItem } from '@/hooks/useCardGifts'
+import GiftItemRow from '@/components/card/gifts/GiftItemRow'
+import GiftItemPicker from '@/components/card/gifts/GiftItemPicker'
+import GiftDeliveryInfo from '@/components/card/gifts/GiftDeliveryInfo'
 
 const formatBRL = (value: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
-
-function formatDate(iso: string | null): string | null {
-    if (!iso) return null
-    const [y, m, d] = iso.slice(0, 10).split('-')
-    if (!y || !m || !d) return null
-    return `${d}/${m}/${y}`
-}
 
 const STATUS_OPTIONS: { value: GiftKanbanStatus; label: string; className: string }[] = [
     { value: 'pendente',   label: 'Solicitado',  className: 'bg-slate-200 text-slate-800 hover:bg-slate-300' },
@@ -32,15 +29,16 @@ interface Props {
 
 export default function GiftDetailSheet({ assignment, onClose }: Props) {
     const navigate = useNavigate()
-    const updateNotes = useUpdateGiftNotes()
     const updateStatus = useUpdateGiftStatus()
     const cancelStatus = useBulkGiftStatus()
+    const giftOps = useGiftAssignment(assignment.id, assignment.card_id || '')
 
     const [notes, setNotes] = useState(assignment.notes ?? '')
+    const [shipDate, setShipDate] = useState(assignment.scheduled_ship_date ?? '')
     const [confirmCancel, setConfirmCancel] = useState(false)
+    const [showDelivery, setShowDelivery] = useState(false)
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-    // Fecha com ESC
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             if (e.key === 'Escape') onClose()
@@ -53,13 +51,56 @@ export default function GiftDetailSheet({ assignment, onClose }: Props) {
         setNotes(value)
         if (debounceRef.current) clearTimeout(debounceRef.current)
         debounceRef.current = setTimeout(() => {
-            updateNotes.mutate({ assignmentId: assignment.id, notes: value })
+            giftOps.updateDelivery.mutate({ notes: value })
         }, 600)
+    }
+
+    const handleShipDateChange = (value: string) => {
+        setShipDate(value)
+        giftOps.updateDelivery.mutate({ scheduled_ship_date: value || null })
     }
 
     const handleStatusChange = (newStatus: GiftKanbanStatus) => {
         if (assignment.status === newStatus) return
         updateStatus.mutate({ assignmentId: assignment.id, newStatus })
+    }
+
+    const handleAddStock = (product: { id: string; name: string }, quantity: number, unitPrice: number) => {
+        giftOps.addItem.mutate(
+            { productId: product.id, quantity, unitPrice },
+            {
+                onSuccess: () => toast.success(`${product.name} adicionado`),
+                onError: () => toast.error('Erro ao adicionar item'),
+            },
+        )
+    }
+
+    const handleAddCustom = (customName: string, unitPrice: number, quantity: number) => {
+        giftOps.addCustomItem.mutate(
+            { customName, quantity, unitPrice },
+            {
+                onSuccess: () => toast.success(`${customName} adicionado`),
+                onError: () => toast.error('Erro ao adicionar item'),
+            },
+        )
+    }
+
+    const handleRemoveItem = (item: GiftItem) => {
+        giftOps.removeItem.mutate(item, {
+            onSuccess: () => toast.success('Item removido'),
+            onError: () => toast.error('Erro ao remover item'),
+        })
+    }
+
+    const handleUpdateItemNotes = (itemId: string, value: string) => {
+        giftOps.updateItemNotes.mutate({ itemId, notes: value })
+    }
+
+    const handleSaveDelivery = (data: { delivery_address?: string; delivery_date?: string; delivery_method?: string; budget?: number; notes?: string }) => {
+        giftOps.updateDelivery.mutate(data, {
+            onSuccess: () => toast.success('Entrega atualizada'),
+            onError: () => toast.error('Erro ao salvar entrega'),
+        })
     }
 
     const handleCancel = () => {
@@ -81,6 +122,9 @@ export default function GiftDetailSheet({ assignment, onClose }: Props) {
 
     const totalCost = assignment.items?.reduce((s, i) => s + i.quantity * i.unit_price_snapshot, 0) ?? 0
     const itemCount = assignment.items?.length ?? 0
+    const existingProductIds = (assignment.items ?? [])
+        .map(i => i.product_id)
+        .filter((x): x is string => !!x)
     const today = new Date().toISOString().split('T')[0]
     const isOverdue = (assignment.status === 'pendente' || assignment.status === 'preparando' || assignment.status === 'a_enviar') &&
         !!assignment.scheduled_ship_date && assignment.scheduled_ship_date < today
@@ -127,7 +171,7 @@ export default function GiftDetailSheet({ assignment, onClose }: Props) {
                     {isOverdue && (
                         <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
                             <AlertTriangle className="h-4 w-4 shrink-0" />
-                            <span>Envio atrasado — agendado para {formatDate(assignment.scheduled_ship_date)}</span>
+                            <span>Envio atrasado — agendado para {shipDate.split('-').reverse().join('/')}</span>
                         </div>
                     )}
 
@@ -159,6 +203,18 @@ export default function GiftDetailSheet({ assignment, onClose }: Props) {
                     </section>
 
                     <section>
+                        <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                            <Calendar className="h-3 w-3" /> Data prevista de envio
+                        </label>
+                        <input
+                            type="date"
+                            value={shipDate ? shipDate.slice(0, 10) : ''}
+                            onChange={e => handleShipDateChange(e.target.value)}
+                            className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                    </section>
+
+                    <section>
                         <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
                             Observação para o pedido
                         </label>
@@ -166,62 +222,65 @@ export default function GiftDetailSheet({ assignment, onClose }: Props) {
                             value={notes}
                             onChange={e => handleNotesChange(e.target.value)}
                             placeholder="Endereço alternativo, preferências, instruções para o pacote…"
-                            rows={4}
+                            rows={3}
                             className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
                         />
                         <p className="mt-1 text-[11px] text-slate-400">
-                            {updateNotes.isPending ? 'Salvando…' : 'Salva automaticamente.'}
+                            {giftOps.updateDelivery.isPending ? 'Salvando…' : 'Salva automaticamente.'}
                         </p>
                     </section>
 
                     <section>
-                        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-2">
-                            <Package className="h-3 w-3" /> Itens ({itemCount})
-                        </h3>
-                        {itemCount === 0 ? (
-                            <p className="text-xs text-slate-400 italic">Nenhum item no pacote.</p>
-                        ) : (
-                            <ul className="space-y-1.5">
-                                {assignment.items.map(item => (
-                                    <li key={item.id} className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-50 rounded-lg">
-                                        <span className="text-sm text-slate-700 truncate" title={getGiftItemName(item)}>
-                                            {getGiftItemName(item)}
-                                        </span>
-                                        <span className="text-xs text-slate-500 tabular-nums shrink-0">
-                                            {item.quantity}× {formatBRL(item.unit_price_snapshot)}
-                                        </span>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                        <div className="mt-2 flex items-center justify-between text-sm">
-                            <span className="text-slate-500">Total</span>
-                            <span className="font-semibold text-slate-900 tabular-nums">{formatBRL(totalCost)}</span>
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                Itens ({itemCount})
+                            </h3>
+                            <span className="text-xs font-semibold text-slate-700 tabular-nums">{formatBRL(totalCost)}</span>
                         </div>
+
+                        {itemCount === 0 ? (
+                            <p className="text-xs text-slate-400 italic mb-3">Nenhum item no pacote.</p>
+                        ) : (
+                            <div className="space-y-1.5 mb-3">
+                                {assignment.items.map(item => (
+                                    <GiftItemRow
+                                        key={item.id}
+                                        item={item}
+                                        onRemove={() => handleRemoveItem(item)}
+                                        onUpdateNotes={(value) => handleUpdateItemNotes(item.id, value)}
+                                        isRemoving={giftOps.removeItem.isPending}
+                                    />
+                                ))}
+                            </div>
+                        )}
+
+                        <GiftItemPicker
+                            onAddStock={(product, quantity, unitPrice) => handleAddStock(product, quantity, unitPrice)}
+                            onAddCustom={handleAddCustom}
+                            isAdding={giftOps.addItem.isPending || giftOps.addCustomItem.isPending}
+                            existingProductIds={existingProductIds}
+                        />
                     </section>
 
-                    <section className="space-y-2">
-                        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Entrega</h3>
-                        {assignment.delivery_address && (
-                            <div className="flex items-start gap-2 text-xs text-slate-600">
-                                <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
-                                <span className="break-words">{assignment.delivery_address}</span>
-                            </div>
-                        )}
-                        {assignment.scheduled_ship_date && (
-                            <div className="flex items-center gap-2 text-xs text-slate-600">
-                                <Calendar className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                                <span>Envio agendado: {formatDate(assignment.scheduled_ship_date)}</span>
-                            </div>
-                        )}
-                        {assignment.delivery_method && (
-                            <div className="flex items-center gap-2 text-xs text-slate-600">
-                                <Truck className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                                <span>{assignment.delivery_method}</span>
-                            </div>
-                        )}
-                        {!assignment.delivery_address && !assignment.scheduled_ship_date && !assignment.delivery_method && (
-                            <p className="text-xs text-slate-400 italic">Sem dados de entrega.</p>
+                    <section>
+                        <button
+                            type="button"
+                            onClick={() => setShowDelivery(v => !v)}
+                            className="w-full flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 hover:text-slate-700"
+                        >
+                            <span>Info de entrega</span>
+                            {showDelivery ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                        </button>
+                        {showDelivery && (
+                            <GiftDeliveryInfo
+                                deliveryAddress={assignment.delivery_address}
+                                deliveryDate={assignment.delivery_date}
+                                deliveryMethod={assignment.delivery_method}
+                                budget={assignment.budget}
+                                notes={assignment.notes}
+                                onSave={handleSaveDelivery}
+                                isSaving={giftOps.updateDelivery.isPending}
+                            />
                         )}
                     </section>
                 </div>

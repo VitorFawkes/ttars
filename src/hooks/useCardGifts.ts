@@ -91,6 +91,7 @@ export function useGiftAssignment(assignmentId: string | undefined, cardId: stri
             queryClient.invalidateQueries({ queryKey })
             queryClient.invalidateQueries({ queryKey: ['inventory-products'] })
             queryClient.invalidateQueries({ queryKey: ['inventory-stats'] })
+            queryClient.invalidateQueries({ queryKey: ['all-gift-assignments'] })
         },
     })
 
@@ -113,6 +114,7 @@ export function useGiftAssignment(assignmentId: string | undefined, cardId: stri
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey })
+            queryClient.invalidateQueries({ queryKey: ['all-gift-assignments'] })
         },
     })
 
@@ -142,6 +144,7 @@ export function useGiftAssignment(assignmentId: string | undefined, cardId: stri
             queryClient.invalidateQueries({ queryKey })
             queryClient.invalidateQueries({ queryKey: ['inventory-products'] })
             queryClient.invalidateQueries({ queryKey: ['inventory-stats'] })
+            queryClient.invalidateQueries({ queryKey: ['all-gift-assignments'] })
         },
     })
 
@@ -155,11 +158,12 @@ export function useGiftAssignment(assignmentId: string | undefined, cardId: stri
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey })
+            queryClient.invalidateQueries({ queryKey: ['all-gift-assignments'] })
         },
     })
 
     const updateDelivery = useMutation({
-        mutationFn: async (input: { delivery_address?: string; delivery_date?: string; delivery_method?: string; budget?: number; notes?: string }) => {
+        mutationFn: async (input: { delivery_address?: string; delivery_date?: string; delivery_method?: string; budget?: number; notes?: string; scheduled_ship_date?: string | null }) => {
             if (!assignmentId) throw new Error('No assignment')
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase as any).from('card_gift_assignments')
@@ -169,6 +173,7 @@ export function useGiftAssignment(assignmentId: string | undefined, cardId: stri
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey })
+            queryClient.invalidateQueries({ queryKey: ['all-gift-assignments'] })
         },
     })
 
