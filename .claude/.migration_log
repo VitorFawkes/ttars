@@ -880,3 +880,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-20T13:05:37Z | supabase/migrations/20260520_guest_rsvp_from_raw_events.sql | applied_to_prod
 2026-05-21T11:42:30Z | supabase/migrations/20260520b_recalc_envio_lote_counters.sql | applied_to_prod
 2026-05-21T12:04:59Z | supabase/migrations/20260521_guest_confirmacao_via_extras.sql | applied_to_prod
+2026-05-21T12:35:43Z | supabase/migrations/20260521b_guest_confirmacao_phone_variants.sql | applied_to_prod
+2026-05-21T12:37:46Z | supabase/migrations/20260521c_phone_variants_v2.sql | applied_to_prod
