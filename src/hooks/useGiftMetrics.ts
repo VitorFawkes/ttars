@@ -12,6 +12,11 @@ interface GiftMetricAssignment {
     contato_id: string | null
     contato: { id: string; nome: string; sobrenome: string | null } | null
     items: Pick<GiftItem, 'id' | 'quantity' | 'unit_price_snapshot' | 'product_id' | 'product'>[]
+    card: {
+        id: string
+        vendas_owner_id: string | null
+        planner: { id: string; nome: string | null } | null
+    } | null
 }
 
 export interface MonthlySpend {
@@ -36,6 +41,14 @@ export interface TopProduct {
     totalCost: number
 }
 
+export interface TopPlanner {
+    plannerId: string
+    nome: string
+    giftCount: number
+    totalCost: number
+    cardCount: number
+}
+
 /** Aggregated metrics for the Relatórios tab */
 export function useGiftMetrics() {
     return useQuery({
@@ -46,6 +59,10 @@ export function useGiftMetrics() {
                 .select(`
                     id, gift_type, status, occasion, created_at, shipped_at, contato_id,
                     contato:contatos!card_gift_assignments_contato_id_fkey(id, nome, sobrenome),
+                    card:cards!card_gift_assignments_card_id_fkey(
+                        id, vendas_owner_id,
+                        planner:profiles!cards_vendas_owner_id_profiles_fkey(id, nome)
+                    ),
                     items:card_gift_items(
                         id, quantity, unit_price_snapshot, product_id,
                         product:inventory_products(id, name)
@@ -134,6 +151,39 @@ export function useGiftMetrics() {
                 .sort((a, b) => b.unitsSent - a.unitsSent)
                 .slice(0, 10)
 
+            // Top travel planners (ranking por R$ gastos em presentes)
+            const plannerMap = new Map<string, TopPlanner & { cardIds: Set<string> }>()
+            for (const a of assignments) {
+                const plannerId = a.card?.vendas_owner_id
+                const plannerName = a.card?.planner?.nome
+                if (!plannerId || !plannerName) continue
+                const cost = calcCost(a)
+                const existing = plannerMap.get(plannerId)
+                if (existing) {
+                    existing.giftCount++
+                    existing.totalCost += cost
+                    if (a.card?.id) existing.cardIds.add(a.card.id)
+                } else {
+                    plannerMap.set(plannerId, {
+                        plannerId,
+                        nome: plannerName,
+                        giftCount: 1,
+                        totalCost: cost,
+                        cardCount: 0,
+                        cardIds: new Set(a.card?.id ? [a.card.id] : []),
+                    })
+                }
+            }
+            const topPlanners: TopPlanner[] = Array.from(plannerMap.values())
+                .map(p => ({
+                    plannerId: p.plannerId,
+                    nome: p.nome,
+                    giftCount: p.giftCount,
+                    totalCost: p.totalCost,
+                    cardCount: p.cardIds.size,
+                }))
+                .sort((a, b) => b.totalCost - a.totalCost)
+
             // Recent activity (last 20)
             const recentActivity = assignments.slice(0, 20).map(a => ({
                 id: a.id,
@@ -155,6 +205,7 @@ export function useGiftMetrics() {
                 monthlySpend,
                 topRecipients,
                 topProducts,
+                topPlanners,
                 recentActivity,
             }
         },

@@ -8,7 +8,7 @@ export interface GiftAssignmentFull {
     contato_id: string | null
     gift_type: 'trip' | 'premium'
     occasion: string | null
-    status: 'pendente' | 'preparando' | 'enviado' | 'entregue' | 'cancelado'
+    status: 'pendente' | 'preparando' | 'a_enviar' | 'enviado' | 'entregue' | 'cancelado'
     scheduled_ship_date: string | null
     delivery_address: string | null
     delivery_date: string | null
@@ -24,7 +24,7 @@ export interface GiftAssignmentFull {
     updated_at: string
     items: GiftItem[]
     contato?: { id: string; nome: string; sobrenome: string | null; email: string | null; telefone: string | null } | null
-    card?: { id: string; titulo: string; produto: string | null } | null
+    card?: { id: string; titulo: string; produto: string | null; data_viagem_fim: string | null } | null
 }
 
 export interface GiftFilters {
@@ -33,6 +33,8 @@ export interface GiftFilters {
     search?: string
     dateFrom?: string
     dateTo?: string
+    /** Quando true (default), oculta presentes de viagens já encerradas (cards.data_viagem_fim < hoje). */
+    hidePastTrips?: boolean
 }
 
 /** Fetches ALL gift assignments (trip + premium) with filters, for the Central de Envios */
@@ -45,7 +47,7 @@ export function useAllGiftAssignments(filters: GiftFilters = {}) {
                 .select(`
                     *,
                     contato:contatos!card_gift_assignments_contato_id_fkey(id, nome, sobrenome, email, telefone),
-                    card:cards!card_gift_assignments_card_id_fkey(id, titulo, produto),
+                    card:cards!card_gift_assignments_card_id_fkey(id, titulo, produto, data_viagem_fim),
                     items:card_gift_items(
                         *,
                         product:inventory_products(id, name, sku, image_path, current_stock)
@@ -73,6 +75,17 @@ export function useAllGiftAssignments(filters: GiftFilters = {}) {
 
             let results = (data || []) as GiftAssignmentFull[]
 
+            // Esconde presentes de viagens já encerradas (default ligado).
+            // Premium gifts (sem viagem) e cards sem data_viagem_fim seguem visíveis.
+            if (filters.hidePastTrips !== false) {
+                const today = new Date().toISOString().split('T')[0]
+                results = results.filter(a => {
+                    if (a.gift_type === 'premium') return true
+                    if (!a.card?.data_viagem_fim) return true
+                    return a.card.data_viagem_fim >= today
+                })
+            }
+
             // Client-side contact name search (PostgREST doesn't support nested text search)
             if (filters.search) {
                 const term = filters.search.toLowerCase()
@@ -93,8 +106,8 @@ export function useAllGiftAssignments(filters: GiftFilters = {}) {
     const now = new Date()
     const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
 
-    const pendingCount = assignments.filter(a => a.status === 'pendente' || a.status === 'preparando').length
-    const preparingCount = assignments.filter(a => a.status === 'preparando').length
+    const pendingCount = assignments.filter(a => a.status === 'pendente' || a.status === 'preparando' || a.status === 'a_enviar').length
+    const preparingCount = assignments.filter(a => a.status === 'preparando' || a.status === 'a_enviar').length
     const shippedThisMonth = assignments.filter(a =>
         a.status === 'enviado' || a.status === 'entregue'
     ).filter(a => a.shipped_at && a.shipped_at >= thisMonthStart).length
@@ -105,7 +118,7 @@ export function useAllGiftAssignments(filters: GiftFilters = {}) {
             sum + (a.items?.reduce((s, i) => s + i.quantity * i.unit_price_snapshot, 0) ?? 0), 0)
 
     const overdueCount = assignments.filter(a => {
-        if (a.status !== 'pendente' && a.status !== 'preparando') return false
+        if (a.status !== 'pendente' && a.status !== 'preparando' && a.status !== 'a_enviar') return false
         if (!a.scheduled_ship_date) return false
         return a.scheduled_ship_date < now.toISOString().split('T')[0]
     }).length

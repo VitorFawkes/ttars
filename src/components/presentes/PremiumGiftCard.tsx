@@ -127,11 +127,14 @@ export default function PremiumGiftCard({ assignment, onStatusChange, onDuplicat
                     'px-2.5 py-1 text-[10px] font-medium rounded-full shrink-0',
                     assignment.status === 'pendente' && 'bg-slate-100 text-slate-600',
                     assignment.status === 'preparando' && 'bg-amber-100 text-amber-700',
+                    assignment.status === 'a_enviar' && 'bg-indigo-100 text-indigo-700',
                     assignment.status === 'enviado' && 'bg-blue-100 text-blue-700',
                     assignment.status === 'entregue' && 'bg-emerald-100 text-emerald-700',
                     assignment.status === 'cancelado' && 'bg-red-100 text-red-600',
                 )}>
-                    {assignment.status.charAt(0).toUpperCase() + assignment.status.slice(1)}
+                    {assignment.status === 'pendente' ? 'Solicitado'
+                        : assignment.status === 'a_enviar' ? 'A enviar'
+                        : assignment.status.charAt(0).toUpperCase() + assignment.status.slice(1)}
                 </span>
 
                 <ChevronDown className={cn('h-4 w-4 text-slate-400 transition-transform shrink-0', expanded && 'rotate-180')} />

@@ -6,7 +6,7 @@ export interface GiftAssignment {
     id: string
     card_id: string
     contato_id: string | null
-    status: 'pendente' | 'preparando' | 'enviado' | 'entregue' | 'cancelado'
+    status: 'pendente' | 'preparando' | 'a_enviar' | 'enviado' | 'entregue' | 'cancelado'
     scheduled_ship_date: string | null
     delivery_address: string | null
     delivery_date: string | null
@@ -45,7 +45,7 @@ export function getContactDisplayName(contato: { nome: string; sobrenome: string
     return contato.sobrenome ? `${contato.nome} ${contato.sobrenome}` : contato.nome
 }
 
-const STATUS_ORDER: GiftAssignment['status'][] = ['pendente', 'preparando', 'enviado', 'entregue']
+const STATUS_ORDER: GiftAssignment['status'][] = ['pendente', 'preparando', 'a_enviar', 'enviado', 'entregue']
 
 export function getNextStatus(status: GiftAssignment['status']): GiftAssignment['status'] | null {
     const idx = STATUS_ORDER.indexOf(status)
@@ -91,6 +91,7 @@ export function useGiftAssignment(assignmentId: string | undefined, cardId: stri
             queryClient.invalidateQueries({ queryKey })
             queryClient.invalidateQueries({ queryKey: ['inventory-products'] })
             queryClient.invalidateQueries({ queryKey: ['inventory-stats'] })
+            queryClient.invalidateQueries({ queryKey: ['all-gift-assignments'] })
         },
     })
 
@@ -113,6 +114,7 @@ export function useGiftAssignment(assignmentId: string | undefined, cardId: stri
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey })
+            queryClient.invalidateQueries({ queryKey: ['all-gift-assignments'] })
         },
     })
 
@@ -142,6 +144,7 @@ export function useGiftAssignment(assignmentId: string | undefined, cardId: stri
             queryClient.invalidateQueries({ queryKey })
             queryClient.invalidateQueries({ queryKey: ['inventory-products'] })
             queryClient.invalidateQueries({ queryKey: ['inventory-stats'] })
+            queryClient.invalidateQueries({ queryKey: ['all-gift-assignments'] })
         },
     })
 
@@ -155,11 +158,12 @@ export function useGiftAssignment(assignmentId: string | undefined, cardId: stri
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey })
+            queryClient.invalidateQueries({ queryKey: ['all-gift-assignments'] })
         },
     })
 
     const updateDelivery = useMutation({
-        mutationFn: async (input: { delivery_address?: string; delivery_date?: string; delivery_method?: string; budget?: number; notes?: string }) => {
+        mutationFn: async (input: { delivery_address?: string; delivery_date?: string; delivery_method?: string; budget?: number; notes?: string; scheduled_ship_date?: string | null }) => {
             if (!assignmentId) throw new Error('No assignment')
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase as any).from('card_gift_assignments')
@@ -169,6 +173,7 @@ export function useGiftAssignment(assignmentId: string | undefined, cardId: stri
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey })
+            queryClient.invalidateQueries({ queryKey: ['all-gift-assignments'] })
         },
     })
 
@@ -369,13 +374,15 @@ export function useCardGifts(cardId: string) {
             quantity: number
             unitPrice: number
             contacts: { id: string; name: string }[]
+            notes?: string
         }) => {
             const results: { contactId: string; assignmentId: string; itemId: string }[] = []
+            const newNote = input.notes?.trim() || null
 
             for (const contact of input.contacts) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const { data: existing } = await (supabase as any).from('card_gift_assignments')
-                    .select('id, status')
+                    .select('id, status, notes')
                     .eq('card_id', cardId)
                     .eq('contato_id', contact.id)
                     .maybeSingle()
@@ -383,6 +390,16 @@ export function useCardGifts(cardId: string) {
                 let assignmentId: string
                 if (existing && existing.status !== 'cancelado') {
                     assignmentId = existing.id
+                    if (newNote) {
+                        const prevNotes: string = existing.notes ?? ''
+                        const mergedNotes = prevNotes.includes(newNote)
+                            ? prevNotes
+                            : (prevNotes ? `${prevNotes}\n${newNote}` : newNote)
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        await (supabase as any).from('card_gift_assignments')
+                            .update({ notes: mergedNotes, updated_at: new Date().toISOString() })
+                            .eq('id', assignmentId)
+                    }
                 } else {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const { data: newAssignment, error: aErr } = await (supabase as any).from('card_gift_assignments')
@@ -391,6 +408,7 @@ export function useCardGifts(cardId: string) {
                             contato_id: contact.id,
                             gift_type: 'trip',
                             assigned_by: profile?.id,
+                            notes: newNote,
                         })
                         .select('id')
                         .single()
@@ -434,6 +452,7 @@ export function useCardGifts(cardId: string) {
             queryClient.invalidateQueries({ queryKey })
             queryClient.invalidateQueries({ queryKey: ['inventory-products'] })
             queryClient.invalidateQueries({ queryKey: ['inventory-stats'] })
+            queryClient.invalidateQueries({ queryKey: ['all-gift-assignments'] })
         },
     })
 

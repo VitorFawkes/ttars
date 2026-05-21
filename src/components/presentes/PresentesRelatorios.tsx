@@ -1,4 +1,4 @@
-import { Loader2, TrendingUp, Users, Package, Activity } from 'lucide-react'
+import { Loader2, TrendingUp, Users, Package, Activity, Trophy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useGiftMetrics } from '@/hooks/useGiftMetrics'
 
@@ -22,8 +22,9 @@ export default function PresentesRelatorios() {
         )
     }
 
-    const { summary, monthlySpend, topRecipients, topProducts, recentActivity } = data
+    const { summary, monthlySpend, topRecipients, topProducts, topPlanners, recentActivity } = data
     const maxMonthlyTotal = Math.max(...monthlySpend.map(m => m.total), 1)
+    const maxPlannerCost = Math.max(...topPlanners.map(p => p.totalCost), 1)
 
     return (
         <div className="space-y-6">
@@ -57,6 +58,58 @@ export default function PresentesRelatorios() {
                     </div>
                     <p className="text-2xl font-bold text-slate-900">{summary.uniqueContacts}</p>
                 </div>
+            </div>
+
+            {/* Ranking de travel planners por R$ */}
+            <div className="bg-white border border-slate-200 rounded-xl p-5">
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                        <Trophy className="h-4 w-4 text-amber-500" />
+                        <h3 className="text-sm font-semibold text-slate-900">Travel planners — ranking por R$ em presentes</h3>
+                    </div>
+                    <span className="text-[11px] text-slate-400">Soma de todos os presentes (exceto cancelados) por planner responsável da viagem</span>
+                </div>
+                {topPlanners.length === 0 ? (
+                    <p className="text-sm text-slate-400">Nenhum presente vinculado a um planner ainda.</p>
+                ) : (
+                    <div className="space-y-2.5">
+                        {topPlanners.map((p, idx) => {
+                            const initials = p.nome.split(' ').slice(0, 2).map(s => s[0] || '').join('').toUpperCase()
+                            const widthPct = (p.totalCost / maxPlannerCost) * 100
+                            return (
+                                <div key={p.plannerId} className="flex items-center gap-3">
+                                    <span className={cn(
+                                        'text-xs font-semibold w-6 text-right tabular-nums shrink-0',
+                                        idx === 0 ? 'text-amber-500' : idx === 1 ? 'text-slate-500' : idx === 2 ? 'text-orange-400' : 'text-slate-300'
+                                    )}>
+                                        {idx + 1}º
+                                    </span>
+                                    <div className="h-8 w-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[11px] font-semibold shrink-0">
+                                        {initials || '?'}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between gap-3 mb-1">
+                                            <p className="text-sm font-medium text-slate-800 truncate" title={p.nome}>{p.nome}</p>
+                                            <span className="text-sm font-semibold text-slate-900 tabular-nums shrink-0">{formatBRL(p.totalCost)}</span>
+                                        </div>
+                                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                            <div
+                                                className={cn(
+                                                    'h-full rounded-full transition-all',
+                                                    idx === 0 ? 'bg-amber-400' : idx === 1 ? 'bg-slate-400' : idx === 2 ? 'bg-orange-300' : 'bg-indigo-300'
+                                                )}
+                                                style={{ width: `${widthPct}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="text-[11px] text-slate-400 shrink-0 w-24 text-right tabular-nums">
+                                        {p.giftCount} presente{p.giftCount !== 1 ? 's' : ''} · {p.cardCount} viage{p.cardCount !== 1 ? 'ns' : 'm'}
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                )}
             </div>
 
             <div className="grid grid-cols-2 gap-6">

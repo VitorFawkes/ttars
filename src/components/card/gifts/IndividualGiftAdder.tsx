@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Gift, Search, Package, PenLine, Loader2, Plus, X, Check, Users, AlertTriangle } from 'lucide-react'
+import { Gift, Search, Package, PenLine, Loader2, Plus, X, Check, Users, AlertTriangle, MessageSquare } from 'lucide-react'
 import { useInventoryProducts, type InventoryProduct } from '@/hooks/useInventoryProducts'
 import InventoryImageHoverPreview from '@/components/inventory/InventoryImageHoverPreview'
 import { cn } from '@/lib/utils'
@@ -23,6 +23,7 @@ interface Props {
         quantity: number
         unitPrice: number
         contacts: { id: string; name: string }[]
+        notes?: string
     }) => Promise<void> | void
     onCancel: () => void
     isSubmitting: boolean
@@ -37,6 +38,7 @@ export default function IndividualGiftAdder({ contacts, onSubmit, onCancel, isSu
     const [customName, setCustomName] = useState('')
     const [customPrice, setCustomPrice] = useState(0)
     const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(() => new Set())
+    const [notes, setNotes] = useState('')
 
     const { products } = useInventoryProducts({ search, activeOnly: true })
 
@@ -77,6 +79,7 @@ export default function IndividualGiftAdder({ contacts, onSubmit, onCancel, isSu
             quantity,
             unitPrice,
             contacts: selected,
+            notes: notes.trim() || undefined,
         })
     }
 
@@ -295,6 +298,21 @@ export default function IndividualGiftAdder({ contacts, onSubmit, onCancel, isSu
                             })}
                         </div>
                     )}
+                </div>
+
+                {/* Observação */}
+                <div className="border-t border-slate-100 pt-3 space-y-1.5">
+                    <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                        <MessageSquare className="h-3.5 w-3.5 text-slate-400" />
+                        Observação <span className="text-slate-400 font-normal">(opcional)</span>
+                    </label>
+                    <textarea
+                        value={notes}
+                        onChange={e => setNotes(e.target.value)}
+                        placeholder="Endereço alternativo, preferências, instruções para o pacote…"
+                        rows={2}
+                        className="w-full px-2.5 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                    />
                 </div>
 
                 {/* Stock warning */}
