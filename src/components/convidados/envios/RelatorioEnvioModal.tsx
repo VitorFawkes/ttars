@@ -163,9 +163,9 @@ export function RelatorioEnvioModal({ open, onClose, loteId, weddingTitulo, temp
 
         {/* Resumo */}
         <div className="px-6 py-4 border-b border-slate-200 grid grid-cols-3 gap-4">
-          <Stat label="Total" value={lote?.total ?? 0} tone="slate" />
-          <Stat label="Enviadas" value={lote?.sent ?? 0} tone="emerald" />
-          <Stat label="Falhas" value={lote?.failed ?? 0} tone={lote && lote.failed > 0 ? 'rose' : 'slate'} />
+          <Stat label="Total" value={messages.length || (lote?.total ?? 0)} tone="slate" />
+          <Stat label="Enviadas" value={messages.filter(m => !m.has_error).length} tone="emerald" />
+          <Stat label="Falhas" value={failedMessages.length} tone={failedMessages.length > 0 ? 'rose' : 'slate'} />
         </div>
 
         {enviando && (
