@@ -46,6 +46,8 @@ export interface RunSingleAgentInput {
     voice_config: BuildSinglePromptInput["agent"]["voice_config"];
     boundaries_config: BuildSinglePromptInput["agent"]["boundaries_config"];
     listening_config: BuildSinglePromptInput["agent"]["listening_config"];
+    scheduling_config?: BuildSinglePromptInput["agent"]["scheduling_config"];
+    prompts_extra?: BuildSinglePromptInput["agent"]["prompts_extra"];
   };
   business: BuildSinglePromptInput["business"];
   conversationState: BuildSinglePromptInput["conversationState"];
@@ -96,6 +98,32 @@ export async function runSingleAgent(
     availableTools: input.availableTools,
   });
 
+  // Modelos GPT-5+ suportam reasoning_effort: low/medium/high.
+  // Para Patricia, ativamos thinking quando o admin escolhe um modelo com
+  // capacidade de raciocínio extenso (gpt-5.5, gpt-5.5-mini, ou o pipeline_models
+  // declara reasoning_effort explicitamente). O modelo pensa internamente
+  // antes de gerar o output JSON, destravando detecção de contradição/saturação
+  // sem heurísticas regex no router.
+  const supportsReasoning = /^gpt-5(\.|$)|^o\d/i.test(model);
+  const explicitEffort = (mainModelCfg as Record<string, unknown> | undefined)?.reasoning_effort as string | undefined;
+  const requestBody: Record<string, unknown> = {
+    model,
+    // GPT-5.5 só suporta temperature=1 (default). Omitir respeita o default.
+    max_completion_tokens: maxTokens,
+    response_format: SINGLE_AGENT_OUTPUT_SCHEMA,
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+  };
+  if (explicitEffort) {
+    requestBody.reasoning_effort = explicitEffort;
+  } else if (supportsReasoning && /5\.5/.test(model)) {
+    // Default pra gpt-5.5: medium (sweet spot — pensa pra detectar nuance
+    // sem latência excessiva). Admin pode override via pipeline_models.main.reasoning_effort.
+    requestBody.reasoning_effort = "medium";
+  }
+
   // Chamar OpenAI com structured output
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -103,16 +131,7 @@ export async function runSingleAgent(
       "Content-Type": "application/json",
       Authorization: `Bearer ${input.apiKey}`,
     },
-    body: JSON.stringify({
-      model,
-      // GPT-5.5 só suporta temperature=1 (default). Omitir respeita o default.
-      max_completion_tokens: maxTokens,
-      response_format: SINGLE_AGENT_OUTPUT_SCHEMA,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-    }),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {
@@ -146,6 +165,22 @@ export async function runSingleAgent(
   if (typeof parsed.internal_reasoning !== "string") parsed.internal_reasoning = "";
   if (parsed.current_moment_key !== null && typeof parsed.current_moment_key !== "string") {
     parsed.current_moment_key = null;
+  }
+  // self_analysis pode estar faltando em modelos não-thinking ou se LLM
+  // ignorou. Garante shape mínimo pra não quebrar downstream.
+  if (!parsed.self_analysis || typeof parsed.self_analysis !== "object") {
+    parsed.self_analysis = {
+      contradicao_detectada: null,
+      pitch_saturado_self: false,
+      pitch_count_recent: 0,
+      inviabilidade_calc: null,
+      valor_por_convidado_brl: null,
+      pendencia_resolver: null,
+      sinais_defensivos_lead: false,
+      pergunta_lead_nao_respondida: null,
+    };
+  } else if (typeof parsed.self_analysis.pergunta_lead_nao_respondida === "undefined") {
+    parsed.self_analysis.pergunta_lead_nao_respondida = null;
   }
 
   // Filtrar mensagens vazias

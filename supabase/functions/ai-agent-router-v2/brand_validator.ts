@@ -45,6 +45,24 @@ export interface BrandValidatorInput {
   active_moment_key?: string | null;
   active_moment_mode?: "literal" | "faithful" | "free" | null;
   active_moment_label?: string | null;
+  /**
+   * Instrução custom de auditoria do agente (vem de ai_agents.prompts_extra.validator).
+   * Quando preenchido, é concatenado no prompt do validator depois da lista de
+   * regras — permite que o admin escreva orientação meta sobre COMO o validador
+   * deve raciocinar (ex: "audite princípios de caráter, não checklist").
+   * Per-agente; não é regra do framework.
+   */
+  extra_validator_instruction?: string | null;
+  /**
+   * Fatos computados deterministicamente pelo router (não pelo LLM) que
+   * regras semânticas do validator referenciam. Hoje suporta:
+   *   - pitch_saturado: boolean — múltiplas ofertas da reunião nos últimos N turns
+   *   - pitch_count_recent: number — quantas vezes apareceu
+   *   - inviabilidade_economica: "abaixo_minimo_resistente" | "fronteira_defensiva"
+   *   - valor_por_convidado_brl: number
+   *   - pendencias_patricia: string — texto da última promessa não cumprida
+   */
+  context_facts?: Record<string, unknown>;
 }
 
 const VALIDATOR_MODEL = "gpt-5.1";
@@ -103,6 +121,13 @@ ${rulesBlock}
 - Última mensagem do lead: ${input.last_lead_message ? `"${input.last_lead_message}"` : "(não disponível)"}
 - Moment ativo: ${input.active_moment_key ? `\`${input.active_moment_key}\`${input.active_moment_label ? ` (${input.active_moment_label})` : ""}` : "(não informado)"}
 - Modo de geração deste turno: ${input.active_moment_mode || "(não informado)"}
+${input.context_facts && Object.keys(input.context_facts).length > 0 ? `
+## CONTEXT_FACTS (computados pelo router, use pra avaliar regras semânticas)
+
+${JSON.stringify(input.context_facts, null, 2)}
+
+Estas flags são determinísticas (não veio do LLM). Regras que mencionam pitch_saturado, inviabilidade_economica, pendencias_patricia DEVEM consultar este bloco como fonte de verdade.
+` : ""}
 
 ${input.active_moment_mode === "literal"
   ? `⚠️ MODO LITERAL: o admin curou palavra-por-palavra o texto-base deste momento. Estruturas que parecem violar regras (ex: duas perguntas na mesma mensagem, frases longas) foram **validadas pelo admin** ao escolher modo literal. NÃO use ação "rewrite" neste turno — só use "block" se a mensagem viola uma red line absoluta (ex: inventou preço, mencionou que é IA). Para violações de "correct", retorne action="pass" com a violation registrada em violations[] mas NÃO mexa no texto.`
@@ -128,7 +153,7 @@ ${input.active_moment_mode === "literal"
 - Se ação=rewrite, preserva a essência. Ajuste pontual, não reescreva tudo.
 - Não invente regras novas. Use só as ${enabledRules.length} condições listadas.
 - A primeira mensagem do agente PODE ter as DUAS perguntas de abertura juntas (regra perguntas_desconexas tem exceção — ver red_lines do momento abertura).
-
+${input.extra_validator_instruction ? `\n## INSTRUÇÃO ADICIONAL DO ADMIN\n\n${input.extra_validator_instruction.trim()}\n` : ""}
 Retorne JSON conforme schema. Se nenhuma condição é verdadeira, retorne \`violations: []\` e \`action: "pass"\`.`;
 
   const userPrompt = `Mensagens geradas pelo agente:\n\n${messagesBlock}`;

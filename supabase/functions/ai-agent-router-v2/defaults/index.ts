@@ -25,7 +25,34 @@ export interface AgentDefaults {
   buildDiffCognitivo: typeof buildDiffCognitivoText;
   data_update_rules_text: string;
   buildBoundaries: typeof buildBoundariesText;
+  /**
+   * Valores fallback dos campos editáveis do business_config. Usados pelo
+   * router quando o admin não preencheu o campo no banco — garante que o
+   * prompt nunca tem placeholder vazio.
+   */
+  businessFallbacks: {
+    wedding_planner_name: string;
+    wedding_planner_short: string;
+    honorario_faixa: string;
+    empresa_stats: string;
+    network_regions: string;
+    destination_categories: string;
+    brochure_policy: string;
+  };
 }
+
+const PATRICIA_BUSINESS_FALLBACKS: AgentDefaults['businessFallbacks'] = {
+  wedding_planner_name: 'a Wedding Planner',
+  wedding_planner_short: 'a Wedding Planner',
+  honorario_faixa: 'R$ 4 mil a R$ 18 mil',
+  empresa_stats:
+    'Desde 2012, mais de 650 casamentos realizados em mais de 20 países. 5 prêmios consecutivos como melhor produtora de Destination Wedding da América Latina.',
+  network_regions:
+    'Caribe (Cancún, Punta Cana, Tulum, Riviera Maya), Maldivas, Nordeste brasileiro (Trancoso, Jericoacoara, Fernando de Noronha, Praia do Forte), Mendoza/Argentina, e Europa selecionada (Portugal, Itália, Espanha, Grécia).',
+  destination_categories: 'Caribe / Maldivas / Nordeste / Mendoza / Europa / Outro',
+  brochure_policy:
+    'A Welcome não tem material informativo / brochura / guia pra eu enviar pro lead. NUNCA prometo "vou te mandar um guia", "vou te enviar um material", "te encaminho uma brochura". No desfecho não qualificado, encerro com honestidade direta — sem promessa de envio.',
+};
 
 /**
  * Retorna o pacote de defaults pro agente, ou null se o agente não tem
@@ -38,6 +65,7 @@ export function getDefaultsForAgent(agentId: string): AgentDefaults | null {
       buildDiffCognitivo: buildDiffCognitivoText,
       data_update_rules_text: PATRICIA_DATA_UPDATE_RULES_TEXT,
       buildBoundaries: buildBoundariesText,
+      businessFallbacks: PATRICIA_BUSINESS_FALLBACKS,
     };
   }
   return null;

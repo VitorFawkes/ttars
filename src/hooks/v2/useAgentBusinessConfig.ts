@@ -34,6 +34,14 @@ export interface BusinessConfig {
   secondary_contact_fields: string[]
   escalation_triggers: Array<Record<string, unknown>>
   custom_blocks: BusinessCustomBlock[]
+  // Textos editáveis pelo admin que substituem trechos antes hardcoded no
+  // prompt da Patricia (placeholders resolvidos pelo router em runtime).
+  // Adicionados em migration 20260521b.
+  empresa_stats_text: string | null
+  network_regions_text: string | null
+  destination_categories_text: string | null
+  brochure_policy_text: string | null
+  honorario_faixa_text: string | null
   created_at: string
   updated_at: string
 }
@@ -63,6 +71,11 @@ export const DEFAULT_BUSINESS_CONFIG: BusinessConfigInput = {
   secondary_contact_fields: [],
   escalation_triggers: [],
   custom_blocks: [],
+  empresa_stats_text: null,
+  network_regions_text: null,
+  destination_categories_text: null,
+  brochure_policy_text: null,
+  honorario_faixa_text: null,
 }
 
 const keyForAgent = (agentId?: string) => ['agent-business-config', agentId ?? 'none']

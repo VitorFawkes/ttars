@@ -21,7 +21,7 @@ import type {
   VoiceConfig,
 } from "./playbook_loader.ts";
 import { resolveMomentParts } from "./playbook_loader.ts";
-import { resolvePlaceholdersDeep, type ResolverContext } from "./placeholder_resolver.ts";
+import { resolveAgentPlaceholders, resolvePlaceholdersDeep, type ResolverContext } from "./placeholder_resolver.ts";
 import { getDefaultsForAgent, type AgentDefaults } from "./defaults/index.ts";
 import type { CognitiveAuditConfigFromDB } from "./defaults/patricia_diff_cognitivo.ts";
 
@@ -82,6 +82,21 @@ export interface BuildSinglePromptInput {
     methodology_text?: string | null;
     process_steps?: unknown[];
     secondary_contact_role_name?: string | null;
+    /** Nome completo da Wedding Planner que recebe handoff (resolvido do
+     *  ai_agents.wedding_planner_profile_id pelo router antes de chamar buildSinglePrompt). */
+    wedding_planner_name?: string | null;
+    /** Nome curto (primeiro+segundo nome) pra conversa íntima. */
+    wedding_planner_short?: string | null;
+    /** Faixa de honorário da assessoria já formatada (ex: "R$ 4 mil a R$ 18 mil"). */
+    honorario_faixa?: string | null;
+    /** Stats da empresa em texto curto (ex: "Desde 2012, mais de 650 casamentos..."). */
+    empresa_stats?: string | null;
+    /** Regiões da rede própria em texto formatado (ex: "Caribe (Cancún, Punta Cana), Maldivas..."). */
+    network_regions?: string | null;
+    /** Categorias canônicas de destino do CRM (ex: "Caribe / Maldivas / Nordeste / Mendoza / Europa / Outro"). */
+    destination_categories?: string | null;
+    /** Política de material/brochura (texto explicando se tem ou não tem material pra enviar). */
+    brochure_policy?: string | null;
   } | null;
   moments: PlaybookMoment[];
   silentSignals: PlaybookSilentSignal[];
@@ -157,14 +172,20 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
     availableTools,
   } = input;
 
-  // Resolver placeholders {agent_name}, {company_name}, {contact_name} em
-  // todos os textos editáveis pelo admin antes de injetar no prompt.
-  // Idempotente: se admin escreveu literal "Patricia" em vez de placeholder,
-  // passa intocado. Histórico do lead e mensagens persistidas NÃO são tocadas.
+  // Resolver placeholders dinâmicos em textos editáveis pelo admin + defaults
+  // curados. Idempotente: texto sem placeholder passa intocado. Histórico
+  // do lead e mensagens persistidas NÃO são tocadas (só configs).
   const resolverCtx: ResolverContext = {
     agent_name: agent.nome,
     company_name: business?.company_name ?? null,
     contact_name: conversationState.contact_name ?? null,
+    wedding_planner_name: business?.wedding_planner_name ?? null,
+    wedding_planner_short: business?.wedding_planner_short ?? null,
+    honorario_faixa: business?.honorario_faixa ?? null,
+    empresa_stats: business?.empresa_stats ?? null,
+    network_regions: business?.network_regions ?? null,
+    destination_categories: business?.destination_categories ?? null,
+    brochure_policy: business?.brochure_policy ?? null,
   };
 
   const identity = resolvePlaceholdersDeep(agent.identity_config || {}, resolverCtx);
@@ -188,9 +209,10 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
   const headerBlock = renderHeader(agent.nome, identity, resolvedBusiness);
 
   // -------- Principles ----------------------------------------------------
-  // Com defaults curados: texto monolítico vem do código (defaults.principles_text).
+  // Com defaults curados: texto monolítico vem do código (defaults.principles_text),
+  // com placeholders resolvidos pelo resolverCtx (ex: {wedding_planner_name}).
   // Sem defaults: lê do banco (identity.principles array → fallback principles_text).
-  const principlesBlock = renderPrinciples(identity, defaults);
+  const principlesBlock = renderPrinciples(identity, defaults, resolverCtx);
 
   // -------- Agent schedule (fonte única de verdade da agenda) -------------
   // Lido de ai_agents.scheduling_config; injetado em linguagem natural pro LLM
@@ -206,6 +228,7 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
   const contextRulesBlock = renderCognitiveAudit(
     agent.cognitive_audit_config,
     defaults,
+    resolverCtx,
   );
 
   // -------- Data update rules ---------------------------------------------
@@ -214,6 +237,7 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
   const dataUpdateRulesBlock = renderDataUpdateRules(
     agent.data_update_rules,
     defaults,
+    resolverCtx,
   );
 
   // -------- Voice ---------------------------------------------------------
@@ -223,7 +247,7 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
   // Com defaults curados: buildBoundaries lê brand_active + competitors do banco
   // e renderiza Grupo A (admin) + Grupo B (design da IA, hardcoded).
   // Sem defaults: comportamento antigo (by_category novo → fallback library_active legacy).
-  const boundariesBlock = renderBoundaries(boundaries, defaults);
+  const boundariesBlock = renderBoundaries(boundaries, defaults, resolverCtx);
 
   // -------- Listening -----------------------------------------------------
   const listeningBlock = renderListening(listening);
@@ -360,10 +384,11 @@ ${methodology}
 function renderPrinciples(
   identity: IdentityConfig | null | undefined,
   defaults: AgentDefaults | null,
+  ctx: ResolverContext,
 ): string {
-  // Defaults curados ganham: texto monolítico do código
+  // Defaults curados ganham: texto monolítico do código com placeholders resolvidos
   if (defaults) {
-    const text = defaults.principles_text.trim();
+    const text = resolveAgentPlaceholders(defaults.principles_text, ctx).trim();
     if (!text) return "";
     return `<principles>
 ${text}
@@ -434,10 +459,11 @@ ${text.trim()}
 function renderDataUpdateRules(
   rules: Array<{ key?: string; title?: string; instruction?: string; enabled?: boolean; order?: number }> | null | undefined,
   defaults: AgentDefaults | null,
+  ctx: ResolverContext,
 ): string {
-  // Defaults curados ganham
+  // Defaults curados ganham — placeholders resolvidos
   if (defaults) {
-    const text = defaults.data_update_rules_text.trim();
+    const text = resolveAgentPlaceholders(defaults.data_update_rules_text, ctx).trim();
     if (!text) return "";
     return `<data_update_rules>
 ${text}
@@ -483,12 +509,14 @@ ${lines.join('\n\n')}
 function renderCognitiveAudit(
   config: Record<string, unknown> | null | undefined,
   defaults: AgentDefaults | null,
+  ctx: ResolverContext,
 ): string {
-  // Defaults curados ganham
+  // Defaults curados ganham — placeholders resolvidos
   if (defaults) {
-    const text = defaults.buildDiffCognitivo(
+    const rawText = defaults.buildDiffCognitivo(
       (config ?? null) as CognitiveAuditConfigFromDB | null,
-    ).trim();
+    );
+    const text = resolveAgentPlaceholders(rawText, ctx).trim();
     if (!text) return "";
     return `<context_rules>
 ${text}
@@ -739,13 +767,15 @@ function resolveBoundaryText(item: {
 function renderBoundaries(
   boundaries: BoundariesConfig,
   defaults: AgentDefaults | null,
+  ctx: ResolverContext,
 ): string {
   // Defaults curados (Patricia): renderiza Grupo A (admin escolhe via brand_active)
-  // + Grupo B (design da IA, hardcoded no defaults/patricia_boundaries.ts).
+  // + Grupo B (design da IA, hardcoded). Placeholders resolvidos (ex: {honorario_faixa}).
   if (defaults) {
     const brandActive = (boundaries as unknown as { brand_active?: string[] }).brand_active;
     const competitors = (boundaries as unknown as { competitors_to_avoid?: string[] }).competitors_to_avoid;
-    const text = defaults.buildBoundaries(brandActive, competitors).trim();
+    const rawText = defaults.buildBoundaries(brandActive, competitors);
+    const text = resolveAgentPlaceholders(rawText, ctx).trim();
     if (!text) return "";
     return `<boundaries>
 ${text}

@@ -61,7 +61,7 @@ export const PATRICIA_BRAND_BOUNDARIES_LIBRARY: Array<{
     id: 'never_meeting_price',
     label: 'Nunca fala preço/valor do casamento',
     prompt_text:
-      'NUNCA fale valor específico do casamento (cerimônia, fornecedores, decoração, gastronomia). A faixa de honorário da assessoria (R$ 4 mil a R$ 18 mil) PODE ser citada quando o lead pergunta direto sobre cobrança/assessoria/honorário. Outros valores ficam com a Ana Carolina na reunião.',
+      'NUNCA fale valor específico do casamento (cerimônia, fornecedores, decoração, gastronomia). A faixa de honorário da assessoria ({honorario_faixa}) PODE ser citada quando o lead pergunta direto sobre cobrança/assessoria/honorário. Outros valores ficam com a {wedding_planner_short} na reunião.',
     default_active: true,
   },
   {

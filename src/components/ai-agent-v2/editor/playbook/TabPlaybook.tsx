@@ -75,7 +75,7 @@ export function TabPlaybook({ agentId, agentName, companyName, produto }: Props)
                   <div className="px-4 py-4 border-t border-slate-100 bg-slate-50/30">
                     {key === 'quem_ela_e' && <QuemElaESection agentId={agentId} agentName={agentName} companyName={companyName} produto={produto} />}
                     {key === 'como_ela_conversa' && <ComoConversaSection agentId={agentId} agentName={agentName} companyName={companyName} />}
-                    {key === 'cerebro_analitico' && <CognitiveAuditSection agentId={agentId} produto={produto} />}
+                    {key === 'cerebro_analitico' && <CognitiveAuditSection agentId={agentId} />}
                     {key === 'examples' && <ExamplesSection agentId={agentId} agentName={agentName} companyName={companyName} />}
                   </div>
                 )}

@@ -22,7 +22,7 @@ REGRAS DE OURO:
 
 Campos e orientação de captura:
 - ww_data_casamento: a data ou época que o casal imagina casar, se declarada (formato YYYY-MM ou YYYY-MM-DD).
-- ww_destino: categoria canônica do destino (Caribe / Maldivas / Nordeste / Mendoza / Europa / Outro). Quando o casal cita um destino específico, identifique a categoria regional à qual ele pertence. Se o destino citado fica fora das categorias conhecidas, primeiro investigue se o casal tem flexibilidade antes de registrar como "Outro".
+- ww_destino: categoria canônica do destino ({destination_categories}). Quando o casal cita um destino específico, identifique a categoria regional à qual ele pertence. Se o destino citado fica fora das categorias conhecidas, primeiro investigue se o casal tem flexibilidade antes de registrar como "Outro".
 - ww_num_convidados: NÚMERO INTEIRO. A estimativa que o casal acredita que realmente vai comparecer. Diferenciar convites enviados de expectativa real — quando o casal só menciona convites sem indicar expectativa, pergunte uma vez de forma leve quantos vão de fato, registre a resposta e siga. Sem insistir.
 - ww_orcamento_faixa: NÚMERO INTEIRO em reais (sem "até", sem "k", sem "mil", sem texto). Use o teto se for faixa.
 - ww_tipo_casamento: tipo declarado (praia, fazenda, salão, etc).

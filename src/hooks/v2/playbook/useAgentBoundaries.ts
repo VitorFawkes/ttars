@@ -28,18 +28,23 @@ export interface BoundaryItem {
 
 export interface BoundariesConfig {
   /**
-   * Novo formato unificado (Marco 3.3 — 2026-05-07):
-   * todas as regras (biblioteca pré-fabricada + custom do admin) ficam
-   * juntas por categoria, cada uma com toggle enabled + removíveis.
-   * Quando este campo existe, os campos legacy abaixo são ignorados.
+   * Formato V3 (2026-05-21): admin escolhe IDs de uma biblioteca curada
+   * de boundaries de MARCA (router resolve o texto via defaults/<agent>_boundaries.ts).
+   * Quando vazio/undefined, router usa default_active (todos ON pela curadoria).
    */
-  by_category?: Record<string, BoundaryItem[]>
+  brand_active?: string[]
+  /**
+   * Nomes de concorrentes específicos a NUNCA mencionar (chips editáveis).
+   */
+  competitors_to_avoid?: string[]
 
-  /** @deprecated Legacy: IDs da biblioteca marcados como ativos. */
+  /** @deprecated V2: removido em 2026-05-21. */
+  by_category?: Record<string, BoundaryItem[]>
+  /** @deprecated V2 legacy. */
   library_active?: string[]
-  /** @deprecated Legacy: linhas personalizadas sem categoria. */
+  /** @deprecated V2 legacy. */
   custom?: string[]
-  /** @deprecated Legacy: personalizadas por categoria (strings simples). */
+  /** @deprecated V2 legacy. */
   custom_by_category?: Record<string, string[]>
 }
 

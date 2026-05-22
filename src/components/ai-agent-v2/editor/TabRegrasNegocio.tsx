@@ -3,6 +3,7 @@ import { Save, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
 import { BusinessConfigEditor } from './BusinessConfigEditor'
+import { BusinessTextsSection } from './BusinessTextsSection'
 import {
   useAgentBusinessConfig,
   DEFAULT_BUSINESS_CONFIG,
@@ -39,6 +40,11 @@ function fromRemote(c: BusinessConfig | null): BusinessConfigInput {
     secondary_contact_fields: c.secondary_contact_fields,
     escalation_triggers: c.escalation_triggers,
     custom_blocks: c.custom_blocks ?? [],
+    empresa_stats_text: c.empresa_stats_text,
+    network_regions_text: c.network_regions_text,
+    destination_categories_text: c.destination_categories_text,
+    brochure_policy_text: c.brochure_policy_text,
+    honorario_faixa_text: c.honorario_faixa_text,
   }
 }
 
@@ -101,6 +107,12 @@ export function TabRegrasNegocio({ agentId }: Props) {
         onChange={handleChange}
         pipelineId={pipelineId}
         produto={agentProduto}
+      />
+
+      <BusinessTextsSection
+        value={local}
+        onChange={handleChange}
+        showPlaceholderHint
       />
 
       <div className="flex items-center justify-end gap-3 sticky bottom-0 bg-slate-50/90 backdrop-blur py-3 -mx-6 px-6 border-t border-slate-200">
