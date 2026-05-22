@@ -99,22 +99,28 @@ export function formatDateRange(startDate: string | undefined, endDate: string |
 }
 
 /**
- * Formata hora para exibição (ex: "14:30")
+ * Formata hora para exibição (ex: "14:30").
+ * Extrai HH:MM mesmo quando há lixo extra ("23:40 (+1)" → "23:40").
+ * O sufixo "(+N)" é exibido separadamente por quem chama (badge "+1").
  */
 export function formatTime(timeStr: string | undefined): string {
   if (!timeStr) return ''
 
-  // Se já está no formato HH:mm, retorna como está
-  if (/^\d{2}:\d{2}$/.test(timeStr)) {
-    return timeStr
-  }
+  const match = String(timeStr).match(/(\d{1,2}):(\d{2})/)
+  if (!match) return ''
 
-  // Se tem segundos (HH:mm:ss), remove
-  if (/^\d{2}:\d{2}:\d{2}$/.test(timeStr)) {
-    return timeStr.substring(0, 5)
-  }
+  const h = match[1].padStart(2, '0')
+  return `${h}:${match[2]}`
+}
 
-  return timeStr
+/**
+ * Retorna apenas o sufixo "+N" (dia seguinte) se o horário tiver, ou '' senão.
+ * Usado pra renderizar como badge discreto ao lado do horário de chegada.
+ */
+export function extractNextDayOffset(timeStr: string | undefined): string {
+  if (!timeStr) return ''
+  const m = String(timeStr).match(/\+(\d+)/)
+  return m ? `+${m[1]}` : ''
 }
 
 /**

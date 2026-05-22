@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils'
 import { readFlightData, calculateLegDuration } from '../../shared/readers'
 import type { FlightLegViewData } from '../../shared/types'
 import { formatPrice } from '../../shared/utils/priceUtils'
-import { formatDateWithWeekday, formatTime } from '../../shared/utils/dateUtils'
+import { formatDateWithWeekday, formatTime, extractNextDayOffset } from '../../shared/utils/dateUtils'
 import { CABIN_CLASS_LABELS } from '../../shared/types'
 
 interface DesktopFlightCardProps {
@@ -68,16 +68,16 @@ export function DesktopFlightCard({
   return (
     <div
       className={cn(
-        "rounded-2xl overflow-hidden transition-all duration-300 border-2",
+        "rounded-2xl overflow-hidden transition-all duration-300 border bg-white",
         isSelected
-          ? "border-sky-500 bg-sky-50/30 shadow-lg shadow-sky-500/10"
-          : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-md"
+          ? "border-sky-500 shadow-lg shadow-sky-500/10 ring-1 ring-sky-200"
+          : "border-slate-200 hover:border-slate-300 hover:shadow-sm"
       )}
     >
       {/* Header com companhia e preço */}
       <div className={cn(
-        "px-5 py-4 flex items-center justify-between border-b",
-        isSelected ? "bg-sky-50 border-sky-200" : "bg-gradient-to-r from-sky-50 to-indigo-50 border-slate-100"
+        "px-5 py-4 flex items-center justify-between border-b border-slate-100",
+        isSelected ? "bg-sky-50/40" : "bg-white"
       )}>
         <div className="flex items-center gap-4">
           <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center", airlineColors.bg)}>
@@ -242,7 +242,14 @@ function LegRow({ leg, isExpanded, onToggle, isLast }: LegRowProps) {
 
           {/* Chegada */}
           <div>
-            <p className="text-lg font-bold text-slate-900">{formatTime(option.arrivalTime)}</p>
+            <p className="text-lg font-bold text-slate-900">
+              {formatTime(option.arrivalTime)}
+              {extractNextDayOffset(option.arrivalTime) && (
+                <span className="ml-1 text-xs font-semibold text-amber-600">
+                  {extractNextDayOffset(option.arrivalTime)}
+                </span>
+              )}
+            </p>
             <p className="text-sm font-medium text-slate-600">{leg.destinationCode}</p>
           </div>
         </div>

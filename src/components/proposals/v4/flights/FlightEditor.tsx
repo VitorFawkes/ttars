@@ -10,10 +10,11 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Plus, Star, Trash2, Sparkles, Pencil, ArrowRight } from 'lucide-react'
+import { Plus, Star, Trash2, Sparkles, Pencil, ArrowRight, TrendingDown, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
-import { type FlightsData, type FlightLeg, type FlightOption, AIRLINES } from './types'
+import { type FlightsData, type FlightLeg, type FlightOption, AIRLINES, createInitialFlightData } from './types'
+import { compareFlightOptions } from './comparison'
 import { FlightImageExtractor } from './FlightImageExtractor'
 
 // Opções fixas pra bagagem (em vez de texto livre que vira bagunça)
@@ -45,44 +46,10 @@ interface FlightEditorProps {
     onChange: (data: FlightsData) => void
 }
 
-// Estado inicial
-const createInitialData = (): FlightsData => ({
-    legs: [
-        {
-            id: `leg-${Date.now()}-ida`,
-            leg_type: 'outbound',
-            label: 'IDA',
-            origin_code: '',
-            origin_city: '',
-            destination_code: '',
-            destination_city: '',
-            date: '',
-            options: [],
-            ordem: 0,
-            is_expanded: true
-        },
-        {
-            id: `leg-${Date.now()}-volta`,
-            leg_type: 'return',
-            label: 'VOLTA',
-            origin_code: '',
-            origin_city: '',
-            destination_code: '',
-            destination_city: '',
-            date: '',
-            options: [],
-            ordem: 1,
-            is_expanded: true
-        }
-    ],
-    show_prices: true,
-    allow_mix_airlines: true,
-    default_selections: {}
-})
-
 export function FlightEditor({ data, onChange }: FlightEditorProps) {
-    // Memoize initial data to avoid recreating on every render
-    const initialData = useMemo(() => createInitialData(), [])
+    // Memoize initial data to avoid recreating on every render.
+    // Default = roundtrip (padrão histórico, preserva compat com items sem trip_type definido).
+    const initialData = useMemo(() => createInitialFlightData('roundtrip'), [])
     const flightsData = data?.legs?.length ? data : initialData
 
     // Persist initial data if none exists - ensures flights are saved even before user edits
@@ -393,17 +360,20 @@ function LegBlock({
                     <p className="text-sm text-slate-400 text-center py-2">
                         Nenhuma opção de voo ainda
                     </p>
-                ) : (
-                    (leg.options || []).map((option) => (
+                ) : (() => {
+                    const comparison = compareFlightOptions(leg.options || [])
+                    return (leg.options || []).map((option) => (
                         <FlightRow
                             key={option.id}
                             option={option}
                             onUpdate={(updates) => onUpdateOption(option.id, updates)}
                             onRemove={() => onRemoveOption(option.id)}
                             onSetRecommended={() => onSetRecommended(option.id)}
+                            isCheapest={comparison.cheapestId === option.id}
+                            isFastest={comparison.fastestId === option.id}
                         />
                     ))
-                )}
+                })()}
 
                 {/* Adicionar Opção */}
                 <button
@@ -431,9 +401,11 @@ interface FlightRowProps {
     onUpdate: (updates: Partial<FlightOption>) => void
     onRemove: () => void
     onSetRecommended: () => void
+    isCheapest?: boolean
+    isFastest?: boolean
 }
 
-function FlightRow({ option, onUpdate, onRemove, onSetRecommended }: FlightRowProps) {
+function FlightRow({ option, onUpdate, onRemove, onSetRecommended, isCheapest = false, isFastest = false }: FlightRowProps) {
     // Duração tolerante a lixo tipo "23:40 (+1)"
     const duration = useMemo(() => {
         const parse = (raw?: string | null): { h: number; m: number; extraDays: number } | null => {
@@ -501,7 +473,7 @@ function FlightRow({ option, onUpdate, onRemove, onSetRecommended }: FlightRowPr
                 <Star className={cn("h-4 w-4", option.is_recommended && "fill-amber-500")} />
             </button>
 
-            {/* Companhia + número do voo */}
+            {/* Companhia + número do voo + badges comparativos */}
             <div className="flex items-center gap-2 min-w-0">
                 <span className={cn(
                     "px-1.5 py-0.5 rounded text-[10px] font-bold flex-shrink-0",
@@ -510,9 +482,29 @@ function FlightRow({ option, onUpdate, onRemove, onSetRecommended }: FlightRowPr
                     {option.airline_code || '--'}
                 </span>
                 <div className="flex flex-col min-w-0">
-                    <span className="text-sm font-medium text-slate-900 truncate">
-                        {option.airline_name || airline?.name || option.airline_code || 'Companhia'}
-                    </span>
+                    <div className="flex items-center gap-1 min-w-0">
+                        <span className="text-sm font-medium text-slate-900 truncate">
+                            {option.airline_name || airline?.name || option.airline_code || 'Companhia'}
+                        </span>
+                        {isCheapest && (
+                            <span
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-700 flex-shrink-0"
+                                title="Menor preço entre as opções"
+                            >
+                                <TrendingDown className="h-2.5 w-2.5" />
+                                Mais barato
+                            </span>
+                        )}
+                        {isFastest && (
+                            <span
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0 rounded-full text-[9px] font-bold bg-indigo-100 text-indigo-700 flex-shrink-0"
+                                title="Menor duração entre as opções"
+                            >
+                                <Zap className="h-2.5 w-2.5" />
+                                Mais rápido
+                            </span>
+                        )}
+                    </div>
                     <span className="font-mono text-xs text-slate-500 truncate">
                         {option.flight_number || '----'}
                     </span>

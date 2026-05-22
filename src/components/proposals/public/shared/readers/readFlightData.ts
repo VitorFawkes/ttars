@@ -306,35 +306,39 @@ export function isFlightItem(item: ProposalItemWithOptions): boolean {
 }
 
 /**
- * Calcula duração total de um leg
+ * Calcula duração total de um leg.
+ * Tolera lixo nos horários ("23:40 (+1)", " 22:30 ", "+2 day") — extrai
+ * HH:MM e detecta sufixo "(+N)" como dias extras. Devolve '' se inválido
+ * (NUNCA "NaNh").
  */
 export function calculateLegDuration(leg: FlightLegViewData): string {
   const option = leg.selectedOption
   if (!option) return ''
 
-  const depTime = option.departureTime
-  const arrTime = option.arrivalTime
-
-  if (!depTime || !arrTime) return ''
-
-  try {
-    // Assume mesmo dia se não tiver data completa
-    const depDate = new Date(`2000-01-01T${depTime}:00`)
-    let arrDate = new Date(`2000-01-01T${arrTime}:00`)
-
-    // Se chegada é antes da partida, assume dia seguinte
-    if (arrDate < depDate) {
-      arrDate = new Date(`2000-01-02T${arrTime}:00`)
-    }
-
-    const diffMs = arrDate.getTime() - depDate.getTime()
-    const hours = Math.floor(diffMs / (1000 * 60 * 60))
-    const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))
-
-    if (hours === 0) return `${mins}min`
-    if (mins === 0) return `${hours}h`
-    return `${hours}h${mins}min`
-  } catch {
-    return ''
+  const parse = (raw?: string | null): { h: number; m: number; extraDays: number } | null => {
+    if (!raw) return null
+    const s = String(raw)
+    const hhmm = s.match(/(\d{1,2}):(\d{2})/)
+    if (!hhmm) return null
+    const h = Number(hhmm[1])
+    const m = Number(hhmm[2])
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null
+    const plus = s.match(/\(?\+(\d+)\)?/)
+    return { h, m, extraDays: plus ? Number(plus[1]) : 0 }
   }
+
+  const dep = parse(option.departureTime)
+  const arr = parse(option.arrivalTime)
+  if (!dep || !arr) return ''
+
+  let mins = (arr.h * 60 + arr.m) - (dep.h * 60 + dep.m) + arr.extraDays * 24 * 60
+  if (mins < 0) mins += 24 * 60
+  if (!Number.isFinite(mins) || mins < 0) return ''
+
+  const hours = Math.floor(mins / 60)
+  const minutes = mins % 60
+
+  if (hours === 0) return `${minutes}min`
+  if (minutes === 0) return `${hours}h`
+  return `${hours}h${minutes}min`
 }

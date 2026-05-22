@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils'
 import { readFlightData, calculateLegDuration } from '../../shared/readers'
 import type { FlightLegViewData, FlightOptionViewData } from '../../shared/types'
 import { formatPrice } from '../../shared/utils/priceUtils'
-import { formatDateWithWeekday, formatTime } from '../../shared/utils/dateUtils'
+import { formatDateWithWeekday, formatTime, extractNextDayOffset } from '../../shared/utils/dateUtils'
 
 interface MobileFlightCardProps {
   item: ProposalItemWithOptions
@@ -120,18 +120,21 @@ export function MobileFlightCard({
   const duration = durationLeg ? calculateLegDuration(durationLeg) : ''
   const stops = mainOption?.stops ?? 0
 
-  // Verifica se é dia seguinte (infere pelos horários: se chegada < partida, provavelmente cruzou meia-noite)
+  // Verifica se é dia seguinte. Aceita sufixo "(+1)" no horário OU infere
+  // por comparação (chegada < partida = cruzou meia-noite). Tolera lixo nos
+  // campos sem virar NaN.
   const nextDay = useMemo(() => {
     if (!mainOption?.departureTime || !mainOption?.arrivalTime) return false
-    try {
-      const [depH, depM] = mainOption.departureTime.split(':').map(Number)
-      const [arrH, arrM] = mainOption.arrivalTime.split(':').map(Number)
-      const depMinutes = depH * 60 + depM
-      const arrMinutes = arrH * 60 + arrM
-      return arrMinutes < depMinutes
-    } catch {
-      return false
-    }
+    // Sufixo explícito "(+N)" ganha
+    if (extractNextDayOffset(mainOption.arrivalTime)) return true
+    // Senão, infere por comparação de horários
+    const depMatch = String(mainOption.departureTime).match(/(\d{1,2}):(\d{2})/)
+    const arrMatch = String(mainOption.arrivalTime).match(/(\d{1,2}):(\d{2})/)
+    if (!depMatch || !arrMatch) return false
+    const depMinutes = Number(depMatch[1]) * 60 + Number(depMatch[2])
+    const arrMinutes = Number(arrMatch[1]) * 60 + Number(arrMatch[2])
+    if (!Number.isFinite(depMinutes) || !Number.isFinite(arrMinutes)) return false
+    return arrMinutes < depMinutes
   }, [mainOption])
 
   return (

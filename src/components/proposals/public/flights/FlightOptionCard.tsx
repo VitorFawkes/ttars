@@ -9,7 +9,7 @@
  */
 
 import { memo } from 'react'
-import { Check, Luggage } from 'lucide-react'
+import { Check, Luggage, TrendingDown, Zap, MapPin } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface FlightOptionCardProps {
@@ -25,10 +25,15 @@ interface FlightOptionCardProps {
         baggage: string
         price: number
         is_recommended: boolean
+        stops?: number
     }
     isSelected: boolean
     onSelect: () => void
     showPrice?: boolean
+    /** Marca esta opção como a mais barata entre opções comparadas */
+    isCheapest?: boolean
+    /** Marca esta opção como a mais rápida */
+    isFastest?: boolean
 }
 
 // Calcular duração
@@ -66,10 +71,13 @@ export const FlightOptionCard = memo(function FlightOptionCard({
     option,
     isSelected,
     onSelect,
-    showPrice = true
+    showPrice = true,
+    isCheapest = false,
+    isFastest = false,
 }: FlightOptionCardProps) {
     const duration = calculateDuration(option.departure_time, option.arrival_time)
     const airlineColor = AIRLINE_COLORS[option.airline_code] || AIRLINE_COLORS.default
+    const isDirect = (option.stops ?? 0) === 0
 
     return (
         <button
@@ -94,8 +102,8 @@ export const FlightOptionCard = memo(function FlightOptionCard({
 
                 {/* Conteúdo principal */}
                 <div className="flex-1 min-w-0">
-                    {/* Linha 1: Companhia + Badge recomendado */}
-                    <div className="flex items-center gap-2 mb-2">
+                    {/* Linha 1: Companhia + Badges */}
+                    <div className="flex items-center gap-1.5 mb-2 flex-wrap">
                         <span className={cn(
                             "px-2 py-0.5 rounded-md text-xs font-bold",
                             airlineColor
@@ -108,6 +116,24 @@ export const FlightOptionCard = memo(function FlightOptionCard({
                         {option.is_recommended && (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">
                                 Recomendado
+                            </span>
+                        )}
+                        {isCheapest && (
+                            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700">
+                                <TrendingDown className="h-2.5 w-2.5" />
+                                Mais barato
+                            </span>
+                        )}
+                        {isFastest && (
+                            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700">
+                                <Zap className="h-2.5 w-2.5" />
+                                Mais rápido
+                            </span>
+                        )}
+                        {isDirect && (
+                            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-700">
+                                <MapPin className="h-2.5 w-2.5" />
+                                Direto
                             </span>
                         )}
                     </div>

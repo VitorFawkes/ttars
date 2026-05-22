@@ -40,6 +40,7 @@ import type { BlockType } from '@/pages/ProposalBuilderV4'
 import type { ProposalItemType } from '@/types/proposals'
 import { createInitialCruiseData } from './cruises/types'
 import { createInitialInsuranceData } from './insurance/types'
+import { createInitialFlightData, type FlightTripType } from './flights/types'
 import { HotelCatalogPicker } from './HotelCatalogPicker'
 import { TransferCatalogPicker } from './TransferCatalogPicker'
 import { TourCatalogPicker } from './TourCatalogPicker'
@@ -160,6 +161,7 @@ export function BlockSearchDrawer({
 }: BlockSearchDrawerProps) {
     const [, setSearch] = useState('')
     const [isCreating, setIsCreating] = useState(false)
+    const [flightTripType, setFlightTripType] = useState<FlightTripType>('roundtrip')
     const { addItemFromLibrary, addItem, updateItem } = useProposalBuilder()
 
     // Check features for this block type
@@ -211,13 +213,20 @@ export function BlockSearchDrawer({
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     rich_content: { insurance: createInitialInsuranceData() } as any
                 })
+            } else if (blockType === 'flight') {
+                // Cria voo com a estrutura escolhida pelo wizard
+                // (ida-e-volta, só ida ou multi-cidade)
+                updateItem(itemId, {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    rich_content: { flights: createInitialFlightData(flightTripType) } as any
+                })
             }
 
             onClose()
         } finally {
             setIsCreating(false)
         }
-    }, [sectionId, blockType, addItem, updateItem, onClose])
+    }, [sectionId, blockType, addItem, updateItem, onClose, flightTripType])
 
     // Handle selecting a library result
     const handleSelect = useCallback((item: LibrarySearchResult) => {
@@ -754,6 +763,40 @@ export function BlockSearchDrawer({
                                 <p className="text-sm text-slate-500 mb-6 max-w-xs mx-auto">
                                     Adicione um novo {label.toLowerCase()} e preencha os dados manualmente
                                 </p>
+
+                                {/* Wizard de tipo de voo (só pra blockType === 'flight') */}
+                                {blockType === 'flight' && (
+                                    <div className="mb-5">
+                                        <p className="text-xs font-medium text-slate-700 mb-2">Tipo de viagem</p>
+                                        <div className="grid grid-cols-3 gap-2 max-w-md mx-auto">
+                                            {([
+                                                { value: 'roundtrip', label: 'Ida e volta', hint: '2 trechos' },
+                                                { value: 'oneway', label: 'Só ida', hint: '1 trecho' },
+                                                { value: 'multicity', label: 'Multi-cidade', hint: '3+ trechos' },
+                                            ] as const).map((opt) => (
+                                                <button
+                                                    key={opt.value}
+                                                    type="button"
+                                                    onClick={() => setFlightTripType(opt.value)}
+                                                    className={cn(
+                                                        "rounded-lg border px-3 py-2 text-left transition-all",
+                                                        flightTripType === opt.value
+                                                            ? "border-sky-500 bg-sky-50 ring-1 ring-sky-200"
+                                                            : "border-slate-200 bg-white hover:border-slate-300"
+                                                    )}
+                                                >
+                                                    <div className={cn(
+                                                        "text-sm font-medium",
+                                                        flightTripType === opt.value ? "text-sky-700" : "text-slate-700"
+                                                    )}>
+                                                        {opt.label}
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-500 mt-0.5">{opt.hint}</div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
 
                                 <Button
                                     onClick={handleCreateEmpty}

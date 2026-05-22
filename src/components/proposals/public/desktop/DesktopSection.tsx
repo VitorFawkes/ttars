@@ -113,7 +113,7 @@ export function DesktopSection({
       </div>
 
       {/* Lista de itens */}
-      <div className="space-y-4">
+      <div className="space-y-5">
         {items.map(renderItem)}
       </div>
     </section>

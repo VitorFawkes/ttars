@@ -11,6 +11,7 @@ import { memo, useMemo } from 'react'
 import { Plane, Calendar, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { FlightOptionCard } from './FlightOptionCard'
+import { compareFlightOptions } from '../../v4/flights/comparison'
 
 interface FlightOption {
     id: string
@@ -103,6 +104,9 @@ export const FlightLegSelector = memo(function FlightLegSelector({
         })
     }, [leg.options])
 
+    // Comparação automática entre opções (mais barato / mais rápido)
+    const comparison = useMemo(() => compareFlightOptions(leg.options), [leg.options])
+
     // Opção selecionada (para mostrar quando colapsado)
     const selectedOption = useMemo(() => {
         return leg.options.find(o => o.id === selectedOptionId)
@@ -189,6 +193,8 @@ export const FlightLegSelector = memo(function FlightLegSelector({
                                 isSelected={selectedOptionId === option.id}
                                 onSelect={() => onSelectOption(option.id)}
                                 showPrice={showPrices}
+                                isCheapest={comparison.cheapestId === option.id}
+                                isFastest={comparison.fastestId === option.id}
                             />
                         ))
                     )}

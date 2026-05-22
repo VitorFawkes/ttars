@@ -152,6 +152,128 @@ export interface FlightsData {
 }
 
 /**
+ * Tipos de viagem aérea suportados na criação:
+ * - roundtrip: ida + volta (2 trechos espelhados — padrão, 60% dos casos)
+ * - oneway:    só ida (1 trecho)
+ * - multicity: 3+ trechos (tour Europa, multi-cidade, stopover)
+ */
+export type FlightTripType = 'roundtrip' | 'oneway' | 'multicity'
+
+/**
+ * Cria FlightsData inicial pra um tipo de viagem.
+ * Usado quando o consultor adiciona um bloco "Voo" novo na proposta.
+ */
+export function createInitialFlightData(tripType: FlightTripType = 'roundtrip'): FlightsData {
+    const ts = Date.now()
+    const base = {
+        show_prices: true,
+        allow_mix_airlines: true,
+        default_selections: {} as Record<string, string>,
+    }
+
+    if (tripType === 'oneway') {
+        return {
+            ...base,
+            legs: [
+                {
+                    id: `leg-${ts}-ida`,
+                    leg_type: 'outbound',
+                    label: 'IDA',
+                    origin_code: '',
+                    origin_city: '',
+                    destination_code: '',
+                    destination_city: '',
+                    date: '',
+                    options: [],
+                    ordem: 0,
+                    is_expanded: true,
+                },
+            ],
+        }
+    }
+
+    if (tripType === 'multicity') {
+        return {
+            ...base,
+            legs: [
+                {
+                    id: `leg-${ts}-1`,
+                    leg_type: 'connection',
+                    label: 'TRECHO 1',
+                    origin_code: '',
+                    origin_city: '',
+                    destination_code: '',
+                    destination_city: '',
+                    date: '',
+                    options: [],
+                    ordem: 0,
+                    is_expanded: true,
+                },
+                {
+                    id: `leg-${ts}-2`,
+                    leg_type: 'connection',
+                    label: 'TRECHO 2',
+                    origin_code: '',
+                    origin_city: '',
+                    destination_code: '',
+                    destination_city: '',
+                    date: '',
+                    options: [],
+                    ordem: 1,
+                    is_expanded: true,
+                },
+                {
+                    id: `leg-${ts}-3`,
+                    leg_type: 'connection',
+                    label: 'TRECHO 3',
+                    origin_code: '',
+                    origin_city: '',
+                    destination_code: '',
+                    destination_city: '',
+                    date: '',
+                    options: [],
+                    ordem: 2,
+                    is_expanded: true,
+                },
+            ],
+        }
+    }
+
+    // roundtrip (default)
+    return {
+        ...base,
+        legs: [
+            {
+                id: `leg-${ts}-ida`,
+                leg_type: 'outbound',
+                label: 'IDA',
+                origin_code: '',
+                origin_city: '',
+                destination_code: '',
+                destination_city: '',
+                date: '',
+                options: [],
+                ordem: 0,
+                is_expanded: true,
+            },
+            {
+                id: `leg-${ts}-volta`,
+                leg_type: 'return',
+                label: 'VOLTA',
+                origin_code: '',
+                origin_city: '',
+                destination_code: '',
+                destination_city: '',
+                date: '',
+                options: [],
+                ordem: 1,
+                is_expanded: true,
+            },
+        ],
+    }
+}
+
+/**
  * Helper para criar um novo trecho vazio
  */
 export function createEmptyLeg(
