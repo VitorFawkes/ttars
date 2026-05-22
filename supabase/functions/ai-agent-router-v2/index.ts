@@ -19,6 +19,7 @@ import type { BuildSinglePromptInput } from "./prompt_assembler.ts";
 import { validateBrandCompliance, type ValidatorRule } from "./brand_validator.ts";
 import { loadScoringRulesForPlaybook, type ScoringRule } from "./playbook_loader.ts";
 import { evaluateSubjectiveRules } from "./subjective_evaluator.ts";
+import { getDefaultsForAgent } from "./defaults/index.ts";
 import {
   type AgentRow,
   type BusinessConfigRow,
@@ -370,6 +371,60 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     const business = businessRow as BusinessConfigRow | null;
+
+    // ------------------------------------------------------------------
+    // 2.1 Resolve placeholders dinâmicos do business pra prompt
+    //
+    // Carrega nome da Wedding Planner (FK profiles via
+    // ai_agents.wedding_planner_profile_id) e calcula o nome curto pra
+    // conversa íntima. Junta com os 5 campos editáveis do
+    // ai_agent_business_config + fallbacks do defaults curado por agente.
+    // ------------------------------------------------------------------
+    let wpName: string | null = null;
+    let wpShort: string | null = null;
+    const wpId = (agent as unknown as { wedding_planner_profile_id?: string | null }).wedding_planner_profile_id;
+    if (wpId) {
+      const { data: wpRow } = await supabase
+        .from("profiles")
+        .select("nome")
+        .eq("id", wpId)
+        .maybeSingle();
+      if (wpRow?.nome) {
+        wpName = wpRow.nome.trim();
+        const parts = wpName.split(/\s+/).filter(Boolean);
+        wpShort = parts.length >= 2 ? `${parts[0]} ${parts[1]}` : parts[0] || wpName;
+      }
+    }
+
+    const agentDefaults = getDefaultsForAgent(agent.id);
+    const fallbacks = agentDefaults?.businessFallbacks;
+    const businessForPrompt: BuildSinglePromptInput["business"] = business ? {
+      company_name: business.company_name,
+      company_description: business.company_description,
+      methodology_text: business.methodology_text,
+      process_steps: business.process_steps || [],
+      secondary_contact_role_name: business.secondary_contact_role_name,
+      wedding_planner_name: wpName ?? fallbacks?.wedding_planner_name ?? null,
+      wedding_planner_short: wpShort ?? fallbacks?.wedding_planner_short ?? null,
+      honorario_faixa: business.honorario_faixa_text ?? fallbacks?.honorario_faixa ?? null,
+      empresa_stats: business.empresa_stats_text ?? fallbacks?.empresa_stats ?? null,
+      network_regions: business.network_regions_text ?? fallbacks?.network_regions ?? null,
+      destination_categories: business.destination_categories_text ?? fallbacks?.destination_categories ?? null,
+      brochure_policy: business.brochure_policy_text ?? fallbacks?.brochure_policy ?? null,
+    } : (fallbacks ? {
+      company_name: null,
+      company_description: null,
+      methodology_text: null,
+      process_steps: [],
+      secondary_contact_role_name: null,
+      wedding_planner_name: wpName ?? fallbacks.wedding_planner_name,
+      wedding_planner_short: wpShort ?? fallbacks.wedding_planner_short,
+      honorario_faixa: fallbacks.honorario_faixa,
+      empresa_stats: fallbacks.empresa_stats,
+      network_regions: fallbacks.network_regions,
+      destination_categories: fallbacks.destination_categories,
+      brochure_policy: fallbacks.brochure_policy,
+    } : null);
 
     // ------------------------------------------------------------------
     // 3. Find or create contato
@@ -863,37 +918,16 @@ Deno.serve(async (req) => {
         console.log(`[v2] trigger: convertendo orçamento ${original} ${moedaOriginal} × ${cotacaoUsada} = ${orcamentoTeto} BRL`);
       }
 
+      // NOTA: removidos os pisos hardcoded de viabilidade (<R$800/conv =
+      // inviável; <R$2500/conv = fronteira exigindo 2 opcionais). Eram regras
+      // paralelas ao scoring que sobrepunham (e contradiziam) a régua real
+      // configurável pela UI. Agora quem decide qualificação é APENAS o
+      // scoring (ai_agent_scoring_rules + threshold). Pra ajustar
+      // sensibilidade, mexer nas regras de scoring (que combinam destino +
+      // valor + bônus) — não em código.
       const valorPorPax = (orcamentoTeto && numConv > 0) ? orcamentoTeto / numConv : null;
-      const isFronteira = valorPorPax !== null && valorPorPax < 2500;
-      // Piso ABSOLUTO de inviabilidade: valor/conv < R$ 800 — escopo claramente
-      // fora da Welcome, vai direto pra desfecho_nao_qualificado sem sondar
-      // opcionais. Sobrepõe o trigger normal de score.
-      const isInviavelResistente = valorPorPax !== null && valorPorPax < 800;
-      if (isInviavelResistente && !forcedMomentKey) {
-        forcedMomentKey = "desfecho_nao_qualificado";
-        console.log(`[v2] trigger: inviabilidade resistente (valor/conv=${Math.round(valorPorPax)}) → forçando desfecho_nao_qualificado`);
-      }
 
-      const viajouInternacional = trackedData["ww_sdr_perfil_viagem_internacional"];
-      const ajudaFamilia = trackedData["ww_sdr_ajuda_familia"];
-      const opcionaisColetadas = viajouInternacional != null && ajudaFamilia != null;
-
-      const podeDesfechar = !isFronteira || opcionaisColetadas;
-
-      // FRONTEIRA + opcionais ainda não coletadas → força LLM a ficar na
-      // sondagem (perguntar viagem internacional + apoio família) ANTES de
-      // qualquer desfecho. Sem isso, o LLM pulava pra desfecho_qualificado
-      // direto (red_line só protegia o caminho do não-qualificado). Bug
-      // observado 2026-05-12: caso 50k/30/Nordeste virou qualificado direto
-      // sem coletar opcionais.
-      if (!podeDesfechar && criticosColetados && isFronteira && !forcedMomentKey) {
-        // Só força sondagem se nenhum trigger anterior (ex: handoff_humano_invisivel
-        // ou desfecho_nao_qualificado por piso) já tomou prioridade.
-        forcedMomentKey = "sondagem";
-        console.log(`[v2] trigger: fronteira sem opcionais → forçando moment=sondagem (valor/pax=${valorPorPax})`);
-      }
-
-      if (podeDesfechar && !isInviavelResistente) {
+      {
         // Chamar RPC determinística + avaliar regras ai_subjective via LLM.
         // RPC avalia só {equals, range, boolean_true}. Regras ai_subjective
         // (todas as 14 regras da Patricia) precisam de LLM intermediário. Sem
@@ -1256,13 +1290,7 @@ Deno.serve(async (req) => {
         cognitive_audit_config: (agent as unknown as { cognitive_audit_config?: Record<string, unknown> | null }).cognitive_audit_config ?? null,
         data_update_rules: (agent as unknown as { data_update_rules?: BuildSinglePromptInput["agent"]["data_update_rules"] }).data_update_rules ?? null,
       },
-      business: business ? {
-        company_name: business.company_name,
-        company_description: business.company_description,
-        methodology_text: business.methodology_text,
-        process_steps: business.process_steps || [],
-        secondary_contact_role_name: business.secondary_contact_role_name,
-      } : null,
+      business: businessForPrompt,
       conversationState: {
         historico_compacto: historico,
         last_lead_message: processedText,
@@ -1596,13 +1624,7 @@ Deno.serve(async (req) => {
             listening_config: agent.listening_config,
             scheduling_config: agent.scheduling_config,
           },
-          business: business ? {
-            company_name: business.company_name,
-            company_description: business.company_description,
-            methodology_text: business.methodology_text,
-            process_steps: business.process_steps || [],
-            secondary_contact_role_name: business.secondary_contact_role_name,
-          } : null,
+          business: businessForPrompt,
           conversationState: {
             historico_compacto: historico,
             last_lead_message: processedText,

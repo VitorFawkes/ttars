@@ -116,6 +116,13 @@ export interface BusinessConfigRow {
   contact_update_fields: string[] | null;
   secondary_contact_role_name: string | null;
   custom_blocks: unknown;
+  // Campos editáveis pelo admin que substituem trechos antes hardcoded no
+  // texto canônico da Patricia. Adicionados em migration 20260521b.
+  empresa_stats_text: string | null;
+  network_regions_text: string | null;
+  destination_categories_text: string | null;
+  brochure_policy_text: string | null;
+  honorario_faixa_text: string | null;
 }
 
 export interface IncomingMessageInput {

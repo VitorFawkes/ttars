@@ -936,3 +936,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-21T17:52:06Z | supabase/migrations/20260521_gift_status_add_a_enviar.sql | applied_to_prod
 2026-05-21T20:45:44Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260521a_patricia_prompt_cleanup.sql | applied_to_prod
 2026-05-21T20:47:57Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260521a_patricia_prompt_cleanup.sql | applied_to_prod
+2026-05-21T22:24:41Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260521b_patricia_business_fields.sql | applied_to_prod
