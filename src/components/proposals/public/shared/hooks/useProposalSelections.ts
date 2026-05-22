@@ -8,6 +8,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import type { ProposalSectionWithItems, ProposalItemWithOptions } from '@/types/proposals'
 import type { SelectionsMap } from '../types'
+import { resolveSelectionMode } from '../sectionMode'
 
 interface UseProposalSelectionsResult {
   selections: SelectionsMap
@@ -27,35 +28,38 @@ interface UseProposalSelectionsResult {
 export function useProposalSelections(
   sections: ProposalSectionWithItems[]
 ): UseProposalSelectionsResult {
-  // Inicializa seleções baseado nas seções e itens
+  // Inicializa seleções baseado no modo de seleção configurado por seção
   const initialSelections = useMemo(() => {
     const selections: SelectionsMap = {}
 
     sections.forEach(section => {
       const items = section.items || []
+      const mode = resolveSelectionMode(section)
 
-      // Detecta modo de seleção
-      const isSelectable = items.length >= 2
-      const allOptional = items.every(item => item.is_optional)
+      // Pra modo radio (pick_one_required), marca EXATAMENTE 1 item:
+      // o primeiro com is_default_selected=true, ou o primeiro item da lista.
+      // (Os items todos vêm com is_default_selected=true do banco — não dá
+      // pra usar como sinal de "qual marcar" no modo radio.)
+      const radioDefaultIndex = mode === 'pick_one_required'
+        ? Math.max(0, items.findIndex(it => it.is_default_selected))
+        : -1
 
       items.forEach((item, idx) => {
-        if (isSelectable) {
-          // Modo radio: seleciona primeiro ou is_default_selected
-          const shouldSelect = idx === 0 || item.is_default_selected
-          selections[item.id] = {
-            selected: shouldSelect,
-            quantity: 1,
-          }
-        } else if (allOptional || item.is_optional) {
-          // Modo toggle: usa is_default_selected
-          selections[item.id] = {
-            selected: item.is_default_selected ?? false,
-            quantity: 1,
-          }
+        if (mode === 'all_included') {
+          // Todos sempre marcados, sem escolha do cliente
+          selections[item.id] = { selected: true, quantity: 1 }
+        } else if (mode === 'pick_one_required') {
+          // Radio: marca APENAS o item escolhido como default
+          selections[item.id] = { selected: idx === radioDefaultIndex, quantity: 1 }
+        } else if (mode === 'pick_one_or_more') {
+          // Checkbox com mín 1: marca o que vier como default; se nenhum, marca o primeiro
+          const anyDefault = items.some(it => it.is_default_selected)
+          const shouldSelect = anyDefault ? !!item.is_default_selected : idx === 0
+          selections[item.id] = { selected: shouldSelect, quantity: 1 }
         } else {
-          // Item obrigatório único: sempre selecionado
+          // pick_any_optional: respeita is_default_selected
           selections[item.id] = {
-            selected: true,
+            selected: !!item.is_default_selected,
             quantity: 1,
           }
         }
@@ -67,11 +71,14 @@ export function useProposalSelections(
 
   const [selections, setSelections] = useState<SelectionsMap>(initialSelections)
 
-  // Mapa de seção -> itens para seleção exclusiva
-  const sectionToItemsMap = useMemo(() => {
-    const map = new Map<string, ProposalItemWithOptions[]>()
+  // Mapa de seção -> (itens, modo) para seleção exclusiva
+  const sectionInfo = useMemo(() => {
+    const map = new Map<string, { items: ProposalItemWithOptions[]; mode: ReturnType<typeof resolveSelectionMode> }>()
     sections.forEach(section => {
-      map.set(section.id, section.items || [])
+      map.set(section.id, {
+        items: section.items || [],
+        mode: resolveSelectionMode(section),
+      })
     })
     return map
   }, [sections])
@@ -90,39 +97,38 @@ export function useProposalSelections(
   }, [])
 
   /**
-   * Seleciona item de forma exclusiva na seção (para modo radio)
+   * Seleciona item respeitando o modo da seção.
+   * - pick_one_required: radio (desmarca os outros)
+   * - pick_one_or_more / pick_any_optional: checkbox (só toggle do alvo)
+   * - all_included: sempre marcado, click é no-op
    */
   const selectItem = useCallback((sectionId: string, itemId: string) => {
-    const sectionItems = sectionToItemsMap.get(sectionId) || []
+    const info = sectionInfo.get(sectionId)
+    if (!info) return
+    const { items, mode } = info
 
-    // Se seção tem 2+ itens, é seleção exclusiva
-    if (sectionItems.length >= 2) {
+    if (mode === 'all_included') {
+      return // sem ação — todos permanecem marcados
+    }
+
+    if (mode === 'pick_one_required') {
+      // Radio exclusivo: marca este e desmarca os outros
       setSelections(prev => {
-        const newSelections = { ...prev }
-
-        // Desmarca todos os outros da seção
-        sectionItems.forEach(item => {
-          if (item.id !== itemId) {
-            newSelections[item.id] = {
-              ...newSelections[item.id],
-              selected: false,
-            }
+        const next = { ...prev }
+        items.forEach(item => {
+          next[item.id] = {
+            ...next[item.id],
+            selected: item.id === itemId,
           }
         })
-
-        // Marca o selecionado
-        newSelections[itemId] = {
-          ...newSelections[itemId],
-          selected: true,
-        }
-
-        return newSelections
+        return next
       })
-    } else {
-      // Single item, apenas toggle
-      toggleItem(itemId)
+      return
     }
-  }, [sectionToItemsMap, toggleItem])
+
+    // pick_one_or_more / pick_any_optional → toggle simples
+    toggleItem(itemId)
+  }, [sectionInfo, toggleItem])
 
   /**
    * Seleciona opção de um item
@@ -193,7 +199,11 @@ export function useProposalSelections(
 }
 
 /**
- * Valida se todas as seleções obrigatórias foram feitas
+ * Valida se todas as seleções obrigatórias foram feitas baseado no modo
+ * de seleção configurado por seção.
+ *
+ * pick_one_required / pick_one_or_more → exige pelo menos 1 selecionado.
+ * pick_any_optional / all_included / auto-com-1-item → sempre ok.
  */
 export function validateSelections(
   sections: ProposalSectionWithItems[],
@@ -203,12 +213,16 @@ export function validateSelections(
 
   sections.forEach(section => {
     const items = section.items || []
+    if (items.length === 0) return
+    const mode = resolveSelectionMode(section)
 
-    // Seções com 2+ itens requerem uma seleção
-    if (items.length >= 2) {
+    if (mode === 'pick_one_required' || mode === 'pick_one_or_more') {
       const hasSelection = items.some(item => selections[item.id]?.selected)
       if (!hasSelection) {
-        errors.push(`Selecione uma opção em "${section.title}"`)
+        const label = mode === 'pick_one_required'
+          ? `Selecione 1 opção em "${section.title}"`
+          : `Selecione pelo menos 1 item em "${section.title}"`
+        errors.push(label)
       }
     }
   })

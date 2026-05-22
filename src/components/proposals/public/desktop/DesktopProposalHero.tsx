@@ -29,79 +29,51 @@ export function DesktopProposalHero({ proposal }: DesktopProposalHeroProps) {
   const coverRichContent = coverItem?.rich_content as Record<string, unknown> | undefined
   const heroImage = coverImageUrl || coverRichContent?.cover_image_url as string | undefined || coverItem?.image_url
 
+  const chips = (
+    <div className="flex flex-wrap gap-2">
+      {destination && (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+          <MapPin className="h-3 w-3 text-slate-500" />
+          {destination}
+        </span>
+      )}
+      {travelDates && (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+          <Calendar className="h-3 w-3 text-slate-500" />
+          {travelDates}
+        </span>
+      )}
+      {travelers && (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+          <Users className="h-3 w-3 text-slate-500" />
+          {travelers}
+        </span>
+      )}
+    </div>
+  )
+
   return (
-    <div className="relative rounded-2xl overflow-hidden mb-8">
+    <div className="mb-8">
+      {/* Imagem decorativa (se houver) */}
       {heroImage ? (
-        <div className="relative h-80 w-full">
+        <div className="mb-6 overflow-hidden rounded-2xl">
           <img
             src={heroImage}
             alt={title}
-            className="w-full h-full object-cover"
+            className="h-64 w-full object-cover"
           />
-          {/* Overlay gradiente */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+        </div>
+      ) : null}
 
-          {/* Conteúdo sobre a imagem */}
-          <div className="absolute bottom-0 left-0 right-0 p-8 text-white">
-            <h1 className="text-4xl font-bold leading-tight mb-2">
-              {title}
-            </h1>
-            {subtitle && (
-              <p className="text-white/80 text-lg mb-4 max-w-2xl">{subtitle}</p>
-            )}
-            <div className="flex flex-wrap gap-4">
-              {destination && (
-                <span className="flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
-                  <MapPin className="h-4 w-4" />
-                  {destination}
-                </span>
-              )}
-              {travelDates && (
-                <span className="flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
-                  <Calendar className="h-4 w-4" />
-                  {travelDates}
-                </span>
-              )}
-              {travelers && (
-                <span className="flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
-                  <Users className="h-4 w-4" />
-                  {travelers}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : (
-        // Fallback sem imagem
-        <div className="bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 px-8 py-12 text-white">
-          <h1 className="text-4xl font-bold leading-tight mb-2">
-            {title}
-          </h1>
-          {subtitle && (
-            <p className="text-white/80 text-lg mb-4 max-w-2xl">{subtitle}</p>
-          )}
-          <div className="flex flex-wrap gap-4">
-            {destination && (
-              <span className="flex items-center gap-2 bg-white/20 px-4 py-2 rounded-full">
-                <MapPin className="h-4 w-4" />
-                {destination}
-              </span>
-            )}
-            {travelDates && (
-              <span className="flex items-center gap-2 bg-white/20 px-4 py-2 rounded-full">
-                <Calendar className="h-4 w-4" />
-                {travelDates}
-              </span>
-            )}
-            {travelers && (
-              <span className="flex items-center gap-2 bg-white/20 px-4 py-2 rounded-full">
-                <Users className="h-4 w-4" />
-                {travelers}
-              </span>
-            )}
-          </div>
-        </div>
+      {/* Título + chips — alinhados com os títulos de seção abaixo
+          (sem padding interno extra, mesmo edge da coluna principal). */}
+      <h1 className="mb-3 text-3xl font-bold tracking-tight text-slate-900">
+        {title}
+      </h1>
+      {subtitle && (
+        <p className="mb-4 max-w-3xl text-base text-slate-600">{subtitle}</p>
       )}
+      {(destination || travelDates || travelers) && chips}
     </div>
   )
 }

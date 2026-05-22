@@ -10,6 +10,7 @@ import { ShoppingBag, Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SelectionsMap } from '../shared/types'
 import { formatPrice, type Currency } from '../shared/utils/priceUtils'
+import { resolveSelectionMode } from '../shared/sectionMode'
 
 interface SelectedItemSummary {
   id: string
@@ -51,10 +52,13 @@ export function DesktopSidebar({
     return acc
   }, {} as Record<string, SelectedItemSummary[]>)
 
-  // Conta seções com itens não selecionados
+  // Conta seções que ainda precisam de seleção, respeitando o modo configurado
+  // pelo consultor (pick_one_required / pick_one_or_more exigem 1+; demais não).
   const incompleteSections = sections.filter(section => {
     const items = section.items || []
-    if (items.length < 2) return false // Seção single não precisa de validação
+    if (items.length === 0) return false
+    const mode = resolveSelectionMode(section)
+    if (mode !== 'pick_one_required' && mode !== 'pick_one_or_more') return false
     const hasSelection = items.some(item => selections[item.id]?.selected)
     return !hasSelection
   })

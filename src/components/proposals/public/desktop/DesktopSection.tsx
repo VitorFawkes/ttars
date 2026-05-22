@@ -42,7 +42,9 @@ export function DesktopSection({
   const effectiveMode = resolveSelectionMode(section)
   const isRadioMode = effectiveMode === 'pick_one_required'
 
-  // Renderiza item baseado no tipo
+  // Renderiza item baseado no tipo.
+  // IMPORTANTE: `key` precisa ir DIRETO no JSX (não via spread) pra evitar
+  // warning do React e garantir reconciliação correta.
   const renderItem = (item: ProposalItemWithOptions) => {
     const selection = selections[item.id]
     const isSelected = selection?.selected || false
@@ -50,7 +52,6 @@ export function DesktopSection({
     const quantity = selection?.quantity || 1
 
     const commonProps = {
-      key: item.id,
       item,
       isSelected,
       selectedOptionId,
@@ -65,7 +66,7 @@ export function DesktopSection({
 
     switch (item.item_type) {
       case 'hotel':
-        return <DesktopHotelCard {...commonProps} />
+        return <DesktopHotelCard key={item.id} {...commonProps} />
       case 'flight':
         return (
           <DesktopFlightCard
@@ -79,11 +80,11 @@ export function DesktopSection({
           />
         )
       case 'experience':
-        return <DesktopExperienceCard {...commonProps} />
+        return <DesktopExperienceCard key={item.id} {...commonProps} />
       case 'transfer':
-        return <DesktopTransferCard {...commonProps} />
+        return <DesktopTransferCard key={item.id} {...commonProps} />
       case 'insurance':
-        return <DesktopInsuranceCard {...commonProps} />
+        return <DesktopInsuranceCard key={item.id} {...commonProps} />
       default:
         return <FallbackCard key={item.id} item={item} isSelected={isSelected} />
     }
