@@ -171,16 +171,22 @@ export function ConfigurarEnvioModal({ open, onClose, cardId, weddingTitulo, tem
     }
   }, [open, phoneNumberId, linhas])
 
-  // Convidados ativos = não declinaram (status != 'nao_vai').
+  // Envio padrão = quem ainda não respondeu definitivamente.
+  // Exclui 'nao_vai' (declinou) e 'confirmado' (já confirmou — não precisa
+  // mais ser lembrado). Mantém 'sem_reacao' e 'intencao'.
   // Quando `targetGuestIds` veio (aba Envio Específico), respeita a seleção
-  // manual do usuário — inclusive permitindo "nao_vai" se ele marcou — e
-  // continua filtrando por telefone presente.
+  // manual do usuário — inclusive permitindo qualquer status — e continua
+  // filtrando por telefone presente.
   const recipients = useMemo(() => {
     if (targetGuestIds && targetGuestIds.length > 0) {
       const set = new Set(targetGuestIds)
       return guests.filter(g => set.has(g.id) && (g.telefone ?? '').trim().length > 0)
     }
-    return guests.filter(g => g.status_rsvp !== 'nao_vai' && (g.telefone ?? '').trim().length > 0)
+    return guests.filter(g =>
+      g.status_rsvp !== 'nao_vai' &&
+      g.status_rsvp !== 'confirmado' &&
+      (g.telefone ?? '').trim().length > 0,
+    )
   }, [guests, targetGuestIds])
 
   const firstContact = recipients[0] ?? null

@@ -937,3 +937,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-21T20:45:44Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260521a_patricia_prompt_cleanup.sql | applied_to_prod
 2026-05-21T20:47:57Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260521a_patricia_prompt_cleanup.sql | applied_to_prod
 2026-05-21T22:24:41Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260521b_patricia_business_fields.sql | applied_to_prod
+2026-05-22T12:54:34Z | supabase/migrations/20260522_wedme_rsvp_outbox_dual_target.sql | applied_to_prod
+2026-05-22T13:47:54Z | supabase/migrations/20260522b_process_whatsapp_raw_event_skip_131026.sql | applied_to_prod
