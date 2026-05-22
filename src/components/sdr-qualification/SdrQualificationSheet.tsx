@@ -270,7 +270,7 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
             <Sheet open={open} onOpenChange={handleClose}>
                 <SheetContent side="right" className="w-full sm:max-w-xl p-0 flex flex-col">
                     <SheetTitle className="sr-only">Qualificar lead</SheetTitle>
-                    <SheetDescription className="sr-only">Pontuação em tempo real, mesmas regras que a Estela.</SheetDescription>
+                    <SheetDescription className="sr-only">Pontuação em tempo real, mesmas regras que a Patricia.</SheetDescription>
                     {rulesLoading || session.starting ? (
                         <div className="flex-1 flex items-center justify-center">
                             <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
@@ -780,7 +780,7 @@ function FaixasValorModal({
                 <div className="px-6 pt-6 pb-3 border-b border-slate-200">
                     <SheetTitle className="text-lg font-semibold text-slate-900">Faixas de pontuação por valor por convidado</SheetTitle>
                     <SheetDescription className="text-sm text-slate-500 mt-1">
-                        São as mesmas regras que a Estela usa. A faixa atual aparece destacada.
+                        São as mesmas regras que a Patricia usa. A faixa atual aparece destacada.
                     </SheetDescription>
                 </div>
                 <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
@@ -821,7 +821,7 @@ function FaixasValorModal({
                         </ul>
                     )}
                     <p className="text-xs text-slate-500 pt-3 leading-snug">
-                        Caso o casal tenha indicado mais de um destino, a Estela considera a pontuação do destino de maior peso.
+                        Caso o casal tenha indicado mais de um destino, a Patricia considera a pontuação do destino de maior peso.
                         Aqui também: a faixa de valor por convidado é única por pontuação.
                     </p>
                 </div>
@@ -867,7 +867,7 @@ function ScoreHeader({
             <div className="flex items-start justify-between mb-3">
                 <div>
                     <h2 className="text-sm font-medium text-slate-600">Qualificar lead</h2>
-                    <p className="text-xs text-slate-500 mt-0.5">Mesmas regras que a Estela aplica.</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Mesmas regras que a Patricia aplica.</p>
                 </div>
                 {!cardId && (
                     <button

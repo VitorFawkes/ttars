@@ -67,7 +67,7 @@ export function ProximoPassoModal({ open, onClose, score, threshold, qualificado
                         <p className="text-sm text-slate-600 mt-1">{sugestao.descricao}</p>
                         {fallbackAction && !disqualified && !qualificado && (
                             <p className="text-xs text-slate-500 mt-2">
-                                Ação fallback da Estela: <span className="font-mono">{fallbackAction}</span>
+                                Ação fallback da Patricia: <span className="font-mono">{fallbackAction}</span>
                             </p>
                         )}
                     </div>

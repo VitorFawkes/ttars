@@ -1,7 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 
-export const ESTELA_AGENT_ID = '43180319-650c-490a-87be-f275550285f8'
+// Estela (V1) foi apagada do banco em 21/05/2026 (commit 35735f94). Patricia (V2) virou o
+// único agente ativo de Weddings e herdou as regras de pontuação. A calculadora "Qualificar
+// lead" usa essa mesma régua. Constante mantém o nome ESTELA_AGENT_ID por compatibilidade
+// de imports — o que importa é o valor apontar pro agente ativo.
+export const ESTELA_AGENT_ID = '4d96d9b4-e909-4441-bd85-d3f807cccfa7'
 export const WEDDINGS_ORG_ID = 'b0000000-0000-0000-0000-000000000002'
 
 export type ScoringRule = {
