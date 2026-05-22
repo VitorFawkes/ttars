@@ -234,17 +234,26 @@ Deno.serve(async (req) => {
                             const wppId = data.whatsapp_message_id || singlePayload.whatsapp_message_id;
                             if (statusName === "failed" && wppId) {
                                 const errorMsg = data.error_message || data.error || singlePayload.error_message || singlePayload.error || "Falha reportada pelo WhatsApp";
-                                // Marca a mensagem outbound como erro
+                                // Echo já faz fallback automático com variação do número (com/sem 9)
+                                // quando Meta devolve #131026 "Message undeliverable". Não marcar
+                                // como falha final — fica pending_fallback até confirmação.
+                                const isUndeliverable131026 = /message undeliverable/i.test(String(errorMsg));
                                 const { data: msgRow } = await supabaseClient
                                     .from("whatsapp_messages")
-                                    .update({ has_error: true, error_message: errorMsg, ack_status: -1 })
+                                    .update(
+                                        isUndeliverable131026
+                                            ? { status: "pending_fallback", error_message: errorMsg, ack_status: -1 }
+                                            : { has_error: true, error_message: errorMsg, ack_status: -1 }
+                                    )
                                     .eq("whatsapp_message_id", wppId)
                                     .select("id, metadata")
                                     .maybeSingle();
-                                // Se a mensagem tem envio_lote_id, incrementa o failed do lote
-                                const loteId = (msgRow?.metadata as Record<string, unknown> | null)?.envio_lote_id;
-                                if (typeof loteId === "string") {
-                                    await supabaseClient.rpc("increment_envio_lote_failed", { p_lote_id: loteId });
+                                // Só incrementa failed do lote se for falha real (não fallback em andamento)
+                                if (!isUndeliverable131026) {
+                                    const loteId = (msgRow?.metadata as Record<string, unknown> | null)?.envio_lote_id;
+                                    if (typeof loteId === "string") {
+                                        await supabaseClient.rpc("increment_envio_lote_failed", { p_lote_id: loteId });
+                                    }
                                 }
                             }
                         } catch (err) {
