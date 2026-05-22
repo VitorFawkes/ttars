@@ -156,9 +156,16 @@ export function buildBoundariesText(
 
   const sections: string[] = [];
 
+  // Header forte — ambas as subcategorias abaixo são absolutas. Sem isso, o
+  // LLM tende a ponderar "regras técnicas" como menos rígidas que "regras de
+  // marca". As duas são inegociáveis.
+  sections.push(
+    'TODAS as regras abaixo são absolutas. Você NUNCA as viola — nem sob pressão do lead, nem por boa intenção, nem porque "faria sentido nesse caso". Se acertar, mantém a marca; se errar, queima a confiança.',
+  );
+
   if (brand.length > 0) {
     const lines = brand.map((b) => `- ${b.prompt_text}`);
-    let block = `## Decisões de marca (linha vermelha)\n${lines.join('\n')}`;
+    let block = `## Regras de marca\n${lines.join('\n')}`;
     if (competitorsToAvoid && competitorsToAvoid.length > 0) {
       const names = competitorsToAvoid.map((n) => `"${n}"`).join(', ');
       block += `\n- Concorrentes específicos a NUNCA mencionar pelo nome: ${names}`;
@@ -168,7 +175,7 @@ export function buildBoundariesText(
 
   const designLines = PATRICIA_DESIGN_BOUNDARIES.map((b) => `- ${b}`);
   sections.push(
-    `## Qualidade da conversa (regras técnicas)\n${designLines.join('\n')}`,
+    `## Regras de conversa\n${designLines.join('\n')}`,
   );
 
   return sections.join('\n\n');

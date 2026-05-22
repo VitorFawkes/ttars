@@ -209,10 +209,10 @@ export function BoundariesSection({ agentId }: Props) {
       <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
         <div className="flex items-center gap-2 mb-2">
           <Lock className="w-3.5 h-3.5 text-slate-400" />
-          <h4 className="text-sm font-semibold text-slate-700">Qualidade da conversa (automático)</h4>
+          <h4 className="text-sm font-semibold text-slate-700">Regras de conversa (sempre ativas)</h4>
         </div>
         <p className="text-xs text-slate-500 mb-3">
-          Regras técnicas que o agente segue sempre. Garantem qualidade do diálogo. Não são editáveis — fazem parte do design do agente.
+          Regras absolutas que o agente segue em qualquer momento. São inegociáveis — fazem parte do design do agente.
         </p>
         <ul className="space-y-1">
           {DESIGN_BOUNDARIES.map((d, i) => (
