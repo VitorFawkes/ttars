@@ -17,9 +17,11 @@ export function useOrgSwitch() {
             const { error: refreshError } = await supabase.auth.refreshSession()
             if (refreshError) throw refreshError
         },
-        onSuccess: () => {
+        onSuccess: async () => {
             // Nova org = novo escopo de dados. Produto é derivado da org via useProductContext.
-            queryClient.clear()
+            // invalidateQueries (vs clear) preserva cache antigo até a refetch terminar,
+            // evitando flash de loading que dispara reflow/flicker da sidebar.
+            await queryClient.invalidateQueries({ refetchType: 'active' })
         },
     })
 }
