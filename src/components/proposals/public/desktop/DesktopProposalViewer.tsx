@@ -106,13 +106,13 @@ export function DesktopProposalViewer({ proposal }: DesktopProposalViewerProps) 
     <div className="fixed inset-0 overflow-y-auto bg-slate-50">
       <div className="min-h-full">
         <div className="max-w-7xl mx-auto px-4 py-8">
-          {/* Hero */}
-          <DesktopProposalHero proposal={proposal} />
-
-          {/* Layout de duas colunas */}
+          {/* Layout de duas colunas — hero dentro da coluna principal pra
+              ficar alinhado com os cards abaixo (antes esticava até a borda
+              do sidebar e dava sensação de desalinhamento). */}
           <div className="flex gap-8">
-            {/* Coluna principal - Seções */}
+            {/* Coluna principal - Hero + Seções */}
             <main className="flex-1 min-w-0">
+              <DesktopProposalHero proposal={proposal} />
               {contentSections.map(section => (
                 <DesktopSection
                   key={section.id}
