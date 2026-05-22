@@ -38,7 +38,8 @@ interface LinhaHistorico {
   position: number
   // Acumulado de envios bem-sucedidos de TODOS os lotes do grupo
   totalSent: number
-  // Total de convidados da campanha (= total do primeiro lote, ou último — equivalentes)
+  // Total de convidados da campanha (= total do lote original; reenvios são
+  // subsets das falhas, não somam ao denominador)
   totalConvidados: number
 }
 
@@ -172,9 +173,10 @@ export function EnviosDoDiaBoard() {
     // Cada grupo (cardId, slug) vira 1 linha de histórico
     for (const grupo of gruposPorCardSlug.values()) {
       const ultimo = grupo[0]
+      const original = grupo[grupo.length - 1]
       const sl = categoriaForSlug(ultimo.template_slug)
       const totalSent = grupo.reduce((acc, l) => acc + l.sent, 0)
-      const totalConvidados = ultimo.total  // mesmo conjunto de elegíveis (reenvios usam mesma base)
+      const totalConvidados = original.total
       out.push({
         kind: 'lote',
         lote: ultimo,
