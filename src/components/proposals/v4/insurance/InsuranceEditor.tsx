@@ -33,11 +33,22 @@ interface InsuranceEditorProps {
 export function InsuranceEditor({ data, onChange, itemId }: InsuranceEditorProps) {
     const insuranceData = useMemo(() => {
         const raw = data || createInitialInsuranceData()
-        // Ensure arrays are always defined
+        // Garante que arrays sejam SEMPRE arrays — defesa contra dados antigos
+        // que vieram como objeto (ex: { medical_emergency: "USD 500k" }).
+        // Converte objeto → array de strings "chave: valor" pra preservar a info.
+        const normalizeCoverages = (raw: unknown): string[] => {
+            if (Array.isArray(raw)) return raw.filter((v) => typeof v === 'string')
+            if (raw && typeof raw === 'object') {
+                return Object.entries(raw as Record<string, unknown>).map(
+                    ([k, v]) => `${k}: ${String(v)}`
+                )
+            }
+            return []
+        }
         return {
             ...raw,
-            options: raw.options || [],
-            coverages: raw.coverages || [],
+            options: Array.isArray(raw.options) ? raw.options : [],
+            coverages: normalizeCoverages(raw.coverages),
         }
     }, [data])
     const [newCoverage, setNewCoverage] = useState('')

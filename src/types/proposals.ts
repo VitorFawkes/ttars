@@ -39,6 +39,31 @@ export type ProposalStatus = Database['public']['Enums']['proposal_status'] | 'i
 export type ProposalSectionType = Database['public']['Enums']['proposal_section_type']
 export type ProposalItemType = Database['public']['Enums']['proposal_item_type']
 
+/**
+ * Modo de seleção da seção pelo cliente, configurável pelo consultor.
+ * Persistido em proposal_sections.config.selection_mode.
+ *
+ *  - 'auto': comportamento histórico — sistema decide (1 item = todos
+ *      incluídos, 2+ items = escolha 1 obrigatório).
+ *  - 'pick_one_required': cliente DEVE escolher 1 item da seção (radio).
+ *  - 'pick_one_or_more': cliente DEVE escolher pelo menos 1, pode mais
+ *      (checkbox, mínimo 1).
+ *  - 'pick_any_optional': cliente pode escolher quantos quiser, incluindo
+ *      nenhum (checkbox, sem validação).
+ *  - 'all_included': sem escolha — tudo está incluído na proposta.
+ */
+export type SectionSelectionMode =
+    | 'auto'
+    | 'pick_one_required'
+    | 'pick_one_or_more'
+    | 'pick_any_optional'
+    | 'all_included'
+
+export interface SectionConfig {
+    selection_mode?: SectionSelectionMode
+    [key: string]: unknown
+}
+
 // ============================================
 // Extended Types (with relations)
 // ============================================

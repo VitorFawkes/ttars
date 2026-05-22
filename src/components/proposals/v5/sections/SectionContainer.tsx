@@ -84,6 +84,10 @@ export function SectionContainer({ section }: SectionContainerProps) {
                 isExpanded={isExpanded}
                 onToggleExpand={() => setIsExpanded(!isExpanded)}
                 dragHandleProps={{ ...attributes, ...listeners }}
+                selectionMode={
+                    (section.config as { selection_mode?: import('@/types/proposals').SectionSelectionMode } | null)
+                        ?.selection_mode || 'auto'
+                }
             />
 
             {isExpanded && (

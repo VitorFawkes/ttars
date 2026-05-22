@@ -11,8 +11,16 @@ import {
     Car,
     Sparkles,
     Type,
+    Check,
+    ListChecks,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
+import type { SectionSelectionMode } from '@/types/proposals'
+import {
+    SELECTION_MODE_LABELS,
+    SELECTION_MODE_DESCRIPTIONS,
+} from '@/components/proposals/public/shared/sectionMode'
 
 const SECTION_ICONS: Record<string, React.ElementType> = {
     hotels: Building2,
@@ -37,9 +45,26 @@ interface SectionHeaderProps {
     isExpanded: boolean
     onToggleExpand: () => void
     dragHandleProps: Record<string, unknown>
+    selectionMode?: SectionSelectionMode
 }
 
-export function SectionHeader({ sectionId, sectionType, title, isExpanded, onToggleExpand, dragHandleProps }: SectionHeaderProps) {
+const SELECTION_MODES: SectionSelectionMode[] = [
+    'auto',
+    'pick_one_required',
+    'pick_one_or_more',
+    'pick_any_optional',
+    'all_included',
+]
+
+export function SectionHeader({
+    sectionId,
+    sectionType,
+    title,
+    isExpanded,
+    onToggleExpand,
+    dragHandleProps,
+    selectionMode = 'auto',
+}: SectionHeaderProps) {
     const { updateSection, removeSection } = useProposalBuilder()
     const [isEditing, setIsEditing] = useState(false)
     const [editValue, setEditValue] = useState(title)
@@ -68,6 +93,17 @@ export function SectionHeader({ sectionId, sectionType, title, isExpanded, onTog
             updateSection(sectionId, { title: editValue.trim() })
         }
     }
+
+    const handleChangeSelectionMode = (mode: SectionSelectionMode) => {
+        updateSection(sectionId, {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            config: { selection_mode: mode } as any,
+        })
+    }
+
+    const modeLabel = selectionMode === 'auto'
+        ? 'Modo: automático'
+        : SELECTION_MODE_LABELS[selectionMode]
 
     return (
         <div className="flex items-center gap-2 px-3 py-2 bg-slate-50/80 border-b border-slate-100 group">
@@ -99,6 +135,59 @@ export function SectionHeader({ sectionId, sectionType, title, isExpanded, onTog
                     {title || 'Sem titulo'}
                 </button>
             )}
+
+            {/* Modo de seleção do cliente — popover */}
+            <Popover>
+                <PopoverTrigger asChild>
+                    <button
+                        className={cn(
+                            "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition opacity-60 hover:opacity-100",
+                            selectionMode === 'auto'
+                                ? "text-slate-500 hover:bg-slate-100"
+                                : "text-indigo-700 bg-indigo-50 hover:bg-indigo-100"
+                        )}
+                        title="Como o cliente escolhe nesta seção"
+                    >
+                        <ListChecks className="h-3 w-3" />
+                        {modeLabel}
+                    </button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-80 p-0">
+                    <div className="border-b border-slate-100 px-4 py-2.5">
+                        <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Como o cliente escolhe nesta seção
+                        </h4>
+                    </div>
+                    <div className="py-1">
+                        {SELECTION_MODES.map((mode) => {
+                            const selected = mode === selectionMode
+                            return (
+                                <button
+                                    key={mode}
+                                    onClick={() => handleChangeSelectionMode(mode)}
+                                    className={cn(
+                                        "block w-full px-4 py-2 text-left transition",
+                                        selected ? "bg-indigo-50" : "hover:bg-slate-50"
+                                    )}
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <span className={cn(
+                                            "text-sm font-medium",
+                                            selected ? "text-indigo-700" : "text-slate-900"
+                                        )}>
+                                            {SELECTION_MODE_LABELS[mode]}
+                                        </span>
+                                        {selected && <Check className="h-4 w-4 text-indigo-600" />}
+                                    </div>
+                                    <p className="mt-0.5 text-xs text-slate-500 leading-snug">
+                                        {SELECTION_MODE_DESCRIPTIONS[mode]}
+                                    </p>
+                                </button>
+                            )
+                        })}
+                    </div>
+                </PopoverContent>
+            </Popover>
 
             {/* Expand/Collapse */}
             <Button variant="ghost" size="icon" onClick={onToggleExpand} className="h-7 w-7">

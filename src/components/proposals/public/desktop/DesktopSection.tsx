@@ -13,6 +13,7 @@ import { DesktopFlightCard } from './items/DesktopFlightCard'
 import { DesktopExperienceCard } from './items/DesktopExperienceCard'
 import { DesktopTransferCard } from './items/DesktopTransferCard'
 import { DesktopInsuranceCard } from './items/DesktopInsuranceCard'
+import { resolveSelectionMode } from '../shared/sectionMode'
 
 interface DesktopSectionProps {
   section: ProposalSectionWithItems
@@ -36,8 +37,10 @@ export function DesktopSection({
 
   if (items.length === 0) return null
 
-  // Determina se é modo radio (múltiplos itens = escolha única)
-  const isRadioMode = items.length >= 2
+  // Modo efetivo de seleção configurado pelo consultor (ou 'auto' que decide
+  // pelo número de items, comportamento histórico).
+  const effectiveMode = resolveSelectionMode(section)
+  const isRadioMode = effectiveMode === 'pick_one_required'
 
   // Renderiza item baseado no tipo
   const renderItem = (item: ProposalItemWithOptions) => {
@@ -99,9 +102,24 @@ export function DesktopSection({
           <h2 className="text-xl font-bold text-slate-900">
             {cleanTitle || config.defaultTitle}
           </h2>
-          {isRadioMode && (
+          {effectiveMode === 'pick_one_required' && (
             <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs rounded-full font-medium">
-              Escolha uma opção
+              Escolha 1 opção
+            </span>
+          )}
+          {effectiveMode === 'pick_one_or_more' && (
+            <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs rounded-full font-medium">
+              Escolha 1 ou mais
+            </span>
+          )}
+          {effectiveMode === 'pick_any_optional' && items.length >= 2 && (
+            <span className="px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded-full font-medium">
+              Adicione o que quiser
+            </span>
+          )}
+          {effectiveMode === 'all_included' && items.length >= 2 && (
+            <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-full font-medium">
+              Todos incluídos
             </span>
           )}
         </div>
