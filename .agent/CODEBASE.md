@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-23
 > **Trigger:** ALWAYS ON
-> **Stats:** 208 tabelas | 200 paginas | 331 hooks | 23 views | 797 components
+> **Stats:** 208 tabelas | 200 paginas | 332 hooks | 23 views | 797 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **331 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **332 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -226,6 +226,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useOperationsData()` | `useOperationsData.ts` |
 | `useOperationsHealth()` | `useOperationsHealth.ts` |
 | `useOverviewData()` | `useOverviewData.ts` |
+| `useResumoOverview()` | `useResumoOverview.ts` |
 | `useRetentionData()` | `useRetentionData.ts` |
 | `useSLAData()` | `useSLAData.ts` |
 | `useWhatsAppAnalytics()` | `useWhatsAppAnalytics.ts` |
