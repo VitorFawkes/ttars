@@ -952,3 +952,6 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-23T21:59:26Z | supabase/migrations/20260523a_analytics_funnel_filter_origem.sql | applied_to_prod
 2026-05-23T22:03:43Z | supabase/migrations/20260523b_analytics_funnel_v3_filter_origem.sql | applied_to_prod
 2026-05-23T22:26:19Z | supabase/migrations/20260523c_analytics_saude_filter_phase.sql | applied_to_prod
+2026-05-23T22:32:36Z | supabase/migrations/20260523d_analytics_operations_health.sql | applied_to_prod
+2026-05-23T22:37:51Z | supabase/migrations/20260523e_analytics_operations_health_limit.sql | applied_to_prod
+2026-05-23T22:42:09Z | supabase/migrations/20260523f_analytics_operations_health_fix_ambiguity.sql | applied_to_prod
