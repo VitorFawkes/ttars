@@ -1,9 +1,12 @@
 import { useState } from 'react'
-import { Trophy, Target, Clock, Loader2, ListTodo, DollarSign } from 'lucide-react'
+import { Trophy, Target, Clock, Loader2, ListTodo, DollarSign, TrendingUp } from 'lucide-react'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import KpiCard from '@/components/analytics/KpiCard'
 import { useTeamLeaderboard } from '@/hooks/analytics/useTeamLeaderboard'
 import { useTeamPerformance } from '@/hooks/analytics/useTeamPerformance'
 import { useTeamSlaCompliance } from '@/hooks/analytics/useTeamSlaCompliance'
+import { useTeamIndividualEvolution } from '@/hooks/analytics/useTeamIndividualEvolution'
+import { useTeamTicketVariation } from '@/hooks/analytics/useTeamTicketVariation'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import WidgetCard from './WidgetCard'
@@ -53,18 +56,12 @@ function ComplianceBadge({ rate }: { rate: number | null }) {
 
 export default function TeamView() {
   const [phaseTab, setPhaseTab] = useState<string>('sdr')
+  const [individualUser, setIndividualUser] = useState<{ id: string; nome: string } | null>(null)
   const leaderboard = useTeamLeaderboard()
   const phasePerf = useTeamPerformance(phaseTab)
   const sla = useTeamSlaCompliance()
+  const ticketVar = useTeamTicketVariation()
   const drillDown = useDrillDownStore()
-
-  const openWonByOwner = (ownerId: string, ownerName: string) => {
-    drillDown.open({
-      label: `Vendas de ${ownerName}`,
-      drillSource: 'closed_deals',
-      drillOwnerId: ownerId,
-    })
-  }
 
   const openOpenByOwner = (ownerId: string, ownerName: string) => {
     drillDown.open({
@@ -165,9 +162,9 @@ export default function TeamView() {
                     <td className="py-2.5 text-slate-400 tabular-nums">{idx + 1}</td>
                     <td className="py-2.5 text-slate-900 font-medium">
                       <button
-                        onClick={() => openWonByOwner(row.user_id, row.user_nome)}
+                        onClick={() => setIndividualUser({ id: row.user_id, nome: row.user_nome })}
                         className="hover:text-indigo-600 hover:underline text-left"
-                        title="Ver vendas dessa pessoa"
+                        title="Ver evolução individual"
                       >
                         {row.user_nome}
                       </button>
@@ -280,9 +277,9 @@ export default function TeamView() {
                   <tr key={row.user_id} className="border-b border-slate-50 hover:bg-slate-50">
                     <td className="py-2.5 text-slate-900 font-medium">
                       <button
-                        onClick={() => openWonByOwner(row.user_id, row.user_nome)}
+                        onClick={() => setIndividualUser({ id: row.user_id, nome: row.user_nome })}
                         className="hover:text-indigo-600 hover:underline text-left"
-                        title="Ver vendas dessa pessoa"
+                        title="Ver evolução individual"
                       >
                         {row.user_nome}
                       </button>
@@ -355,6 +352,223 @@ export default function TeamView() {
           </div>
         )}
       </WidgetCard>
+
+      {/* Variação de ticket por consultor */}
+      <WidgetCard
+        title="Variação de ticket por consultor"
+        subtitle="Mín, média e máx por consultor — mostra se alguém puxa muito a média (1 venda grande) vs ticket consistente"
+      >
+        {ticketVar.isLoading ? (
+          <div className="h-40 flex items-center justify-center text-slate-400">
+            <Loader2 className="w-5 h-5 animate-spin" />
+          </div>
+        ) : !ticketVar.data || ticketVar.data.length === 0 ? (
+          <div className="h-32 flex items-center justify-center text-sm text-slate-400">
+            Nenhuma venda no período pra calcular variação
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 text-xs text-slate-500 uppercase tracking-wider">
+                  <th className="text-left py-2 font-medium">Consultor</th>
+                  <th className="text-right py-2 font-medium">Vendas</th>
+                  <th className="text-right py-2 font-medium">Mais barata</th>
+                  <th className="text-right py-2 font-medium">Ticket médio</th>
+                  <th className="text-right py-2 font-medium">Mais cara</th>
+                  <th className="text-right py-2 font-medium">Receita total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ticketVar.data.map(row => {
+                  const spread = row.ticket_max - row.ticket_min
+                  const muitoVariavel = row.cards_ganhos >= 3 && spread > row.ticket_medio * 2
+                  return (
+                    <tr key={row.user_id} className="border-b border-slate-50 hover:bg-slate-50">
+                      <td className="py-2.5 text-slate-900 font-medium">
+                        <button
+                          onClick={() => setIndividualUser({ id: row.user_id, nome: row.user_nome })}
+                          className="hover:text-indigo-600 hover:underline text-left"
+                          title="Ver evolução individual"
+                        >
+                          {row.user_nome}
+                        </button>
+                      </td>
+                      <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.cards_ganhos}</td>
+                      <td className="py-2.5 text-right text-slate-600 tabular-nums">{formatCurrency(row.ticket_min)}</td>
+                      <td className="py-2.5 text-right text-slate-900 tabular-nums font-medium">
+                        {formatCurrency(row.ticket_medio)}
+                      </td>
+                      <td className="py-2.5 text-right tabular-nums">
+                        <span
+                          className={cn(
+                            muitoVariavel ? 'text-amber-700 font-semibold' : 'text-slate-600'
+                          )}
+                          title={muitoVariavel ? 'Diferença grande entre min e max — média pode enganar' : undefined}
+                        >
+                          {formatCurrency(row.ticket_max)}
+                        </span>
+                      </td>
+                      <td className="py-2.5 text-right text-slate-700 tabular-nums">
+                        {formatCurrency(row.receita_total)}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </WidgetCard>
+
+      <IndividualEvolutionDrawer
+        user={individualUser}
+        onClose={() => setIndividualUser(null)}
+      />
     </div>
+  )
+}
+
+function IndividualEvolutionDrawer({
+  user,
+  onClose,
+}: {
+  user: { id: string; nome: string } | null
+  onClose: () => void
+}) {
+  const evolution = useTeamIndividualEvolution(user?.id ?? null, 6)
+  const rows = evolution.data ?? []
+
+  const totalReceita = rows.reduce((acc, r) => acc + r.receita_total, 0)
+  const totalGanhos = rows.reduce((acc, r) => acc + r.cards_ganhos, 0)
+  const avgTicket = totalGanhos > 0 ? totalReceita / totalGanhos : 0
+
+  const maxReceita = Math.max(...rows.map(r => r.receita_total), 1)
+  const maxGanhos = Math.max(...rows.map(r => r.cards_ganhos), 1)
+
+  function formatMes(iso: string): string {
+    const d = new Date(iso)
+    return d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('.', '')
+  }
+
+  return (
+    <Sheet open={!!user} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent side="right" className="sm:max-w-2xl w-full overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle className="text-slate-900 tracking-tight flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-indigo-600" />
+            Evolução individual: {user?.nome}
+          </SheetTitle>
+          <SheetDescription className="text-xs text-slate-500">
+            Últimos 6 meses — receita, ganhos, win rate, ticket médio e ciclo
+          </SheetDescription>
+        </SheetHeader>
+
+        {evolution.isLoading ? (
+          <div className="h-40 flex items-center justify-center text-slate-400 mt-6">
+            <Loader2 className="w-5 h-5 animate-spin" />
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="h-32 flex items-center justify-center text-sm text-slate-400 mt-6">
+            Sem dados nos últimos 6 meses
+          </div>
+        ) : (
+          <div className="mt-6 space-y-6">
+            {/* Resumo */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-xl p-3 bg-emerald-50">
+                <p className="text-[10px] font-medium text-slate-600 uppercase tracking-wider">Receita 6m</p>
+                <p className="text-lg font-bold text-emerald-700 tracking-tight tabular-nums">
+                  {formatCurrency(totalReceita)}
+                </p>
+              </div>
+              <div className="rounded-xl p-3 bg-indigo-50">
+                <p className="text-[10px] font-medium text-slate-600 uppercase tracking-wider">Ganhos 6m</p>
+                <p className="text-lg font-bold text-indigo-700 tracking-tight tabular-nums">{totalGanhos}</p>
+              </div>
+              <div className="rounded-xl p-3 bg-slate-50">
+                <p className="text-[10px] font-medium text-slate-600 uppercase tracking-wider">Ticket médio</p>
+                <p className="text-lg font-bold text-slate-700 tracking-tight tabular-nums">
+                  {formatCurrency(avgTicket)}
+                </p>
+              </div>
+            </div>
+
+            {/* Gráfico de barras: Receita por mês */}
+            <div>
+              <h4 className="text-sm font-semibold text-slate-700 mb-3">Receita por mês</h4>
+              <div className="flex items-end gap-2 h-24">
+                {rows.map(r => (
+                  <div key={r.mes} className="flex-1 flex flex-col items-center gap-1">
+                    <div
+                      className="w-full bg-emerald-500 rounded-t min-h-[2px]"
+                      style={{ height: `${(r.receita_total / maxReceita) * 100}%` }}
+                      title={`${formatMes(r.mes)}: ${formatCurrency(r.receita_total)}`}
+                    />
+                    <span className="text-[9px] text-slate-500 tabular-nums">{formatMes(r.mes)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Gráfico de barras: Ganhos por mês */}
+            <div>
+              <h4 className="text-sm font-semibold text-slate-700 mb-3">Cards ganhos por mês</h4>
+              <div className="flex items-end gap-2 h-24">
+                {rows.map(r => (
+                  <div key={r.mes} className="flex-1 flex flex-col items-center gap-1">
+                    <div
+                      className="w-full bg-indigo-500 rounded-t min-h-[2px]"
+                      style={{ height: `${(r.cards_ganhos / maxGanhos) * 100}%` }}
+                      title={`${formatMes(r.mes)}: ${r.cards_ganhos} ganhos`}
+                    />
+                    <span className="text-[9px] text-slate-500 tabular-nums">{formatMes(r.mes)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Tabela completa */}
+            <div>
+              <h4 className="text-sm font-semibold text-slate-700 mb-3">Detalhe mês a mês</h4>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 text-xs text-slate-500 uppercase tracking-wider">
+                    <th className="text-left py-2 font-medium">Mês</th>
+                    <th className="text-right py-2 font-medium">Ganhos</th>
+                    <th className="text-right py-2 font-medium">Perdidos</th>
+                    <th className="text-right py-2 font-medium">Win rate</th>
+                    <th className="text-right py-2 font-medium">Receita</th>
+                    <th className="text-right py-2 font-medium">Ticket</th>
+                    <th className="text-right py-2 font-medium">Ciclo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(r => (
+                    <tr key={r.mes} className="border-b border-slate-50">
+                      <td className="py-2 text-slate-900 font-medium">{formatMes(r.mes)}</td>
+                      <td className="py-2 text-right text-slate-700 tabular-nums">{r.cards_ganhos}</td>
+                      <td className="py-2 text-right text-slate-700 tabular-nums">{r.cards_perdidos}</td>
+                      <td className="py-2 text-right text-slate-700 tabular-nums">
+                        {r.win_rate.toFixed(0)}%
+                      </td>
+                      <td className="py-2 text-right text-slate-700 tabular-nums">
+                        {formatCurrency(r.receita_total)}
+                      </td>
+                      <td className="py-2 text-right text-slate-700 tabular-nums">
+                        {formatCurrency(r.ticket_medio)}
+                      </td>
+                      <td className="py-2 text-right text-slate-700 tabular-nums">
+                        {r.ciclo_medio_dias > 0 ? `${r.ciclo_medio_dias.toFixed(0)}d` : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
   )
 }

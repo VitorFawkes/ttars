@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-23
 > **Trigger:** ALWAYS ON
-> **Stats:** 208 tabelas | 199 paginas | 327 hooks | 23 views | 797 components
+> **Stats:** 208 tabelas | 199 paginas | 329 hooks | 23 views | 797 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **327 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **329 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -536,9 +536,11 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useConciergeUsers()` | `useConciergeUsers.ts` |
 | `useDepartments()` | `useDepartments.ts` |
 | `useRoles()` | `useRoles.ts` |
+| `useTeamIndividualEvolution()` | `useTeamIndividualEvolution.ts` |
 | `useTeamLeaderboard()` | `useTeamLeaderboard.ts` |
 | `useTeamPerformance()` | `useTeamPerformance.ts` |
 | `useTeamSlaCompliance()` | `useTeamSlaCompliance.ts` |
+| `useTeamTicketVariation()` | `useTeamTicketVariation.ts` |
 | `useTeams()` | `useTeams.ts` |
 | `useUsers()` | `useUsers.ts` |
 
