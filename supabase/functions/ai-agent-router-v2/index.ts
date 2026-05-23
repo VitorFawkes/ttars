@@ -1930,6 +1930,12 @@ Deno.serve(async (req) => {
           slots_conflicts_excluded: slotsConflictsExcluded,
         },
         detected_intent: singleAgentResult.output.current_moment_key,
+        current_moment_key: singleAgentResult.output.current_moment_key ?? null,
+        moment_detection_method: forcedMomentKey ? "router_forced" : "llm_declared",
+        moment_transition_reason: forcedMomentKey
+          ? `router forçou ${forcedMomentKey} (recent_blocks_count ou regra determinística)`
+          : null,
+        agent_version: "v2",
         qualification_score_at_turn: qualificationResult?.score ?? null,
         validator_verdict_action: verdict?.action ?? null,
       });
@@ -1995,6 +2001,10 @@ Deno.serve(async (req) => {
           fallback_triggered: true,
         },
         detected_intent: singleAgentResult.output.current_moment_key,
+        current_moment_key: singleAgentResult.output.current_moment_key ?? null,
+        moment_detection_method: forcedMomentKey ? "router_forced" : "llm_declared",
+        moment_transition_reason: "fallback_disparado_por_validator_block",
+        agent_version: "v2",
         qualification_score_at_turn: qualificationResult?.score ?? null,
         validator_verdict_action: verdict?.action ?? "block",
       });

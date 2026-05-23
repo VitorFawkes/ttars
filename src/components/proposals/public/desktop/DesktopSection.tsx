@@ -14,6 +14,7 @@ import { DesktopExperienceCard } from './items/DesktopExperienceCard'
 import { DesktopTransferCard } from './items/DesktopTransferCard'
 import { DesktopInsuranceCard } from './items/DesktopInsuranceCard'
 import { resolveSelectionMode } from '../shared/sectionMode'
+import { CommentButton } from '@/components/proposals/comments/CommentButton'
 
 interface DesktopSectionProps {
   section: ProposalSectionWithItems
@@ -22,6 +23,8 @@ interface DesktopSectionProps {
   onSelectItem: (sectionId: string, itemId: string) => void
   onSelectOption: (itemId: string, optionId: string) => void
   onChangeQuantity: (itemId: string, quantity: number) => void
+  /** Token público da proposta (cliente) ou ID (consultor) pra mostrar botão Comentar */
+  commentMode?: { kind: 'public'; proposalToken: string } | { kind: 'admin'; proposalId: string }
 }
 
 export function DesktopSection({
@@ -31,6 +34,7 @@ export function DesktopSection({
   onSelectItem,
   onSelectOption,
   onChangeQuantity,
+  commentMode,
 }: DesktopSectionProps) {
   const config = SECTION_TYPE_CONFIG[section.section_type] || SECTION_TYPE_CONFIG.custom
   const items = section.items || []
@@ -124,11 +128,22 @@ export function DesktopSection({
             </span>
           )}
         </div>
-        {items.length > 1 && (
-          <span className="text-sm text-slate-500">
-            {items.length} opções disponíveis
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {items.length > 1 && (
+            <span className="text-sm text-slate-500">
+              {items.length} opções disponíveis
+            </span>
+          )}
+          {commentMode && (
+            <CommentButton
+              mode={commentMode}
+              scope={{ kind: 'section', sectionId: section.id }}
+              scopeLabel={cleanTitle || config.defaultTitle}
+              size="sm"
+              variant="icon"
+            />
+          )}
+        </div>
       </div>
 
       {/* Lista de itens */}
