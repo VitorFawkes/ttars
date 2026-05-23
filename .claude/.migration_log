@@ -956,3 +956,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-23T22:37:51Z | supabase/migrations/20260523e_analytics_operations_health_limit.sql | applied_to_prod
 2026-05-23T22:42:09Z | supabase/migrations/20260523f_analytics_operations_health_fix_ambiguity.sql | applied_to_prod
 2026-05-23T22:44:12Z | supabase/migrations/20260523g_analytics_team_individual_evolution.sql | applied_to_prod
+2026-05-23T22:50:32Z | supabase/migrations/20260523h_analytics_cards_travados.sql | applied_to_prod
