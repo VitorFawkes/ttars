@@ -307,6 +307,71 @@ function FlightItineraryModal({
   const outboundLegs = flightData.legs.filter(l => l.type === 'outbound' || l.type === 'connection')
   const returnLegs = flightData.legs.filter(l => l.type === 'return')
 
+  // Render de uma section (IDA ou VOLTA) — usado pra IDA e VOLTA sem repetir JSX
+  const renderSection = (
+    title: 'IDA' | 'VOLTA',
+    legs: FlightLegViewData[],
+    tone: 'sky' | 'indigo',
+  ) => {
+    if (legs.length === 0) return null
+    const headerBg = tone === 'sky' ? 'bg-sky-600' : 'bg-indigo-600'
+
+    return (
+      <section>
+        {/* Section header — bem forte, sticky pra ficar claro onde está */}
+        <div className={cn('sticky top-0 z-10 px-4 py-3 flex items-center gap-2 text-white shadow-sm', headerBg)}>
+          <Plane className={cn('h-4 w-4', tone === 'indigo' && 'rotate-180')} />
+          <span className="text-sm font-bold uppercase tracking-wider">{title}</span>
+          <span className="ml-auto text-[11px] text-white/80">
+            {legs.length} trecho{legs.length > 1 ? 's' : ''}
+          </span>
+        </div>
+
+        {legs.map(leg => {
+          const selectedOpt = getSelectedOptionForLeg(leg)
+          const hasMultipleOptions = leg.allOptions.length > 1
+
+          return (
+            <div key={leg.id}>
+              {/* Header do trecho */}
+              <div className="px-4 pt-3 pb-2 bg-white">
+                <div className="flex items-baseline justify-between gap-2">
+                  <div className="text-sm font-semibold text-slate-900">
+                    {leg.originCode}
+                    <span className="mx-1.5 text-slate-400">→</span>
+                    {leg.destinationCode}
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    {formatDateWithWeekday(leg.date)}
+                  </div>
+                </div>
+                {(leg.originCity || leg.destinationCity) && (
+                  <div className="mt-0.5 text-[11px] text-slate-400">
+                    {leg.originCity} — {leg.destinationCity}
+                  </div>
+                )}
+              </div>
+
+              {/* Opções do trecho */}
+              <div className="divide-y divide-slate-100">
+                {leg.allOptions.map(option => (
+                  <LegOptionCard
+                    key={option.id}
+                    leg={leg}
+                    option={option}
+                    isSelected={selectedOpt?.id === option.id}
+                    onSelect={() => onSelectLegOption(leg.id, option.id)}
+                    showSelection={hasMultipleOptions}
+                  />
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </section>
+    )
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4">
       {/* Backdrop */}
@@ -316,146 +381,64 @@ function FlightItineraryModal({
       />
 
       {/* Modal */}
-      <div className="relative bg-white w-full max-w-2xl rounded-t-2xl max-h-[85vh] overflow-hidden shadow-2xl">
+      <div className="relative bg-white w-full max-w-2xl rounded-t-2xl max-h-[88vh] overflow-hidden shadow-2xl flex flex-col">
         {/* Header */}
-        <div className={cn(
-          "flex items-center justify-between px-4 py-4 border-b",
-          isSelected ? "bg-emerald-50" : "bg-gradient-to-r from-sky-50 to-indigo-50"
-        )}>
+        <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white">
           <div className="flex items-center gap-3">
-            <div className={cn(
-              "w-10 h-10 rounded-lg flex items-center justify-center",
-              isSelected ? "bg-emerald-100" : "bg-sky-100"
-            )}>
-              <Plane className={cn("h-5 w-5", isSelected ? "text-emerald-600" : "text-sky-600")} />
+            <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center">
+              <Plane className="h-4 w-4 text-slate-600" />
             </div>
             <div>
-              <span className="font-semibold text-slate-800 block">Itinerário Aéreo</span>
-              <span className="text-xs text-slate-500">
+              <span className="font-semibold text-slate-900 block text-sm">Itinerário Aéreo</span>
+              <span className="text-[11px] text-slate-500">
                 {flightData.legs.length} trecho{flightData.legs.length > 1 ? 's' : ''}
               </span>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center hover:bg-slate-50"
+            className="w-9 h-9 rounded-full hover:bg-slate-100 flex items-center justify-center"
+            aria-label="Fechar"
           >
             <X className="h-5 w-5 text-slate-500" />
           </button>
         </div>
 
-        {/* Conteúdo */}
-        <div className="overflow-y-auto max-h-[60vh]">
-          {/* IDA */}
-          {outboundLegs.length > 0 && (
-            <div className="border-b border-slate-100">
-              <div className="px-4 py-2 bg-sky-50/50 border-b border-sky-100">
-                <span className="text-xs font-bold text-sky-700 uppercase tracking-wide flex items-center gap-2">
-                  <Plane className="h-3 w-3" />
-                  IDA
-                </span>
-              </div>
-              {outboundLegs.map(leg => {
-                const selectedOpt = getSelectedOptionForLeg(leg)
-                const hasMultipleOptions = leg.allOptions.length > 1
-
-                return (
-                  <div key={leg.id} className="border-b border-slate-100 last:border-b-0">
-                    {/* Header do trecho */}
-                    <div className="px-4 py-2 bg-slate-50 flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-700">
-                        {leg.originCode} → {leg.destinationCode}
-                      </span>
-                      <span className="text-[11px] text-slate-500">
-                        {formatDateWithWeekday(leg.date)}
-                      </span>
-                    </div>
-
-                    {/* Opções do trecho */}
-                    <div className="divide-y divide-slate-50">
-                      {leg.allOptions.map(option => (
-                        <LegOptionCard
-                          key={option.id}
-                          leg={leg}
-                          option={option}
-                          isSelected={selectedOpt?.id === option.id}
-                          onSelect={() => onSelectLegOption(leg.id, option.id)}
-                          showSelection={hasMultipleOptions}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+        {/* Conteúdo — sections divididas com gap explícito entre IDA e VOLTA */}
+        <div className="flex-1 overflow-y-auto bg-slate-50">
+          {renderSection('IDA', outboundLegs, 'sky')}
+          {outboundLegs.length > 0 && returnLegs.length > 0 && (
+            <div className="h-3 bg-slate-100" aria-hidden />
           )}
-
-          {/* VOLTA */}
-          {returnLegs.length > 0 && (
-            <div className="border-b border-slate-100">
-              <div className="px-4 py-2 bg-indigo-50/50 border-b border-indigo-100">
-                <span className="text-xs font-bold text-indigo-700 uppercase tracking-wide flex items-center gap-2">
-                  <Plane className="h-3 w-3 rotate-180" />
-                  VOLTA
-                </span>
-              </div>
-              {returnLegs.map(leg => {
-                const selectedOpt = getSelectedOptionForLeg(leg)
-                const hasMultipleOptions = leg.allOptions.length > 1
-
-                return (
-                  <div key={leg.id} className="border-b border-slate-100 last:border-b-0">
-                    {/* Header do trecho */}
-                    <div className="px-4 py-2 bg-slate-50 flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-700">
-                        {leg.originCode} → {leg.destinationCode}
-                      </span>
-                      <span className="text-[11px] text-slate-500">
-                        {formatDateWithWeekday(leg.date)}
-                      </span>
-                    </div>
-
-                    {/* Opções do trecho */}
-                    <div className="divide-y divide-slate-50">
-                      {leg.allOptions.map(option => (
-                        <LegOptionCard
-                          key={option.id}
-                          leg={leg}
-                          option={option}
-                          isSelected={selectedOpt?.id === option.id}
-                          onSelect={() => onSelectLegOption(leg.id, option.id)}
-                          showSelection={hasMultipleOptions}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+          {renderSection('VOLTA', returnLegs, 'indigo')}
         </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t bg-white flex items-center justify-between gap-4">
+        {/* Footer — Total neutro, botão de ação separado.
+            Verde só pra confirmar "Selecionado" (estado terminal). */}
+        <div className="flex-shrink-0 p-4 border-t border-slate-200 bg-white flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs text-slate-500">Total</p>
-            <p className={cn(
-              "text-2xl font-bold",
-              isSelected ? "text-emerald-600" : "text-slate-900"
-            )}>
+            <p className="text-[11px] text-slate-500 uppercase tracking-wide">Total</p>
+            <p className="text-2xl font-bold text-slate-900 leading-none mt-0.5">
               {formatPrice(totalPrice)}
             </p>
           </div>
           <button
             onClick={onSelect}
             className={cn(
-              "px-6 py-3 rounded-xl font-semibold text-sm transition-all min-h-[48px]",
+              'px-5 py-3 rounded-xl font-semibold text-sm transition-all min-h-[48px] inline-flex items-center gap-2',
               isSelected
-                ? "bg-emerald-600 text-white"
-                : "bg-sky-600 text-white hover:bg-sky-700"
+                ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                : 'bg-sky-600 text-white hover:bg-sky-700',
             )}
           >
-            {isSelected ? '✓ Selecionado' : 'Selecionar este voo'}
+            {isSelected ? (
+              <>
+                <Check className="h-4 w-4" />
+                Selecionado
+              </>
+            ) : (
+              'Selecionar voo'
+            )}
           </button>
         </div>
       </div>
@@ -482,14 +465,17 @@ function LegOptionCard({ leg, option, isSelected, onSelect, showSelection }: Leg
     <div
       onClick={showSelection ? onSelect : undefined}
       className={cn(
-        'px-4 py-3 transition-colors',
+        'relative px-4 py-3 bg-white transition-colors',
+        // Borda lateral grossa só quando selecionado E há múltiplas opções —
+        // dá um sinal visual forte sem competir quando há só 1 opção.
         showSelection && 'cursor-pointer hover:bg-slate-50',
-        isSelected && showSelection && 'bg-sky-50/60',
+        isSelected && showSelection && 'bg-sky-50/40 border-l-4 border-l-sky-600',
+        !(isSelected && showSelection) && 'border-l-4 border-l-transparent',
       )}
     >
-      {/* Linha 1: radio + companhia + recomendada + preço */}
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <div className="flex items-center gap-2 min-w-0">
+      {/* Linha 1: radio + companhia | preço */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           {showSelection && (
             <div
               className={cn(
@@ -500,29 +486,26 @@ function LegOptionCard({ leg, option, isSelected, onSelect, showSelection }: Leg
               {isSelected && <div className="w-2 h-2 rounded-full bg-sky-600" />}
             </div>
           )}
-          <span className={cn('px-1.5 py-0.5 rounded text-[10px] font-bold', airlineColors.bg, airlineColors.text)}>
+          <span className={cn('px-2 py-0.5 rounded text-[11px] font-bold flex-shrink-0', airlineColors.bg, airlineColors.text)}>
             {option.airlineName || option.airlineCode}
           </span>
-          <span className="text-[11px] text-slate-400 font-mono truncate">#{option.flightNumber}</span>
-          {option.isRecommended && (
-            <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 text-[10px] font-medium">
-              Sugerida
-            </span>
-          )}
+          <span className="text-[11px] text-slate-400 font-mono truncate">
+            #{option.flightNumber}
+          </span>
         </div>
-        <div className="font-semibold text-slate-900 flex-shrink-0">
+        <div className="font-bold text-base text-slate-900 flex-shrink-0">
           {formatPrice(option.price)}
         </div>
       </div>
 
       {/* Linha 2: horários + duração + paradas */}
-      <div className="flex items-center justify-between gap-3">
+      <div className="mt-2 flex items-center justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <div className="text-base font-bold text-slate-900">{formatTime(option.departureTime)}</div>
+          <div className="text-lg font-bold text-slate-900 leading-tight">{formatTime(option.departureTime)}</div>
           <div className="text-[11px] text-slate-500">{leg.originCode}</div>
         </div>
 
-        <div className="flex flex-col items-center px-1">
+        <div className="flex flex-col items-center px-2">
           <div className="text-[10px] text-slate-500">{duration}</div>
           <div className="w-14 h-px bg-slate-200 my-1" />
           <div className={cn('text-[10px] font-medium', stops === 0 ? 'text-emerald-600' : 'text-slate-500')}>
@@ -531,21 +514,26 @@ function LegOptionCard({ leg, option, isSelected, onSelect, showSelection }: Leg
         </div>
 
         <div className="flex-1 min-w-0 text-right">
-          <div className="text-base font-bold text-slate-900">{formatTime(option.arrivalTime)}</div>
+          <div className="text-lg font-bold text-slate-900 leading-tight">{formatTime(option.arrivalTime)}</div>
           <div className="text-[11px] text-slate-500">{leg.destinationCode}</div>
         </div>
       </div>
 
-      {/* Linha 3: bagagem + classe (alinhada à esquerda, sutil) */}
-      {(option.baggage || option.cabinClass) && (
-        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+      {/* Linha 3: tags (sugerida | bagagem | classe) — todas no mesmo registro */}
+      {(option.isRecommended || option.baggage || option.cabinClass) && (
+        <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
+          {option.isRecommended && (
+            <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[10px] font-semibold uppercase tracking-wide">
+              Sugerida
+            </span>
+          )}
           {option.baggage && (
-            <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] rounded">
+            <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px]">
               {option.baggage}
             </span>
           )}
           {option.cabinClass && (
-            <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 text-[10px] rounded">
+            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px]">
               {option.cabinClass}
             </span>
           )}

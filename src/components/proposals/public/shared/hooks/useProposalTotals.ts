@@ -101,12 +101,25 @@ function calculateItemPrice(
   const quantity = selection.quantity ?? 1
   let basePrice = 0
   let optionDelta = 0
+  let optionDeltaResolved = false
 
   // Tenta ler preço do reader específico
   switch (item.item_type) {
     case 'hotel': {
       const data = readHotelData(item as never)
       basePrice = data?.totalPrice ?? Number(item.base_price) ?? 0
+      // Hotéis salvam opções (upgrade quarto etc) dentro de
+      // rich_content.hotels.options, NÃO em item.options. Sem essa
+      // leitura, o delta nunca é somado no total.
+      if (selection.optionId && data?.options) {
+        const opt = data.options.find(o => o.id === selection.optionId)
+        if (opt) {
+          // priceDelta no reader é por noite — total = delta * noites
+          const nights = data.nights || 1
+          optionDelta = (opt.priceDelta || 0) * nights
+          optionDeltaResolved = true
+        }
+      }
       break
     }
     case 'flight': {
@@ -141,8 +154,9 @@ function calculateItemPrice(
     }
   }
 
-  // Adiciona delta da opção selecionada
-  if (selection.optionId && item.options) {
+  // Adiciona delta da opção selecionada (fallback pra readers que não resolvem
+  // opção do rich_content — ex: itens com proposal_options legados).
+  if (!optionDeltaResolved && selection.optionId && item.options) {
     const selectedOption = item.options.find(opt => opt.id === selection.optionId)
     if (selectedOption) {
       optionDelta = Number(selectedOption.price_delta) ?? 0
