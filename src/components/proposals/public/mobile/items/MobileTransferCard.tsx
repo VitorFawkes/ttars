@@ -5,7 +5,7 @@
  */
 
 import type { ProposalItemWithOptions } from '@/types/proposals'
-import { Car, ArrowRight, Clock, Users, Plane, Building2, Ship, MapPin } from 'lucide-react'
+import { Car, ArrowDown, Clock, Users, Plane, Building2, Ship, MapPin } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { readTransferData } from '../../shared/readers'
 import { formatPrice } from '../../shared/utils/priceUtils'
@@ -86,17 +86,18 @@ export function MobileTransferCard({
 
           {/* Conteúdo */}
           <div className="flex-1 min-w-0">
-            {/* Rota */}
+            {/* Rota — vertical em mobile pra não brigar com o preço.
+                Cada linha tem icon (16) + texto truncado, cabe em ~180px. */}
             {transferData.showRoute && (
-              <div className="flex items-center gap-2 text-sm">
-                <div className="flex items-center gap-1 text-slate-700">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-1.5 text-sm text-slate-700 min-w-0">
                   <LocationIcon type={transferData.originType} />
-                  <span className="font-medium truncate max-w-[100px]">{transferData.origin}</span>
+                  <span className="font-medium truncate">{transferData.origin}</span>
                 </div>
-                <ArrowRight className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                <div className="flex items-center gap-1 text-slate-700">
+                <div className="flex items-center gap-1.5 text-sm text-slate-700 min-w-0">
+                  <ArrowDown className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
                   <LocationIcon type={transferData.destinationType} />
-                  <span className="font-medium truncate max-w-[100px]">{transferData.destination}</span>
+                  <span className="font-medium truncate">{transferData.destination}</span>
                 </div>
               </div>
             )}

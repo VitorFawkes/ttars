@@ -14,6 +14,7 @@ import {
   MobileTransferCard,
   MobileInsuranceCard,
 } from './items'
+import { CommentButton } from '@/components/proposals/comments/CommentButton'
 
 interface MobileSectionProps {
   section: ProposalSectionWithItems
@@ -22,6 +23,8 @@ interface MobileSectionProps {
   onSelectItem: (sectionId: string, itemId: string) => void
   onSelectOption: (itemId: string, optionId: string) => void
   onChangeQuantity: (itemId: string, quantity: number) => void
+  /** Token público (cliente) ou ID (consultor) pra mostrar botão de comentar */
+  commentMode?: { kind: 'public'; proposalToken: string } | { kind: 'admin'; proposalId: string }
 }
 
 // Cores por tipo de seção
@@ -42,6 +45,7 @@ export function MobileSection({
   onSelectItem,
   onSelectOption,
   onChangeQuantity,
+  commentMode,
 }: MobileSectionProps) {
   const items = section.items || []
   if (items.length === 0) return null
@@ -151,7 +155,7 @@ export function MobileSection({
         )}>
           <IconComponent className={cn("h-5 w-5", sectionColors.icon)} />
         </div>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <h2 className="font-semibold text-slate-900">{cleanTitle(section.title)}</h2>
           {isRadioMode && (
             <p className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
@@ -170,6 +174,15 @@ export function MobileSection({
             </p>
           )}
         </div>
+        {commentMode && (
+          <CommentButton
+            mode={commentMode}
+            scope={{ kind: 'section', sectionId: section.id }}
+            scopeLabel={cleanTitle(section.title)}
+            size="sm"
+            variant="icon"
+          />
+        )}
       </header>
 
       {/* Items */}

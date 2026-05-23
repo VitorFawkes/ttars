@@ -102,11 +102,11 @@ export function DesktopSidebar({
                         className="flex items-start justify-between gap-2 p-2 bg-slate-50 rounded-lg group"
                       >
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-800 truncate">
+                          <p className="text-sm font-medium text-slate-800 leading-snug line-clamp-2">
                             {item.title}
                           </p>
                           {item.optionLabel && (
-                            <p className="text-xs text-slate-500">{item.optionLabel}</p>
+                            <p className="text-xs text-slate-500 truncate">{item.optionLabel}</p>
                           )}
                           {item.quantity > 1 && (
                             <p className="text-xs text-slate-500">Qtd: {item.quantity}</p>

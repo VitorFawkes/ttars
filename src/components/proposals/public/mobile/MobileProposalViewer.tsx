@@ -182,6 +182,11 @@ export function MobileProposalViewer({ proposal }: MobileProposalViewerProps) {
                 onSelectItem={selectItem}
                 onSelectOption={selectOption}
                 onChangeQuantity={changeQuantity}
+                commentMode={
+                  proposal.public_token
+                    ? { kind: 'public', proposalToken: proposal.public_token }
+                    : undefined
+                }
               />
             </div>
           ))}
@@ -195,6 +200,7 @@ export function MobileProposalViewer({ proposal }: MobileProposalViewerProps) {
         travelers={travelers}
         onAccept={() => setShowAcceptModal(true)}
         isVisible={selectedItemsCount > 0}
+        proposalToken={proposal.public_token}
       />
 
       {/* Modal de aceite */}
