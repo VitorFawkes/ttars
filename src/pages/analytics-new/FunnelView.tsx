@@ -39,7 +39,25 @@ export default function FunnelView() {
     tagIds,
     toggleTagId,
     setTagIds,
+    origins,
+    setOrigins,
   } = useAnalyticsFilters()
+
+  const originOptions = useMemo(() => [
+    { id: 'manual', label: 'Planner direto (manual)' },
+    { id: 'whatsapp', label: 'WhatsApp (Julia IA)' },
+    { id: 'active_campaign', label: 'Active Campaign' },
+    { id: 'mkt', label: 'Marketing' },
+    { id: 'indicacao', label: 'Indicação' },
+    { id: 'carteira_propria', label: 'Carteira própria' },
+    { id: 'carteira_wg', label: 'Carteira WG' },
+    { id: 'sorrento', label: 'Sorrento' },
+    { id: 'weddings', label: 'Weddings (cruzado)' },
+  ], [])
+
+  const toggleOrigin = useCallback((id: string) => {
+    setOrigins(origins.includes(id) ? origins.filter(o => o !== id) : [...origins, id])
+  }, [origins, setOrigins])
 
   const state = useFunnelPageState(org?.id, product)
   const [kpisEditorOpen, setKpisEditorOpen] = useState(false)
@@ -142,6 +160,7 @@ export default function FunnelView() {
       rootStageId: state.rootStageId,
       ownerIds,
       tagIds,
+      origins,
     }),
     [
       dateRange.start,
@@ -153,6 +172,7 @@ export default function FunnelView() {
       state.rootStageId,
       ownerIds,
       tagIds,
+      origins,
     ]
   )
 
@@ -299,6 +319,10 @@ export default function FunnelView() {
         selectedTagIds={tagIds}
         onToggleTag={toggleTagId}
         onClearTags={() => setTagIds([])}
+        originOptions={originOptions}
+        selectedOrigins={origins}
+        onToggleOrigin={toggleOrigin}
+        onClearOrigins={() => setOrigins([])}
         stageOptions={stageOptions}
         rootStageId={state.rootStageId}
         setRootStageId={state.setRootStageId}

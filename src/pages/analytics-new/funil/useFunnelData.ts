@@ -32,6 +32,7 @@ export interface FunnelQueryParams {
   rootStageId: string | null
   ownerIds: string[]
   tagIds: string[]
+  origins: string[]
 }
 
 async function fetchFunnelConversionV3(p: FunnelQueryParams): Promise<FunnelStageV3[]> {
@@ -46,6 +47,7 @@ async function fetchFunnelConversionV3(p: FunnelQueryParams): Promise<FunnelStag
     p_stage_id: p.rootStageId,
     p_owner_ids: p.ownerIds.length ? p.ownerIds : undefined,
     p_tag_ids: p.tagIds.length ? p.tagIds : undefined,
+    p_origens: p.origins.length ? p.origins : undefined,
   })
   if (error) throw error
   return (data as FunnelStageV3[]) || []
@@ -65,6 +67,7 @@ async function fetchLossReasons(p: FunnelQueryParams): Promise<LossReason[]> {
     p_stage_id: p.rootStageId,
     p_owner_ids: p.ownerIds.length ? p.ownerIds : undefined,
     p_tag_ids: p.tagIds.length ? p.tagIds : undefined,
+    p_origens: p.origins.length ? p.origins : undefined,
   })
   if (error) throw error
   return (data as LossReason[]) || []
@@ -78,6 +81,7 @@ async function fetchVelocity(p: FunnelQueryParams): Promise<FunnelVelocityRow[]>
     p_product: p.product,
     p_owner_ids: p.ownerIds.length ? p.ownerIds : undefined,
     p_tag_ids: p.tagIds.length ? p.tagIds : undefined,
+    p_origens: p.origins.length ? p.origins : undefined,
   })
   if (error) throw error
   return (data as FunnelVelocityRow[]) || []

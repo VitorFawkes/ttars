@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Calendar, Repeat, User as UserIcon, GitBranch, Tag, Trophy } from 'lucide-react'
+import { Calendar, Repeat, User as UserIcon, GitBranch, Tag, Trophy, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { DatePreset } from '@/hooks/analytics/useAnalyticsFilters'
 import {
@@ -60,6 +60,12 @@ interface Props {
   onToggleTag: (id: string) => void
   onClearTags: () => void
 
+  /** Picker de origens (Planner direto / Julia / AC / indicação...) */
+  originOptions: PickerOption[]
+  selectedOrigins: string[]
+  onToggleOrigin: (id: string) => void
+  onClearOrigins: () => void
+
   /** Etapa raiz */
   stageOptions: StageOption[]
   rootStageId: string | null
@@ -108,6 +114,10 @@ export default function FunnelFilterPanel({
   selectedTagIds,
   onToggleTag,
   onClearTags,
+  originOptions,
+  selectedOrigins,
+  onToggleOrigin,
+  onClearOrigins,
   stageOptions,
   rootStageId,
   setRootStageId,
@@ -307,6 +317,18 @@ export default function FunnelFilterPanel({
           <Repeat className="w-3.5 h-3.5" />
           Comparar
         </button>
+
+        {/* Picker de origens (de onde o lead veio) */}
+        <MultiPickerPopover
+          label="Origem"
+          icon={<Sparkles className="w-3.5 h-3.5" />}
+          options={originOptions}
+          selectedIds={selectedOrigins}
+          onToggle={onToggleOrigin}
+          onClear={onClearOrigins}
+          singularNoun="origem"
+          pluralNoun="origens"
+        />
 
         {/* Picker de tags */}
         {tagOptions.length > 0 && (

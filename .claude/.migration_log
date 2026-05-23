@@ -949,3 +949,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-23T17:22:05Z | supabase/migrations/20260523c_patricia_forbidden_phrases_expand.sql | applied_to_prod
 2026-05-23T20:02:09Z | supabase/migrations/20260523b_patricia_few_shot_seed.sql | applied_to_prod
 2026-05-23T20:54:51Z | supabase/migrations/20260523b_proposal_comments_fix_visibility.sql | applied_to_prod
+2026-05-23T21:59:26Z | supabase/migrations/20260523a_analytics_funnel_filter_origem.sql | applied_to_prod
+2026-05-23T22:03:43Z | supabase/migrations/20260523b_analytics_funnel_v3_filter_origem.sql | applied_to_prod

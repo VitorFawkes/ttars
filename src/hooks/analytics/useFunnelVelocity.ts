@@ -15,10 +15,10 @@ export interface FunnelVelocityRow {
 }
 
 export function useFunnelVelocity() {
-    const { dateRange, ownerIds, tagIds } = useAnalyticsFilters()
+    const { dateRange, ownerIds, tagIds, origins } = useAnalyticsFilters()
 
     return useQuery({
-        queryKey: ['analytics', 'funnel-velocity', dateRange.start, dateRange.end, ownerIds, tagIds],
+        queryKey: ['analytics', 'funnel-velocity', dateRange.start, dateRange.end, ownerIds, tagIds, origins],
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC nova
             const { data, error } = await (supabase.rpc as any)('analytics_funnel_velocity', {
@@ -26,6 +26,7 @@ export function useFunnelVelocity() {
                 p_date_end: dateRange.end,
                 p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
                 p_tag_ids: tagIds.length > 0 ? tagIds : undefined,
+                p_origens: origins.length > 0 ? origins : undefined,
             })
             if (error) throw error
             return (data as unknown as FunnelVelocityRow[]) || []

@@ -103,10 +103,10 @@ function pivotData(rows: FunnelByOwnerRow[], metric: FunnelMetric) {
 }
 
 export function useFunnelByOwner(metric: FunnelMetric = 'cards') {
-    const { dateRange, product, mode, stageId, ownerIds, tagIds } = useAnalyticsFilters()
+    const { dateRange, product, mode, stageId, ownerIds, tagIds, origins } = useAnalyticsFilters()
 
     const query = useQuery({
-        queryKey: ['analytics', 'funnel-by-owner', dateRange.start, dateRange.end, product, mode, stageId, ownerIds, tagIds],
+        queryKey: ['analytics', 'funnel-by-owner', dateRange.start, dateRange.end, product, mode, stageId, ownerIds, tagIds, origins],
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC não existe nos types até deploy
             const { data, error } = await (supabase.rpc as any)('analytics_funnel_by_owner', {
@@ -117,6 +117,7 @@ export function useFunnelByOwner(metric: FunnelMetric = 'cards') {
                 p_stage_id: stageId,
                 p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
                 p_tag_ids: tagIds.length > 0 ? tagIds : undefined,
+                p_origens: origins.length > 0 ? origins : undefined,
             })
             if (error) throw error
             return (data as unknown as FunnelByOwnerRow[]) || []
