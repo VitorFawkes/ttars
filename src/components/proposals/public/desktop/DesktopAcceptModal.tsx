@@ -87,25 +87,28 @@ export function DesktopAcceptModal({
                 <h3 className="text-sm font-semibold text-slate-500 uppercase mb-3">
                   Itens selecionados ({selectedItems.length})
                 </h3>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
+                {/* Lista — o modal já tem overflow-y na seção pai (max-h-[60vh]).
+                    Aqui usamos espaço natural pra que com 4-6 itens não precise
+                    scroll interno duplo (que tava escondendo os últimos itens). */}
+                <div className="space-y-2">
                   {selectedItems.map(item => (
                     <div
                       key={item.id}
-                      className="flex items-center justify-between p-4 bg-slate-50 rounded-xl"
+                      className="flex items-center justify-between gap-3 p-4 bg-slate-50 rounded-xl"
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
                           <Check className="h-4 w-4 text-emerald-600" />
                         </div>
-                        <div>
-                          <p className="font-medium text-slate-900">{item.title}</p>
-                          <div className="flex items-center gap-2 text-xs text-slate-500">
-                            {item.optionLabel && <span>{item.optionLabel}</span>}
-                            {item.quantity > 1 && <span>• Qtd: {item.quantity}</span>}
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-slate-900 leading-snug">{item.title}</p>
+                          <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
+                            {item.optionLabel && <span className="truncate">{item.optionLabel}</span>}
+                            {item.quantity > 1 && <span>· Qtd: {item.quantity}</span>}
                           </div>
                         </div>
                       </div>
-                      <p className="font-semibold text-slate-700">
+                      <p className="font-semibold text-slate-900 whitespace-nowrap flex-shrink-0">
                         {formatPrice(item.price, currency)}
                       </p>
                     </div>

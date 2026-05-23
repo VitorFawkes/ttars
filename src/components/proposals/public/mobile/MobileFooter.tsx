@@ -4,6 +4,7 @@
 
 import { cn } from '@/lib/utils'
 import { formatPrice, type Currency } from '../shared/utils/priceUtils'
+import { CommentButton } from '@/components/proposals/comments/CommentButton'
 
 interface MobileFooterProps {
   total: number
@@ -11,6 +12,8 @@ interface MobileFooterProps {
   travelers?: number
   onAccept: () => void
   isVisible?: boolean
+  /** Token público pra abrir drawer de comentários (cliente) */
+  proposalToken?: string | null
 }
 
 export function MobileFooter({
@@ -19,6 +22,7 @@ export function MobileFooter({
   travelers = 1,
   onAccept,
   isVisible = true,
+  proposalToken,
 }: MobileFooterProps) {
   const pricePerPerson = travelers > 1 ? total / travelers : null
 
@@ -32,36 +36,46 @@ export function MobileFooter({
         isVisible ? "translate-y-0" : "translate-y-full"
       )}
     >
-      <div className="px-4 py-3 flex items-center justify-between gap-4">
+      <div className="px-4 py-3 flex items-center justify-between gap-3">
         {/* Total */}
-        <div>
+        <div className="min-w-0">
           <p className="text-xs text-slate-500">Total da viagem</p>
           <div className="flex items-baseline gap-2">
             <p className="text-2xl font-bold text-slate-900">
               {formatPrice(total, currency)}
             </p>
             {pricePerPerson && (
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 truncate">
                 {formatPrice(pricePerPerson, currency)}/pessoa
               </p>
             )}
           </div>
         </div>
 
-        {/* CTA */}
-        <button
-          onClick={onAccept}
-          disabled={total <= 0}
-          className={cn(
-            "px-6 py-3.5 rounded-xl font-semibold text-sm transition-all min-h-[52px]",
-            "bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800",
-            "disabled:bg-slate-300 disabled:cursor-not-allowed",
-            "shadow-lg shadow-emerald-600/20"
+        {/* Ações */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {proposalToken && (
+            <CommentButton
+              mode={{ kind: 'public', proposalToken }}
+              scope={{ kind: 'proposal' }}
+              size="md"
+              variant="icon"
+            />
           )}
-          style={{ touchAction: 'manipulation' }}
-        >
-          Aceitar Proposta
-        </button>
+          <button
+            onClick={onAccept}
+            disabled={total <= 0}
+            className={cn(
+              'px-5 py-3.5 rounded-xl font-semibold text-sm transition-all min-h-[52px]',
+              'bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800',
+              'disabled:bg-slate-300 disabled:cursor-not-allowed',
+              'shadow-lg shadow-emerald-600/20',
+            )}
+            style={{ touchAction: 'manipulation' }}
+          >
+            Aceitar Proposta
+          </button>
+        </div>
       </div>
 
       {/* Safe area spacer para iOS */}
