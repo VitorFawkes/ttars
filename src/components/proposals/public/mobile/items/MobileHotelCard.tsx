@@ -257,13 +257,40 @@ export function MobileHotelCard({
         </div>
       )}
 
-      {/* Opções de upgrade */}
+      {/* Tarifa — Padrão (incluído) + upgrades. Sempre deixa claro qual está
+          ativa pra evitar dúvida sobre custo extra. */}
       {hotelData.options.length > 0 && (
         <div className="px-4 pb-4">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-            Opções de quarto
+            Tarifa
           </p>
           <div className="space-y-2">
+            {/* Padrão (nenhum upgrade) */}
+            <button
+              onClick={() => onSelectOption('')}
+              disabled={!isSelected}
+              className={cn(
+                'w-full text-left p-3 rounded-xl border-2 transition-all',
+                !selectedOptionId
+                  ? 'border-emerald-500 bg-emerald-50'
+                  : 'border-slate-200 hover:border-slate-300 bg-white',
+                !isSelected && 'opacity-50 cursor-not-allowed',
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    'w-5 h-5 rounded-full border-2 flex items-center justify-center',
+                    !selectedOptionId ? 'border-emerald-600' : 'border-slate-300',
+                  )}>
+                    {!selectedOptionId && <div className="w-2 h-2 rounded-full bg-emerald-600" />}
+                  </div>
+                  <span className="text-sm font-medium text-slate-900">Padrão</span>
+                </div>
+                <span className="text-xs text-slate-500">incluído</span>
+              </div>
+            </button>
+
             {hotelData.options.map(option => {
               const isOptionSelected = selectedOptionId === option.id
               return (
@@ -272,43 +299,51 @@ export function MobileHotelCard({
                   onClick={() => onSelectOption(option.id)}
                   disabled={!isSelected}
                   className={cn(
-                    "w-full text-left p-3 rounded-xl border-2 transition-all",
+                    'w-full text-left p-3 rounded-xl border-2 transition-all',
                     isOptionSelected
-                      ? "border-emerald-500 bg-emerald-50"
-                      : "border-slate-200 hover:border-emerald-300",
-                    !isSelected && "opacity-50 cursor-not-allowed"
+                      ? 'border-emerald-500 bg-emerald-50'
+                      : 'border-slate-200 hover:border-emerald-300 bg-white',
+                    !isSelected && 'opacity-50 cursor-not-allowed',
                   )}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
                       <div className={cn(
-                        "w-5 h-5 rounded-full border-2 flex items-center justify-center",
-                        isOptionSelected
-                          ? "border-emerald-600 bg-emerald-600"
-                          : "border-slate-300"
+                        'w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0',
+                        isOptionSelected ? 'border-emerald-600' : 'border-slate-300',
                       )}>
-                        {isOptionSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                        {isOptionSelected && <div className="w-2 h-2 rounded-full bg-emerald-600" />}
                       </div>
-                      <span className="text-sm font-medium text-slate-900">
+                      <span className="text-sm font-medium text-slate-900 truncate">
                         {option.label}
                       </span>
-                      {option.isRecommended && (
-                        <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] rounded">
-                          Recomendado
-                        </span>
-                      )}
                     </div>
-                    <span className={cn(
-                      "text-sm font-semibold",
-                      option.priceDelta > 0 ? "text-amber-600" : option.priceDelta < 0 ? "text-emerald-600" : "text-slate-500"
-                    )}>
-                      {formatPriceDelta(option.priceDelta)}
-                    </span>
+                    {option.priceDelta !== 0 && (
+                      <span className={cn(
+                        'text-sm font-semibold flex-shrink-0',
+                        option.priceDelta > 0 ? 'text-amber-600' : 'text-emerald-600',
+                      )}>
+                        {formatPriceDelta(option.priceDelta)}
+                        <span className="text-[10px] font-normal text-slate-400"> /noite</span>
+                      </span>
+                    )}
                   </div>
                 </button>
               )
             })}
           </div>
+
+          {selectedOption && selectedOption.priceDelta !== 0 && (
+            <p className="mt-2 text-xs text-slate-600">
+              <strong className={cn(
+                'font-semibold',
+                selectedOption.priceDelta > 0 ? 'text-amber-700' : 'text-emerald-700',
+              )}>
+                {formatPriceDelta(selectedOption.priceDelta * hotelData.nights * quantity)}
+              </strong>
+              {' '}sobre a tarifa padrão ({hotelData.nights} noite{hotelData.nights > 1 ? 's' : ''}{quantity > 1 ? ` × ${quantity} quartos` : ''})
+            </p>
+          )}
         </div>
       )}
     </div>

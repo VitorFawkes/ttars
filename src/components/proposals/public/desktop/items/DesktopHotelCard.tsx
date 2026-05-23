@@ -310,9 +310,33 @@ export function DesktopHotelCard({
               </div>
             )}
 
-            {/* Opções de upgrade */}
-            {hotelData.options.length > 0 && (
-              <div className="flex gap-2 flex-wrap justify-end">
+          </div>
+
+          {/* Tarifa — opção "Padrão" + upgrades. Sempre mostra qual está
+              ativa pra não deixar dúvida se há ou não custo extra. */}
+          {hotelData.options.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-slate-100">
+              <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
+                Tarifa
+              </p>
+              <div className="flex gap-2 flex-wrap">
+                {/* Opção Padrão (sem upgrade) */}
+                <button
+                  onClick={() => onSelectOption('')}
+                  disabled={!isSelected}
+                  className={cn(
+                    'px-3 py-2 rounded-lg border-2 transition-all text-sm inline-flex items-center gap-2',
+                    !selectedOptionId
+                      ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                      : 'border-slate-200 hover:border-slate-300 text-slate-600 bg-white',
+                    !isSelected && 'opacity-50 cursor-not-allowed',
+                  )}
+                >
+                  {!selectedOptionId && <Check className="h-3.5 w-3.5" />}
+                  <span className="font-medium">Padrão</span>
+                  <span className="text-xs text-slate-500">incluído</span>
+                </button>
+
                 {hotelData.options.map(option => {
                   const isOptionSelected = selectedOptionId === option.id
                   return (
@@ -321,31 +345,43 @@ export function DesktopHotelCard({
                       onClick={() => onSelectOption(option.id)}
                       disabled={!isSelected}
                       className={cn(
-                        "px-3 py-2 rounded-lg border transition-all text-sm",
+                        'px-3 py-2 rounded-lg border-2 transition-all text-sm inline-flex items-center gap-2',
                         isOptionSelected
-                          ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                          : "border-slate-200 hover:border-emerald-300 text-slate-600",
-                        !isSelected && "opacity-50 cursor-not-allowed"
+                          ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                          : 'border-slate-200 hover:border-emerald-300 text-slate-600 bg-white',
+                        !isSelected && 'opacity-50 cursor-not-allowed',
                       )}
                     >
+                      {isOptionSelected && <Check className="h-3.5 w-3.5" />}
                       <span className="font-medium">{option.label}</span>
                       {option.priceDelta !== 0 && (
                         <span className={cn(
-                          "ml-2 text-xs",
-                          option.priceDelta > 0 ? "text-amber-600" : "text-emerald-600"
+                          'text-xs font-semibold',
+                          option.priceDelta > 0 ? 'text-amber-600' : 'text-emerald-600',
                         )}>
                           {formatPriceDelta(option.priceDelta)}
+                          <span className="text-slate-400 font-normal"> /noite</span>
                         </span>
-                      )}
-                      {option.isRecommended && (
-                        <span className="ml-1 text-[10px] text-emerald-600">✓</span>
                       )}
                     </button>
                   )
                 })}
               </div>
-            )}
-          </div>
+
+              {/* Impacto explícito do upgrade no total */}
+              {selectedOption && selectedOption.priceDelta !== 0 && (
+                <p className="mt-2 text-xs text-slate-600">
+                  <strong className={cn(
+                    'font-semibold',
+                    selectedOption.priceDelta > 0 ? 'text-amber-700' : 'text-emerald-700',
+                  )}>
+                    {formatPriceDelta(selectedOption.priceDelta * hotelData.nights * quantity)}
+                  </strong>
+                  {' '}sobre a tarifa padrão ({hotelData.nights} noite{hotelData.nights > 1 ? 's' : ''}{quantity > 1 ? ` × ${quantity} quartos` : ''})
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
