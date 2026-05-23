@@ -69,6 +69,31 @@ const VALIDATOR_MODEL = "gpt-5.1";
 const VALIDATOR_TEMPERATURE = 0.1;
 const VALIDATOR_MAX_TOKENS = 1024;
 
+/**
+ * Exceções de regras por momento ativo. Algumas regras estilísticas conflitam
+ * com o DESIGN INTENCIONAL de certos momentos — quando esse moment está ativo,
+ * o validator deve ignorar essas regras pra não bloquear comportamento correto.
+ *
+ * Exemplo: na abertura, Patricia PRECISA combinar apresentação + pedido de
+ * nome no mesmo turno (design Welcome). Sem exceção, perguntas_desconexas
+ * marca esse comportamento como violação (falso positivo).
+ *
+ * Adicione novas exceções aqui quando descobrir falso positivo recorrente
+ * onde regra X confronta design Y de um moment específico.
+ */
+const MOMENT_EXCEPTIONS: Record<string, { ignored_rules: string[]; reason: string }> = {
+  abertura: {
+    ignored_rules: ["perguntas_desconexas"],
+    reason:
+      "Abertura PRECISA combinar apresentação + pedido de nome no mesmo turno por design Welcome (Patricia faz isso intencionalmente). Não marque perguntas_desconexas neste moment.",
+  },
+  handoff_humano_invisivel: {
+    ignored_rules: ["nao_prometer_voltar_sem_handoff"],
+    reason:
+      "Quando o moment é handoff_humano_invisivel, o router auto-disparou request_handoff (ou Patricia disparou). Promessa de 'volto' não é vazia — handoff aconteceu de fato. Não marque essa regra neste moment.",
+  },
+};
+
 export async function validateBrandCompliance(
   input: BrandValidatorInput,
   apiKey: string,
@@ -129,6 +154,12 @@ ${JSON.stringify(input.context_facts, null, 2)}
 Estas flags são determinísticas (não veio do LLM). Regras que mencionam pitch_saturado, inviabilidade_economica, pendencias_patricia DEVEM consultar este bloco como fonte de verdade.
 ` : ""}
 
+${(() => {
+  const ex = input.active_moment_key && MOMENT_EXCEPTIONS[input.active_moment_key];
+  if (!ex) return "";
+  return `\n## EXCEÇÕES PARA O MOMENT ATIVO \`${input.active_moment_key}\`\n\nAs regras abaixo NÃO se aplicam neste moment (design intencional do agente):\n${ex.ignored_rules.map((r) => `- \`${r}\``).join("\n")}\n\nMotivo: ${ex.reason}\n\nSe a única violação detectada for de uma rule listada acima, retorne \`action: "pass"\` e NÃO inclua essa rule em \`violations[]\`. Se houver outras violações reais, processe normalmente (ignorando apenas as listadas).`;
+})()}
+
 ${input.active_moment_mode === "literal"
   ? `⚠️ MODO LITERAL: o admin curou palavra-por-palavra o texto-base deste momento. Estruturas que parecem violar regras (ex: duas perguntas na mesma mensagem, frases longas) foram **validadas pelo admin** ao escolher modo literal. NÃO use ação "rewrite" neste turno — só use "block" se a mensagem viola uma red line absoluta (ex: inventou preço, mencionou que é IA). Para violações de "correct", retorne action="pass" com a violation registrada em violations[] mas NÃO mexa no texto.`
   : input.active_moment_mode === "faithful"
@@ -153,6 +184,7 @@ ${input.active_moment_mode === "literal"
 - Se ação=rewrite, preserva a essência. Ajuste pontual, não reescreva tudo.
 - Não invente regras novas. Use só as ${enabledRules.length} condições listadas.
 - A primeira mensagem do agente PODE ter as DUAS perguntas de abertura juntas (regra perguntas_desconexas tem exceção — ver red_lines do momento abertura).
+- **\`zero_travessoes\` é APENAS sobre travessão real**: caractere "—" (em-dash) ou "-" (hífen) usado como SEPARADOR DE FRASES. Vírgula, ponto, ponto-e-vírgula, dois-pontos e reticências SÃO pontuação normal — nunca trate como travessão. Hífen dentro de palavra composta ("guarda-roupa", "wedding-planner") também não conta.
 ${input.extra_validator_instruction ? `\n## INSTRUÇÃO ADICIONAL DO ADMIN\n\n${input.extra_validator_instruction.trim()}\n` : ""}
 Retorne JSON conforme schema. Se nenhuma condição é verdadeira, retorne \`violations: []\` e \`action: "pass"\`.`;
 
