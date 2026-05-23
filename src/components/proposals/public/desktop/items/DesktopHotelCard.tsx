@@ -172,10 +172,7 @@ export function DesktopHotelCard({
             {/* Seleção + Preço */}
             <div className="flex items-center gap-4">
               <div className="text-right">
-                <p className={cn(
-                  "text-2xl font-bold",
-                  isSelected ? "text-emerald-600" : "text-slate-700"
-                )}>
+                <p className="text-2xl font-bold text-slate-900">
                   {formatPrice(totalPrice)}
                 </p>
                 <p className="text-sm text-slate-500">

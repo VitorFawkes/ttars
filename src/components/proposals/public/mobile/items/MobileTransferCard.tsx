@@ -130,23 +130,48 @@ export function MobileTransferCard({
 
           {/* Preço */}
           <div className="text-right flex-shrink-0">
-            <p className={cn(
-              "text-lg font-bold",
-              isSelected ? "text-teal-600" : "text-slate-600"
-            )}>
-              {isSelected ? `+${formatPrice(totalPrice)}` : formatPrice(totalPrice)}
+            <p className="text-lg font-bold text-slate-900">
+              {formatPrice(totalPrice)}
             </p>
           </div>
         </div>
       </button>
 
-      {/* Opções de veículo */}
+      {/* Variantes de veículo — Padrão + alternativas. Opção SUBSTITUI o preço. */}
       {transferData.options.length > 0 && isSelected && (
         <div className="px-4 pb-4 border-t border-slate-100 pt-3">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
             Tipo de veículo
           </p>
           <div className="space-y-2">
+            {/* Padrão */}
+            <button
+              onClick={() => onSelectOption('')}
+              className={cn(
+                'w-full text-left p-3 rounded-xl border-2 transition-all',
+                !selectedOptionId
+                  ? 'border-teal-500 bg-teal-50'
+                  : 'border-slate-200 hover:border-slate-300 bg-white',
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={cn(
+                    'w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0',
+                    !selectedOptionId ? 'border-teal-600' : 'border-slate-300',
+                  )}>
+                    {!selectedOptionId && <div className="w-2 h-2 rounded-full bg-teal-600" />}
+                  </div>
+                  <span className="text-sm font-medium text-slate-900">
+                    {transferData.vehicleType || 'Padrão'}
+                  </span>
+                </div>
+                <span className="text-sm font-semibold text-slate-900 flex-shrink-0">
+                  {formatPrice(transferData.price)}
+                </span>
+              </div>
+            </button>
+
             {transferData.options.map(option => {
               const isOptionSelected = selectedOptionId === option.id
               return (
@@ -154,28 +179,25 @@ export function MobileTransferCard({
                   key={option.id}
                   onClick={() => onSelectOption(option.id)}
                   className={cn(
-                    "w-full text-left p-3 rounded-xl border-2 transition-all",
+                    'w-full text-left p-3 rounded-xl border-2 transition-all',
                     isOptionSelected
-                      ? "border-teal-500 bg-teal-50"
-                      : "border-slate-200 hover:border-teal-300"
+                      ? 'border-teal-500 bg-teal-50'
+                      : 'border-slate-200 hover:border-teal-300 bg-white',
                   )}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
                       <div className={cn(
-                        "w-5 h-5 rounded-full border-2 flex items-center justify-center",
-                        isOptionSelected ? "border-teal-600 bg-teal-600" : "border-slate-300"
+                        'w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0',
+                        isOptionSelected ? 'border-teal-600' : 'border-slate-300',
                       )}>
-                        {isOptionSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                        {isOptionSelected && <div className="w-2 h-2 rounded-full bg-teal-600" />}
                       </div>
-                      <span className="text-sm font-medium text-slate-900">{option.label}</span>
-                      {option.isRecommended && (
-                        <span className="px-1.5 py-0.5 bg-teal-100 text-teal-700 text-[10px] rounded">
-                          Recomendado
-                        </span>
-                      )}
+                      <span className="text-sm font-medium text-slate-900 truncate">
+                        {option.label}
+                      </span>
                     </div>
-                    <span className="text-sm font-semibold text-slate-700">
+                    <span className="text-sm font-semibold text-slate-900 flex-shrink-0">
                       {formatPrice(option.price)}
                     </span>
                   </div>

@@ -102,15 +102,12 @@ export function DesktopInsuranceCard({
 
         <div className="flex items-center gap-4">
           <div className="text-right">
-            <p className={cn(
-              "text-2xl font-bold",
-              isSelected ? "text-teal-600" : "text-slate-700"
-            )}>
+            <p className="text-2xl font-bold text-slate-900">
               {formatPrice(totalPrice)}
             </p>
             {insuranceData.priceType === 'per_person' && insuranceData.travelers > 1 && (
               <p className="text-sm text-slate-500">
-                {formatPrice(basePrice)}/pessoa
+                {formatPrice(basePrice)} /pessoa
               </p>
             )}
           </div>
@@ -201,17 +198,51 @@ export function DesktopInsuranceCard({
           </div>
         )}
 
-        {/* Opções de plano */}
+        {/* Planos — Padrão + tiers. Opção SUBSTITUI o tier base. */}
         {insuranceData.options.length > 0 && (
           <div className="mt-4 pt-4 border-t border-slate-100">
-            <p className="text-xs font-medium text-slate-500 uppercase mb-3">
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">
               Escolha seu plano
             </p>
             <div className="grid grid-cols-4 gap-3">
+              {/* Plano padrão */}
+              <button
+                onClick={() => onSelectOption('')}
+                disabled={!isSelected}
+                className={cn(
+                  'p-4 rounded-xl border-2 transition-all text-left bg-white',
+                  !selectedOptionId
+                    ? 'border-teal-500 bg-teal-50'
+                    : 'border-slate-200 hover:border-slate-300',
+                  !isSelected && 'opacity-50 cursor-not-allowed',
+                )}
+              >
+                <div className="flex items-center gap-1.5 mb-2">
+                  <div className={cn(
+                    'w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0',
+                    !selectedOptionId ? 'border-teal-600' : 'border-slate-300',
+                  )}>
+                    {!selectedOptionId && <div className="w-2 h-2 rounded-full bg-teal-600" />}
+                  </div>
+                </div>
+                <p className="font-semibold text-slate-900 mb-1">Plano padrão</p>
+                <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600">
+                  {TIER_LABELS['standard']}
+                </span>
+                <p className="text-lg font-bold mt-2 text-slate-900">
+                  {formatPrice(insuranceData.priceType === 'per_person'
+                    ? insuranceData.price * insuranceData.travelers
+                    : insuranceData.price)}
+                </p>
+              </button>
+
               {insuranceData.options.map(option => {
                 const isOptionSelected = selectedOptionId === option.id
                 const optionTier = option.tier || 'standard'
                 const optionColors = TIER_COLORS[optionTier] || TIER_COLORS.standard
+                const optTotal = insuranceData.priceType === 'per_person'
+                  ? option.price * insuranceData.travelers
+                  : option.price
 
                 return (
                   <button
@@ -219,34 +250,28 @@ export function DesktopInsuranceCard({
                     onClick={() => onSelectOption(option.id)}
                     disabled={!isSelected}
                     className={cn(
-                      "p-4 rounded-xl border-2 transition-all text-center",
+                      'p-4 rounded-xl border-2 transition-all text-left bg-white',
                       isOptionSelected
-                        ? cn(optionColors.border, optionColors.bg)
-                        : "border-slate-200 hover:border-teal-300",
-                      !isSelected && "opacity-50 cursor-not-allowed"
+                        ? 'border-teal-500 bg-teal-50'
+                        : 'border-slate-200 hover:border-teal-300',
+                      !isSelected && 'opacity-50 cursor-not-allowed',
                     )}
                   >
-                    <p className={cn(
-                      "font-semibold mb-1",
-                      isOptionSelected ? optionColors.text : "text-slate-700"
-                    )}>
-                      {option.label}
-                    </p>
-                    <span className={cn(
-                      "px-2 py-0.5 rounded text-xs font-medium",
-                      optionColors.badge
-                    )}>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <div className={cn(
+                        'w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0',
+                        isOptionSelected ? 'border-teal-600' : 'border-slate-300',
+                      )}>
+                        {isOptionSelected && <div className="w-2 h-2 rounded-full bg-teal-600" />}
+                      </div>
+                    </div>
+                    <p className="font-semibold text-slate-900 mb-1">{option.label}</p>
+                    <span className={cn('px-2 py-0.5 rounded text-xs font-medium', optionColors.badge)}>
                       {TIER_LABELS[optionTier] || optionTier}
                     </span>
-                    <p className={cn(
-                      "text-lg font-bold mt-2",
-                      isOptionSelected ? optionColors.text : "text-slate-600"
-                    )}>
-                      {formatPrice(option.price)}
+                    <p className="text-lg font-bold mt-2 text-slate-900">
+                      {formatPrice(optTotal)}
                     </p>
-                    {option.isRecommended && (
-                      <span className="text-[10px] text-teal-600 font-medium">✓ Recomendado</span>
-                    )}
                   </button>
                 )
               })}

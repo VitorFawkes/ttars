@@ -41,8 +41,8 @@ export function readHotelData(item: ProposalItemWithOptions): HotelViewData | nu
   const rawOptions = (hotel.options as Array<Record<string, unknown>>) || []
   const options: HotelOptionViewData[] = rawOptions
     .filter(opt => opt.enabled !== false)
-    .map(opt => ({
-      id: String(opt.id || ''),
+    .map((opt, i) => ({
+      id: String(opt.id || `hotel-opt-${i}`),
       label: String(opt.label || ''),
       priceDelta: Number(opt.price_delta) || 0,
       isRecommended: Boolean(opt.is_recommended),

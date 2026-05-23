@@ -45,8 +45,12 @@ export function MobileInsuranceCard({
   const tierColors = TIER_COLORS[tier]
   const tierLabel = TIER_LABELS[tier]
 
-  // Preço
-  const totalPrice = selectedOption?.price ?? insuranceData.totalPrice
+  // Preço — opção SUBSTITUI o base. Reaplica multiplicação por viajantes
+  // se priceType=per_person.
+  const baseUnit = selectedOption?.price ?? insuranceData.price
+  const totalPrice = insuranceData.priceType === 'per_person'
+    ? baseUnit * insuranceData.travelers
+    : baseUnit
 
   return (
     <div
@@ -103,14 +107,13 @@ export function MobileInsuranceCard({
 
               {/* Preço */}
               <div className="text-right flex-shrink-0">
-                <p className={cn(
-                  "text-lg font-bold",
-                  isSelected ? "text-amber-600" : "text-slate-600"
-                )}>
+                <p className="text-lg font-bold text-slate-900">
                   {formatPrice(totalPrice)}
                 </p>
                 {insuranceData.priceType === 'per_person' && (
-                  <p className="text-xs text-slate-500">por pessoa</p>
+                  <p className="text-xs text-slate-500">
+                    {formatPrice(baseUnit)} /pessoa
+                  </p>
                 )}
               </div>
             </div>
@@ -156,49 +159,83 @@ export function MobileInsuranceCard({
         )}
       </button>
 
-      {/* Opções de plano */}
+      {/* Planos — Padrão + upgrades. Opção SUBSTITUI o tier base. */}
       {insuranceData.options.length > 0 && (
         <div className="px-4 pb-4 border-t border-slate-100 pt-3">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
             Planos disponíveis
           </p>
           <div className="space-y-2">
+            {/* Plano padrão (base) */}
+            <button
+              onClick={() => onSelectOption('')}
+              className={cn(
+                'w-full text-left p-3 rounded-xl border-2 transition-all bg-white',
+                !selectedOptionId
+                  ? 'border-amber-500 bg-amber-50'
+                  : 'border-slate-200 hover:border-slate-300',
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={cn(
+                    'w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0',
+                    !selectedOptionId ? 'border-amber-600' : 'border-slate-300',
+                  )}>
+                    {!selectedOptionId && <div className="w-2 h-2 rounded-full bg-amber-600" />}
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-sm font-medium text-slate-900">Plano padrão</span>
+                    <span className="ml-2 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-slate-100 text-slate-600">
+                      {TIER_LABELS['standard']}
+                    </span>
+                  </div>
+                </div>
+                <span className="text-sm font-semibold text-slate-900 flex-shrink-0">
+                  {formatPrice(insuranceData.priceType === 'per_person'
+                    ? insuranceData.price * insuranceData.travelers
+                    : insuranceData.price)}
+                </span>
+              </div>
+            </button>
+
             {insuranceData.options.map(option => {
               const isOptionSelected = selectedOptionId === option.id
               const optTierColors = TIER_COLORS[option.tier]
+              const optTotal = insuranceData.priceType === 'per_person'
+                ? option.price * insuranceData.travelers
+                : option.price
               return (
                 <button
                   key={option.id}
                   onClick={() => onSelectOption(option.id)}
                   className={cn(
-                    "w-full text-left p-3 rounded-xl border-2 transition-all",
+                    'w-full text-left p-3 rounded-xl border-2 transition-all bg-white',
                     isOptionSelected
-                      ? cn("bg-opacity-50", optTierColors.border, optTierColors.bg)
-                      : "border-slate-200 hover:border-amber-300"
+                      ? 'border-amber-500 bg-amber-50'
+                      : 'border-slate-200 hover:border-amber-300',
                   )}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
                       <div className={cn(
-                        "w-5 h-5 rounded-full border-2 flex items-center justify-center",
-                        isOptionSelected
-                          ? cn(optTierColors.border.replace('border-', 'border-'), "bg-amber-600")
-                          : "border-slate-300"
+                        'w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0',
+                        isOptionSelected ? 'border-amber-600' : 'border-slate-300',
                       )}>
-                        {isOptionSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                        {isOptionSelected && <div className="w-2 h-2 rounded-full bg-amber-600" />}
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <span className="text-sm font-medium text-slate-900">{option.label}</span>
                         <span className={cn(
-                          "ml-2 px-1.5 py-0.5 text-[10px] font-semibold rounded",
-                          optTierColors.bg, optTierColors.text
+                          'ml-2 px-1.5 py-0.5 text-[10px] font-semibold rounded',
+                          optTierColors.bg, optTierColors.text,
                         )}>
                           {TIER_LABELS[option.tier]}
                         </span>
                       </div>
                     </div>
-                    <span className="text-sm font-semibold text-slate-700">
-                      {formatPrice(option.price)}
+                    <span className="text-sm font-semibold text-slate-900 flex-shrink-0">
+                      {formatPrice(optTotal)}
                     </span>
                   </div>
                 </button>

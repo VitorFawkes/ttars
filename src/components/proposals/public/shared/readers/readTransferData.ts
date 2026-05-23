@@ -34,8 +34,8 @@ export function readTransferData(item: ProposalItemWithOptions): TransferViewDat
   const rawOptions = (transfer.options as Array<Record<string, unknown>>) || []
   const options: TransferOptionViewData[] = rawOptions
     .filter(opt => opt.enabled !== false)
-    .map(opt => ({
-      id: String(opt.id || ''),
+    .map((opt, i) => ({
+      id: String(opt.id || `transfer-opt-${i}`),
       vehicle: String(opt.vehicle || ''),
       label: String(opt.label || ''),
       price: Number(opt.price) || 0,

@@ -9,7 +9,7 @@ import type { ProposalItemWithOptions } from '@/types/proposals'
 import { Sparkles, Check, Clock, MapPin, Users, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { readExperienceData, DIFFICULTY_LABELS } from '../../shared/readers'
-import { formatPrice, formatPriceDelta } from '../../shared/utils/priceUtils'
+import { formatPrice } from '../../shared/utils/priceUtils'
 import { formatDateShort, formatTime } from '../../shared/utils/dateUtils'
 
 interface MobileExperienceCardProps {
@@ -44,10 +44,13 @@ export function MobileExperienceCard({
   const images = expData.images.length > 0 ? expData.images : expData.imageUrl ? [expData.imageUrl] : []
   const hasImage = images.length > 0
 
-  // Preço com opção
+  // Preço com opção — opção SUBSTITUI o base (não soma).
+  // Mesma semântica do DesktopExperienceCard.
   const selectedOption = expData.options.find(o => o.id === selectedOptionId)
-  const optionPrice = selectedOption?.price ?? 0
-  const totalPrice = expData.totalPrice + optionPrice
+  const baseUnit = selectedOption?.price ?? expData.price
+  const totalPrice = expData.priceType === 'per_person'
+    ? baseUnit * expData.participants
+    : baseUnit
 
   return (
     <div
@@ -116,14 +119,11 @@ export function MobileExperienceCard({
 
                 {/* Preço */}
                 <div className="text-right flex-shrink-0">
-                  <p className={cn(
-                    "text-xl font-bold",
-                    isSelected ? "text-purple-600" : "text-slate-600"
-                  )}>
-                    {isSelected ? `+${formatPrice(totalPrice)}` : formatPrice(totalPrice)}
+                  <p className="text-xl font-bold text-slate-900">
+                    {formatPrice(totalPrice)}
                   </p>
                   {expData.priceType === 'per_person' && (
-                    <p className="text-xs text-slate-500">por pessoa</p>
+                    <p className="text-xs text-slate-500">total</p>
                   )}
                 </div>
               </div>
@@ -230,38 +230,67 @@ export function MobileExperienceCard({
         </div>
       )}
 
-      {/* Opções */}
+      {/* Variantes — Padrão + alternativas. Opção SUBSTITUI o preço base. */}
       {expData.options.length > 0 && isSelected && (
         <div className="px-4 pb-4">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-            Extras disponíveis
+            Opções
           </p>
           <div className="space-y-2">
+            {/* Padrão */}
+            <button
+              onClick={() => onSelectOption('')}
+              className={cn(
+                'w-full text-left p-3 rounded-xl border-2 transition-all',
+                !selectedOptionId
+                  ? 'border-purple-500 bg-purple-50'
+                  : 'border-slate-200 hover:border-slate-300 bg-white',
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={cn(
+                    'w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0',
+                    !selectedOptionId ? 'border-purple-600' : 'border-slate-300',
+                  )}>
+                    {!selectedOptionId && <div className="w-2 h-2 rounded-full bg-purple-600" />}
+                  </div>
+                  <span className="text-sm font-medium text-slate-900">Padrão</span>
+                </div>
+                <span className="text-sm font-semibold text-slate-900">
+                  {formatPrice(expData.priceType === 'per_person' ? expData.price * expData.participants : expData.price)}
+                </span>
+              </div>
+            </button>
+
             {expData.options.map(option => {
               const isOptionSelected = selectedOptionId === option.id
+              const optionTotal = expData.priceType === 'per_person'
+                ? option.price * expData.participants
+                : option.price
               return (
                 <button
                   key={option.id}
                   onClick={() => onSelectOption(option.id)}
                   className={cn(
-                    "w-full text-left p-3 rounded-xl border-2 transition-all",
+                    'w-full text-left p-3 rounded-xl border-2 transition-all',
                     isOptionSelected
-                      ? "border-purple-500 bg-purple-50"
-                      : "border-slate-200 hover:border-purple-300"
+                      ? 'border-purple-500 bg-purple-50'
+                      : 'border-slate-200 hover:border-purple-300 bg-white',
                   )}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
                       <div className={cn(
-                        "w-5 h-5 rounded-full border-2 flex items-center justify-center",
-                        isOptionSelected ? "border-purple-600 bg-purple-600" : "border-slate-300"
+                        'w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0',
+                        isOptionSelected ? 'border-purple-600' : 'border-slate-300',
                       )}>
-                        {isOptionSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                        {isOptionSelected && <div className="w-2 h-2 rounded-full bg-purple-600" />}
                       </div>
-                      <span className="text-sm font-medium text-slate-900">{option.label}</span>
+                      <span className="text-sm font-medium text-slate-900 truncate">{option.label}</span>
                     </div>
-                    <span className="text-sm font-semibold text-amber-600">
-                      {formatPriceDelta(option.price)}
+                    <span className="text-sm font-semibold text-slate-900 flex-shrink-0">
+                      {formatPrice(optionTotal)}
                     </span>
                   </div>
                 </button>

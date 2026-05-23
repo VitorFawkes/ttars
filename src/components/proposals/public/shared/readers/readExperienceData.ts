@@ -35,8 +35,10 @@ export function readExperienceData(item: ProposalItemWithOptions): ExperienceVie
   const rawOptions = (exp.options as Array<Record<string, unknown>>) || []
   const options: ExperienceOptionViewData[] = rawOptions
     .filter(opt => opt.enabled !== false)
-    .map(opt => ({
-      id: String(opt.id || ''),
+    .map((opt, i) => ({
+      // ID sintético quando ausente — sem isso todas viram '' e o
+      // comparador `selectedOption?.id === option.id` casa pra todas.
+      id: String(opt.id || `exp-opt-${i}`),
       label: String(opt.label || ''),
       price: Number(opt.price) || 0,
       isRecommended: Boolean(opt.is_recommended),

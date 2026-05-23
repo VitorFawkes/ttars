@@ -40,8 +40,8 @@ export function readInsuranceData(item: ProposalItemWithOptions): InsuranceViewD
   const rawOptions = (ins.options as Array<Record<string, unknown>>) || []
   const options: InsuranceOptionViewData[] = rawOptions
     .filter(opt => opt.enabled !== false)
-    .map(opt => ({
-      id: String(opt.id || ''),
+    .map((opt, i) => ({
+      id: String(opt.id || `insurance-opt-${i}`),
       label: String(opt.label || ''),
       tier: parseTier(opt.tier),
       price: Number(opt.price) || 0,

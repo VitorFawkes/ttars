@@ -98,10 +98,7 @@ export function DesktopTransferCard({
 
         <div className="flex items-center gap-4">
           <div className="text-right">
-            <p className={cn(
-              "text-2xl font-bold",
-              isSelected ? "text-purple-600" : "text-slate-700"
-            )}>
+            <p className="text-2xl font-bold text-slate-900">
               {formatPrice(totalPrice)}
             </p>
           </div>
@@ -204,48 +201,73 @@ export function DesktopTransferCard({
           </p>
         )}
 
-        {/* Opções de veículo */}
+        {/* Opções de veículo — Padrão + alternativas. Opção SUBSTITUI preço. */}
         {transferData.options.length > 0 && (
           <div className="mt-4 pt-4 border-t border-slate-100">
-            <p className="text-xs font-medium text-slate-500 uppercase mb-3 text-center">
-              Opções de veículo
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">
+              Tipo de veículo
             </p>
-            <div className="flex justify-center gap-3 flex-wrap">
+            <div className="flex gap-3 flex-wrap">
+              {/* Padrão */}
+              <button
+                onClick={() => onSelectOption('')}
+                disabled={!isSelected}
+                className={cn(
+                  'px-4 py-3 rounded-xl border-2 transition-all min-w-[140px] text-left',
+                  !selectedOptionId
+                    ? 'border-purple-500 bg-purple-50'
+                    : 'border-slate-200 hover:border-slate-300 bg-white',
+                  !isSelected && 'opacity-50 cursor-not-allowed',
+                )}
+              >
+                <div className="flex items-center gap-1.5">
+                  <div className={cn(
+                    'w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0',
+                    !selectedOptionId ? 'border-purple-600' : 'border-slate-300',
+                  )}>
+                    {!selectedOptionId && <div className="w-2 h-2 rounded-full bg-purple-600" />}
+                  </div>
+                  <Car className="h-4 w-4 text-slate-500" />
+                </div>
+                <p className="text-sm font-medium text-slate-900 mt-1.5">
+                  {vehicleLabel || 'Padrão'}
+                </p>
+                <p className="text-xs font-semibold text-slate-700 mt-0.5">
+                  {formatPrice(transferData.price)}
+                </p>
+              </button>
+
               {transferData.options.map(option => {
                 const isOptionSelected = selectedOptionId === option.id
-                const optionVehicle = VEHICLE_TYPE_LABELS[option.vehicle] || option.vehicle
+                const optionVehicle = VEHICLE_TYPE_LABELS[option.vehicle] || option.vehicle || option.label
                 return (
                   <button
                     key={option.id}
                     onClick={() => onSelectOption(option.id)}
                     disabled={!isSelected}
                     className={cn(
-                      "px-4 py-3 rounded-xl border-2 transition-all min-w-[120px]",
+                      'px-4 py-3 rounded-xl border-2 transition-all min-w-[140px] text-left',
                       isOptionSelected
-                        ? "border-purple-500 bg-purple-50"
-                        : "border-slate-200 hover:border-purple-300",
-                      !isSelected && "opacity-50 cursor-not-allowed"
+                        ? 'border-purple-500 bg-purple-50'
+                        : 'border-slate-200 hover:border-purple-300 bg-white',
+                      !isSelected && 'opacity-50 cursor-not-allowed',
                     )}
                   >
-                    <Car className={cn(
-                      "h-5 w-5 mx-auto mb-1",
-                      isOptionSelected ? "text-purple-600" : "text-slate-400"
-                    )} />
-                    <p className={cn(
-                      "text-sm font-medium",
-                      isOptionSelected ? "text-purple-700" : "text-slate-700"
-                    )}>
+                    <div className="flex items-center gap-1.5">
+                      <div className={cn(
+                        'w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0',
+                        isOptionSelected ? 'border-purple-600' : 'border-slate-300',
+                      )}>
+                        {isOptionSelected && <div className="w-2 h-2 rounded-full bg-purple-600" />}
+                      </div>
+                      <Car className="h-4 w-4 text-slate-500" />
+                    </div>
+                    <p className="text-sm font-medium text-slate-900 mt-1.5">
                       {optionVehicle}
                     </p>
-                    <p className={cn(
-                      "text-xs",
-                      isOptionSelected ? "text-purple-600" : "text-slate-500"
-                    )}>
+                    <p className="text-xs font-semibold text-slate-700 mt-0.5">
                       {formatPrice(option.price)}
                     </p>
-                    {option.isRecommended && (
-                      <span className="text-[10px] text-purple-600 font-medium">Recomendado</span>
-                    )}
                   </button>
                 )
               })}
