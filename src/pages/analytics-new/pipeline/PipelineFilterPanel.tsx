@@ -68,21 +68,26 @@ export default function PipelineFilterPanel({
     <>
       {/* Toolbar */}
       <div className="flex items-center gap-3 flex-wrap bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm">
-        {/* Date reference */}
+        {/* Lente temporal: Por movimento | Por cohort */}
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
-            Referência
+            Lente
           </span>
           <div className="flex rounded-lg border border-slate-200 overflow-hidden">
             {(
               [
-                ['stage', 'Na Etapa'],
-                ['created', 'Criação'],
+                ['stage', 'Por movimento'],
+                ['created', 'Por cohort'],
               ] as const
             ).map(([val, label]) => (
               <button
                 key={val}
                 onClick={() => setDateRef(val)}
+                title={
+                  val === 'stage'
+                    ? 'Movimento no período: idade contada desde quando o card entrou na etapa atual.'
+                    : 'Cohort de entrada: idade contada desde quando o card foi criado.'
+                }
                 className={cn(
                   'px-2.5 py-1.5 text-[11px] font-medium transition-colors',
                   dateRef === val

@@ -152,16 +152,16 @@ export default function FunnelFilterPanel({
 
         <div className="w-px h-6 bg-slate-200" />
 
-        {/* Referência: Na Etapa | Criação (plano mestre princípio #3) */}
+        {/* Lente temporal: Por movimento | Por cohort */}
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
-            Referência
+            Lente
           </span>
           <div className="flex rounded-lg border border-slate-200 overflow-hidden">
             {(
               [
-                ['stage', 'Na Etapa'],
-                ['created', 'Criação'],
+                ['stage', 'Por movimento'],
+                ['created', 'Por cohort'],
               ] as const
             ).map(([val, label]) => (
               <button
@@ -169,8 +169,8 @@ export default function FunnelFilterPanel({
                 onClick={() => setDateRef(val)}
                 title={
                   val === 'stage'
-                    ? 'Conta o card pelo momento em que entrou na etapa, via transição no período'
-                    : 'Conta o card pelo momento em que foi criado, independente de onde ele está agora'
+                    ? 'Movimento no período: conta as transições/mudanças de etapa que aconteceram no período (ex: cards que entraram em Proposta em maio, mesmo que tenham sido criados em janeiro).'
+                    : 'Cohort de entrada: conta os cards pela data de criação. Mostra a turma que entrou no funil no período (ex: cards criados em maio — o que aconteceu com eles depois).'
                 }
                 className={cn(
                   'px-2.5 py-1.5 text-[11px] font-medium transition-colors',

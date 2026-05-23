@@ -51,7 +51,7 @@ export default function PipelineKpis({
         isLoading={isLoading}
       />
       <KpiCard
-        title={dateRef === 'stage' ? 'Idade Média (etapa)' : 'Idade Média (criação)'}
+        title={dateRef === 'stage' ? 'Idade Média (na etapa)' : 'Idade Média (desde criação)'}
         value={kpis.avg_age_days}
         icon={Clock}
         color="text-amber-600"
