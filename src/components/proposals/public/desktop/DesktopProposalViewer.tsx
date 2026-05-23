@@ -122,6 +122,11 @@ export function DesktopProposalViewer({ proposal }: DesktopProposalViewerProps) 
                   onSelectItem={selectItem}
                   onSelectOption={selectOption}
                   onChangeQuantity={changeQuantity}
+                  commentMode={
+                    proposal.public_token
+                      ? { kind: 'public', proposalToken: proposal.public_token }
+                      : undefined
+                  }
                 />
               ))}
             </main>
@@ -137,6 +142,7 @@ export function DesktopProposalViewer({ proposal }: DesktopProposalViewerProps) 
                 travelers={travelers}
                 onAccept={() => setShowAcceptModal(true)}
                 onRemoveItem={handleRemoveItem}
+                proposalToken={proposal.public_token}
               />
             </aside>
           </div>

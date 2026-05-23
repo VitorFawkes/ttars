@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ProposalFull } from '@/types/proposals'
+import { CommentButton } from '@/components/proposals/comments/CommentButton'
 
 interface BuilderHeaderProps {
     proposal: ProposalFull
@@ -117,6 +118,14 @@ export function BuilderHeader({ proposal }: BuilderHeaderProps) {
 
             {/* Right — Actions */}
             <div className="flex items-center gap-2 flex-shrink-0">
+                {/* Comentários (consultor vê + responde tudo num drawer) */}
+                <CommentButton
+                    mode={{ kind: 'admin', proposalId: proposal.id }}
+                    scope={{ kind: 'proposal' }}
+                    size="sm"
+                    variant="full"
+                />
+
                 {/* Copy Link */}
                 {proposal.public_token && (
                     <Button variant="ghost" size="sm" onClick={handleCopyLink} className="gap-1.5 text-xs h-8">

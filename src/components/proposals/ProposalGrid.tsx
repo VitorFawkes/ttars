@@ -1,6 +1,8 @@
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FileText, ExternalLink, MoreVertical, Pencil, Eye, Trash2, Loader2 } from 'lucide-react'
+import { FileText, ExternalLink, MoreVertical, Pencil, Eye, Trash2, Loader2, MessageCircle } from 'lucide-react'
 import type { ProposalWithRelations } from '@/hooks/useProposals'
+import { useUnreadCommentsCount } from '@/hooks/useProposalComments'
 import { PROPOSAL_STATUS_CONFIG } from '@/types/proposals'
 import * as LucideIcons from 'lucide-react'
 import {
@@ -20,6 +22,10 @@ interface ProposalGridProps {
 
 export function ProposalGrid({ proposals, loading, hasFilters, onClearFilters }: ProposalGridProps) {
     const navigate = useNavigate()
+
+    // Coleta IDs visíveis pra contar comentários não-resolvidos de cliente
+    const proposalIds = useMemo(() => proposals.map(p => p.id), [proposals])
+    const { data: unreadCounts = {} } = useUnreadCommentsCount(proposalIds)
 
     if (loading) {
         return (
@@ -91,7 +97,7 @@ export function ProposalGrid({ proposals, loading, hasFilters, onClearFilters }:
                                         </h3>
                                         <p className="text-sm text-gray-500 mt-0.5">
                                             Card: <button
-                                                onClick={() => navigate(`/cards/${proposal.card_id}`)}
+                                                onClick={(e) => { e.stopPropagation(); navigate(`/cards/${proposal.card_id}`) }}
                                                 className="text-primary hover:underline"
                                             >
                                                 {proposal.card?.titulo || 'Card não encontrado'}
@@ -99,10 +105,22 @@ export function ProposalGrid({ proposals, loading, hasFilters, onClearFilters }:
                                         </p>
                                     </div>
 
-                                    {/* Status Badge */}
-                                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusConfig.bgColor} ${statusConfig.color}`}>
-                                        {statusConfig.label}
-                                    </span>
+                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                        {/* Badge de comentários não-respondidos do cliente */}
+                                        {unreadCounts[proposal.id] > 0 && (
+                                            <span
+                                                className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-semibold"
+                                                title={`${unreadCounts[proposal.id]} comentário${unreadCounts[proposal.id] > 1 ? 's' : ''} do cliente sem resposta`}
+                                            >
+                                                <MessageCircle className="h-3 w-3" />
+                                                {unreadCounts[proposal.id]}
+                                            </span>
+                                        )}
+                                        {/* Status Badge */}
+                                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusConfig.bgColor} ${statusConfig.color}`}>
+                                            {statusConfig.label}
+                                        </span>
+                                    </div>
                                 </div>
 
                                 {/* Meta Info */}

@@ -7,6 +7,7 @@
 import type { ProposalSectionWithItems } from '@/types/proposals'
 import { SECTION_TYPE_CONFIG } from '@/types/proposals'
 import { ShoppingBag, Check, X } from 'lucide-react'
+import { CommentButton } from '@/components/proposals/comments/CommentButton'
 import { cn } from '@/lib/utils'
 import type { SelectionsMap } from '../shared/types'
 import { formatPrice, type Currency } from '../shared/utils/priceUtils'
@@ -30,6 +31,8 @@ interface DesktopSidebarProps {
   travelers: number
   onAccept: () => void
   onRemoveItem?: (itemId: string) => void
+  /** Quando passado, renderiza botão "Comentar" geral no rodapé do sidebar */
+  proposalToken?: string | null
 }
 
 export function DesktopSidebar({
@@ -41,6 +44,7 @@ export function DesktopSidebar({
   travelers,
   onAccept,
   onRemoveItem,
+  proposalToken,
 }: DesktopSidebarProps) {
   const hasSelections = selectedItems.length > 0
   const pricePerPerson = travelers > 1 ? total / travelers : null
@@ -205,6 +209,18 @@ export function DesktopSidebar({
           <p className="text-xs text-center text-amber-600 mt-2">
             Complete todas as seleções para continuar
           </p>
+        )}
+
+        {/* Botão "Comentar" geral — sempre disponível, mesmo sem seleções */}
+        {proposalToken && (
+          <div className="mt-3 flex justify-center">
+            <CommentButton
+              mode={{ kind: 'public', proposalToken }}
+              scope={{ kind: 'proposal' }}
+              size="md"
+              variant="full"
+            />
+          </div>
         )}
       </div>
     </div>

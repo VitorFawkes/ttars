@@ -154,6 +154,7 @@ export type Database = {
         Row: {
           agent_id: string
           auto_update_fields: Json | null
+          brochure_policy_text: string | null
           calendar_config: Json | null
           calendar_system: string | null
           company_description: string | null
@@ -161,13 +162,17 @@ export type Database = {
           contact_update_fields: Json | null
           created_at: string | null
           custom_blocks: Json
+          destination_categories_text: string | null
+          empresa_stats_text: string | null
           escalation_triggers: Json | null
           fee_presentation_timing: string | null
           form_data_fields: Json | null
           has_secondary_contacts: boolean | null
+          honorario_faixa_text: string | null
           id: string
           language: string | null
           methodology_text: string | null
+          network_regions_text: string | null
           pricing_json: Json | null
           pricing_model: string | null
           process_steps: Json | null
@@ -180,6 +185,7 @@ export type Database = {
         Insert: {
           agent_id: string
           auto_update_fields?: Json | null
+          brochure_policy_text?: string | null
           calendar_config?: Json | null
           calendar_system?: string | null
           company_description?: string | null
@@ -187,13 +193,17 @@ export type Database = {
           contact_update_fields?: Json | null
           created_at?: string | null
           custom_blocks?: Json
+          destination_categories_text?: string | null
+          empresa_stats_text?: string | null
           escalation_triggers?: Json | null
           fee_presentation_timing?: string | null
           form_data_fields?: Json | null
           has_secondary_contacts?: boolean | null
+          honorario_faixa_text?: string | null
           id?: string
           language?: string | null
           methodology_text?: string | null
+          network_regions_text?: string | null
           pricing_json?: Json | null
           pricing_model?: string | null
           process_steps?: Json | null
@@ -206,6 +216,7 @@ export type Database = {
         Update: {
           agent_id?: string
           auto_update_fields?: Json | null
+          brochure_policy_text?: string | null
           calendar_config?: Json | null
           calendar_system?: string | null
           company_description?: string | null
@@ -213,13 +224,17 @@ export type Database = {
           contact_update_fields?: Json | null
           created_at?: string | null
           custom_blocks?: Json
+          destination_categories_text?: string | null
+          empresa_stats_text?: string | null
           escalation_triggers?: Json | null
           fee_presentation_timing?: string | null
           form_data_fields?: Json | null
           has_secondary_contacts?: boolean | null
+          honorario_faixa_text?: string | null
           id?: string
           language?: string | null
           methodology_text?: string | null
+          network_regions_text?: string | null
           pricing_json?: Json | null
           pricing_model?: string | null
           process_steps?: Json | null
@@ -1073,6 +1088,7 @@ export type Database = {
           crm_field_key: string | null
           detection_hint: string
           detection_mode: string
+          detection_patterns: Json | null
           display_order: number
           enabled: boolean
           evidence_keywords: string[]
@@ -1088,6 +1104,7 @@ export type Database = {
           crm_field_key?: string | null
           detection_hint: string
           detection_mode?: string
+          detection_patterns?: Json | null
           display_order?: number
           enabled?: boolean
           evidence_keywords?: string[]
@@ -1103,6 +1120,7 @@ export type Database = {
           crm_field_key?: string | null
           detection_hint?: string
           detection_mode?: string
+          detection_patterns?: Json | null
           display_order?: number
           enabled?: boolean
           evidence_keywords?: string[]
@@ -1594,9 +1612,11 @@ export type Database = {
           ativa_changed_at: string | null
           ativa_changed_by: string | null
           boundaries_config: Json | null
+          cognitive_audit_config: Json
           context_fields_config: Json | null
           created_at: string | null
           created_by: string | null
+          data_update_rules: Json
           descricao: string | null
           engine: string
           escalation_rules: Json | null
@@ -1636,6 +1656,7 @@ export type Database = {
           test_mode_phone_whitelist: string[] | null
           timings: Json | null
           tipo: string
+          tool_descriptions: Json
           updated_at: string | null
           validator_rules: Json | null
           voice_config: Json | null
@@ -1646,9 +1667,11 @@ export type Database = {
           ativa_changed_at?: string | null
           ativa_changed_by?: string | null
           boundaries_config?: Json | null
+          cognitive_audit_config?: Json
           context_fields_config?: Json | null
           created_at?: string | null
           created_by?: string | null
+          data_update_rules?: Json
           descricao?: string | null
           engine?: string
           escalation_rules?: Json | null
@@ -1688,6 +1711,7 @@ export type Database = {
           test_mode_phone_whitelist?: string[] | null
           timings?: Json | null
           tipo: string
+          tool_descriptions?: Json
           updated_at?: string | null
           validator_rules?: Json | null
           voice_config?: Json | null
@@ -1698,9 +1722,11 @@ export type Database = {
           ativa_changed_at?: string | null
           ativa_changed_by?: string | null
           boundaries_config?: Json | null
+          cognitive_audit_config?: Json
           context_fields_config?: Json | null
           created_at?: string | null
           created_by?: string | null
+          data_update_rules?: Json
           descricao?: string | null
           engine?: string
           escalation_rules?: Json | null
@@ -1740,6 +1766,7 @@ export type Database = {
           test_mode_phone_whitelist?: string[] | null
           timings?: Json | null
           tipo?: string
+          tool_descriptions?: Json
           updated_at?: string | null
           validator_rules?: Json | null
           voice_config?: Json | null
@@ -12209,6 +12236,8 @@ export type Database = {
           created_at: string | null
           id: string
           is_resolved: boolean | null
+          item_id: string | null
+          org_id: string
           parent_id: string | null
           proposal_id: string
           resolved_at: string | null
@@ -12225,6 +12254,8 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_resolved?: boolean | null
+          item_id?: string | null
+          org_id?: string
           parent_id?: string | null
           proposal_id: string
           resolved_at?: string | null
@@ -12241,6 +12272,8 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_resolved?: boolean | null
+          item_id?: string | null
+          org_id?: string
           parent_id?: string | null
           proposal_id?: string
           resolved_at?: string | null
@@ -12250,6 +12283,20 @@ export type Database = {
           visibility?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "proposal_comments_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "proposal_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposal_comments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "proposal_comments_parent_id_fkey"
             columns: ["parent_id"]
@@ -16673,6 +16720,100 @@ export type Database = {
           },
         ]
       }
+      wedme_rsvp_outbox: {
+        Row: {
+          attempts: number
+          card_id: string | null
+          created_at: string
+          guest_rsvp_event_id: string | null
+          id: string
+          last_error: string | null
+          next_retry_at: string | null
+          payload: Json
+          response_body: string | null
+          response_code: number | null
+          sent_at: string | null
+          status: string
+          target_url: string
+          wedding_slug: string
+        }
+        Insert: {
+          attempts?: number
+          card_id?: string | null
+          created_at?: string
+          guest_rsvp_event_id?: string | null
+          id?: string
+          last_error?: string | null
+          next_retry_at?: string | null
+          payload: Json
+          response_body?: string | null
+          response_code?: number | null
+          sent_at?: string | null
+          status?: string
+          target_url: string
+          wedding_slug: string
+        }
+        Update: {
+          attempts?: number
+          card_id?: string | null
+          created_at?: string
+          guest_rsvp_event_id?: string | null
+          id?: string
+          last_error?: string | null
+          next_retry_at?: string | null
+          payload?: Json
+          response_body?: string | null
+          response_code?: number | null
+          sent_at?: string | null
+          status?: string
+          target_url?: string
+          wedding_slug?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wedme_rsvp_outbox_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wedme_rsvp_outbox_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_archived_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wedme_rsvp_outbox_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_acoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wedme_rsvp_outbox_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_contatos_summary"
+            referencedColumns: ["card_id"]
+          },
+          {
+            foreignKeyName: "wedme_rsvp_outbox_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_deleted_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wedme_rsvp_outbox_guest_rsvp_event_id_fkey"
+            columns: ["guest_rsvp_event_id"]
+            isOneToOne: false
+            referencedRelation: "guest_rsvp_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wedme_webhook_events: {
         Row: {
           event_type: string | null
@@ -18854,6 +18995,17 @@ export type Database = {
         Args: { p_token: string }
         Returns: Json
       }
+      add_proposal_comment_by_token: {
+        Args: {
+          p_author_name: string
+          p_content: string
+          p_item_id?: string
+          p_parent_id?: string
+          p_section_id?: string
+          p_token: string
+        }
+        Returns: string
+      }
       agent_assign_tag: {
         Args: { p_card_id: string; p_tag_color?: string; p_tag_name: string }
         Returns: Json
@@ -20272,6 +20424,7 @@ export type Database = {
           p_attribution_modes?: string[]
           p_cold_threshold_hours?: number
           p_from: string
+          p_frt_bucket?: string
           p_hour_filter?: number
           p_inbound_max?: number
           p_inbound_min?: number
@@ -20410,6 +20563,7 @@ export type Database = {
         }[]
       }
       auto_expire_proposals: { Args: never; Returns: number }
+      br_phone_variants: { Args: { p_phone: string }; Returns: string[] }
       bulk_create_pos_venda_cards: {
         Args: { p_created_by: string; p_trips: Json }
         Returns: Json
@@ -20700,6 +20854,7 @@ export type Database = {
         Args: { p_card_id: string; p_trigger_id: string }
         Returns: Json
       }
+      extract_wedme_slug: { Args: { produto_data: Json }; Returns: string }
       f_unaccent: { Args: { "": string }; Returns: string }
       find_cards_by_monde_vendas: {
         Args: { p_org_id?: string; p_venda_nums: string[] }
@@ -20823,6 +20978,7 @@ export type Database = {
           c_viagem_inicio: string
         }[]
       }
+      format_phone_e164_br: { Args: { telefone: string }; Returns: string }
       format_titulo_card_whatsapp: {
         Args: { p_nome: string; p_produto: string }
         Returns: string
@@ -20957,6 +21113,22 @@ export type Database = {
       get_product_setting: {
         Args: { p_key: string; p_produto?: string }
         Returns: string
+      }
+      get_proposal_comments_by_token: {
+        Args: { p_token: string }
+        Returns: {
+          author_name: string
+          author_type: string
+          content: string
+          created_at: string
+          id: string
+          is_resolved: boolean
+          item_id: string
+          parent_id: string
+          proposal_id: string
+          resolved_at: string
+          section_id: string
+        }[]
       }
       get_scheduled_job_recent_runs: {
         Args: { p_job_name: string; p_limit?: number }
@@ -21526,6 +21698,13 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      proposal_unread_comments_count: {
+        Args: { p_proposal_ids: string[] }
+        Returns: {
+          proposal_id: string
+          unread_count: number
+        }[]
+      }
       provision_account_with_workspace: {
         Args: {
           p_account_name: string
@@ -21564,6 +21743,10 @@ export type Database = {
       }
       reabrir_cancelamento: { Args: { p_viagem_id: string }; Returns: Json }
       reabrir_card: { Args: { p_card_id: string }; Returns: undefined }
+      recalc_envio_lote_counters: {
+        Args: { p_lote_id: string }
+        Returns: undefined
+      }
       recalcular_financeiro_manual: {
         Args: { p_card_id: string }
         Returns: Json
