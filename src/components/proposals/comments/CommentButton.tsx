@@ -8,6 +8,7 @@ import { useState, useMemo } from 'react'
 import { MessageCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CommentsDrawer } from './CommentsDrawer'
+import type { ProposalSectionWithItems } from '@/types/proposals'
 import {
     type CommentScope,
     type ProposalComment,
@@ -29,6 +30,8 @@ interface Props {
     className?: string
     /** Permite passar lista de comentários já carregada (evita query duplicada) */
     comments?: ProposalComment[]
+    /** Repassado pro drawer pra mostrar badge contextual em admin+proposta */
+    sections?: ProposalSectionWithItems[]
 }
 
 export function CommentButton({
@@ -39,6 +42,7 @@ export function CommentButton({
     variant = 'icon',
     className,
     comments: commentsProp,
+    sections,
 }: Props) {
     const [open, setOpen] = useState(false)
 
@@ -51,7 +55,16 @@ export function CommentButton({
     )
     const all = commentsProp ?? (mode.kind === 'public' ? publicQuery.data : adminQuery.data)
 
-    const count = useMemo(() => countUnresolvedByScope(all ?? [], scope), [all, scope])
+    // Consultor abrindo no escopo "proposta" → conta TUDO (qualquer comentário
+    // pendente do cliente, mesmo que seja numa seção/item específico). Cliente
+    // continua contando só do escopo do botão.
+    const countAllForAdminProposal = mode.kind === 'admin' && scope.kind === 'proposal'
+    const count = useMemo(() => {
+        if (countAllForAdminProposal) {
+            return (all ?? []).filter(c => !c.is_resolved && c.author_type === 'client').length
+        }
+        return countUnresolvedByScope(all ?? [], scope)
+    }, [all, scope, countAllForAdminProposal])
 
     const iconSize = size === 'md' ? 'h-4 w-4' : 'h-3.5 w-3.5'
     const buttonClasses = cn(
@@ -97,6 +110,7 @@ export function CommentButton({
                 mode={mode}
                 scope={scope}
                 scopeLabel={scopeLabel}
+                sections={sections}
             />
         </>
     )
