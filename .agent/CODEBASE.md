@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-23
 > **Trigger:** ALWAYS ON
-> **Stats:** 208 tabelas | 200 paginas | 333 hooks | 23 views | 797 components
+> **Stats:** 208 tabelas | 200 paginas | 334 hooks | 23 views | 797 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **333 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **334 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -218,6 +218,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAnalyticsV2Rpcs()` | `useAnalyticsV2Rpcs.ts` |
 | `useConciergeOverview()` | `useConciergeOverview.ts` |
 | `useDeleteFinancialItem()` | `useDeleteFinancialItem.ts` |
+| `useFinanceiroOverview()` | `useFinanceiroOverview.ts` |
 | `useFinancialData()` | `useFinancialData.ts` |
 | `useFinancialItemPassengers()` | `useFinancialItemPassengers.ts` |
 | `useFunnelByOwner()` | `useFunnelByOwner.ts` |
