@@ -951,3 +951,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-23T20:54:51Z | supabase/migrations/20260523b_proposal_comments_fix_visibility.sql | applied_to_prod
 2026-05-23T21:59:26Z | supabase/migrations/20260523a_analytics_funnel_filter_origem.sql | applied_to_prod
 2026-05-23T22:03:43Z | supabase/migrations/20260523b_analytics_funnel_v3_filter_origem.sql | applied_to_prod
+2026-05-23T22:26:19Z | supabase/migrations/20260523c_analytics_saude_filter_phase.sql | applied_to_prod

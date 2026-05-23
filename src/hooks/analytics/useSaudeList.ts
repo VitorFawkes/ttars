@@ -33,11 +33,11 @@ export interface SaudeCardRow {
 
 const PAGE_SIZE = 50
 
-export function useSaudeList(bucket: SaudeBucket | null, page: number, sortBy: SaudeSortBy = 'dias_parado') {
+export function useSaudeList(bucket: SaudeBucket | null, page: number, sortBy: SaudeSortBy = 'dias_parado', phase?: string | null) {
     const { ownerIds, tagIds } = useAnalyticsFilters()
 
     return useQuery({
-        queryKey: ['analytics', 'saude-list', bucket, page, sortBy, ownerIds, tagIds],
+        queryKey: ['analytics', 'saude-list', bucket, page, sortBy, ownerIds, tagIds, phase],
         queryFn: async () => {
             if (!bucket) return { rows: [] as SaudeCardRow[], totalCount: 0 }
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC nova
@@ -48,6 +48,7 @@ export function useSaudeList(bucket: SaudeBucket | null, page: number, sortBy: S
                 p_sort_by: sortBy,
                 p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
                 p_tag_ids: tagIds.length > 0 ? tagIds : undefined,
+                p_phase: phase ?? undefined,
             })
             if (error) throw error
             const rows = (data as unknown as SaudeCardRow[]) || []

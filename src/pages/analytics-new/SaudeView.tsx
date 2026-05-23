@@ -66,10 +66,18 @@ function DaysOverdueBadge({ dias }: { dias: number }) {
   )
 }
 
+const PHASE_OPTIONS: { value: string | null; label: string }[] = [
+  { value: null, label: 'Todas as fases' },
+  { value: 'sdr', label: 'SDR' },
+  { value: 'planner', label: 'Planner' },
+  { value: 'pos_venda', label: 'Pós-venda' },
+]
+
 export default function SaudeView() {
   const [page, setPage] = useState(0)
   const [activeBucket, setActiveBucket] = useState<SaudeBucket | null>(null)
-  const summary = useSaudeSummary()
+  const [phase, setPhase] = useState<string | null>(null)
+  const summary = useSaudeSummary(phase)
   const tarefas = useSaudeTarefasVencidas(page, true)
 
   const s = summary.data
@@ -83,11 +91,32 @@ export default function SaudeView() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header>
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Saúde Operacional</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Cards em risco e tarefas vencidas — clique em qualquer indicador pra ver os cards por trás.
-        </p>
+      <header className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Saúde Operacional</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Cards em risco e tarefas vencidas — clique em qualquer indicador pra ver os cards por trás.
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-sm">
+          <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Fase</span>
+          <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+            {PHASE_OPTIONS.map(opt => (
+              <button
+                key={opt.label}
+                onClick={() => setPhase(opt.value)}
+                className={cn(
+                  'px-2.5 py-1.5 text-[11px] font-medium transition-colors',
+                  phase === opt.value
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-slate-600 hover:bg-slate-50'
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </header>
 
       {/* Total abertos */}
@@ -309,6 +338,7 @@ export default function SaudeView() {
 
       <SaudeBucketDrawer
         bucket={activeBucket}
+        phase={phase}
         onClose={() => setActiveBucket(null)}
       />
     </div>
@@ -375,13 +405,15 @@ function InactivityBucket({
 
 function SaudeBucketDrawer({
   bucket,
+  phase,
   onClose,
 }: {
   bucket: SaudeBucket | null
+  phase: string | null
   onClose: () => void
 }) {
   const [page, setPage] = useState(0)
-  const list = useSaudeList(bucket, page, 'dias_parado')
+  const list = useSaudeList(bucket, page, 'dias_parado', phase)
 
   function handleExportCSV() {
     if (!list.data?.rows.length || !bucket) return

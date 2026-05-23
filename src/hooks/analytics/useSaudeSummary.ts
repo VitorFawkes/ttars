@@ -15,17 +15,18 @@ export interface SaudeSummary {
     total_abertos: number
 }
 
-export function useSaudeSummary() {
+export function useSaudeSummary(phase?: string | null) {
     const { ownerIds, tagIds } = useAnalyticsFilters()
     const { currentProduct } = useProductContext()
 
     return useQuery({
-        queryKey: ['analytics', 'saude-summary', currentProduct, ownerIds, tagIds],
+        queryKey: ['analytics', 'saude-summary', currentProduct, ownerIds, tagIds, phase],
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC nova
             const { data, error } = await (supabase.rpc as any)('analytics_saude_summary', {
                 p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
                 p_tag_ids: tagIds.length > 0 ? tagIds : undefined,
+                p_phase: phase ?? undefined,
             })
             if (error) throw error
             const first = (Array.isArray(data) ? data[0] : data) as SaudeSummary | undefined
