@@ -148,8 +148,12 @@ export function CoverEditor({ className }: CoverEditorProps) {
     return (
         <div
             className={cn(
-                "relative rounded-xl overflow-hidden group",
-                "aspect-[16/9] max-h-[400px]",
+                "relative w-full rounded-xl overflow-hidden group",
+                // Altura fixa pra cobertura — usar aspect-ratio + max-h junto
+                // encolhe a largura quando o max-h é atingido, deixando a capa
+                // mais estreita que os cards abaixo. Altura fixa preserva a
+                // largura 100% do container.
+                "h-72 md:h-80",
                 className
             )}
             onDragOver={handleDragOver}
