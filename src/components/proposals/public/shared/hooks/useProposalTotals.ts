@@ -131,16 +131,46 @@ function calculateItemPrice(
     case 'experience': {
       const data = readExperienceData(item as never)
       basePrice = data?.totalPrice ?? Number(item.base_price) ?? 0
+      // Experience: opção SUBSTITUI o preço base (price absoluto por pessoa
+      // ou total dependendo de priceType). Reaplica multiplicação por
+      // participantes se for per_person.
+      if (selection.optionId && data?.options) {
+        const opt = data.options.find(o => o.id === selection.optionId)
+        if (opt) {
+          basePrice = data.priceType === 'per_person'
+            ? (opt.price || 0) * (data.participants || 1)
+            : (opt.price || 0)
+          optionDeltaResolved = true
+        }
+      }
       break
     }
     case 'transfer': {
       const data = readTransferData(item as never)
       basePrice = data?.price ?? Number(item.base_price) ?? 0
+      // Transfer: opção SUBSTITUI o preço base (carro executivo, van etc).
+      if (selection.optionId && data?.options) {
+        const opt = data.options.find(o => o.id === selection.optionId)
+        if (opt) {
+          basePrice = opt.price || 0
+          optionDeltaResolved = true
+        }
+      }
       break
     }
     case 'insurance': {
       const data = readInsuranceData(item as never)
       basePrice = data?.totalPrice ?? Number(item.base_price) ?? 0
+      // Insurance: opção SUBSTITUI o preço base (tier Standard / Premium etc).
+      if (selection.optionId && data?.options) {
+        const opt = data.options.find(o => o.id === selection.optionId)
+        if (opt) {
+          basePrice = data.priceType === 'per_person'
+            ? (opt.price || 0) * (data.travelers || 1)
+            : (opt.price || 0)
+          optionDeltaResolved = true
+        }
+      }
       break
     }
     default: {
@@ -172,6 +202,37 @@ function calculateItemPrice(
   }
 
   return (basePrice + optionDelta) * quantity
+}
+
+/**
+ * Resolve o label da opção selecionada via reader (rich_content).
+ * Usado no sumário pra mostrar "Upgrade para Moon House" no sidebar quando
+ * a opção vive em rich_content (não em proposal_options).
+ */
+function resolveReaderOptionLabel(
+  item: { item_type: string; rich_content: unknown },
+  optionId: string,
+): string | undefined {
+  switch (item.item_type) {
+    case 'hotel': {
+      const data = readHotelData(item as never)
+      return data?.options?.find(o => o.id === optionId)?.label
+    }
+    case 'experience': {
+      const data = readExperienceData(item as never)
+      return data?.options?.find(o => o.id === optionId)?.label
+    }
+    case 'transfer': {
+      const data = readTransferData(item as never)
+      return data?.options?.find(o => o.id === optionId)?.label
+    }
+    case 'insurance': {
+      const data = readInsuranceData(item as never)
+      return data?.options?.find(o => o.id === optionId)?.label
+    }
+    default:
+      return undefined
+  }
 }
 
 /**
@@ -210,10 +271,17 @@ export function getSelectedItemsSummary(
         selection
       )
 
+      // Resolve label da opção — tenta nos readers (rich_content), depois
+      // fallback pra item.options (legado proposal_options).
       let optionLabel: string | undefined
-      if (selection.optionId && item.options) {
-        const opt = item.options.find(o => o.id === selection.optionId)
-        optionLabel = opt?.option_label
+      if (selection.optionId) {
+        const readerOpt = resolveReaderOptionLabel(item, selection.optionId)
+        if (readerOpt) {
+          optionLabel = readerOpt
+        } else if (item.options) {
+          const opt = item.options.find(o => o.id === selection.optionId)
+          optionLabel = opt?.option_label
+        }
       }
 
       summary.push({

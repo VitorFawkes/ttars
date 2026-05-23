@@ -151,10 +151,7 @@ export function DesktopFlightCard({
 
         <div className="flex items-center gap-4">
           <div className="text-right">
-            <p className={cn(
-              "text-2xl font-bold",
-              isSelected ? "text-sky-600" : "text-slate-700"
-            )}>
+            <p className="text-2xl font-bold text-slate-900">
               {formatPrice(calculatedTotal || flightData.totalPrice)}
             </p>
             {flightData.legs.length > 1 && (

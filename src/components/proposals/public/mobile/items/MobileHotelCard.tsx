@@ -149,10 +149,7 @@ export function MobileHotelCard({
 
                 {/* Preço */}
                 <div className="text-right flex-shrink-0">
-                  <p className={cn(
-                    "text-xl font-bold",
-                    isSelected ? "text-emerald-600" : "text-slate-600"
-                  )}>
+                  <p className="text-xl font-bold text-slate-900">
                     {formatPrice(totalPrice)}
                   </p>
                   {hotelData.nights > 1 && (
