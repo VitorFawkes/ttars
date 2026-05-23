@@ -960,3 +960,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-23T22:54:57Z | supabase/migrations/20260523i_analytics_concierge_overview.sql | applied_to_prod
 2026-05-23T23:00:37Z | supabase/migrations/20260523j_analytics_resumo_overview.sql | applied_to_prod
 2026-05-23T23:04:31Z | supabase/migrations/20260523k_resumo_overview_fix_orcamento_jsonb.sql | applied_to_prod
+2026-05-23T23:06:20Z | supabase/migrations/20260523l_analytics_retencao_cohort.sql | applied_to_prod
