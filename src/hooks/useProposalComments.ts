@@ -127,7 +127,7 @@ export function useAddAdminComment() {
                     author_id: user?.id ?? null,
                     author_name: profile?.nome || user?.email || 'Consultor',
                     content: content.trim(),
-                    visibility: 'public',
+                    visibility: 'client',
                 })
                 .select('id')
                 .single()

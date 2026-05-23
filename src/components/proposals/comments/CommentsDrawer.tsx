@@ -10,9 +10,10 @@ import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
 import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/textarea'
-import { Send, CheckCircle2, RotateCcw, Loader2, MessageCircle, X, Lock } from 'lucide-react'
+import { Send, CheckCircle2, RotateCcw, Loader2, MessageCircle, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import type { ProposalSectionWithItems } from '@/types/proposals'
 import {
     type CommentScope,
     type ProposalComment,
@@ -37,9 +38,26 @@ interface CommentsDrawerProps {
     scope: CommentScope
     /** Título amigável do escopo (ex: "Bambu Indah") */
     scopeLabel?: string
+    /** Seções (com items) — quando passadas e modo admin+scope=proposta,
+        mostra TODOS comentários da proposta com badge contextual. */
+    sections?: ProposalSectionWithItems[]
 }
 
-export function CommentsDrawer({ open, onClose, mode, scope, scopeLabel }: CommentsDrawerProps) {
+// Resolve label "Hospedagem · Bambu Indah" pra um comentário, usando as
+// seções carregadas. Retorna null se for comentário da proposta inteira.
+function resolveScopeLabel(
+    comment: ProposalComment,
+    sections: ProposalSectionWithItems[] | undefined,
+): string | null {
+    if (!sections || (!comment.section_id && !comment.item_id)) return null
+    const section = sections.find(s => s.id === comment.section_id || s.items?.some(i => i.id === comment.item_id))
+    if (!section) return null
+    const item = comment.item_id ? section.items?.find(i => i.id === comment.item_id) : null
+    if (item) return `${section.title} · ${item.title}`
+    return section.title
+}
+
+export function CommentsDrawer({ open, onClose, mode, scope, scopeLabel, sections }: CommentsDrawerProps) {
     const publicQuery = usePublicComments(mode.kind === 'public' ? mode.proposalToken : undefined)
     const adminQuery = useProposalComments(mode.kind === 'admin' ? mode.proposalId : undefined)
     const all = mode.kind === 'public' ? publicQuery.data : adminQuery.data
@@ -49,7 +67,14 @@ export function CommentsDrawer({ open, onClose, mode, scope, scopeLabel }: Comme
     const addAdmin = useAddAdminComment()
     const toggleResolve = useToggleResolveComment()
 
-    const filtered = useMemo(() => filterCommentsByScope(all ?? [], scope), [all, scope])
+    // Quando consultor abre no escopo "proposta", queremos mostrar TUDO
+    // (proposta + seções + items) num só lugar. Cliente continua filtrando
+    // pelo escopo do botão que ele clicou.
+    const showAll = mode.kind === 'admin' && scope.kind === 'proposal'
+    const filtered = useMemo(
+        () => showAll ? (all ?? []) : filterCommentsByScope(all ?? [], scope),
+        [all, scope, showAll],
+    )
 
     // Raízes (sem parent) + replies por parent_id
     const { roots, repliesByParent } = useMemo(() => {
@@ -172,15 +197,19 @@ export function CommentsDrawer({ open, onClose, mode, scope, scopeLabel }: Comme
                     </SheetDescription>
                 </VisuallyHidden.Root>
 
-                {/* Header */}
-                <div className="border-b border-slate-200 px-5 py-4 flex items-center justify-between">
+                {/* Header — o X é injetado pelo Sheet (shadcn). */}
+                <div className="border-b border-slate-200 px-5 py-4">
                     <div className="flex items-center gap-2">
                         <MessageCircle className="h-4 w-4 text-indigo-600" />
-                        <h3 className="text-sm font-semibold text-slate-900">{scopeText}</h3>
+                        <h3 className="text-sm font-semibold text-slate-900">
+                            {showAll ? 'Todos os comentários' : scopeText}
+                        </h3>
                     </div>
-                    <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-700">
-                        <X className="h-4 w-4" />
-                    </button>
+                    {showAll && (
+                        <p className="mt-1 text-xs text-slate-500">
+                            Cliente comentou em pontos específicos da proposta. Cada balão mostra onde.
+                        </p>
+                    )}
                 </div>
 
                 {/* Lista */}
@@ -206,6 +235,7 @@ export function CommentsDrawer({ open, onClose, mode, scope, scopeLabel }: Comme
                                 comment={c}
                                 replies={repliesByParent.get(c.id) ?? []}
                                 isAdmin={isAdmin}
+                                scopeLabel={showAll ? resolveScopeLabel(c, sections) : null}
                                 onToggleResolve={() => handleToggleResolve(c)}
                                 onStartReply={() => setReplyingTo(c.id)}
                                 replyingTo={replyingTo}
@@ -309,6 +339,7 @@ function CommentBubble({
     comment,
     replies,
     isAdmin,
+    scopeLabel,
     onToggleResolve,
     onStartReply,
     replyingTo,
@@ -321,6 +352,7 @@ function CommentBubble({
     comment: ProposalComment
     replies: ProposalComment[]
     isAdmin: boolean
+    scopeLabel: string | null
     onToggleResolve: () => void
     onStartReply: () => void
     replyingTo: string | null
@@ -338,6 +370,11 @@ function CommentBubble({
             'rounded-xl border p-3 bg-white shadow-sm',
             comment.is_resolved ? 'border-slate-200 opacity-70' : 'border-slate-200'
         )}>
+            {scopeLabel && (
+                <div className="mb-2 inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-600">
+                    {scopeLabel}
+                </div>
+            )}
             <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">

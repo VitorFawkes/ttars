@@ -77,10 +77,12 @@ export function DesktopSection({
             key={item.id}
             item={item}
             isSelected={isSelected}
+            selectedOptionId={selectedOptionId}
             onSelect={() => isRadioMode
               ? onSelectItem(section.id, item.id)
               : onToggleItem(item.id)
             }
+            onSelectOption={(optionId: string) => onSelectOption(item.id, optionId)}
           />
         )
       case 'experience':

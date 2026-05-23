@@ -124,6 +124,7 @@ export function BuilderHeader({ proposal }: BuilderHeaderProps) {
                     scope={{ kind: 'proposal' }}
                     size="sm"
                     variant="full"
+                    sections={proposal.active_version?.sections}
                 />
 
                 {/* Copy Link */}
