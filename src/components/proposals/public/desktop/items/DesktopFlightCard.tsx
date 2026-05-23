@@ -243,11 +243,13 @@ function LegBlock({
         const showSelection = leg.allOptions.length > 1
         return (
           <div key={leg.id}>
-            <div className="px-5 py-2 bg-slate-50/60 border-b border-slate-100 text-xs text-slate-600 flex items-center justify-between">
-              <span className="font-medium">
-                {leg.originCode} ({leg.originCity}) → {leg.destinationCode} ({leg.destinationCity})
+            <div className="px-5 py-2 bg-slate-50/60 border-b border-slate-100 flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-700">
+                {leg.originCode} <span className="text-slate-400">({leg.originCity})</span> → {leg.destinationCode} <span className="text-slate-400">({leg.destinationCity})</span>
               </span>
-              <span>{formatDateWithWeekday(leg.date)}</span>
+              <span className="text-[11px] text-slate-500">
+                {formatDateWithWeekday(leg.date)}
+              </span>
             </div>
             <div className="divide-y divide-slate-100">
               {leg.allOptions.map(option => (
@@ -303,10 +305,10 @@ function OptionRow({
       {/* Radio (quando há múltiplas opções) */}
       {showSelection && (
         <div className={cn(
-          "w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0",
-          isSelected ? "border-sky-600 bg-sky-600" : "border-slate-300"
+          "w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0",
+          isSelected ? "border-sky-600" : "border-slate-300"
         )}>
-          {isSelected && <Check className="w-3 h-3 text-white" />}
+          {isSelected && <div className="w-2 h-2 rounded-full bg-sky-600" />}
         </div>
       )}
 
@@ -316,8 +318,15 @@ function OptionRow({
           <span className={cn("text-xs font-bold", airlineColors.text)}>{option.airlineCode}</span>
         </div>
         <div className="min-w-0">
-          <p className="font-semibold text-sm text-slate-900 truncate">{option.airlineName}</p>
-          <p className="text-xs text-slate-500 font-mono">#{option.flightNumber}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="font-semibold text-sm text-slate-900 truncate">{option.airlineName}</p>
+            {option.isRecommended && (
+              <span className="px-1 py-0.5 rounded bg-amber-50 text-amber-700 text-[9px] font-semibold uppercase tracking-wide flex-shrink-0">
+                Sugerida
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] text-slate-400 font-mono">#{option.flightNumber}</p>
         </div>
       </div>
 
@@ -366,10 +375,7 @@ function OptionRow({
 
       {/* Preço */}
       <div className="w-24 text-right flex-shrink-0">
-        <p className={cn(
-          "font-bold",
-          isSelected ? "text-sky-600" : "text-slate-700"
-        )}>
+        <p className="font-semibold text-slate-900">
           {formatPrice(option.price)}
         </p>
       </div>

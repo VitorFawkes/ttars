@@ -362,9 +362,13 @@ function FlightItineraryModal({
                 return (
                   <div key={leg.id} className="border-b border-slate-100 last:border-b-0">
                     {/* Header do trecho */}
-                    <div className="px-4 py-2 bg-slate-50 text-xs text-slate-600 flex items-center justify-between">
-                      <span>{leg.originCode} → {leg.destinationCode}</span>
-                      <span>{formatDateWithWeekday(leg.date)}</span>
+                    <div className="px-4 py-2 bg-slate-50 flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-700">
+                        {leg.originCode} → {leg.destinationCode}
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        {formatDateWithWeekday(leg.date)}
+                      </span>
                     </div>
 
                     {/* Opções do trecho */}
@@ -402,9 +406,13 @@ function FlightItineraryModal({
                 return (
                   <div key={leg.id} className="border-b border-slate-100 last:border-b-0">
                     {/* Header do trecho */}
-                    <div className="px-4 py-2 bg-slate-50 text-xs text-slate-600 flex items-center justify-between">
-                      <span>{leg.originCode} → {leg.destinationCode}</span>
-                      <span>{formatDateWithWeekday(leg.date)}</span>
+                    <div className="px-4 py-2 bg-slate-50 flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-700">
+                        {leg.originCode} → {leg.destinationCode}
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        {formatDateWithWeekday(leg.date)}
+                      </span>
                     </div>
 
                     {/* Opções do trecho */}
@@ -465,88 +473,84 @@ interface LegOptionCardProps {
 }
 
 function LegOptionCard({ leg, option, isSelected, onSelect, showSelection }: LegOptionCardProps) {
-  const airlineColors = AIRLINE_COLORS[option.airlineCode] || { bg: 'bg-slate-100', text: 'text-slate-700' }
-
-  // Calcula duração usando a opção específica
-  const tempLeg = { ...leg, selectedOption: option }
-  const duration = calculateLegDuration(tempLeg)
+  const airlineColors = AIRLINE_COLORS[option.airlineCode] || { bg: 'bg-slate-100', text: 'text-slate-800' }
+  const duration = calculateLegDuration({ ...leg, selectedOption: option })
+  const stops = option.stops ?? 0
+  const stopsText = stops === 0 ? 'Direto' : `${stops} parada${stops > 1 ? 's' : ''}`
 
   return (
     <div
       onClick={showSelection ? onSelect : undefined}
       className={cn(
-        "p-4 transition-all",
-        showSelection && "cursor-pointer hover:bg-slate-50",
-        isSelected && showSelection && "bg-blue-50 border-l-4 border-l-blue-500"
+        'px-4 py-3 transition-colors',
+        showSelection && 'cursor-pointer hover:bg-slate-50',
+        isSelected && showSelection && 'bg-sky-50/60',
       )}
     >
-      {/* Header: Companhia + Preço + Seleção */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          {/* Radio quando há múltiplas opções */}
+      {/* Linha 1: radio + companhia + recomendada + preço */}
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="flex items-center gap-2 min-w-0">
           {showSelection && (
-            <div className={cn(
-              "w-5 h-5 rounded-full border-2 flex items-center justify-center",
-              isSelected ? "border-blue-500 bg-blue-500" : "border-slate-300"
-            )}>
-              {isSelected && <Check className="w-3 h-3 text-white" />}
+            <div
+              className={cn(
+                'w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0',
+                isSelected ? 'border-sky-600' : 'border-slate-300',
+              )}
+            >
+              {isSelected && <div className="w-2 h-2 rounded-full bg-sky-600" />}
             </div>
           )}
-          <div className={cn("px-2 py-0.5 rounded text-[10px] font-bold", airlineColors.bg, airlineColors.text)}>
-            {option.airlineName}
-          </div>
-          <span className="text-xs text-slate-500 font-mono">#{option.flightNumber}</span>
+          <span className={cn('px-1.5 py-0.5 rounded text-[10px] font-bold', airlineColors.bg, airlineColors.text)}>
+            {option.airlineName || option.airlineCode}
+          </span>
+          <span className="text-[11px] text-slate-400 font-mono truncate">#{option.flightNumber}</span>
+          {option.isRecommended && (
+            <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 text-[10px] font-medium">
+              Sugerida
+            </span>
+          )}
         </div>
-        <div className={cn(
-          "font-bold",
-          isSelected ? "text-blue-600" : "text-emerald-600"
-        )}>
+        <div className="font-semibold text-slate-900 flex-shrink-0">
           {formatPrice(option.price)}
         </div>
       </div>
 
-      {/* Rota visual */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex-1">
-          <div className="text-lg font-bold text-slate-900">{formatTime(option.departureTime)}</div>
-          <div className="text-xs font-medium text-slate-600">{leg.originCode}</div>
-          <div className="text-[10px] text-slate-400 truncate">{leg.originCity}</div>
+      {/* Linha 2: horários + duração + paradas */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="text-base font-bold text-slate-900">{formatTime(option.departureTime)}</div>
+          <div className="text-[11px] text-slate-500">{leg.originCode}</div>
         </div>
 
-        <div className="flex flex-col items-center px-2">
-          <div className="text-[10px] text-slate-400 mb-1">{duration}</div>
-          <div className="w-16 h-[1px] bg-slate-200 relative">
-            <Plane className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 text-slate-300 rotate-90" />
+        <div className="flex flex-col items-center px-1">
+          <div className="text-[10px] text-slate-500">{duration}</div>
+          <div className="w-14 h-px bg-slate-200 my-1" />
+          <div className={cn('text-[10px] font-medium', stops === 0 ? 'text-emerald-600' : 'text-slate-500')}>
+            {stopsText}
           </div>
-          {option.stops > 0 ? (
-            <div className="text-[10px] text-amber-600 mt-1">
-              {option.stops} parada{option.stops > 1 ? 's' : ''}
-            </div>
-          ) : (
-            <div className="text-[10px] text-emerald-600 mt-1">Direto</div>
+        </div>
+
+        <div className="flex-1 min-w-0 text-right">
+          <div className="text-base font-bold text-slate-900">{formatTime(option.arrivalTime)}</div>
+          <div className="text-[11px] text-slate-500">{leg.destinationCode}</div>
+        </div>
+      </div>
+
+      {/* Linha 3: bagagem + classe (alinhada à esquerda, sutil) */}
+      {(option.baggage || option.cabinClass) && (
+        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+          {option.baggage && (
+            <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] rounded">
+              {option.baggage}
+            </span>
+          )}
+          {option.cabinClass && (
+            <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 text-[10px] rounded">
+              {option.cabinClass}
+            </span>
           )}
         </div>
-
-        <div className="flex-1 text-right">
-          <div className="text-lg font-bold text-slate-900">{formatTime(option.arrivalTime)}</div>
-          <div className="text-xs font-medium text-slate-600">{leg.destinationCode}</div>
-          <div className="text-[10px] text-slate-400 truncate">{leg.destinationCity}</div>
-        </div>
-      </div>
-
-      {/* Bagagem e classe */}
-      <div className="flex justify-center gap-2 mt-3">
-        {option.baggage && (
-          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
-            ✓ {option.baggage}
-          </span>
-        )}
-        {option.cabinClass && (
-          <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-xs rounded">
-            {option.cabinClass}
-          </span>
-        )}
-      </div>
+      )}
     </div>
   )
 }

@@ -46,15 +46,20 @@ export function readFlightData(item: ProposalItemWithOptions): FlightsViewData |
 
   let calculatedTotalPrice = 0
 
-  const legs: FlightLegViewData[] = rawLegs.map(leg => {
+  const legs: FlightLegViewData[] = rawLegs.map((leg, legIndex) => {
+    const legId = String(leg.id || `leg-${legIndex}`)
     const rawOptions = (leg.options as Array<Record<string, unknown>>) || []
 
     const options: FlightOptionViewData[] = rawOptions
       .filter(opt => opt.enabled !== false)
-      .map(opt => {
+      .map((opt, optIndex) => {
         const cabinClass = String(opt.cabin_class || 'economy')
+        // ID sintético quando ausente — sem isso o comparador
+        // `selectedOpt?.id === option.id` casa '' === '' pra todas e
+        // as opções ficam todas "selecionadas" visualmente.
+        const optId = String(opt.id || `${legId}-opt-${optIndex}`)
         return {
-          id: String(opt.id || ''),
+          id: optId,
           airlineCode: String(opt.airline_code || ''),
           airlineName: String(opt.airline_name || ''),
           flightNumber: String(opt.flight_number || ''),
@@ -82,7 +87,7 @@ export function readFlightData(item: ProposalItemWithOptions): FlightsViewData |
     const legType = String(leg.leg_type || 'outbound') as 'outbound' | 'return' | 'connection'
 
     return {
-      id: String(leg.id || ''),
+      id: legId,
       type: legType,
       label: String(leg.label || (legType === 'return' ? 'VOLTA' : 'IDA')),
       originCode: String(leg.origin_code || ''),
@@ -148,13 +153,14 @@ function readLegsFromRoot(
 
   let calculatedTotalPrice = 0
 
-  const legs: FlightLegViewData[] = rawLegs.map(leg => {
+  const legs: FlightLegViewData[] = rawLegs.map((leg, legIndex) => {
+    const legId = String(leg.id || `leg-${legIndex}`)
     const rawOptions = (leg.options as Array<Record<string, unknown>>) || []
 
     const options: FlightOptionViewData[] = rawOptions
       .filter(opt => opt.enabled !== false)
-      .map(opt => ({
-        id: String(opt.id || ''),
+      .map((opt, optIndex) => ({
+        id: String(opt.id || `${legId}-opt-${optIndex}`),
         airlineCode: String(opt.airline_code || ''),
         airlineName: String(opt.airline_name || ''),
         flightNumber: String(opt.flight_number || ''),
@@ -177,7 +183,7 @@ function readLegsFromRoot(
     const legType = String(leg.leg_type || 'outbound') as 'outbound' | 'return' | 'connection'
 
     return {
-      id: String(leg.id || ''),
+      id: legId,
       type: legType,
       label: String(leg.label || (legType === 'return' ? 'VOLTA' : 'IDA')),
       originCode: String(leg.origin_code || ''),
