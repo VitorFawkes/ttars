@@ -943,3 +943,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 =======
 2026-05-22T17:34:24Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260522a_patricia_clear_legacy_system_prompt.sql | applied_to_prod
 >>>>>>> b6434f6c (chore(patricia): limpa system_prompt legacy (3.631 chars dead weight))
+2026-05-23T00:03:08Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260522b_reset_clears_produto_data_pause.sql | applied_to_prod
