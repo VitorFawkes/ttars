@@ -48,6 +48,7 @@ import TeamView from './pages/analytics-new/TeamView'
 import FinancialView from './pages/analytics-new/FinancialView'
 import RetentionView from './pages/analytics-new/RetentionView'
 import OperationsView from './pages/analytics-new/OperationsView'
+import ConciergeView from './pages/analytics-new/ConciergeView'
 import SLAView from './pages/analytics-new/SLAView'
 import ExplorarPage from './pages/analytics-new/ExplorarPage'
 import CalendarPage from './pages/CalendarPage'
@@ -303,6 +304,7 @@ function App() {
                     <Route path="financeiro" element={<FinancialView />} />
                     <Route path="retencao" element={<RetentionView />} />
                     <Route path="operacoes" element={<OperationsView />} />
+                    <Route path="concierge" element={<ConciergeView />} />
                     <Route path="sla" element={<SLAView />} />
                     <Route path="explorar" element={<ExplorarPage />} />
                   </Route>

@@ -8,6 +8,7 @@ import {
   Wallet,
   Repeat,
   PackageCheck,
+  Headphones,
   Clock,
   MessageCircle,
   LineChart,
@@ -44,6 +45,7 @@ const SECTIONS: Array<{ title: string; items: NavItem[] }> = [
     title: 'Operação',
     items: [
       { to: '/analytics/operacoes', label: 'Operações', icon: PackageCheck },
+      { to: '/analytics/concierge', label: 'Concierge', icon: Headphones },
       { to: '/analytics/sla', label: 'SLA', icon: Clock },
       { to: '/analytics/whatsapp', label: 'WhatsApp', icon: MessageCircle },
     ],
