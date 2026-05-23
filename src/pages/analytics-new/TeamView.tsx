@@ -15,15 +15,16 @@ const PHASES: { value: string; label: string }[] = [
   { value: 'pos_venda', label: 'Pós-venda' },
 ]
 
+// RPCs analytics_team_* retornam taxas já como 0-100 (não 0-1), apenas formata.
 function pct(v: number): string {
-  return `${(v * 100).toFixed(0)}%`
+  return `${v.toFixed(0)}%`
 }
 
 function WinRateBadge({ rate }: { rate: number }) {
   const tone =
-    rate >= 0.5
+    rate >= 50
       ? 'bg-emerald-50 text-emerald-700'
-      : rate >= 0.3
+      : rate >= 30
         ? 'bg-amber-50 text-amber-700'
         : 'bg-rose-50 text-rose-700'
   return (
@@ -38,9 +39,9 @@ function ComplianceBadge({ rate }: { rate: number | null }) {
     return <span className="text-xs text-slate-400">—</span>
   }
   const tone =
-    rate >= 0.9
+    rate >= 90
       ? 'bg-emerald-50 text-emerald-700'
-      : rate >= 0.7
+      : rate >= 70
         ? 'bg-amber-50 text-amber-700'
         : 'bg-rose-50 text-rose-700'
   return (
