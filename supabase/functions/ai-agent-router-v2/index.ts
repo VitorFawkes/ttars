@@ -1910,7 +1910,7 @@ Deno.serve(async (req) => {
       // rodou — assim dashboards e auditoria têm o histórico de score por turno.
       // validator_verdict_action é o resumo binário (pass/rewrite/block) que habilita
       // queries diretas e a detecção de recent_blocks_count → handoff_humano_invisivel.
-      await supabase.from("ai_conversation_turns").insert({
+      const { error: turnInsertErr } = await supabase.from("ai_conversation_turns").insert({
         conversation_id: conversationId,
         role: "assistant",
         content: blocks.join("\n\n"),
@@ -1931,14 +1931,16 @@ Deno.serve(async (req) => {
         },
         detected_intent: singleAgentResult.output.current_moment_key,
         current_moment_key: singleAgentResult.output.current_moment_key ?? null,
-        moment_detection_method: forcedMomentKey ? "router_forced" : "llm_declared",
+        moment_detection_method: forcedMomentKey ? "deterministic" : "llm",
         moment_transition_reason: forcedMomentKey
           ? `router forçou ${forcedMomentKey} (recent_blocks_count ou regra determinística)`
           : null,
-        agent_version: "v2",
         qualification_score_at_turn: qualificationResult?.score ?? null,
         validator_verdict_action: verdict?.action ?? null,
       });
+      if (turnInsertErr) {
+        console.error(`[v2] FALHA AO PERSISTIR ASSISTANT TURN: ${turnInsertErr.message}`, turnInsertErr);
+      }
     }
 
     // Quando o validator bloqueia (action="block"), o flow acima não envia
@@ -1988,7 +1990,7 @@ Deno.serve(async (req) => {
         console.warn(`[v2] insert whatsapp_messages fallback falhou:`, insErr);
       }
 
-      await supabase.from("ai_conversation_turns").insert({
+      const { error: fbTurnInsertErr } = await supabase.from("ai_conversation_turns").insert({
         conversation_id: conversationId,
         role: "assistant",
         content: fallbackText,
@@ -2002,12 +2004,14 @@ Deno.serve(async (req) => {
         },
         detected_intent: singleAgentResult.output.current_moment_key,
         current_moment_key: singleAgentResult.output.current_moment_key ?? null,
-        moment_detection_method: forcedMomentKey ? "router_forced" : "llm_declared",
+        moment_detection_method: forcedMomentKey ? "deterministic" : "fallback",
         moment_transition_reason: "fallback_disparado_por_validator_block",
-        agent_version: "v2",
         qualification_score_at_turn: qualificationResult?.score ?? null,
         validator_verdict_action: verdict?.action ?? "block",
       });
+      if (fbTurnInsertErr) {
+        console.error(`[v2] FALHA AO PERSISTIR FALLBACK TURN: ${fbTurnInsertErr.message}`, fbTurnInsertErr);
+      }
     }
 
     // ------------------------------------------------------------------
