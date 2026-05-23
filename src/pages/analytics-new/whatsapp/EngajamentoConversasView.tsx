@@ -44,6 +44,7 @@ function defaultFilters(): EngajamentoFilters {
     meetingStates: [],
     stageNames: [],
     stagePhases: [],
+    frtBucket: null,
   }
 }
 
@@ -101,6 +102,22 @@ export default function EngajamentoConversasView() {
     inboundMax: null,
     meetingStates: [],
     stageNames: [],
+    frtBucket: null,
+  }
+
+  function toggleFrtBucket(bucket: string) {
+    const next = filters.frtBucket === bucket ? null : bucket
+    handleFilterChange({ frtBucket: next })
+  }
+
+  function focusDay(day: string) {
+    // Se já está focado nesse dia (de=até=day), desfoca expandindo para o range original
+    if (filters.dateFrom === day && filters.dateTo === day) {
+      const defaults = defaultFilters()
+      handleFilterChange({ dateFrom: defaults.dateFrom, dateTo: defaults.dateTo })
+      return
+    }
+    handleFilterChange({ dateFrom: day, dateTo: day })
   }
 
   function applyFunnelStep(step: EngajamentoFunnelStep) {
@@ -243,9 +260,15 @@ export default function EngajamentoConversasView() {
         onClear: () => setHeatmapCell(null, null),
       })
     }
+    if (filters.frtBucket) {
+      out.push({
+        label: `Tempo de resposta: ${filters.frtBucket}`,
+        onClear: () => handleFilterChange({ frtBucket: null }),
+      })
+    }
     return out
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeDepthBucket, filters.stateFilter, filters.lineLabels])
+  }, [activeDepthBucket, filters.stateFilter, filters.lineLabels, filters.frtBucket])
 
   return (
     <div className="space-y-6 pb-12">
@@ -300,15 +323,22 @@ export default function EngajamentoConversasView() {
       <EngajamentoTimelineDiaria
         points={data?.daily_timeline ?? []}
         isLoading={isLoading}
+        onDayClick={focusDay}
       />
 
       <EngajamentoVelocidadeDia
         points={data?.daily_timeline ?? []}
         isLoading={isLoading}
+        onDayClick={focusDay}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <EngajamentoFRTBuckets buckets={data?.frt_distribution ?? []} isLoading={isLoading} />
+        <EngajamentoFRTBuckets
+          buckets={data?.frt_distribution ?? []}
+          isLoading={isLoading}
+          activeBucket={filters.frtBucket}
+          onToggleBucket={toggleFrtBucket}
+        />
         <EngajamentoHeatmap
           cells={data?.weekday_hour_heatmap ?? []}
           isLoading={isLoading}

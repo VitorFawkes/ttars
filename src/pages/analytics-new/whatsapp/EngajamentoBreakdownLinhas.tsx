@@ -104,7 +104,9 @@ export default function EngajamentoBreakdownLinhas({
           const isActive = selectedLabels.includes(l.label)
           const isDimmed = selectedLabels.length > 0 && !isActive
           const accent = lineAccent(l.label)
-          const respondersPct = l.reply_rate ?? 0
+          const noReplyRate =
+            l.reply_rate !== null && l.reply_rate !== undefined ? 100 - l.reply_rate : null
+          const noReplyPct = noReplyRate ?? 0
           return (
             <button
               key={l.label}
@@ -147,16 +149,16 @@ export default function EngajamentoBreakdownLinhas({
 
               <div className="mt-4">
                 <div className="flex items-baseline justify-between">
-                  <span className="text-xs text-slate-500">Taxa de resposta</span>
+                  <span className="text-xs text-slate-500">Sem resposta</span>
                   <span className="text-2xl font-bold text-slate-900 tabular-nums">
-                    {pct(l.reply_rate)}
+                    {pct(noReplyRate)}
                   </span>
                 </div>
                 <div className="mt-1.5 h-1.5 w-full bg-white/60 rounded-full overflow-hidden border border-slate-200/60">
                   <div
                     className={cn('h-full rounded-full', accent.bar)}
                     style={{
-                      width: `${Math.min(100, respondersPct)}%`,
+                      width: `${Math.min(100, noReplyPct)}%`,
                       transition: 'width 600ms cubic-bezier(0.23, 1, 0.32, 1)',
                     }}
                   />

@@ -16,6 +16,7 @@ import type { EngajamentoDailyPoint } from '@/types/engagement'
 interface Props {
   points: EngajamentoDailyPoint[]
   isLoading?: boolean
+  onDayClick?: (day: string) => void
 }
 
 interface ChartPoint {
@@ -66,7 +67,7 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: unknow
   )
 }
 
-export default function EngajamentoVelocidadeDia({ points, isLoading }: Props) {
+export default function EngajamentoVelocidadeDia({ points, isLoading, onDayClick }: Props) {
   const data = useMemo<ChartPoint[]>(() => {
     return points.map(p => ({
       day: p.day,
@@ -109,7 +110,9 @@ export default function EngajamentoVelocidadeDia({ points, isLoading }: Props) {
             Velocidade por dia
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Taxa de resposta (área verde) e tempo até a 1ª resposta (linha azul), por cohort do dia.
+            {onDayClick
+              ? 'Clique num ponto pra filtrar o painel só pelo cohort daquele dia. Área verde: taxa de resposta. Linha azul: tempo até 1ª resposta.'
+              : 'Taxa de resposta (área verde) e tempo até a 1ª resposta (linha azul), por cohort do dia.'}
           </p>
         </div>
         <div className="flex items-center gap-4 text-xs">
@@ -132,7 +135,17 @@ export default function EngajamentoVelocidadeDia({ points, isLoading }: Props) {
 
       <div className="h-64 w-full">
         <ResponsiveContainer>
-          <ComposedChart data={data} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+          <ComposedChart
+            data={data}
+            margin={{ top: 5, right: 10, left: -10, bottom: 0 }}
+            onClick={(state) => {
+              if (!onDayClick) return
+              const payload = (state as { activePayload?: Array<{ payload: ChartPoint }> })
+                ?.activePayload?.[0]?.payload
+              if (payload?.day) onDayClick(payload.day)
+            }}
+            style={onDayClick ? { cursor: 'pointer' } : undefined}
+          >
             <defs>
               <linearGradient id="replyRateGradient" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#10b981" stopOpacity={0.4} />

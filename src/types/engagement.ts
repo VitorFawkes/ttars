@@ -154,6 +154,7 @@ export interface EngajamentoFilters {
   meetingStates: MeetingState[]
   stageNames: string[]
   stagePhases: string[]
+  frtBucket: string | null
 }
 
 export interface ThreadMessage {

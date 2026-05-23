@@ -26,21 +26,24 @@ export default function EngajamentoHeroKpis({
   onReplyRateClick,
   onActiveClick,
 }: Props) {
-  const replyRate = kpis?.reply_rate ?? 0
-  const responders = Math.round(((kpis?.reply_rate ?? 0) / 100) * (kpis?.total_contacts ?? 0))
+  const noReplyRate =
+    kpis?.reply_rate !== null && kpis?.reply_rate !== undefined ? 100 - kpis.reply_rate : null
+  const totalContacts = kpis?.total_contacts ?? 0
+  const responders = Math.round(((kpis?.reply_rate ?? 0) / 100) * totalContacts)
+  const nonResponders = Math.max(0, totalContacts - responders)
 
   const cards = [
     {
-      title: 'Taxa de Resposta',
-      hero: pct(kpis?.reply_rate),
+      title: 'Sem Resposta',
+      hero: pct(noReplyRate),
       subtitle:
         kpis && kpis.total_contacts > 0
-          ? `${responders.toLocaleString('pt-BR')} de ${kpis.total_contacts.toLocaleString('pt-BR')} pessoas responderam`
+          ? `${nonResponders.toLocaleString('pt-BR')} de ${totalContacts.toLocaleString('pt-BR')} pessoas não responderam`
           : 'sem dados no período',
-      accent: 'from-emerald-50 to-white',
-      ring: 'ring-emerald-100',
-      bar: 'bg-emerald-500',
-      progress: replyRate,
+      accent: 'from-rose-50 to-white',
+      ring: 'ring-rose-100',
+      bar: 'bg-rose-500',
+      progress: noReplyRate ?? 0,
       onClick: onReplyRateClick,
       hint: 'ver quem respondeu',
     },

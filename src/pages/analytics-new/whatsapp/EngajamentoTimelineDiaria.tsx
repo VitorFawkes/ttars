@@ -16,6 +16,7 @@ import type { EngajamentoDailyPoint } from '@/types/engagement'
 interface Props {
   points: EngajamentoDailyPoint[]
   isLoading?: boolean
+  onDayClick?: (day: string) => void
 }
 
 interface ChartPoint {
@@ -85,7 +86,7 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: unknow
   )
 }
 
-export default function EngajamentoTimelineDiaria({ points, isLoading }: Props) {
+export default function EngajamentoTimelineDiaria({ points, isLoading, onDayClick }: Props) {
   const data = useMemo<ChartPoint[]>(() => {
     return points.map(p => ({
       day: p.day,
@@ -126,7 +127,9 @@ export default function EngajamentoTimelineDiaria({ points, isLoading }: Props) 
             Pessoas por dia
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Cada barra é o total de pessoas contatadas naquele dia. Verde: respondeu. Cinza: silêncio.
+            {onDayClick
+              ? 'Clique numa barra pra filtrar o painel só pelo que aconteceu naquele dia. Verde: respondeu. Cinza: silêncio.'
+              : 'Cada barra é o total de pessoas contatadas naquele dia. Verde: respondeu. Cinza: silêncio.'}
           </p>
         </div>
         <div className="flex items-center gap-4 text-xs flex-wrap">
@@ -163,7 +166,17 @@ export default function EngajamentoTimelineDiaria({ points, isLoading }: Props) 
 
       <div className="h-64 w-full">
         <ResponsiveContainer>
-          <ComposedChart data={data} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
+          <ComposedChart
+            data={data}
+            margin={{ top: 5, right: 5, left: -10, bottom: 0 }}
+            onClick={(state) => {
+              if (!onDayClick) return
+              const payload = (state as { activePayload?: Array<{ payload: ChartPoint }> })
+                ?.activePayload?.[0]?.payload
+              if (payload?.day) onDayClick(payload.day)
+            }}
+            style={onDayClick ? { cursor: 'pointer' } : undefined}
+          >
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
             <XAxis
               dataKey="dayLabel"

@@ -73,6 +73,7 @@ export function useEngajamentoConversas({
       filters.meetingStates,
       filters.stageNames,
       filters.stagePhases,
+      filters.frtBucket,
       page,
       limit,
     ],
@@ -94,6 +95,7 @@ export function useEngajamentoConversas({
         p_meeting_states: filters.meetingStates.length > 0 ? filters.meetingStates : null,
         p_stage_names: filters.stageNames.length > 0 ? filters.stageNames : null,
         p_stage_phases: filters.stagePhases.length > 0 ? filters.stagePhases : null,
+        p_frt_bucket: filters.frtBucket,
         p_page: page,
         p_limit: limit,
       })

@@ -4,6 +4,8 @@ import type { EngajamentoFRTBucket } from '@/types/engagement'
 interface Props {
   buckets: EngajamentoFRTBucket[]
   isLoading?: boolean
+  activeBucket: string | null
+  onToggleBucket: (bucket: string) => void
 }
 
 // Cor por velocidade: rápido = verde, devagar = âmbar, sem resposta = cinza
@@ -18,7 +20,12 @@ const COLOR: Record<string, string> = {
   'Sem resposta': 'bg-slate-300',
 }
 
-export default function EngajamentoFRTBuckets({ buckets, isLoading }: Props) {
+export default function EngajamentoFRTBuckets({
+  buckets,
+  isLoading,
+  activeBucket,
+  onToggleBucket,
+}: Props) {
   if (isLoading) {
     return (
       <div className="h-64 bg-white border border-slate-200 rounded-2xl animate-pulse" />
@@ -39,7 +46,7 @@ export default function EngajamentoFRTBuckets({ buckets, isLoading }: Props) {
             Em quanto tempo respondem
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Tempo entre nossa 1ª mensagem e a resposta dela
+            Clique numa faixa pra filtrar a tabela só por quem respondeu nesse tempo
           </p>
         </div>
         {respondedTotal > 0 && (
@@ -59,10 +66,22 @@ export default function EngajamentoFRTBuckets({ buckets, isLoading }: Props) {
               ? (b.count / maxResponded) * 100
               : total === 0 ? 0 : (b.count / total) * 100
           const sharePct = total === 0 ? 0 : (b.count / total) * 100
+          const isActive = activeBucket === b.bucket
+          const isDimmed = activeBucket !== null && !isActive
+          const disabled = b.count === 0
           return (
-            <div
+            <button
               key={b.bucket}
-              className="flex items-center gap-3"
+              type="button"
+              onClick={() => !disabled && onToggleBucket(b.bucket)}
+              disabled={disabled}
+              className={cn(
+                'w-full flex items-center gap-3 px-2 py-1 rounded-md transition-all duration-150 text-left',
+                isActive && 'bg-indigo-50 ring-1 ring-indigo-200',
+                !isActive && !disabled && 'hover:bg-slate-50 active:scale-[0.99] cursor-pointer',
+                isDimmed && 'opacity-50',
+                disabled && 'cursor-default'
+              )}
               style={{
                 animation: `frtRowEnter 280ms cubic-bezier(0.23, 1, 0.32, 1) ${idx * 40}ms both`,
               }}
@@ -99,7 +118,7 @@ export default function EngajamentoFRTBuckets({ buckets, isLoading }: Props) {
                 )}
                 {sharePct.toFixed(0)}%
               </div>
-            </div>
+            </button>
           )
         })}
       </div>
