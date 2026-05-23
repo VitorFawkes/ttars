@@ -115,27 +115,9 @@ export function MobileFlightCard({
   const totalOptionsCount = flightData.legs.reduce((sum, leg) => sum + leg.allOptions.length, 0)
   const hasMultipleOptions = totalOptionsCount > flightData.legs.length // Mais opções do que legs
 
-  // Calcula duração usando a opção atual
-  const durationLeg = outboundLeg ? { ...outboundLeg, selectedOption: mainOption } : null
-  const duration = durationLeg ? calculateLegDuration(durationLeg) : ''
-  const stops = mainOption?.stops ?? 0
-
-  // Verifica se é dia seguinte. Aceita sufixo "(+1)" no horário OU infere
-  // por comparação (chegada < partida = cruzou meia-noite). Tolera lixo nos
-  // campos sem virar NaN.
-  const nextDay = useMemo(() => {
-    if (!mainOption?.departureTime || !mainOption?.arrivalTime) return false
-    // Sufixo explícito "(+N)" ganha
-    if (extractNextDayOffset(mainOption.arrivalTime)) return true
-    // Senão, infere por comparação de horários
-    const depMatch = String(mainOption.departureTime).match(/(\d{1,2}):(\d{2})/)
-    const arrMatch = String(mainOption.arrivalTime).match(/(\d{1,2}):(\d{2})/)
-    if (!depMatch || !arrMatch) return false
-    const depMinutes = Number(depMatch[1]) * 60 + Number(depMatch[2])
-    const arrMinutes = Number(arrMatch[1]) * 60 + Number(arrMatch[2])
-    if (!Number.isFinite(depMinutes) || !Number.isFinite(arrMinutes)) return false
-    return arrMinutes < depMinutes
-  }, [mainOption])
+  // (a duração / horários / dia-seguinte agora são calculados dentro de
+  //  LegMiniRow pra cada trecho separadamente — não há mais um único leg
+  //  "principal" no display compacto)
 
   return (
     <>
@@ -182,74 +164,42 @@ export function MobileFlightCard({
           </div>
         </div>
 
-        {/* Rota Visual */}
-        <div className="p-3">
-          <div className="flex items-center justify-between">
-            {/* Origem */}
-            <div className="text-center">
-              <p className="text-lg font-bold text-slate-900">
-                {outboundLeg?.originCode || '---'}
-              </p>
-              <p className="text-xs text-slate-500">
-                {formatTime(mainOption?.departureTime)}
-              </p>
-            </div>
+        {/* Rota Visual — uma linha por trecho (IDA, VOLTA, conexões) */}
+        <div className="p-3 space-y-2.5">
+          {flightData.legs.map((leg) => (
+            <LegMiniRow key={leg.id} leg={leg} />
+          ))}
 
-            {/* Duração visual */}
-            <div className="flex-1 px-4">
-              <div className="flex items-center">
-                <div className="h-0.5 flex-1 bg-slate-200" />
-                <div className="px-2 py-0.5 bg-slate-100 rounded text-xs text-slate-600">
-                  {duration || '—'}
-                </div>
-                <div className="h-0.5 flex-1 bg-slate-200" />
-              </div>
-              <p className="text-center text-xs text-slate-400 mt-1">
-                {stops === 0 ? 'Direto' : `${stops} parada${stops > 1 ? 's' : ''}`}
-              </p>
+          {/* Badges + ação */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <div className="flex flex-wrap gap-1.5">
+              {mainOption?.baggage && (
+                <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded">
+                  {mainOption.baggage}
+                </span>
+              )}
+              {hasReturn && (
+                <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-xs rounded">
+                  Ida e Volta
+                </span>
+              )}
             </div>
-
-            {/* Destino */}
-            <div className="text-center">
-              <p className="text-lg font-bold text-slate-900">
-                {outboundLeg?.destinationCode || '---'}
-              </p>
-              <p className="text-xs text-slate-500">
-                {formatTime(mainOption?.arrivalTime)}{nextDay ? ' +1' : ''}
-              </p>
-            </div>
-          </div>
-
-          {/* Badges */}
-          <div className="flex justify-center gap-2 mt-3">
-            {mainOption?.baggage && (
-              <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded">
-                {mainOption.baggage}
-              </span>
-            )}
-            {hasReturn && (
-              <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-xs rounded">
-                Ida e Volta
-              </span>
+            {(flightData.legs.length > 1 || hasReturn || hasMultipleOptions) && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowModal(true)
+                }}
+                className="text-xs text-blue-600 hover:text-blue-700 font-medium inline-flex items-center gap-1"
+              >
+                <Info className="h-3 w-3" />
+                {hasMultipleOptions
+                  ? `Ver ${totalOptionsCount} opções`
+                  : 'Ver detalhes'
+                }
+              </button>
             )}
           </div>
-
-          {/* Ver opções / itinerário completo */}
-          {(flightData.legs.length > 1 || hasReturn || hasMultipleOptions) && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                setShowModal(true)
-              }}
-              className="mt-3 w-full text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center justify-center gap-1 py-1.5"
-            >
-              <Info className="h-3 w-3" />
-              {hasMultipleOptions
-                ? `Ver ${totalOptionsCount} opções de voo`
-                : `Ver ${flightData.legs.length} trechos`
-              }
-            </button>
-          )}
         </div>
       </div>
 
@@ -269,6 +219,68 @@ export function MobileFlightCard({
         />
       )}
     </>
+  )
+}
+
+// Linha compacta de UM trecho (IDA, VOLTA ou conexão).
+// Usa a opção recomendada/selecionada do leg.
+function LegMiniRow({ leg }: { leg: FlightLegViewData }) {
+  const option = leg.selectedOption || leg.allOptions[0]
+  if (!option) return null
+
+  // Resolve sufixo "+N" do horário de chegada (dia seguinte)
+  const arrivalSuffix = extractNextDayOffset(option.arrivalTime)
+  const dep = formatTime(option.departureTime)
+  const arr = formatTime(option.arrivalTime)
+
+  // Duração + paradas
+  const duration = calculateLegDuration({ ...leg, selectedOption: option })
+  const stops = option.stops ?? 0
+  const stopsText = stops === 0 ? 'direto' : stops === 1 ? '1 parada' : `${stops} paradas`
+
+  // Cor do label por tipo de leg
+  const legLabel = leg.label || (leg.type === 'return' ? 'VOLTA' : leg.type === 'connection' ? 'TRECHO' : 'IDA')
+  const labelColor =
+    leg.type === 'return' ? 'bg-emerald-100 text-emerald-700'
+    : leg.type === 'connection' ? 'bg-violet-100 text-violet-700'
+    : 'bg-sky-100 text-sky-700'
+
+  return (
+    <div className="flex items-center gap-2.5 text-sm">
+      {/* Label IDA/VOLTA */}
+      <span className={cn(
+        "px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide flex-shrink-0",
+        labelColor
+      )}>
+        {legLabel}
+      </span>
+
+      {/* Origem */}
+      <div className="flex items-baseline gap-1 flex-shrink-0">
+        <span className="font-semibold text-slate-900">{leg.originCode || '---'}</span>
+        <span className="text-xs text-slate-500 tabular-nums">{dep}</span>
+      </div>
+
+      {/* Linha horizontal com duração/paradas */}
+      <div className="flex-1 flex items-center min-w-0 px-1">
+        <div className="h-px flex-1 bg-slate-200" />
+        <span className="text-[10px] text-slate-400 px-1.5 whitespace-nowrap">
+          {duration || '—'} · {stopsText}
+        </span>
+        <div className="h-px flex-1 bg-slate-200" />
+      </div>
+
+      {/* Destino */}
+      <div className="flex items-baseline gap-1 flex-shrink-0">
+        <span className="font-semibold text-slate-900">{leg.destinationCode || '---'}</span>
+        <span className="text-xs text-slate-500 tabular-nums">
+          {arr}
+          {arrivalSuffix && (
+            <span className="ml-0.5 text-[10px] font-semibold text-amber-600">{arrivalSuffix}</span>
+          )}
+        </span>
+      </div>
+    </div>
   )
 }
 
