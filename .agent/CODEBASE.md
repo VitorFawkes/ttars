@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-05-23
+> **Last Updated:** 2026-05-24
 > **Trigger:** ALWAYS ON
-> **Stats:** 208 tabelas | 200 paginas | 334 hooks | 23 views | 797 components
+> **Stats:** 208 tabelas | 200 paginas | 335 hooks | 23 views | 797 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **334 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **335 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -541,6 +541,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useConciergeUsers()` | `useConciergeUsers.ts` |
 | `useDepartments()` | `useDepartments.ts` |
 | `useRoles()` | `useRoles.ts` |
+| `useTeamAggregateKpis()` | `useTeamAggregateKpis.ts` |
 | `useTeamIndividualEvolution()` | `useTeamIndividualEvolution.ts` |
 | `useTeamLeaderboard()` | `useTeamLeaderboard.ts` |
 | `useTeamPerformance()` | `useTeamPerformance.ts` |

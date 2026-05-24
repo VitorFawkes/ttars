@@ -43,15 +43,21 @@ export interface OperationsData {
 export function useOperationsData() {
     const { dateRange, product, mode, stageId, ownerIds, tagIds } = useAnalyticsFilters()
 
+    // Operações = "Viagens REALIZADAS no período". Default deve filtrar por
+    // ganho_pos_at (data de entrega/conclusão) ou data_fechamento, não created_at.
+    // Antes: mode='entries' contava cards CRIADOS no período que ganharam →
+    // 44 vendas R$ 1.1mi (inflado). Correto: 18 R$ 226k (mode='ganho_total').
+    const effectiveMode = mode === 'entries' ? 'ganho_total' : mode
+
     return useQuery({
-        queryKey: ['analytics', 'operations-summary', dateRange.start, dateRange.end, product, mode, stageId, ownerIds, tagIds],
+        queryKey: ['analytics', 'operations-summary', dateRange.start, dateRange.end, product, effectiveMode, stageId, ownerIds, tagIds],
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC nova
             const { data, error } = await (supabase.rpc as any)('analytics_operations_summary', {
                 p_date_start: dateRange.start,
                 p_date_end: dateRange.end,
                 p_product: product,
-                p_mode: mode,
+                p_mode: effectiveMode,
                 p_stage_id: stageId,
                 p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
                 p_tag_ids: tagIds.length > 0 ? tagIds : undefined,

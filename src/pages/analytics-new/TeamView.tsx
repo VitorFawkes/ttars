@@ -5,6 +5,7 @@ import KpiCard from '@/components/analytics/KpiCard'
 import { useTeamLeaderboard } from '@/hooks/analytics/useTeamLeaderboard'
 import { useTeamPerformance } from '@/hooks/analytics/useTeamPerformance'
 import { useTeamSlaCompliance } from '@/hooks/analytics/useTeamSlaCompliance'
+import { useTeamAggregateKpis } from '@/hooks/analytics/useTeamAggregateKpis'
 import { useTeamIndividualEvolution } from '@/hooks/analytics/useTeamIndividualEvolution'
 import { useTeamTicketVariation } from '@/hooks/analytics/useTeamTicketVariation'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
@@ -71,11 +72,13 @@ export default function TeamView() {
     })
   }
 
-  // KPIs agregados do leaderboard
-  const totalReceita = leaderboard.data?.reduce((acc, r) => acc + r.receita_total, 0) ?? 0
-  const totalGanhos = leaderboard.data?.reduce((acc, r) => acc + r.cards_ganhos, 0) ?? 0
-  const totalAbertos = leaderboard.data?.reduce((acc, r) => acc + r.cards_abertos, 0) ?? 0
-  const totalVencidas = leaderboard.data?.reduce((acc, r) => acc + r.tarefas_vencidas, 0) ?? 0
+  // KPIs agregados — vêm de RPC dedicada (cards DISTINTOS). Somar linhas do
+  // leaderboard inflava o número porque um card com SDR+Planner+Pós contava 3x.
+  const aggregateKpis = useTeamAggregateKpis()
+  const totalReceita = aggregateKpis.data?.receita_total ?? 0
+  const totalGanhos = aggregateKpis.data?.cards_ganhos ?? 0
+  const totalAbertos = aggregateKpis.data?.cards_abertos ?? 0
+  const totalVencidas = aggregateKpis.data?.tarefas_vencidas ?? 0
 
   return (
     <div className="flex flex-col gap-6">
