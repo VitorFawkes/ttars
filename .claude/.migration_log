@@ -964,3 +964,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-23T23:10:16Z | supabase/migrations/20260523m_analytics_financeiro_overview.sql | applied_to_prod
 2026-05-24T02:39:42Z | supabase/migrations/20260524a_patricia_nunca_preco_clarify.sql | applied_to_prod
 2026-05-24T02:39:57Z | supabase/migrations/20260524b_patricia_abertura_block2_rewrite.sql | applied_to_prod
+2026-05-24T02:57:54Z | supabase/migrations/20260524c_patricia_nunca_preco_revert.sql | applied_to_prod
