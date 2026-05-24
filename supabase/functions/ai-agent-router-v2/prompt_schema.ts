@@ -127,6 +127,7 @@ export const SINGLE_AGENT_OUTPUT_SCHEMA = {
             "pendencia_resolver",
             "sinais_defensivos_lead",
             "pergunta_lead_nao_respondida",
+            "lead_intent",
           ],
           properties: {
             contradicao_detectada: {
@@ -181,6 +182,17 @@ export const SINGLE_AGENT_OUTPUT_SCHEMA = {
               description:
                 "O lead fez uma PERGUNTA FACTUAL no último turn dele que sua mensagem candidata NÃO responde? Ex: lead pergunta 'quanto custa?', 'vocês cobram?', 'tem agenda dia X?', 'qual o nome da Wedding Planner?', e você puls direto pra outro tema sem responder. Se sim, escreva A PERGUNTA do lead (curta). NULL se ele não fez pergunta direta, OU se você está respondendo a pergunta dele. AMBIGUIDADE NÃO É FUGA: se a pergunta é ambígua ('quanto custa' sem objeto), responder com clarificação ('do casamento todo ou do nosso honorário?') CONTA como responder — preencher null. Mas pular pra outro tema sem clarificar CONTA como não responder — preencher com a pergunta.",
             },
+            lead_intent: {
+              type: "string",
+              enum: ["explorando", "qualificando", "objetando", "pronto_pra_fechar"],
+              description:
+                "Sua leitura semântica da intenção do lead no turno ATUAL (não no histórico todo, no que ele acabou de mandar). " +
+                "'explorando' = primeira aproximação, vago, sem decisão ('vi vocês no insta', 'tô começando a pensar', 'queria saber mais'). " +
+                "'qualificando' = trocando dados pra entender se cabe ('pra quantas pessoas vocês fazem?', 'tem destino X?', conta orçamento, dá dados estruturados). " +
+                "'objetando' = tem ressalva específica e quer testar antes de avançar (preço, prazo, comparação com concorrente, dúvida sobre formato). " +
+                "'pronto_pra_fechar' = pediu reunião, horário ou agenda EXPLICITAMENTE, sem mais perguntas exploratórias ('quero marcar', 'qual horário?', 'quarta 14h?', 'bora ver isso'). " +
+                "Use julgamento: 'já vi tudo de vocês' SOZINHO não é pronto_pra_fechar — precisa intenção concreta de marcar. 'Vocês podem me explicar como funciona?' É exploring, não pronto.",
+            },
           },
         },
       },
@@ -198,6 +210,7 @@ export interface SelfAnalysis {
   pendencia_resolver: string | null;
   sinais_defensivos_lead: boolean;
   pergunta_lead_nao_respondida: string | null;
+  lead_intent: "explorando" | "qualificando" | "objetando" | "pronto_pra_fechar";
 }
 
 export interface SingleAgentOutput {

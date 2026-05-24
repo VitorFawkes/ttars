@@ -620,6 +620,25 @@ Deno.serve(async (req) => {
           effectiveStep = 0;
           effectiveMomentKey = null;
         }
+
+        // Fix 1.3 (2026-05-24) — Early exit do avanço mecânico quando lead pronto pra fechar
+        //
+        // Quando self_analysis.lead_intent do TURN ANTERIOR foi "pronto_pra_fechar"
+        // E moment ativo é "abertura" (que avançaria pro bloco 2 genérico
+        // de apresentação Welcome), LIBERA o avanço mecânico pro LLM escolher
+        // próximo moment.
+        //
+        // Observado em 23/05: cenário Renata ("já vi tudo, quero marcar reunião"
+        // + "quarta 14h?") — Patricia ficou em abertura bloco 2 despejando pitch
+        // genérico em quem já decidiu. lead_intent="pronto_pra_fechar" no turn
+        // anterior + lastMomentKey="abertura" → libera, prompt_assembler dá
+        // instrução de "sondagem mínima ANTES de marcar".
+        const lastLeadIntent = previousVars.last_lead_intent as string | undefined;
+        if (lastLeadIntent === "pronto_pra_fechar" && lastMomentKey === "abertura") {
+          console.log(`[v2] early_exit_abertura: lead_intent=pronto_pra_fechar → libera moment_step`);
+          effectiveStep = 0;
+          effectiveMomentKey = null;
+        }
       }
     }
 
@@ -876,7 +895,49 @@ Deno.serve(async (req) => {
     const orcamentoFaixa = trackedData["ww_orcamento_faixa"];
     const criticosColetados = !!(dataCasamento && destinoRegiao && numConvidados && orcamentoFaixa);
 
-    if (criticosColetados && scoringEnabled) {
+    // Fix 1.2 (2026-05-24) — Trigger secundário de inviabilidade econômica precoce
+    //
+    // Quando lead já deu orçamento + convidados e a conta dá < R$ 800/conv,
+    // força desfecho_nao_qualificado MESMO SEM data/destino. Proteção de marca:
+    // recusar com dignidade > insistir em sondagem inviável.
+    //
+    // Observado em 23/05: cenário Pedro ("15k tudo incluso / 100 convidados Maldivas")
+    // → R$ 150/conv. Patricia ficou em objecao_preco porque faltava data → trigger
+    // de criticosColetados não disparou. Validator bloqueou tarde com nao_qualificar_inviavel.
+    //
+    // Pré-condições: !autoHandoffTriggered (handoff é prioridade), !forcedMomentKey,
+    // orçamento>0 + convidados>0, valor_por_convidado<800.
+    if (!autoHandoffTriggered && !forcedMomentKey) {
+      const orcRaw = trackedData["ww_orcamento_faixa"];
+      const convRaw = trackedData["ww_num_convidados"];
+      const orcBrl = typeof orcRaw === "number" ? orcRaw : (typeof orcRaw === "string" ? parseInt(orcRaw.replace(/[^0-9]/g, ""), 10) : 0);
+      const convNum = typeof convRaw === "number" ? convRaw : (typeof convRaw === "string" ? parseInt(convRaw.replace(/[^0-9]/g, ""), 10) : 0);
+      if (orcBrl > 0 && convNum > 0) {
+        const vpc = orcBrl / convNum;
+        if (vpc < 800) {
+          forcedMomentKey = "desfecho_nao_qualificado";
+          qualificationResult = {
+            score: 0,
+            qualificado: false,
+            threshold: 25,
+            breakdown: [{
+              dimension: "viabilidade_economica",
+              label: "Abaixo do piso mínimo resistente",
+              weight: -999,
+              rule_id: "early_disqualify_below_minimum",
+              rule_type: "disqualify",
+              source: "router_early_check",
+              value: `R$ ${vpc.toFixed(0)}/conv`,
+            }],
+          } as Record<string, unknown>;
+          console.log(
+            `[v2] early_disqualify: R$ ${vpc.toFixed(0)}/conv (orcamento=${orcBrl} conv=${convNum}) → forcedMomentKey=desfecho_nao_qualificado`,
+          );
+        }
+      }
+    }
+
+    if (!forcedMomentKey && criticosColetados && scoringEnabled) {
       // Parse orcamento → número de teto (tenta vários formatos)
       let orcamentoTeto: number | null = null;
       if (typeof orcamentoFaixa === "number") {
@@ -934,6 +995,15 @@ Deno.serve(async (req) => {
         // isso, RPC retornava score=0/breakdown=[] e o trigger nunca disparava
         // o desfecho determinístico — Patricia improvisava agendamento sem
         // slots reais. Padrão portado da Estela em 2026-05-12.
+        //
+        // Fix 1.1 (2026-05-24): viajouInternacional e ajudaFamilia eram
+        // referenciadas sem declaração prévia, chegando undefined na RPC.
+        // Bonus desses 2 critérios nunca somava → score artificialmente baixo.
+        // Lendo de trackedData (populado pela fallback heurística + extração
+        // pelo LLM). Fallback null se não coletado.
+        const viajouInternacional = trackedData["ww_sdr_perfil_viagem_internacional"] ?? null;
+        const ajudaFamilia = trackedData["ww_sdr_ajuda_familia"] ?? null;
+
         const scoringInputs: Record<string, unknown> = {
           ww_data_casamento: dataCasamento,
           ww_destino: destinoRegiao,
@@ -1306,6 +1376,9 @@ Deno.serve(async (req) => {
         forced_moment_key: forcedMomentKey,
         qualification_result: qualificationResult,
         proposed_slots: proposedSlots,
+        // Fix 1.3 + 1.4 (2026-05-24) — passar facts do self_analysis turn anterior pro turn_policy
+        last_lead_intent: (previousVars.last_lead_intent as "explorando" | "qualificando" | "objetando" | "pronto_pra_fechar" | undefined) ?? null,
+        contradicao_detectada: (previousVars.last_contradicao_detectada as { campos?: string[]; descricao?: string } | undefined) ?? null,
       },
       scoringThreshold,
       availableTools,
@@ -1641,6 +1714,9 @@ Deno.serve(async (req) => {
             qualification_result: qualificationResult,
             proposed_slots: proposedSlots,
             tool_results: { check_calendar: checkCalendarResult },
+            // Fix 1.3 + 1.4 (2026-05-24) — preservar facts no re-call do agentic loop
+            last_lead_intent: (previousVars.last_lead_intent as "explorando" | "qualificando" | "objetando" | "pronto_pra_fechar" | undefined) ?? null,
+            contradicao_detectada: (previousVars.last_contradicao_detectada as { campos?: string[]; descricao?: string } | undefined) ?? null,
           },
           scoringThreshold,
           availableTools,
@@ -2024,6 +2100,13 @@ Deno.serve(async (req) => {
     const finalMomentKey = singleAgentResult.output.current_moment_key;
     const newStep = (finalMomentKey && finalMomentKey === effectiveMomentKey) ? effectiveStep : 0;
 
+    // Fix 1.3 + 1.4 (2026-05-24) — Persistir facts do self_analysis pra próximo turn
+    // - lead_intent: usado no avanço mecânico de moment_step + turn_policy
+    // - contradicao_detectada: usado no turn_policy pra forçar devolução
+    const saSnap = (singleAgentResult.output.self_analysis as Record<string, unknown> | undefined) ?? {};
+    const lastLeadIntentToPersist = saSnap.lead_intent as string | undefined;
+    const lastContradicaoToPersist = saSnap.contradicao_detectada as { campos?: string[]; descricao?: string } | null | undefined;
+
     await supabase
       .from("ai_conversation_state")
       .upsert({
@@ -2033,6 +2116,8 @@ Deno.serve(async (req) => {
           last_moment_key: finalMomentKey,
           moment_step: newStep,
           last_reasoning: singleAgentResult.output.internal_reasoning,
+          last_lead_intent: lastLeadIntentToPersist ?? null,
+          last_contradicao_detectada: lastContradicaoToPersist ?? null,
           // Snapshot de dados estruturados acumulados (resiste a card_id=null)
           tracked_data: updatedTrackedData,
         },

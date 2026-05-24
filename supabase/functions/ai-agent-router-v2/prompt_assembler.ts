@@ -152,6 +152,22 @@ export interface BuildSinglePromptInput {
      * Hoje só `check_calendar` usa esse caminho.
      */
     tool_results?: Record<string, unknown> | null;
+    /**
+     * Fix 1.3 (2026-05-24) — Intenção do lead detectada pelo LLM no turn ANTERIOR
+     * (via self_analysis.lead_intent). Router usa pra:
+     *   - early-exit do avanço mecânico de moment_step (se "pronto_pra_fechar"
+     *     no moment abertura, libera pro LLM escolher próximo)
+     *   - injetar instrução em turn_policy ("não despeje pitch genérico em quem
+     *     já demonstrou intenção alta")
+     */
+    last_lead_intent?: "explorando" | "qualificando" | "objetando" | "pronto_pra_fechar" | null;
+    /**
+     * Fix 1.4 (2026-05-24) — Contradição detectada pelo LLM no turn ANTERIOR
+     * (via self_analysis.contradicao_detectada). Quando presente, turn_policy
+     * injeta instrução OBRIGATÓRIA de devolver os dois polos antes de qualquer
+     * outra coisa.
+     */
+    contradicao_detectada?: { campos?: string[]; descricao?: string } | null;
   };
   availableTools: string[];
 }
@@ -1291,6 +1307,57 @@ function renderTurnPolicy(
   moments: PlaybookMoment[],
   state: BuildSinglePromptInput["conversationState"],
 ): string {
+  // Fix 1.4 (2026-05-24) — Contradição detectada no turn ANTERIOR: instrução obrigatória de devolver
+  //
+  // Quando self_analysis.contradicao_detectada do turn anterior populou, o LLM
+  // PRECISA ecoar os dois polos antes de qualquer outra coisa. Se ignorar,
+  // validator (rule responder_contradicao_do_lead) bloqueia → fallback dispara.
+  // Instrução vai como PREFIXO do turn_policy pra garantir prioridade na atenção.
+  const contrad = state.contradicao_detectada;
+  let contradicaoPrefix = "";
+  if (contrad && (contrad.descricao || (contrad.campos && contrad.campos.length > 0))) {
+    const camposStr = (contrad.campos || []).join(" ↔ ");
+    contradicaoPrefix = `🚨 CONTRADIÇÃO DETECTADA NO TURN ANTERIOR — AÇÃO OBRIGATÓRIA NESTE TURN
+
+Você (Patricia) detectou no turn anterior, via self_analysis, que o lead deu informações contraditórias:
+${camposStr ? `- Campos em conflito: ${camposStr}` : ""}
+${contrad.descricao ? `- Descrição: ${contrad.descricao}` : ""}
+
+ANTES de qualquer outra ação neste turn (mesmo se o moment é forçado), VOCÊ DEVE:
+1. Devolver os DOIS polos da contradição com clareza ("Vocês mencionaram X e também Y, faz sentido querer os dois?")
+2. Fazer pergunta aberta de desambiguação ("Qual dos dois é o que pesa mais pra vocês?")
+3. SÓ DEPOIS continuar fluxo normal (sondagem, agendamento, etc.)
+
+Se ignorar a contradição, o validator vai bloquear sua mensagem (regra responder_contradicao_do_lead).
+
+`;
+  }
+
+  // Fix 1.3 (2026-05-24) — Lead pronto pra fechar mas sem dados mínimos: sondagem focada
+  //
+  // Quando lead_intent="pronto_pra_fechar" do turn anterior + não há forced_moment_key
+  // (trigger determinístico não disparou porque faltam críticos), o LLM deve
+  // PULAR pitch genérico (bloco 2 abertura) e ir direto pra sondagem mínima.
+  // Cobre cenário Renata observado em 23/05.
+  const isReadyToClose = state.last_lead_intent === "pronto_pra_fechar";
+  const noForcedMoment = !state.forced_moment_key;
+  let readyToClosePrefix = "";
+  if (isReadyToClose && noForcedMoment) {
+    readyToClosePrefix = `🎯 LEAD COM ALTA INTENÇÃO DE FECHAR — SONDAGEM MÍNIMA E DIRETA
+
+Você detectou no turn anterior que o lead está pronto pra marcar (pediu reunião, horário ou agenda explicitamente; disse "já vi tudo de vocês" + intenção de fechar). MAS ainda faltam dados mínimos pra confirmar viabilidade econômica (destino, convidados, orçamento).
+
+NESTE TURN:
+- NÃO repita apresentação institucional da Welcome (ano, prêmios, "desde 2012"). Lead já viu.
+- NÃO use "O que é o casamento pra vocês? Como vocês imaginam?". Lead já decidiu marcar.
+- VÁ DIRETO: peça os 2-3 dados essenciais de forma natural e curta. Ex: "Antes de confirmar com a Ana, me ajuda com 2 coisas rápidas: quantos convidados vocês imaginam e qual destino tá no radar?".
+- Quando tiver orçamento + convidados, o router vai disparar viabilidade e decidir qualificar ou desqualificar honestamente.
+
+`;
+  }
+
+  const prefix = contradicaoPrefix + readyToClosePrefix;
+
   // -------- Forced moment (trigger determinístico do router) --------------
   // Tem prioridade sobre last_moment_key. LLM DEVE usar esse momento.
   const forcedKey = state.forced_moment_key;
@@ -1316,7 +1383,7 @@ function renderTurnPolicy(
         : "Modo FREE: capture a essência com suas palavras, mas mantenha estrutura.";
 
       return `<turn_policy>
-🎯 ESTRATÉGIA DESTE TURNO — MOMENTO FORÇADO PELO ROUTER
+${prefix}🎯 ESTRATÉGIA DESTE TURNO — MOMENTO FORÇADO PELO ROUTER
 
 O router já decidiu por você: o momento deste turno é **\`${forced.moment_key}\`** (${forced.moment_label}).
 Isso aconteceu porque o estado da conversa (dados coletados + score calculado) bate exatamente com a condição deste momento. Não há ambiguidade.
@@ -1352,7 +1419,7 @@ ${forced.literal_phrases && forced.literal_phrases.length > 0
 
   if (!lastKey) {
     return `<turn_policy>
-🎯 ESTRATÉGIA DESTE TURNO
+${prefix}🎯 ESTRATÉGIA DESTE TURNO
 
 Você está iniciando a conversa OU não havia momento anterior. Escolha o moment de FLOW apropriado (geralmente o primeiro: abertura). Use o Bloco 1 dele se houver sequência.
 </turn_policy>`;
@@ -1361,7 +1428,7 @@ Você está iniciando a conversa OU não havia momento anterior. Escolha o momen
   const moment = moments.find((m) => m.moment_key === lastKey);
   if (!moment) {
     return `<turn_policy>
-🎯 ESTRATÉGIA DESTE TURNO
+${prefix}🎯 ESTRATÉGIA DESTE TURNO
 
 Último moment registrado ("${lastKey}") não está mais disponível no playbook. Reescolha o moment correto pelo estado da conversa.
 </turn_policy>`;
@@ -1372,7 +1439,7 @@ Você está iniciando a conversa OU não havia momento anterior. Escolha o momen
 
   if (!isSequencedWait) {
     return `<turn_policy>
-🎯 ESTRATÉGIA DESTE TURNO
+${prefix}🎯 ESTRATÉGIA DESTE TURNO
 
 Último moment: \`${moment.moment_key}\` (${moment.delivery_mode || "all_at_once"})
 
@@ -1387,7 +1454,7 @@ Esse moment NÃO tem blocos sequenciais. Você pode mudar de moment livremente s
   const isFaithful = moment.message_mode === "faithful";
 
   return `<turn_policy>
-🎯 ESTRATÉGIA DESTE TURNO — REGRAS DURAS, NÃO OPCIONAIS
+${prefix}🎯 ESTRATÉGIA DESTE TURNO — REGRAS DURAS, NÃO OPCIONAIS
 
 Você está no moment \`${moment.moment_key}\` (${moment.moment_label}), **Bloco ${activeIdx + 1} de ${parts.length}**.
 
