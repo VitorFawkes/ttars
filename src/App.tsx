@@ -27,6 +27,7 @@ import BuilderPageV5 from './components/proposals/v5/BuilderPage'
 import PortalEditor from './pages/PortalEditor'
 import ProposalsPage from './pages/ProposalsPage'
 import CatalogoPage from './pages/CatalogoPage'
+import AnalyticsWeddingsPage from './pages/AnalyticsWeddings/AnalyticsWeddingsPage'
 import ProposalView from './pages/public/ProposalView'
 import TripPortalPublic from './pages/public/TripPortalPublic'
 import AnalyticsPage from './pages/analytics/AnalyticsPage'
@@ -327,6 +328,7 @@ function App() {
                   <Route path="/analytics/pos-venda" element={<Navigate to="/analytics/operacoes" replace />} />
                   <Route path="/analytics/sdr" element={<Navigate to="/analytics/whatsapp" replace />} />
                   <Route path="/analytics/v2/*" element={<Navigate to="/analytics" replace />} />
+                  <Route path="/analytics-weddings" element={<AnalyticsWeddingsPage />} />
                   <Route path="/proposals/:id/edit" element={<BuilderPageV5 />} />
                   <Route path="/portal-editor/:proposalId" element={<PortalEditor />} />
                   <Route path="/portal-editor/card/:cardId" element={<PortalEditor />} />

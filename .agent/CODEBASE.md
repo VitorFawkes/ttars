@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-05-24
+> **Last Updated:** 2026-05-25
 > **Trigger:** ALWAYS ON
-> **Stats:** 208 tabelas | 200 paginas | 335 hooks | 23 views | 797 components
+> **Stats:** 208 tabelas | 201 paginas | 336 hooks | 23 views | 797 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **335 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **336 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -216,6 +216,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAnalyticsDrillDown()` | `useAnalyticsDrillDown.ts` |
 | `useAnalyticsV2Permissions()` | `useAnalyticsV2Permissions.ts` |
 | `useAnalyticsV2Rpcs()` | `useAnalyticsV2Rpcs.ts` |
+| `useAnalyticsWeddingsRpcs()` | `useAnalyticsWeddingsRpcs.ts` |
 | `useConciergeOverview()` | `useConciergeOverview.ts` |
 | `useDeleteFinancialItem()` | `useDeleteFinancialItem.ts` |
 | `useFinanceiroOverview()` | `useFinanceiroOverview.ts` |
@@ -583,7 +584,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **200 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **201 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -600,6 +601,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `PosDashboard` | `src/pages/AnalyticsV2/dashboards/PosDashboard.tsx` |
 | `SdrDashboard` | `src/pages/AnalyticsV2/dashboards/SdrDashboard.tsx` |
 | `VendasDashboard` | `src/pages/AnalyticsV2/dashboards/VendasDashboard.tsx` |
+| `AnalyticsWeddingsPage` | `src/pages/AnalyticsWeddings/AnalyticsWeddingsPage.tsx` |
 | `CalendarPage` | `src/pages/CalendarPage.tsx` |
 | `CardByConversation` | `src/pages/CardByConversation.tsx` |
 | `CardDetail` | `src/pages/CardDetail.tsx` |
