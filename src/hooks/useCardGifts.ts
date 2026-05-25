@@ -29,6 +29,7 @@ export interface GiftItem {
     assignment_id: string
     product_id: string | null
     custom_name: string | null
+    custom_image_path: string | null
     notes: string | null
     quantity: number
     unit_price_snapshot: number
@@ -96,7 +97,7 @@ export function useGiftAssignment(assignmentId: string | undefined, cardId: stri
     })
 
     const addCustomItem = useMutation({
-        mutationFn: async (input: { customName: string; quantity: number; unitPrice: number }) => {
+        mutationFn: async (input: { customName: string; quantity: number; unitPrice: number; customImagePath?: string | null }) => {
             if (!assignmentId) throw new Error('No assignment')
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data, error } = await (supabase as any).from('card_gift_items')
@@ -104,6 +105,7 @@ export function useGiftAssignment(assignmentId: string | undefined, cardId: stri
                     assignment_id: assignmentId,
                     product_id: null,
                     custom_name: input.customName,
+                    custom_image_path: input.customImagePath || null,
                     quantity: input.quantity,
                     unit_price_snapshot: input.unitPrice,
                 })
@@ -247,7 +249,7 @@ export function useCardGifts(cardId: string) {
     const createBulkAssignments = useMutation({
         mutationFn: async (input: {
             contacts: { id: string; name: string }[]
-            items: { productId: string | null; customName?: string; quantity: number; unitPrice: number }[]
+            items: { productId: string | null; customName?: string; customImagePath?: string | null; quantity: number; unitPrice: number }[]
             scheduledShipDate?: string
             /** Quando preenchido, registra o presente como já enviado/entregue (backfill).
              *  Não cria movimentação de estoque nem tarefa de envio. */
@@ -329,6 +331,7 @@ export function useCardGifts(cardId: string) {
                             assignment_id: assignment.id,
                             product_id: item.productId,
                             custom_name: item.customName || null,
+                            custom_image_path: item.productId ? null : (item.customImagePath || null),
                             quantity: item.quantity,
                             unit_price_snapshot: item.unitPrice,
                         })
@@ -371,6 +374,7 @@ export function useCardGifts(cardId: string) {
         mutationFn: async (input: {
             productId: string | null
             customName?: string
+            customImagePath?: string | null
             quantity: number
             unitPrice: number
             contacts: { id: string; name: string }[]
@@ -422,6 +426,7 @@ export function useCardGifts(cardId: string) {
                         assignment_id: assignmentId,
                         product_id: input.productId,
                         custom_name: input.customName || null,
+                        custom_image_path: input.productId ? null : (input.customImagePath || null),
                         quantity: input.quantity,
                         unit_price_snapshot: input.unitPrice,
                     })

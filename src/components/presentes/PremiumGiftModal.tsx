@@ -16,7 +16,7 @@ const occasionPresets = [
     { value: 'Fidelidade', icon: '⭐' },
     { value: 'Agradecimento', icon: '🙏' },
     { value: 'Boas-vindas', icon: '👋' },
-    { value: 'Indicação', icon: '🤝' },
+    { value: 'Retratação', icon: '🙇' },
     { value: 'Outro', icon: '🎁' },
 ]
 
@@ -162,13 +162,14 @@ export default function PremiumGiftModal({ onClose, onSubmit, isSubmitting }: Pr
         }])
     }
 
-    const handleAddCustom = (name: string, unitPrice: number, quantity: number) => {
+    const handleAddCustom = (name: string, unitPrice: number, quantity: number, imagePath?: string | null) => {
         setItems(prev => [...prev, {
             productId: null,
             productName: name,
             customName: name,
             quantity,
             unitPrice,
+            imagePath: imagePath ?? null,
         }])
     }
 
@@ -195,6 +196,7 @@ export default function PremiumGiftModal({ onClose, onSubmit, isSubmitting }: Pr
                 customName: i.customName,
                 quantity: i.quantity,
                 unitPrice: i.unitPrice,
+                customImagePath: i.productId ? null : (i.imagePath ?? null),
             })),
             deliveryAddress: deliveryAddress || undefined,
             deliveryDate: deliveryDate || undefined,
@@ -218,7 +220,7 @@ export default function PremiumGiftModal({ onClose, onSubmit, isSubmitting }: Pr
                         <Gift className="h-4 w-4 text-pink-600" />
                     </div>
                     <div className="flex-1">
-                        <h2 className="text-lg font-semibold tracking-tight text-slate-900">Novo Presente</h2>
+                        <h2 className="text-lg font-semibold tracking-tight text-slate-900">Novo Envio</h2>
                         {contacts.length > 0 && (
                             <p className="text-xs text-slate-500">
                                 {contacts.length} {contacts.length === 1 ? 'pessoa' : 'pessoas'}

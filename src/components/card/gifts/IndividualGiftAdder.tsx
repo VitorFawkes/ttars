@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { Gift, Search, Package, PenLine, Loader2, Plus, X, Check, Users, AlertTriangle, MessageSquare } from 'lucide-react'
+import { Gift, Search, Package, PenLine, Loader2, Plus, X, Check, Users, AlertTriangle, MessageSquare, Upload } from 'lucide-react'
 import { useInventoryProducts, type InventoryProduct } from '@/hooks/useInventoryProducts'
 import InventoryImageHoverPreview from '@/components/inventory/InventoryImageHoverPreview'
+import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 const formatBRL = (v: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
@@ -20,6 +22,7 @@ interface Props {
     onSubmit: (input: {
         productId: string | null
         customName?: string
+        customImagePath?: string | null
         quantity: number
         unitPrice: number
         contacts: { id: string; name: string }[]
@@ -37,6 +40,8 @@ export default function IndividualGiftAdder({ contacts, onSubmit, onCancel, isSu
     const [quantity, setQuantity] = useState(1)
     const [customName, setCustomName] = useState('')
     const [customPrice, setCustomPrice] = useState(0)
+    const [customImagePath, setCustomImagePath] = useState<string | null>(null)
+    const [uploading, setUploading] = useState(false)
     const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(() => new Set())
     const [notes, setNotes] = useState('')
 
@@ -76,11 +81,30 @@ export default function IndividualGiftAdder({ contacts, onSubmit, onCancel, isSu
         await onSubmit({
             productId: mode === 'stock' ? selectedProduct!.id : null,
             customName: mode === 'custom' ? customName.trim() : undefined,
+            customImagePath: mode === 'custom' ? customImagePath : null,
             quantity,
             unitPrice,
             contacts: selected,
             notes: notes.trim() || undefined,
         })
+    }
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        setUploading(true)
+        try {
+            const ext = file.name.split('.').pop()
+            const path = `custom/${crypto.randomUUID()}.${ext}`
+            const { error } = await supabase.storage.from('inventory-images').upload(path, file)
+            if (error) throw error
+            setCustomImagePath(path)
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Erro ao enviar imagem'
+            toast.error(msg)
+        } finally {
+            setUploading(false)
+        }
     }
 
     return (
@@ -206,37 +230,71 @@ export default function IndividualGiftAdder({ contacts, onSubmit, onCancel, isSu
 
                 {/* Custom item */}
                 {mode === 'custom' && (
-                    <div className="grid grid-cols-3 gap-2">
-                        <div className="col-span-3">
-                            <input
-                                type="text"
-                                placeholder="Nome do item (ex: Camiseta personalizada)"
-                                value={customName}
-                                onChange={e => setCustomName(e.target.value)}
-                                className="w-full px-2.5 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
-                                autoFocus
-                            />
+                    <div className="space-y-2">
+                        <div className="grid grid-cols-3 gap-2">
+                            <div className="col-span-3">
+                                <input
+                                    type="text"
+                                    placeholder="Nome do item (ex: Camiseta personalizada)"
+                                    value={customName}
+                                    onChange={e => setCustomName(e.target.value)}
+                                    className="w-full px-2.5 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
+                                    autoFocus
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-slate-500 mb-0.5 block">Valor un. (R$)</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={customPrice}
+                                    onChange={e => setCustomPrice(parseFloat(e.target.value) || 0)}
+                                    className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-slate-500 mb-0.5 block">Qtd por pessoa</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    value={quantity}
+                                    onChange={e => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                                    className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
+                                />
+                            </div>
                         </div>
-                        <div>
-                            <label className="text-[10px] text-slate-500 mb-0.5 block">Valor un. (R$)</label>
-                            <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={customPrice}
-                                onChange={e => setCustomPrice(parseFloat(e.target.value) || 0)}
-                                className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
-                            />
-                        </div>
-                        <div>
-                            <label className="text-[10px] text-slate-500 mb-0.5 block">Qtd por pessoa</label>
-                            <input
-                                type="number"
-                                min="1"
-                                value={quantity}
-                                onChange={e => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                                className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
-                            />
+                        <div className="flex items-center gap-2">
+                            <label className="text-[10px] text-slate-500">Foto (opcional)</label>
+                            {customImagePath ? (
+                                <div className="flex items-center gap-1.5 bg-white border border-pink-200 rounded-md pl-1 pr-1.5 py-0.5">
+                                    <img
+                                        src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/inventory-images/${customImagePath}`}
+                                        alt="preview"
+                                        className="h-6 w-6 object-cover rounded"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setCustomImagePath(null)}
+                                        className="text-slate-400 hover:text-red-600"
+                                        aria-label="Remover foto"
+                                    >
+                                        <X className="h-3 w-3" />
+                                    </button>
+                                </div>
+                            ) : (
+                                <label className="inline-flex items-center gap-1 px-2 py-1 bg-white border border-pink-200 text-pink-700 text-[11px] rounded-md cursor-pointer hover:bg-pink-50 transition-colors">
+                                    {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                                    {uploading ? 'Enviando...' : 'Anexar foto'}
+                                    <input
+                                        type="file"
+                                        accept="image/jpeg,image/png,image/webp"
+                                        onChange={handleImageUpload}
+                                        disabled={uploading}
+                                        className="hidden"
+                                    />
+                                </label>
+                            )}
                         </div>
                     </div>
                 )}

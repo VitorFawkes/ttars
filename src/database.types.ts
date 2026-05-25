@@ -4853,6 +4853,7 @@ export type Database = {
         Row: {
           assignment_id: string
           created_at: string | null
+          custom_image_path: string | null
           custom_name: string | null
           id: string
           notes: string | null
@@ -4864,6 +4865,7 @@ export type Database = {
         Insert: {
           assignment_id: string
           created_at?: string | null
+          custom_image_path?: string | null
           custom_name?: string | null
           id?: string
           notes?: string | null
@@ -4875,6 +4877,7 @@ export type Database = {
         Update: {
           assignment_id?: string
           created_at?: string | null
+          custom_image_path?: string | null
           custom_name?: string | null
           id?: string
           notes?: string | null
@@ -18965,6 +18968,7 @@ export type Database = {
         Args: { p_audit_id: number }
         Returns: undefined
       }
+      _extract_orcamento_numeric: { Args: { p_data: Json }; Returns: number }
       _merge_venda_monde_into_destino: {
         Args: { p_clear_origem: boolean; p_destino: string; p_origem: string }
         Returns: undefined
@@ -19064,6 +19068,21 @@ export type Database = {
         }
         Returns: Json
       }
+      analytics_cards_travados: {
+        Args: { p_limit?: number; p_owner_ids?: string[] }
+        Returns: {
+          card_id: string
+          dias_travado: number
+          dono_atual_nome: string
+          falta_data_prev: boolean
+          falta_orcamento: boolean
+          phase_slug: string
+          stage_atual_nome: string
+          titulo: string
+          total_count: number
+          valor_estimado: number
+        }[]
+      }
       analytics_carteira_aberta_planner: {
         Args: {
           p_destinos?: string[]
@@ -19086,6 +19105,25 @@ export type Database = {
           p_to?: string
         }
         Returns: Json
+      }
+      analytics_concierge_overview: {
+        Args: { p_date_end?: string; p_date_start?: string }
+        Returns: Json
+      }
+      analytics_concierge_pendentes: {
+        Args: { p_limit?: number }
+        Returns: {
+          atendimento_id: string
+          card_id: string
+          card_titulo: string
+          categoria: string
+          concierge_nome: string
+          created_at: string
+          horas_aberto: number
+          origem_descricao: string
+          tipo_concierge: string
+          total_count: number
+        }[]
       }
       analytics_conversion_by_ticket: {
         Args: {
@@ -19214,6 +19252,10 @@ export type Database = {
         }
         Returns: Json
       }
+      analytics_financeiro_overview: {
+        Args: { p_date_end?: string; p_date_start?: string; p_product?: string }
+        Returns: Json
+      }
       analytics_financial_breakdown: {
         Args: {
           p_date_end?: string
@@ -19252,6 +19294,7 @@ export type Database = {
           p_date_end?: string
           p_date_start?: string
           p_mode?: string
+          p_origens?: string[]
           p_owner_id?: string
           p_owner_ids?: string[]
           p_product?: string
@@ -19275,6 +19318,7 @@ export type Database = {
           p_date_end?: string
           p_date_start?: string
           p_mode?: string
+          p_origens?: string[]
           p_owner_id?: string
           p_owner_ids?: string[]
           p_product?: string
@@ -19327,6 +19371,7 @@ export type Database = {
           p_date_ref?: string
           p_date_start?: string
           p_ganho_fase?: string
+          p_origens?: string[]
           p_owner_id?: string
           p_owner_ids?: string[]
           p_product?: string
@@ -19398,6 +19443,7 @@ export type Database = {
         Args: {
           p_date_end?: string
           p_date_start?: string
+          p_origens?: string[]
           p_owner_ids?: string[]
           p_tag_ids?: string[]
         }
@@ -19441,6 +19487,7 @@ export type Database = {
         Args: {
           p_date_end?: string
           p_date_start?: string
+          p_origens?: string[]
           p_owner_ids?: string[]
           p_product?: string
           p_tag_ids?: string[]
@@ -19484,6 +19531,7 @@ export type Database = {
           p_date_end?: string
           p_date_start?: string
           p_mode?: string
+          p_origens?: string[]
           p_owner_id?: string
           p_owner_ids?: string[]
           p_product?: string
@@ -19549,6 +19597,24 @@ export type Database = {
           p_to?: string
         }
         Returns: Json
+      }
+      analytics_operations_health: {
+        Args: { p_limit?: number; p_owner_ids?: string[] }
+        Returns: {
+          card_id: string
+          data_fim: string
+          data_inicio: string
+          dono_atual_nome: string
+          motivo: string
+          stage_atual_id: string
+          stage_atual_nome: string
+          stage_esperado_id: string
+          stage_esperado_nome: string
+          titulo: string
+          total_count: number
+          total_data_ausente: number
+          total_etapa_errada: number
+        }[]
       }
       analytics_operations_summary: {
         Args: {
@@ -19705,6 +19771,14 @@ export type Database = {
       }
       analytics_referrals_post_trip: {
         Args: { p_from?: string; p_product?: string; p_to?: string }
+        Returns: Json
+      }
+      analytics_resumo_overview: {
+        Args: { p_date_end?: string; p_date_start?: string; p_product?: string }
+        Returns: Json
+      }
+      analytics_retencao_cohort: {
+        Args: { p_months_back?: number; p_product?: string }
         Returns: Json
       }
       analytics_retention_cohort: {
@@ -19895,6 +19969,7 @@ export type Database = {
           p_limit?: number
           p_offset?: number
           p_owner_ids?: string[]
+          p_phase?: string
           p_sort_by?: string
           p_tag_ids?: string[]
         }
@@ -19917,7 +19992,7 @@ export type Database = {
         }[]
       }
       analytics_saude_summary: {
-        Args: { p_owner_ids?: string[]; p_tag_ids?: string[] }
+        Args: { p_owner_ids?: string[]; p_phase?: string; p_tag_ids?: string[] }
         Returns: {
           sem_atividade_14d: number
           sem_atividade_30d: number
@@ -20142,6 +20217,34 @@ export type Database = {
         }
         Returns: Json
       }
+      analytics_team_aggregate_kpis: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_owner_ids?: string[]
+          p_tag_ids?: string[]
+        }
+        Returns: {
+          cards_abertos: number
+          cards_ganhos: number
+          faturamento_total: number
+          receita_total: number
+          tarefas_vencidas: number
+        }[]
+      }
+      analytics_team_individual_evolution: {
+        Args: { p_months?: number; p_user_id: string }
+        Returns: {
+          cards_envolvidos: number
+          cards_ganhos: number
+          cards_perdidos: number
+          ciclo_medio_dias: number
+          mes: string
+          receita_total: number
+          ticket_medio: number
+          win_rate: number
+        }[]
+      }
       analytics_team_leaderboard: {
         Args: {
           p_date_end?: string
@@ -20283,6 +20386,23 @@ export type Database = {
           sla_violadas: number
           tempo_medio_horas: number
           total_transicoes: number
+          user_id: string
+          user_nome: string
+        }[]
+      }
+      analytics_team_ticket_variation: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_owner_ids?: string[]
+          p_tag_ids?: string[]
+        }
+        Returns: {
+          cards_ganhos: number
+          receita_total: number
+          ticket_max: number
+          ticket_medio: number
+          ticket_min: number
           user_id: string
           user_nome: string
         }[]

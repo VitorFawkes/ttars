@@ -967,3 +967,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-24T02:57:54Z | supabase/migrations/20260524c_patricia_nunca_preco_revert.sql | applied_to_prod
 2026-05-24T15:45:02Z | supabase/migrations/20260524a_analytics_pipeline_current_exclude_subcards.sql | applied_to_prod
 2026-05-24T15:45:51Z | supabase/migrations/20260524b_analytics_team_aggregate_kpis.sql | applied_to_prod
+2026-05-25T14:00:54Z | supabase/migrations/20260525a_card_gift_items_custom_image.sql | applied_to_prod
