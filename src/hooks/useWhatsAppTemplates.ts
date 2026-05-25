@@ -31,12 +31,17 @@ export interface WhatsAppTemplate {
 /**
  * Extrai texto do BODY e conta quantos parâmetros posicionais ({{1}}, {{2}}, …)
  * o template espera. Fundamental para renderizar o picker e validar.
+ *
+ * `buttonUrlParamCount` é o nº de placeholders únicos em URLs de botões — o
+ * modal "Configurar Envio" usa isso pra decidir se mostra o slot "Variável do
+ * Botão" (só faz sentido quando o template tem URL dinâmica).
  */
 export function parseTemplateBody(template: WhatsAppTemplate): {
   bodyText: string
   paramCount: number
   paramLabels: string[]
   hasButtons: boolean
+  buttonUrlParamCount: number
 } {
   const body = template.components.find((c) => c.type === 'BODY')
   const bodyText = body?.text || ''
@@ -47,8 +52,16 @@ export function parseTemplateBody(template: WhatsAppTemplate): {
   // Labels vindo do example (se Meta forneceu)
   const exampleRow = body?.example?.body_text?.[0]
   const paramLabels = Array.from({ length: paramCount }, (_, i) => exampleRow?.[i] || `Parâmetro ${i + 1}`)
-  const hasButtons = template.components.some((c) => c.type === 'BUTTONS')
-  return { bodyText, paramCount, paramLabels, hasButtons }
+  const buttonsComponent = template.components.find((c) => c.type === 'BUTTONS')
+  const hasButtons = !!buttonsComponent
+  const buttonUrlIndices = new Set<string>()
+  for (const b of buttonsComponent?.buttons ?? []) {
+    if (!b.url) continue
+    const urlMatches = b.url.match(/\{\{\s*(\d+)\s*\}\}/g) || []
+    for (const m of urlMatches) buttonUrlIndices.add(m.replace(/[^0-9]/g, ''))
+  }
+  const buttonUrlParamCount = buttonUrlIndices.size
+  return { bodyText, paramCount, paramLabels, hasButtons, buttonUrlParamCount }
 }
 
 export function useWhatsAppTemplates(phoneNumberId: string | null | undefined) {

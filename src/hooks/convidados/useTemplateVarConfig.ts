@@ -55,21 +55,6 @@ interface TemplateVarConfigRow {
   phone_number_id: string | null
 }
 
-/** Quantidade de variáveis no corpo por slug.
- *  - promom1..promom4 → 6 vars no corpo
- *  - promom5 e os demais (pade1m*, pade2m*) → 5 vars no corpo */
-export function getTemplateVarCount(slug: string): number {
-  if (slug === 'promom1' || slug === 'promom2' || slug === 'promom3' || slug === 'promom4') return 6
-  return 5
-}
-
-/** Todos os templates do fluxo têm 1 variável no botão (URL/CTA do convite,
- *  link de RSVP, etc.). Echo aceita `button_parameters` como array opcional —
- *  se o usuário não preencher, mandamos undefined. */
-export function hasButtonVar(_slug: string): boolean {
-  return true
-}
-
 const EMPTY_CONFIG: TemplateVarConfig = { vars: [], buttonVar: null, phoneNumberId: null }
 
 export function useTemplateVarConfig(templateSlug: string | null) {
