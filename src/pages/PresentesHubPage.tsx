@@ -1,16 +1,14 @@
 import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Send, Crown, Package, BarChart3 } from 'lucide-react'
+import { Send, Package, BarChart3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 import CentralEnvios from '@/components/presentes/CentralEnvios'
-import PresentesPremium from '@/components/presentes/PresentesPremium'
 import EstoqueTab from '@/components/presentes/EstoqueTab'
 import PresentesRelatorios from '@/components/presentes/PresentesRelatorios'
 
 const tabs = [
     { key: 'envios', label: 'Central de Envios', icon: Send },
-    { key: 'premium', label: 'Presentes Avulsos', icon: Crown },
     { key: 'estoque', label: 'Estoque', icon: Package },
     { key: 'relatorios', label: 'Relatórios', icon: BarChart3 },
 ] as const
@@ -61,7 +59,6 @@ export default function PresentesHubPage() {
 
                 {/* Content */}
                 {activeTab === 'envios' && <CentralEnvios />}
-                {activeTab === 'premium' && <PresentesPremium />}
                 {activeTab === 'estoque' && <EstoqueTab />}
                 {activeTab === 'relatorios' && <PresentesRelatorios />}
             </div>

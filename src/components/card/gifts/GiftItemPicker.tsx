@@ -1,7 +1,9 @@
 import { useState } from 'react'
-import { Search, Plus, Package, PenLine, Loader2 } from 'lucide-react'
+import { Search, Plus, Package, PenLine, Loader2, Upload, X as XIcon } from 'lucide-react'
 import { useInventoryProducts, type InventoryProduct } from '@/hooks/useInventoryProducts'
+import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 const formatBRL = (value: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
@@ -10,7 +12,7 @@ type Mode = 'idle' | 'stock' | 'custom'
 
 interface GiftItemPickerProps {
     onAddStock: (product: InventoryProduct, quantity: number, unitPrice: number) => void
-    onAddCustom: (name: string, unitPrice: number, quantity: number) => void
+    onAddCustom: (name: string, unitPrice: number, quantity: number, imagePath?: string | null) => void
     isAdding: boolean
     existingProductIds: string[]
 }
@@ -26,6 +28,8 @@ export default function GiftItemPicker({ onAddStock, onAddCustom, isAdding, exis
     const [customName, setCustomName] = useState('')
     const [customPrice, setCustomPrice] = useState(0)
     const [customQty, setCustomQty] = useState(1)
+    const [customImagePath, setCustomImagePath] = useState<string | null>(null)
+    const [uploading, setUploading] = useState(false)
 
     const { products } = useInventoryProducts({ search, activeOnly: true })
     const available = products.filter(p => !existingProductIds.includes(p.id))
@@ -39,6 +43,8 @@ export default function GiftItemPicker({ onAddStock, onAddCustom, isAdding, exis
         setCustomName('')
         setCustomPrice(0)
         setCustomQty(1)
+        setCustomImagePath(null)
+        setUploading(false)
     }
 
     const selectProduct = (p: InventoryProduct) => {
@@ -55,8 +61,26 @@ export default function GiftItemPicker({ onAddStock, onAddCustom, isAdding, exis
 
     const handleAddCustom = () => {
         if (!customName.trim()) return
-        onAddCustom(customName.trim(), customPrice, customQty)
+        onAddCustom(customName.trim(), customPrice, customQty, customImagePath)
         reset()
+    }
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        setUploading(true)
+        try {
+            const ext = file.name.split('.').pop()
+            const path = `custom/${crypto.randomUUID()}.${ext}`
+            const { error } = await supabase.storage.from('inventory-images').upload(path, file)
+            if (error) throw error
+            setCustomImagePath(path)
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Erro ao enviar imagem'
+            toast.error(msg)
+        } finally {
+            setUploading(false)
+        }
     }
 
     if (mode === 'idle') {
@@ -122,13 +146,45 @@ export default function GiftItemPicker({ onAddStock, onAddCustom, isAdding, exis
                     <div className="flex items-end gap-1">
                         <button
                             onClick={handleAddCustom}
-                            disabled={isAdding || !customName.trim()}
+                            disabled={isAdding || uploading || !customName.trim()}
                             className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-pink-600 text-white text-xs font-medium rounded-lg hover:bg-pink-700 disabled:opacity-50 transition-colors"
                         >
                             {isAdding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
                             Adicionar
                         </button>
                     </div>
+                </div>
+                <div className="flex items-center gap-2">
+                    <label className="text-[10px] text-slate-500">Foto (opcional)</label>
+                    {customImagePath ? (
+                        <div className="flex items-center gap-1.5 bg-white border border-pink-200 rounded-md pl-1 pr-1.5 py-0.5">
+                            <img
+                                src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/inventory-images/${customImagePath}`}
+                                alt="preview"
+                                className="h-6 w-6 object-cover rounded"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setCustomImagePath(null)}
+                                className="text-slate-400 hover:text-red-600"
+                                aria-label="Remover foto"
+                            >
+                                <XIcon className="h-3 w-3" />
+                            </button>
+                        </div>
+                    ) : (
+                        <label className="inline-flex items-center gap-1 px-2 py-1 bg-white border border-pink-200 text-pink-700 text-[11px] rounded-md cursor-pointer hover:bg-pink-50 transition-colors">
+                            {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                            {uploading ? 'Enviando...' : 'Anexar foto'}
+                            <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                onChange={handleImageUpload}
+                                disabled={uploading}
+                                className="hidden"
+                            />
+                        </label>
+                    )}
                 </div>
             </div>
         )

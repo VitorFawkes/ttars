@@ -15,7 +15,7 @@ export interface PremiumGiftInput {
     recipients: PremiumGiftRecipient[]
     occasion: string | null
     occasionDetail?: string
-    items: { productId: string | null; customName?: string; quantity: number; unitPrice: number }[]
+    items: { productId: string | null; customName?: string; quantity: number; unitPrice: number; customImagePath?: string | null }[]
     deliveryAddress?: string
     deliveryDate?: string
     deliveryMethod?: string
@@ -202,6 +202,7 @@ export function usePremiumGifts(filters: { status?: string[]; occasion?: string;
                             assignment_id: assignment.id,
                             product_id: item.productId,
                             custom_name: item.customName || null,
+                            custom_image_path: item.productId ? null : (item.customImagePath || null),
                             quantity: item.quantity,
                             unit_price_snapshot: item.unitPrice,
                         })
@@ -270,6 +271,7 @@ export function usePremiumGifts(filters: { status?: string[]; occasion?: string;
             const items = sourceAssignment.items.map(i => ({
                 productId: i.product_id,
                 customName: i.custom_name || undefined,
+                customImagePath: i.custom_image_path || undefined,
                 quantity: i.quantity,
                 unitPrice: i.unit_price_snapshot,
             }))

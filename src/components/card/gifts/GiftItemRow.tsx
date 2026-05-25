@@ -28,8 +28,14 @@ export default function GiftItemRow({ item, onRemove, onUpdateNotes, isRemoving,
     return (
         <div className="py-2 px-3 bg-slate-50 rounded-lg space-y-1.5">
             <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded bg-white border border-slate-200 flex items-center justify-center shrink-0">
-                    {isCustom ? (
+                <div className="h-8 w-8 rounded bg-white border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
+                    {isCustom && item.custom_image_path ? (
+                        <img
+                            src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/inventory-images/${item.custom_image_path}`}
+                            alt={name}
+                            className="h-full w-full rounded object-cover"
+                        />
+                    ) : isCustom ? (
                         <PenLine className="h-4 w-4 text-pink-400" />
                     ) : item.product?.image_path ? (
                         <img

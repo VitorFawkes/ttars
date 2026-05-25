@@ -105,6 +105,11 @@ test_query "section_field_config" \
 test_query "tarefas (deleted_at + reunião)" \
   "tarefas?select=id,titulo,data_vencimento,deleted_at,tipo,concluida&limit=1"
 
+# Gifts custom image (20260525a) — frontend lê custom_image_path no GiftItemRow
+# para renderizar foto de item avulso. Sem a coluna, items.* falha em INSERT.
+test_query "card_gift_items.custom_image_path column" \
+  "card_gift_items?select=id,custom_image_path&limit=1"
+
 # ── RPCs críticas (chamadas via rpc/) ──
 
 test_rpc() {
