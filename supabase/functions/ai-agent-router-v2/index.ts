@@ -1861,6 +1861,19 @@ Deno.serve(async (req) => {
       finalMessages = singleAgentResult.output.messages.map((m) => m.content);
     }
 
+    // Fix Vitor 25/05 — handoff_actions.transition_message (ou .message como
+    // fallback de compatibilidade) é OBRIGATORIAMENTE usada quando moment ativo
+    // é handoff_humano_invisivel. Admin controla pela UI o que sai no momento
+    // mais sensível. Antes o LLM gerava texto próprio ignorando a config.
+    if (!blocked && effectiveMomentKey === "handoff_humano_invisivel") {
+      const ha = (agent.handoff_actions || {}) as Record<string, unknown>;
+      const handoffText = (ha.transition_message as string | null | undefined) || (ha.message as string | null | undefined);
+      if (handoffText && handoffText.trim().length > 0) {
+        console.log(`[v2] handoff: sobrescrevendo messages do LLM pela frase da UI (handoff_actions.transition_message ou .message)`);
+        finalMessages = [handoffText.trim()];
+      }
+    }
+
     // Enforcement: quando o moment ativo é wait_for_reply sequenciado, o
     // contrato é "1 mensagem por turno". Se o LLM gerou múltiplas mensagens
     // dentro do mesmo bloco (ex: separou eco social de "Tudo bem, X" da
