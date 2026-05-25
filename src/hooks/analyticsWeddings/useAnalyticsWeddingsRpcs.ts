@@ -56,7 +56,9 @@ export type WeddingsOverviewKpis = {
   leads_ganhos: number
   leads_perdidos: number
   leads_abertos: number
+  leads_convertidos_efetivo: number
   taxa_conversao: number
+  taxa_conversao_efetiva: number
   ticket_medio_fechado: number
   receita_total_fechada: number
 }

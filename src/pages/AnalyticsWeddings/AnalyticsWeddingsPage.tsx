@@ -111,7 +111,7 @@ export default function AnalyticsWeddingsPage() {
 
   const { kpis, funnel, quality, service, conversao_segmento } = data
 
-  // Funil agregado por fase
+  // Funil agregado por fase — separa "Resolução" (perdidos/cancelados) das fases ativas
   const funnelByPhase = funnel.reduce((acc, f) => {
     const key = f.phase_name
     if (!acc[key]) acc[key] = { phase: key, leads: 0, order: f.phase_order ?? 999 }
@@ -119,6 +119,9 @@ export default function AnalyticsWeddingsPage() {
     return acc
   }, {} as Record<string, { phase: string; leads: number; order: number }>)
   const funnelData = Object.values(funnelByPhase).sort((a, b) => a.order - b.order)
+  // Fases que não são "Resolução" (que é onde estão os perdidos/cancelados)
+  const activeFunnel = funnelData.filter(f => !/resolu/i.test(f.phase))
+  const resolutionTotal = funnelData.find(f => /resolu/i.test(f.phase))?.leads ?? 0
 
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-6">
@@ -141,15 +144,26 @@ export default function AnalyticsWeddingsPage() {
       {/* === KPIs === */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard label="Leads totais" value={kpis.total_leads.toLocaleString('pt-BR')} hint="No período" />
-        <KpiCard label="Leads ganhos" value={kpis.leads_ganhos.toLocaleString('pt-BR')} hint={`Taxa: ${kpis.taxa_conversao}%`} />
-        <KpiCard label="Ticket médio (ganhos)" value={formatCurrency(kpis.ticket_medio_fechado)} hint={`Receita: ${formatCurrency(kpis.receita_total_fechada)}`} />
+        <KpiCard
+          label="Casamentos fechados"
+          value={kpis.leads_convertidos_efetivo.toLocaleString('pt-BR')}
+          hint={`Taxa: ${kpis.taxa_conversao_efetiva}% · ganho ou em pós-venda`}
+        />
+        <KpiCard label="Ticket médio (fechados)" value={formatCurrency(kpis.ticket_medio_fechado)} hint={`Receita: ${formatCurrency(kpis.receita_total_fechada)}`} />
         <KpiCard label="Leads em aberto" value={kpis.leads_abertos.toLocaleString('pt-BR')} hint={`Perdidos: ${kpis.leads_perdidos.toLocaleString('pt-BR')}`} />
       </div>
 
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+        <strong>Como o sistema conta "casamento fechado":</strong> leads marcados como ganho (5 históricos) <em>ou</em> que estão em qualquer etapa da fase Pós-Venda. Isso porque o sistema legado nem sempre marcou status=ganho ao mover pra Pós-Venda — a posição no funil é o sinal mais confiável.
+      </div>
+
       {/* === FUNIL === */}
-      <SectionCard title="Funil — leads em cada fase agora" subtitle="Distribuição dos leads ativos por fase do pipeline">
-        <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={funnelData} layout="vertical" margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
+      <SectionCard
+        title="Funil — leads em cada fase agora"
+        subtitle={`Leads ativos no pipeline${resolutionTotal > 0 ? ` · ${resolutionTotal.toLocaleString('pt-BR')} em Resolução (perdidos/cancelados) escondidos do gráfico` : ''}`}
+      >
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={activeFunnel} layout="vertical" margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis type="number" stroke="#64748b" fontSize={12} />
             <YAxis dataKey="phase" type="category" stroke="#64748b" fontSize={12} width={140} />
@@ -210,7 +224,10 @@ export default function AnalyticsWeddingsPage() {
       </SectionCard>
 
       {/* === Conversão por segmento === */}
-      <SectionCard title="Conversão por faixa de investimento" subtitle="Leads convertidos em casamento contratado (taxa de ganho)">
+      <SectionCard
+        title="Conversão por faixa de investimento"
+        subtitle="Atenção: leads que já fecharam venda em geral entraram antes do site coletar essa faixa, então a taxa aparece baixa. Daqui pra frente fica preenchida."
+      >
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
