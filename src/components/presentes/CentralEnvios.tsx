@@ -102,7 +102,7 @@ export default function CentralEnvios() {
                             )}
                         >
                             {filters.giftType === 'trip' && <Check className="h-3 w-3" strokeWidth={3} />}
-                            Viagem
+                            Vinculado a viagem
                         </button>
                         <button
                             onClick={() => toggleType('premium')}
@@ -115,7 +115,7 @@ export default function CentralEnvios() {
                             )}
                         >
                             {filters.giftType === 'premium' && <Check className="h-3 w-3" strokeWidth={3} />}
-                            Premium
+                            Avulso
                         </button>
                     </div>
                     <label className="flex items-center gap-2 text-xs text-slate-600 select-none">
