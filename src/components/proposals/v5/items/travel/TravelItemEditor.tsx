@@ -14,6 +14,7 @@ import {
     ChevronDown,
     Plane, Building2, Star, Car, Ship, Shield, Package,
     BookmarkPlus,
+    Wallet,
 } from 'lucide-react'
 import { FlightEditor, type FlightsData } from '@/components/proposals/v4/flights'
 import { HotelEditor, type HotelData } from '@/components/proposals/v4/hotels'
@@ -39,12 +40,16 @@ interface TravelItemEditorProps {
     item: ProposalItemWithOptions
     sectionType: string
     onUpdate: (updates: Partial<ProposalItemWithOptions>) => void
+    itemIndex?: number
+    itemsTotal?: number
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function TravelItemEditor({ item, sectionType: _sectionType, onUpdate }: TravelItemEditorProps) {
+export function TravelItemEditor({ item, sectionType: _sectionType, onUpdate, itemIndex, itemsTotal }: TravelItemEditorProps) {
     const [isExpanded, setIsExpanded] = useState(true)
     const [showSaveLibrary, setShowSaveLibrary] = useState(false)
+    const [showSupplierDetail, setShowSupplierDetail] = useState(false)
+    const showBadge = itemsTotal !== undefined && itemsTotal > 1 && itemIndex !== undefined
     const richContent = (item.rich_content as Record<string, unknown>) || {}
 
     // Detect effective type
@@ -65,12 +70,17 @@ export function TravelItemEditor({ item, sectionType: _sectionType, onUpdate }: 
     const margin = basePrice > 0 && supplierCost > 0 ? basePrice - supplierCost : 0
 
     return (
-        <div className="overflow-hidden">
+        <div className="overflow-hidden rounded-xl">
             {/* Compact header */}
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100">
+            <div className="flex items-center gap-3 px-4 py-3 bg-slate-50/60 border-b border-slate-200/80">
                 <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0', config.color)}>
                     <Icon className="h-3.5 w-3.5" />
                 </div>
+                {showBadge && (
+                    <span className="text-[11px] font-semibold text-slate-500 tabular-nums px-1.5 py-0.5 bg-white rounded border border-slate-200 flex-shrink-0">
+                        {(itemIndex as number) + 1}/{itemsTotal}
+                    </span>
+                )}
                 <input
                     type="text"
                     value={item.title || ''}
@@ -165,8 +175,30 @@ export function TravelItemEditor({ item, sectionType: _sectionType, onUpdate }: 
                 </div>
             )}
 
-            {/* Supplier cost bar */}
-            {isExpanded && (
+            {/* Supplier cost bar — compact by default, click to expand */}
+            {isExpanded && !showSupplierDetail && (
+                <button
+                    type="button"
+                    onClick={() => setShowSupplierDetail(true)}
+                    className="w-full flex items-center gap-2 px-4 py-2 border-t border-slate-100 bg-slate-50/60 hover:bg-slate-100/60 transition-colors text-left"
+                >
+                    <Wallet className="h-3 w-3 text-slate-400 flex-shrink-0" />
+                    <span className="text-[11px] text-slate-500">
+                        {supplierCost > 0 ? (
+                            <>
+                                Custo interno: <span className="font-medium text-slate-700">R$ {supplierCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                {margin > 0 && (
+                                    <> · margem <span className="font-medium text-emerald-700">R$ {margin.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></>
+                                )}
+                            </>
+                        ) : (
+                            <span className="text-slate-400">Adicionar custo interno (nao aparece para cliente)</span>
+                        )}
+                    </span>
+                    <ChevronDown className="h-3 w-3 text-slate-400 ml-auto -rotate-90" />
+                </button>
+            )}
+            {isExpanded && showSupplierDetail && (
                 <div className="flex items-center gap-3 px-4 py-2 border-t border-amber-100 bg-amber-50/50">
                     <span className="text-xs font-medium text-amber-700">Custo Fornecedor:</span>
                     <div className="flex items-center gap-1">
@@ -178,13 +210,23 @@ export function TravelItemEditor({ item, sectionType: _sectionType, onUpdate }: 
                             className="w-24 text-sm font-semibold text-amber-800 bg-white border border-amber-200 rounded px-2 py-1 outline-none focus:ring-2 focus:ring-amber-400 text-right"
                             placeholder="0,00"
                             step="0.01"
+                            autoFocus
                         />
                     </div>
                     {margin > 0 && (
-                        <span className="text-xs text-amber-600 ml-auto">
+                        <span className="text-xs text-amber-600">
                             Receita: R$ {margin.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </span>
                     )}
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setShowSupplierDetail(false)}
+                        className="h-6 w-6 ml-auto"
+                        title="Recolher"
+                    >
+                        <ChevronDown className="h-3 w-3 text-amber-600 rotate-90" />
+                    </Button>
                 </div>
             )}
 

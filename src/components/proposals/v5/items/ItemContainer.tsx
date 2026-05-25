@@ -11,10 +11,12 @@ import type { ProposalItemWithOptions } from '@/types/proposals'
 interface ItemContainerProps {
     item: ProposalItemWithOptions
     sectionType: string
+    itemIndex?: number
+    itemsTotal?: number
     sectionDragHandleProps?: Record<string, unknown>
 }
 
-export function ItemContainer({ item, sectionType, sectionDragHandleProps }: ItemContainerProps) {
+export function ItemContainer({ item, sectionType, itemIndex, itemsTotal, sectionDragHandleProps }: ItemContainerProps) {
     const { updateItem, removeItem, duplicateItem } = useProposalBuilder()
 
     const handleUpdate = (updates: Partial<ProposalItemWithOptions>) => {
@@ -52,7 +54,7 @@ export function ItemContainer({ item, sectionType, sectionDragHandleProps }: Ite
 
     // Travel/regular items have full chrome
     return (
-        <div className="group relative rounded-lg border border-slate-100 hover:border-slate-200 bg-white transition-all duration-150">
+        <div className="group relative rounded-xl border border-slate-200 bg-white shadow-sm hover:shadow-md hover:border-slate-300 transition-all duration-150">
             {/* Hover toolbar */}
             <div className="absolute -right-1 top-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                 <Button variant="ghost" size="icon" onClick={() => duplicateItem(item.id)} className="h-6 w-6 bg-white shadow-sm border border-slate-200">
@@ -63,7 +65,13 @@ export function ItemContainer({ item, sectionType, sectionDragHandleProps }: Ite
                 </Button>
             </div>
 
-            <ItemRenderer item={item} sectionType={sectionType} onUpdate={handleUpdate} />
+            <ItemRenderer
+                item={item}
+                sectionType={sectionType}
+                onUpdate={handleUpdate}
+                itemIndex={itemIndex}
+                itemsTotal={itemsTotal}
+            />
         </div>
     )
 }

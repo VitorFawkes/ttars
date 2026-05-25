@@ -72,7 +72,7 @@ export function SectionContainer({ section }: SectionContainerProps) {
             ref={setNodeRef}
             style={style}
             className={cn(
-                'bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden',
+                'bg-slate-50/70 rounded-xl border border-slate-200 overflow-hidden',
                 'transition-all duration-200',
                 isDragging && 'opacity-50 shadow-lg ring-2 ring-indigo-500',
             )}
@@ -81,6 +81,7 @@ export function SectionContainer({ section }: SectionContainerProps) {
                 sectionId={section.id}
                 sectionType={section.section_type}
                 title={section.title || ''}
+                itemCount={section.items.length}
                 isExpanded={isExpanded}
                 onToggleExpand={() => setIsExpanded(!isExpanded)}
                 dragHandleProps={{ ...attributes, ...listeners }}
@@ -91,7 +92,7 @@ export function SectionContainer({ section }: SectionContainerProps) {
             />
 
             {isExpanded && (
-                <div className="p-3 space-y-2">
+                <div className="p-4 space-y-4">
                     <SectionItems section={section} />
                     {section.items.length < 20 && (
                         <AddItemButton onAdd={handleAddItem} />

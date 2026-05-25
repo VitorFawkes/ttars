@@ -17,12 +17,14 @@ export function SectionItems({ section, dragHandleProps, isContentBlock }: Secti
     }
 
     return (
-        <div className="space-y-2">
-            {section.items.map((item) => (
+        <div className="space-y-4">
+            {section.items.map((item, idx) => (
                 <ItemContainer
                     key={item.id}
                     item={item}
                     sectionType={section.section_type}
+                    itemIndex={idx}
+                    itemsTotal={section.items.length}
                     sectionDragHandleProps={isContentBlock ? dragHandleProps : undefined}
                 />
             ))}

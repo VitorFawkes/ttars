@@ -42,6 +42,7 @@ interface SectionHeaderProps {
     sectionId: string
     sectionType: string
     title: string
+    itemCount?: number
     isExpanded: boolean
     onToggleExpand: () => void
     dragHandleProps: Record<string, unknown>
@@ -60,6 +61,7 @@ export function SectionHeader({
     sectionId,
     sectionType,
     title,
+    itemCount,
     isExpanded,
     onToggleExpand,
     dragHandleProps,
@@ -106,7 +108,7 @@ export function SectionHeader({
         : SELECTION_MODE_LABELS[selectionMode]
 
     return (
-        <div className="flex items-center gap-2 px-3 py-2 bg-slate-50/80 border-b border-slate-100 group">
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-white border-b border-slate-200 group">
             {/* Drag handle */}
             <button {...dragHandleProps} className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-slate-200 transition-colors opacity-0 group-hover:opacity-100">
                 <GripVertical className="h-4 w-4 text-slate-400" />
@@ -117,7 +119,7 @@ export function SectionHeader({
                 <Icon className="h-3.5 w-3.5" />
             </div>
 
-            {/* Title (inline editable) */}
+            {/* Title (inline editable) + item count */}
             {isEditing ? (
                 <input
                     ref={inputRef}
@@ -128,12 +130,19 @@ export function SectionHeader({
                     className="flex-1 text-sm font-medium text-slate-900 bg-white border border-indigo-300 rounded px-2 py-0.5 outline-none focus:ring-2 focus:ring-indigo-200"
                 />
             ) : (
-                <button
-                    onClick={() => { setEditValue(title); setIsEditing(true) }}
-                    className="flex-1 text-left text-sm font-medium text-slate-700 hover:text-slate-900 truncate"
-                >
-                    {title || 'Sem titulo'}
-                </button>
+                <div className="flex-1 flex items-baseline gap-2 min-w-0">
+                    <button
+                        onClick={() => { setEditValue(title); setIsEditing(true) }}
+                        className="text-left text-sm font-medium text-slate-700 hover:text-slate-900 truncate"
+                    >
+                        {title || 'Sem titulo'}
+                    </button>
+                    {itemCount !== undefined && itemCount > 0 && (
+                        <span className="text-xs text-slate-400 font-normal flex-shrink-0">
+                            · {itemCount} {itemCount === 1 ? 'item' : 'itens'}
+                        </span>
+                    )}
+                </div>
             )}
 
             {/* Modo de seleção do cliente — popover */}

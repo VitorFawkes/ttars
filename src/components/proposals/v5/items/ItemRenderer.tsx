@@ -10,9 +10,11 @@ interface ItemRendererProps {
     item: ProposalItemWithOptions
     sectionType: string
     onUpdate: (updates: Partial<ProposalItemWithOptions>) => void
+    itemIndex?: number
+    itemsTotal?: number
 }
 
-export function ItemRenderer({ item, sectionType, onUpdate }: ItemRendererProps) {
+export function ItemRenderer({ item, sectionType, onUpdate, itemIndex, itemsTotal }: ItemRendererProps) {
     const rc = (item.rich_content as Record<string, unknown>) || {}
 
     // Content blocks
@@ -23,5 +25,13 @@ export function ItemRenderer({ item, sectionType, onUpdate }: ItemRendererProps)
     if (rc.is_divider_block) return <DividerBlock />
 
     // Travel/regular items — delegate to v4 editors
-    return <TravelItemEditor item={item} sectionType={sectionType} onUpdate={onUpdate} />
+    return (
+        <TravelItemEditor
+            item={item}
+            sectionType={sectionType}
+            onUpdate={onUpdate}
+            itemIndex={itemIndex}
+            itemsTotal={itemsTotal}
+        />
+    )
 }
