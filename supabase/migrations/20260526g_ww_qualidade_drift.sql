@@ -84,11 +84,15 @@ BEGIN
     SELECT id INTO v_pipeline_id FROM pipelines WHERE produto::TEXT='WEDDING' AND org_id=v_org_id LIMIT 1;
     IF v_pipeline_id IS NULL THEN RETURN json_build_object('error','pipeline WEDDING não encontrado'); END IF;
 
-    -- "Fechou" estritamente = status='ganho' OU stage is_won (Contrato Assinado).
-    -- pos_venda como phase NÃO basta — a fase inclui reunião/proposta/negociação.
+    -- "Fechou" = qualquer card na phase 'pos_venda' OU status='ganho' OU stage is_won.
+    -- Importante: a phase pos_venda no Welcome Weddings contém TODAS as etapas
+    -- pós-contrato (Boas-vindas/Questionário, Concepção, Fornecedores, Convidados/
+    -- Logística, Pré-evento, Casamento Realizado, Pós-casamento). É a melhor
+    -- proxy operacional para "venda fechada" porque o time pula a stage
+    -- "Contrato Assinado" e move direto pro pós-venda.
     CREATE TEMP TABLE _ww_ql ON COMMIT DROP AS
     SELECT c.id,
-           (c.status_comercial='ganho' OR s.is_won = TRUE) AS fechou,
+           (c.status_comercial='ganho' OR s.is_won = TRUE OR ph.slug = 'pos_venda') AS fechou,
            _ww2_norm_faixa_strict(c.produto_data->>'ww_mkt_orcamento_form') AS faixa_e,
            _ww2_norm_conv_strict(c.produto_data->>'ww_mkt_convidados_form') AS conv_e,
            _ww2_norm_dest_strict(c.produto_data->>'ww_mkt_destino_form') AS dest_e,
@@ -96,6 +100,7 @@ BEGIN
            _ww2_norm_origem(c.marketing_data) AS origem
       FROM cards c
       LEFT JOIN pipeline_stages s ON s.id = c.pipeline_stage_id
+      LEFT JOIN pipeline_phases ph ON ph.id = s.phase_id
      WHERE c.deleted_at IS NULL AND c.archived_at IS NULL
        AND c.produto::TEXT='WEDDING' AND c.org_id=v_org_id
        AND (
@@ -262,7 +267,7 @@ BEGIN
     --             filtrado pela data da venda.
     CREATE TEMP TABLE _ww_dv ON COMMIT DROP AS
     SELECT c.id,
-           (c.status_comercial='ganho' OR s.is_won = TRUE) AS fechou,
+           (c.status_comercial='ganho' OR s.is_won = TRUE OR ph.slug = 'pos_venda') AS fechou,
            _ww2_norm_faixa_strict(c.produto_data->>'ww_mkt_orcamento_form') AS faixa_e,
            NULLIF(REPLACE(REPLACE(c.produto_data->>'ww_closer_valor_pacote','.',''),',','.'),'')::NUMERIC AS valor_pac,
            _ww2_norm_dest_strict(c.produto_data->>'ww_mkt_destino_form') AS dest_e,
@@ -275,6 +280,7 @@ BEGIN
            _ww2_norm_origem(c.marketing_data) AS origem
       FROM cards c
       LEFT JOIN pipeline_stages s ON s.id = c.pipeline_stage_id
+      LEFT JOIN pipeline_phases ph ON ph.id = s.phase_id
      WHERE c.deleted_at IS NULL AND c.archived_at IS NULL
        AND c.produto::TEXT='WEDDING' AND c.org_id=v_org_id
        AND (
