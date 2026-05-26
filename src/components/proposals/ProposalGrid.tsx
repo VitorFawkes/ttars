@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { FileText, ExternalLink, MoreVertical, Pencil, Eye, Trash2, Loader2, MessageCircle } from 'lucide-react'
 import type { ProposalWithRelations } from '@/hooks/useProposals'
 import { useUnreadCommentsCount } from '@/hooks/useProposalComments'
+import { useProposalRecipientsBatch } from '@/hooks/useProposalRecipients'
+import { RecipientsBadge } from './RecipientsBadge'
 import { PROPOSAL_STATUS_CONFIG } from '@/types/proposals'
 import * as LucideIcons from 'lucide-react'
 import {
@@ -26,6 +28,7 @@ export function ProposalGrid({ proposals, loading, hasFilters, onClearFilters }:
     // Coleta IDs visíveis pra contar comentários não-resolvidos de cliente
     const proposalIds = useMemo(() => proposals.map(p => p.id), [proposals])
     const { data: unreadCounts = {} } = useUnreadCommentsCount(proposalIds)
+    const { data: recipientsByProposal = {} } = useProposalRecipientsBatch(proposalIds)
 
     if (loading) {
         return (
@@ -135,6 +138,9 @@ export function ProposalGrid({ proposals, loading, hasFilters, onClearFilters }:
                                         </span>
                                     )}
                                 </div>
+
+                                {/* Destinatários (links individuais) — só aparece se a proposta tiver */}
+                                <RecipientsBadge recipients={recipientsByProposal[proposal.id]} />
                             </div>
 
                             {/* Actions */}

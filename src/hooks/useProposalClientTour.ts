@@ -22,13 +22,17 @@ function logTourEvent(
   proposalId: string,
   eventType: 'tour_started' | 'tour_step_view' | 'tour_completed' | 'tour_skipped',
   payload: Record<string, unknown> = {},
+  recipientToken?: string,
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  void (supabase.from('proposal_events') as any).insert({
-    proposal_id: proposalId,
-    event_type: eventType,
-    payload,
-    user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+  // Usa RPC SECURITY DEFINER pra contornar RLS de proposal_events (anon não pode
+  // executar requesting_org_id() no DEFAULT).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC nova ainda não nos types
+  void supabase.rpc('log_proposal_event' as any, {
+    p_proposal_id: proposalId,
+    p_event_type: eventType,
+    p_payload: payload,
+    p_recipient_token: recipientToken ?? null,
+    p_user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
   })
 }
 
@@ -68,31 +72,31 @@ export function useProposalClientTour({
 
   const openTour = useCallback(() => {
     setIsOpen(true)
-    if (proposalId) logTourEvent(proposalId, 'tour_started', { device, manual: hasSeen })
-  }, [proposalId, device, hasSeen])
+    if (proposalId) logTourEvent(proposalId, 'tour_started', { device, manual: hasSeen }, token)
+  }, [proposalId, device, hasSeen, token])
 
   const closeTour = useCallback(() => setIsOpen(false), [])
 
   const onCompleted = useCallback(() => {
     setIsOpen(false)
     markSeen()
-    if (proposalId) logTourEvent(proposalId, 'tour_completed', { device })
-  }, [proposalId, device, markSeen])
+    if (proposalId) logTourEvent(proposalId, 'tour_completed', { device }, token)
+  }, [proposalId, device, markSeen, token])
 
   const onSkipped = useCallback(
     (stepIndex: number) => {
       setIsOpen(false)
       markSeen()
-      if (proposalId) logTourEvent(proposalId, 'tour_skipped', { device, stepIndex })
+      if (proposalId) logTourEvent(proposalId, 'tour_skipped', { device, stepIndex }, token)
     },
-    [proposalId, device, markSeen],
+    [proposalId, device, markSeen, token],
   )
 
   const onStepView = useCallback(
     (stepIndex: number) => {
-      if (proposalId) logTourEvent(proposalId, 'tour_step_view', { device, stepIndex })
+      if (proposalId) logTourEvent(proposalId, 'tour_step_view', { device, stepIndex }, token)
     },
-    [proposalId, device],
+    [proposalId, device, token],
   )
 
   return {
