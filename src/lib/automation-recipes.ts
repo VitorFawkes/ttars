@@ -81,12 +81,14 @@ export type EventType =
 export type TimeOffsetSource =
   | 'card.data_viagem_inicio'
   | 'card.data_viagem_fim'
+  | 'card.data_reuniao'
   | 'contato.data_nascimento'
   | 'proposal.expires_at'
 
 export const TIME_OFFSET_SOURCE_OPTIONS: Array<{ value: TimeOffsetSource; label: string }> = [
   { value: 'card.data_viagem_inicio', label: 'Data de início da viagem' },
   { value: 'card.data_viagem_fim', label: 'Data de término da viagem' },
+  { value: 'card.data_reuniao', label: 'Data da reunião (Calendly)' },
   { value: 'contato.data_nascimento', label: 'Aniversário do contato' },
   { value: 'proposal.expires_at', label: 'Validade da proposta' },
 ]

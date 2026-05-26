@@ -984,3 +984,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-26T16:11:42Z | /home/pandassauro/ttars/supabase/migrations/20260526l_calendly_briefing_inicial.sql | applied_to_prod
 2026-05-26T19:08:55Z | /home/pandassauro/ttars/supabase/migrations/20260526m_data_reuniao_fuso_brasilia.sql | applied_to_prod
 2026-05-26T19:15:18Z | /home/pandassauro/ttars/supabase/migrations/20260526n_data_reuniao_so_sdr.sql | applied_to_prod
+2026-05-26T20:07:12Z | /home/pandassauro/ttars/supabase/migrations/20260526o_temporal_source_data_reuniao.sql | applied_to_prod

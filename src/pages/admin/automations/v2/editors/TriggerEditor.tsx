@@ -33,6 +33,7 @@ interface TriggerEditorProps {
 const TIME_OFFSET_SOURCES = [
     { value: 'card.data_viagem_inicio', label: 'Data de início da viagem' },
     { value: 'card.data_viagem_fim',    label: 'Data de fim da viagem' },
+    { value: 'card.data_reuniao',       label: 'Data da reunião (Calendly)' },
     { value: 'contato.data_nascimento', label: 'Aniversário do contato' },
     { value: 'proposal.expires_at',     label: 'Vencimento da proposta' },
 ]
