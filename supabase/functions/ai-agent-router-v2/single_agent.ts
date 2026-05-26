@@ -62,6 +62,8 @@ export interface RunSingleAgentResult {
   prompt_user_chars: number;
   duration_ms: number;
   model_used: string;
+  input_tokens: number | null;
+  output_tokens: number | null;
 }
 
 export async function runSingleAgent(
@@ -186,6 +188,10 @@ export async function runSingleAgent(
   // Filtrar mensagens vazias
   parsed.messages = parsed.messages.filter((m) => m && m.content && m.content.trim().length > 0);
 
+  // T5.1 — extrair tokens reais pra rastreio de custo (input_tokens/output_tokens
+  // persistidos em ai_conversation_turns). Antes ficavam null → custo cego.
+  const usage = (data.usage ?? {}) as { prompt_tokens?: number; completion_tokens?: number };
+
   return {
     output: parsed,
     raw_response: rawContent,
@@ -193,5 +199,7 @@ export async function runSingleAgent(
     prompt_user_chars: user.length,
     duration_ms: Date.now() - startedAt,
     model_used: model,
+    input_tokens: usage.prompt_tokens ?? null,
+    output_tokens: usage.completion_tokens ?? null,
   };
 }

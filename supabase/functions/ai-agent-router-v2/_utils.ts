@@ -364,6 +364,11 @@ export interface ConversationTurn {
   role: "user" | "assistant" | "system";
   content: string;
   created_at: string;
+  // T1.2 — true quando o turno foi a fallback_message do sistema (validator
+  // bloqueou e router enviou frase de emergência). Marcada no histórico
+  // como [SISTEMA—FALLBACK] pra detect_pending_promises NÃO confundir com
+  // promessa real do agente, causando loop fatal recursivo.
+  is_system_fallback?: boolean;
 }
 
 export async function loadConversationHistory(
@@ -373,7 +378,7 @@ export async function loadConversationHistory(
 ): Promise<ConversationTurn[]> {
   const { data, error } = await supabase
     .from("ai_conversation_turns")
-    .select("id, role, content, created_at")
+    .select("id, role, content, created_at, context_used")
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -382,7 +387,17 @@ export async function loadConversationHistory(
     console.error("[loadConversationHistory] error:", error);
     return [];
   }
-  return (data || []).reverse() as ConversationTurn[];
+  const raw = (data || []).reverse();
+  return raw.map((t: { id: string; role: string; content: string; created_at: string; context_used: Record<string, unknown> | null }) => {
+    const cu = t.context_used || {};
+    return {
+      id: t.id,
+      role: t.role as ConversationTurn["role"],
+      content: t.content,
+      created_at: t.created_at,
+      is_system_fallback: cu.fallback_triggered === true,
+    };
+  });
 }
 
 export function compactConversationHistory(turns: ConversationTurn[]): string {
@@ -391,7 +406,16 @@ export function compactConversationHistory(turns: ConversationTurn[]): string {
   const lines: string[] = [];
   for (const turn of turns) {
     const role = turn.role === "user" ? "Lead" : turn.role === "assistant" ? "Você" : "Sistema";
-    lines.push(`${role}: ${turn.content}`);
+    // T1.2 — frase do sistema marcada explicitamente. detect_pending_promises
+    // foi instruído a IGNORAR mensagens com essa tag (texto da rotina em
+    // patricia_diff_cognitivo.ts). Sem isso a frase de fallback ("deixa eu
+    // confirmar com a equipe") era detectada como promessa do agente no turno
+    // seguinte e causava loop fatal de bloqueio.
+    if (turn.is_system_fallback) {
+      lines.push(`[SISTEMA—FALLBACK] ${turn.content}`);
+    } else {
+      lines.push(`${role}: ${turn.content}`);
+    }
   }
   return lines.join("\n");
 }

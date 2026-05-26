@@ -1861,16 +1861,35 @@ Deno.serve(async (req) => {
       finalMessages = singleAgentResult.output.messages.map((m) => m.content);
     }
 
-    // Fix Vitor 25/05 — handoff_actions.transition_message (ou .message como
-    // fallback de compatibilidade) é OBRIGATORIAMENTE usada quando moment ativo
-    // é handoff_humano_invisivel. Admin controla pela UI o que sai no momento
-    // mais sensível. Antes o LLM gerava texto próprio ignorando a config.
-    if (!blocked && effectiveMomentKey === "handoff_humano_invisivel") {
+    // Fix Vitor 25/05 — handoff_actions.transition_message é injetada pela UI
+    // SEMPRE que houver handoff invisível. Detecção tripla:
+    //   1. forcedMomentKey = handoff_humano_invisivel (router forçou)
+    //   2. LLM classificou current_moment_key = handoff_humano_invisivel
+    //   3. LLM chamou tool request_handoff (caso onde marca moment=null mas
+    //      pede handoff — observado em Carla 26/05 T6)
+    // Qualquer um dos 3 → frase da UI sobrescreve mensagem gerada pelo LLM.
+    // Também desbloqueia se validator havia barrado por nao_prometer_voltar
+    // (a frase da UI é determinística e válida — handoff foi disparado de fato).
+    const llmCalledHandoffTool = (singleAgentResult.output.tool_calls || []).some(
+      (tc) => tc.tool_name === "request_handoff",
+    );
+    const handoffDetected =
+      forcedMomentKey === "handoff_humano_invisivel" ||
+      singleAgentResult.output.current_moment_key === "handoff_humano_invisivel" ||
+      llmCalledHandoffTool;
+    if (handoffDetected) {
       const ha = (agent.handoff_actions || {}) as Record<string, unknown>;
       const handoffText = (ha.transition_message as string | null | undefined) || (ha.message as string | null | undefined);
       if (handoffText && handoffText.trim().length > 0) {
-        console.log(`[v2] handoff: sobrescrevendo messages do LLM pela frase da UI (handoff_actions.transition_message ou .message)`);
+        console.log(`[v2] handoff: usando frase da UI (handoff_actions.transition_message). Detectado por: forced=${forcedMomentKey === "handoff_humano_invisivel"}, llm_moment=${singleAgentResult.output.current_moment_key === "handoff_humano_invisivel"}, tool=${llmCalledHandoffTool}`);
         finalMessages = [handoffText.trim()];
+        // Se o validator bloqueou por suspeita de promessa vazia, a frase da
+        // UI restaura o turno: handoff aconteceu de fato (tool foi chamada),
+        // a frase é responsabilidade do admin.
+        if (blocked) {
+          console.log(`[v2] handoff: destravando turno bloqueado pelo validator (handoff de fato disparado via tool)`);
+          blocked = false;
+        }
       }
     }
 
@@ -2004,12 +2023,17 @@ Deno.serve(async (req) => {
         role: "assistant",
         content: blocks.join("\n\n"),
         agent_id: agent.id,
+        // T5.1 — tokens reais pra rastrear custo
+        input_tokens: singleAgentResult.input_tokens,
+        output_tokens: singleAgentResult.output_tokens,
         reasoning: singleAgentResult.output.internal_reasoning,
         skills_used: toolResults,
         context_used: {
           model: singleAgentResult.model_used,
           duration_ms: singleAgentResult.duration_ms,
           prompt_chars: singleAgentResult.prompt_system_chars + singleAgentResult.prompt_user_chars,
+          input_tokens: singleAgentResult.input_tokens,
+          output_tokens: singleAgentResult.output_tokens,
           validator: verdict,
           send_results: sendResults,
           forced_moment_key: forcedMomentKey,
@@ -2084,12 +2108,17 @@ Deno.serve(async (req) => {
         role: "assistant",
         content: fallbackText,
         agent_id: agent.id,
+        // T5.1 — tokens do turno bloqueado (LLM gastou tokens gerando antes do validator vetar)
+        input_tokens: singleAgentResult.input_tokens,
+        output_tokens: singleAgentResult.output_tokens,
         reasoning: "Validator bloqueou a resposta original — enviando fallback_message do agente.",
         skills_used: toolResults,
         context_used: {
           validator: verdict,
           send_results: sendResults,
           fallback_triggered: true,
+          input_tokens: singleAgentResult.input_tokens,
+          output_tokens: singleAgentResult.output_tokens,
         },
         detected_intent: singleAgentResult.output.current_moment_key,
         current_moment_key: singleAgentResult.output.current_moment_key ?? null,
