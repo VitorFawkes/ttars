@@ -975,3 +975,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-26T12:48:17Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260526a_analytics_planner_by_origem.sql | applied_to_prod
 2026-05-26T12:58:08Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260526b_fix_analytics_sdr_follow_through.sql | applied_to_prod
 2026-05-26T12:59:07Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260526b_fix_analytics_sdr_follow_through.sql | applied_to_prod
+2026-05-26T17:50:14Z | supabase/migrations/20260526f_ww2_entrada_realidade_v3.sql | applied_to_prod

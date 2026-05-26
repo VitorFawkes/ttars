@@ -1,3 +1,71 @@
+-- ============================================================================
+-- Entrada × Realidade (Weddings) — v3 consolidado
+--
+-- Define:
+--   - Normalizadores agressivos (_ww2_norm_conv_strict / _ww2_norm_faixa_strict / _ww2_norm_dest_strict)
+--   - RPC ww2_entrada_realidade — matriz N×N, cruzamentos refinado×refinado,
+--     valor_pacote por categoria, destinos livres "outro".
+--
+-- Mudança v3: quando p_only_fechados=TRUE, o filtro de período aplica sobre
+-- a DATA DA VENDA (data_fechamento → ganho_pos_at → ganho_planner_at →
+-- ganho_sdr_at → updated_at), não sobre created_at. Sem isso, "Últimos 30 dias"
+-- + only_fechados colapsa o universo a zero (venda fechada hoje pode ter sido
+-- criada há 3 meses).
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION public._ww2_norm_conv_strict(p_raw TEXT) RETURNS TEXT
+LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE v TEXT;
+BEGIN
+    IF p_raw IS NULL THEN RETURN NULL; END IF;
+    v := LOWER(TRIM(REGEXP_REPLACE(REGEXP_REPLACE(p_raw, '_', ' ', 'g'), '\s+', ' ', 'g')));
+    v := TRANSLATE(v, 'áàâãéêíóôõúç', 'aaaaeeiooouc');
+    IF v LIKE '%apenas%casal%' OR v LIKE '%so o casal%' THEN RETURN 'Apenas o casal'; END IF;
+    IF v LIKE '%ate 20%' THEN RETURN 'Até 20'; END IF;
+    IF v LIKE '%20 a 50%' OR v LIKE '%menos de 50%' OR v LIKE '%ate de 50%' THEN RETURN '20-50'; END IF;
+    IF v LIKE '%50 a 80%' THEN RETURN '50-80'; END IF;
+    IF v LIKE '%50 e 100%' THEN RETURN '50-80'; END IF;
+    IF v LIKE '%80 a 100%' OR v LIKE '%80 e 100%' THEN RETURN '80-100'; END IF;
+    IF v LIKE '%acima de 100%' OR v LIKE '%mais de 100%' OR v LIKE '%+100%' THEN RETURN '+100'; END IF;
+    RETURN NULL;
+END $$;
+
+CREATE OR REPLACE FUNCTION public._ww2_norm_faixa_strict(p_raw TEXT) RETURNS TEXT
+LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE v TEXT;
+BEGIN
+    IF p_raw IS NULL THEN RETURN NULL; END IF;
+    v := LOWER(TRIM(REGEXP_REPLACE(REGEXP_REPLACE(p_raw, '_', ' ', 'g'), '\s+', ' ', 'g')));
+    v := TRANSLATE(v, 'áàâãéêíóôõúç', 'aaaaeeiooouc');
+    IF v LIKE '%menos de r$50%' OR v LIKE '%ate r$50%' OR v LIKE '%ate de r$50%' THEN RETURN 'Até R$50 mil'; END IF;
+    IF v LIKE '%r$50 e r$80%' THEN RETURN 'R$50-80 mil'; END IF;
+    IF v LIKE '%r$80 e r$100%' THEN RETURN 'R$80-100 mil'; END IF;
+    IF v LIKE '%r$50 e r$100%' THEN RETURN 'R$50-100 mil'; END IF;
+    IF v LIKE '%r$100 e r$200%' THEN RETURN 'R$100-200 mil'; END IF;
+    IF v LIKE '%r$200 e r$500%' THEN RETURN 'R$200-500 mil'; END IF;
+    IF v LIKE '%mais de r$500%' OR v LIKE '%acima de r$500%' THEN RETURN '+R$500 mil'; END IF;
+    RETURN NULL;
+END $$;
+
+CREATE OR REPLACE FUNCTION public._ww2_norm_dest_strict(p_raw TEXT) RETURNS TEXT
+LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE v TEXT;
+BEGIN
+    IF p_raw IS NULL THEN RETURN NULL; END IF;
+    v := LOWER(TRIM(REGEXP_REPLACE(REGEXP_REPLACE(p_raw, '_', ' ', 'g'), '\s+', ' ', 'g')));
+    v := TRANSLATE(v, 'áàâãéêíóôõúç', 'aaaaeeiooouc');
+    IF v LIKE '%nordeste%' OR v LIKE '%bahia%' OR v LIKE '%imbassa%' THEN RETURN 'Nordeste'; END IF;
+    IF v LIKE '%caribe%' OR v LIKE '%cancun%' OR v LIKE '%punta cana%' OR v LIKE '%riviera maya%' OR v LIKE '%mexico%' OR v LIKE '%dominicana%' OR v LIKE '%hard rock%' OR v LIKE '%dreams %' OR v LIKE '%palladium%' OR v LIKE '%impressive%' THEN RETURN 'Caribe'; END IF;
+    IF v LIKE '%italia%' OR v LIKE '%agriturismo%' OR v LIKE '%toscana%' OR v LIKE '%amalfi%' OR v LIKE '%positano%' THEN RETURN 'Itália'; END IF;
+    IF v LIKE '%mendoza%' OR v LIKE '%argentina%' THEN RETURN 'Mendoza'; END IF;
+    IF v LIKE '%portugal%' OR v LIKE '%lisboa%' OR v LIKE '%porto%' THEN RETURN 'Portugal'; END IF;
+    IF v LIKE '%maldivas%' THEN RETURN 'Maldivas'; END IF;
+    IF v LIKE '%europa%' THEN RETURN 'Europa'; END IF;
+    IF v = 'outro' OR v = 'outras' OR v = 'outros' THEN RETURN 'Outro'; END IF;
+    IF v LIKE '%fora do brasil%' OR v LIKE '%fora brasil%' THEN RETURN 'Fora do Brasil'; END IF;
+    RETURN 'Outro';
+END $$;
+
 CREATE OR REPLACE FUNCTION public.ww2_entrada_realidade(
     p_date_start TIMESTAMPTZ DEFAULT (NOW() - INTERVAL '365 days'),
     p_date_end   TIMESTAMPTZ DEFAULT NOW(),
@@ -44,15 +112,19 @@ BEGIN
       LEFT JOIN pipeline_phases ph ON ph.id = s.phase_id
      WHERE c.deleted_at IS NULL AND c.archived_at IS NULL
        AND c.produto::TEXT='WEDDING' AND c.org_id=v_org_id
-       AND c.created_at >= p_date_start AND c.created_at <= p_date_end;
+       AND (
+         (p_only_fechados AND (c.status_comercial='ganho' OR ph.slug='pos_venda')
+            AND COALESCE(c.data_fechamento, c.ganho_pos_at, c.ganho_planner_at, c.ganho_sdr_at, c.updated_at) >= p_date_start
+            AND COALESCE(c.data_fechamento, c.ganho_pos_at, c.ganho_planner_at, c.ganho_sdr_at, c.updated_at) <= p_date_end)
+         OR
+         (NOT p_only_fechados
+            AND c.created_at >= p_date_start AND c.created_at <= p_date_end)
+       );
     IF p_origins IS NOT NULL THEN DELETE FROM _ww2_er WHERE origem != ALL(p_origins); END IF;
-    IF p_only_fechados THEN DELETE FROM _ww2_er WHERE NOT fechado; END IF;
     SELECT COUNT(*), COUNT(*) FILTER (WHERE fechado) INTO v_total, v_total_fechados FROM _ww2_er;
 
-    -- Categorias canônicas em ordem
     v_conv_categorias := '["Apenas o casal","Até 20","20-50","50-80","80-100","+100"]'::JSON;
     v_inv_categorias := '["Até R$50 mil","R$50-80 mil","R$50-100 mil","R$80-100 mil","R$100-200 mil","R$200-500 mil","+R$500 mil"]'::JSON;
-    -- Destinos: usar os encontrados (com >=5 ocorrências na entrada ou refinado)
     SELECT json_agg(d ORDER BY tot DESC) INTO v_dest_categorias FROM (
         SELECT d, SUM(c) AS tot FROM (
             SELECT dest_e AS d, COUNT(*) AS c FROM _ww2_er WHERE dest_e IS NOT NULL GROUP BY dest_e
@@ -61,7 +133,6 @@ BEGIN
         ) x GROUP BY d HAVING SUM(c) >= 5
     ) y;
 
-    -- ── STATS GLOBAIS ──
     SELECT json_build_object(
         'com_entrada', COUNT(*) FILTER (WHERE conv_e IS NOT NULL),
         'com_refinado', COUNT(*) FILTER (WHERE conv_r IS NOT NULL),
@@ -85,7 +156,6 @@ BEGIN
         'mudou', COUNT(*) FILTER (WHERE dest_e IS NOT NULL AND dest_r IS NOT NULL AND dest_e != dest_r)
     ) INTO v_dest_stats FROM _ww2_er;
 
-    -- ── MATRIZES DE TRANSIÇÃO ENTRADA × REFINADO (qtd absoluta) ──
     SELECT json_agg(json_build_object('e', conv_e, 'r', conv_r, 'qtd', qtd)) INTO v_conv_matriz
     FROM (SELECT conv_e, conv_r, COUNT(*) AS qtd FROM _ww2_er
           WHERE conv_e IS NOT NULL AND conv_r IS NOT NULL
@@ -99,7 +169,6 @@ BEGIN
           WHERE dest_e IS NOT NULL AND dest_r IS NOT NULL
           GROUP BY dest_e, dest_r) x;
 
-    -- ── CRUZAMENTOS REALIDADE × REALIDADE (perfil real) ──
     SELECT json_agg(json_build_object('inv', inv_r, 'conv', conv_r, 'qtd', qtd)) INTO v_cross_inv_conv
     FROM (SELECT inv_r, conv_r, COUNT(*) AS qtd FROM _ww2_er
           WHERE inv_r IS NOT NULL AND conv_r IS NOT NULL
@@ -113,8 +182,6 @@ BEGIN
           WHERE conv_r IS NOT NULL AND dest_r IS NOT NULL
           GROUP BY conv_r, dest_r) x;
 
-    -- ── VALOR PACOTE POR CATEGORIA REFINADA ──
-    -- Por faixa investimento entrada (já tinha)
     WITH ord AS (SELECT * FROM (VALUES ('Até R$50 mil',1),('R$50-80 mil',2),('R$50-100 mil',3),('R$80-100 mil',4),('R$100-200 mil',5),('R$200-500 mil',6),('+R$500 mil',7)) AS o(cat,n))
     SELECT json_agg(json_build_object(
         'entrada', inv_e, 'amostra', amostra,
@@ -136,7 +203,6 @@ BEGIN
          GROUP BY inv_e, oe.n
     ) x WHERE amostra > 0;
 
-    -- Por nº convidados refinado
     WITH ord AS (SELECT * FROM (VALUES ('Apenas o casal',1),('Até 20',2),('20-50',3),('50-80',4),('80-100',5),('+100',6)) AS o(cat,n))
     SELECT json_agg(json_build_object(
         'categoria', conv_r, 'amostra', amostra,
@@ -157,7 +223,6 @@ BEGIN
          GROUP BY conv_r, oe.n
     ) x WHERE amostra > 0;
 
-    -- Por destino refinado
     SELECT json_agg(json_build_object(
         'categoria', dest_r, 'amostra', amostra,
         'p25', p25, 'mediana', p50, 'p75', p75, 'media', media, 'minimo', minv, 'maximo', maxv
@@ -184,6 +249,7 @@ BEGIN
         'date_start', p_date_start, 'date_end', p_date_end,
         'pipeline_id', v_pipeline_id, 'org_id', v_org_id,
         'only_fechados', p_only_fechados,
+        'date_mode_used', CASE WHEN p_only_fechados THEN 'data_venda' ELSE 'data_entrada' END,
         'total_leads', v_total, 'total_fechados', v_total_fechados,
         'convidados', json_build_object(
             'stats', v_conv_stats,
@@ -211,3 +277,5 @@ BEGIN
         )
     );
 END $func$;
+
+GRANT EXECUTE ON FUNCTION public.ww2_entrada_realidade(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[], BOOLEAN) TO authenticated;
