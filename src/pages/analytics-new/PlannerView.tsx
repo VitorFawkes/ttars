@@ -1,18 +1,33 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Briefcase, Trophy, ListX, Clock, Loader2, Layers } from 'lucide-react'
 import KpiCard from '@/components/analytics/KpiCard'
 import { useFunnelConversion, useLossReasons } from '@/hooks/analytics/useFunnelConversion'
 import { useFunnelVelocity } from '@/hooks/analytics/useFunnelVelocity'
 import { useTeamLeaderboard } from '@/hooks/analytics/useTeamLeaderboard'
-import { useTeamPerformance } from '@/hooks/analytics/useTeamPerformance'
 import { useTeamTicketVariation } from '@/hooks/analytics/useTeamTicketVariation'
 import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { useResumoOverview, useResumoOverviewPrevious } from '@/hooks/analytics/useResumoOverview'
+import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
+import { useFilterProfilesWithRole } from '@/hooks/analytics/useFilterOptions'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import WidgetCard from './WidgetCard'
+import SimpleFilterBar from './SimpleFilterBar'
 import { cn } from '@/lib/utils'
+
+const ORIGEM_LABELS: Record<string, string> = {
+  manual: 'Planner direto',
+  whatsapp: 'WhatsApp (Julia)',
+  active_campaign: 'Active Campaign',
+  mkt: 'Marketing',
+  indicacao: 'Indicação',
+  carteira_propria: 'Carteira própria',
+  carteira_wg: 'Carteira WG',
+  sorrento: 'Sorrento',
+  weddings: 'Weddings (cruzado)',
+  sem_origem: 'Sem origem',
+}
 
 interface PlannerByOrigemRow {
   planner_id: string
@@ -43,19 +58,6 @@ function usePlannerByOrigem() {
   })
 }
 
-const ORIGEM_LABELS: Record<string, string> = {
-  manual: 'Planner direto',
-  whatsapp: 'WhatsApp (Julia)',
-  active_campaign: 'Active Campaign',
-  mkt: 'Marketing',
-  indicacao: 'Indicação',
-  carteira_propria: 'Carteira própria',
-  carteira_wg: 'Carteira WG',
-  sorrento: 'Sorrento',
-  weddings: 'Weddings (cruzado)',
-  sem_origem: 'Sem origem',
-}
-
 function pct(v: number): string {
   return `${v.toFixed(0)}%`
 }
@@ -73,26 +75,58 @@ function ConversionBadge({ rate }: { rate: number }) {
 }
 
 export default function PlannerView() {
-  const [individualUser, setIndividualUser] = useState<string | null>(null)
-  void individualUser
-
   const funnel = useFunnelConversion()
   const velocity = useFunnelVelocity()
   const lossReasons = useLossReasons()
   const leaderboard = useTeamLeaderboard()
-  const plannerPerf = useTeamPerformance('planner')
   const ticketVar = useTeamTicketVariation()
   const resumo = useResumoOverview()
   const resumoPrev = useResumoOverviewPrevious()
   const plannerByOrigem = usePlannerByOrigem()
+  const profilesByRole = useFilterProfilesWithRole()
+  const drillDown = useDrillDownStore()
+  const { origins, setOrigins } = useAnalyticsFilters()
 
-  // Para delta semana vs semana — usamos `ganhos` e `faturamento` do período anterior
+  // IDs de quem é Planner de verdade (role='vendas') no workspace
+  const plannerIds = useMemo(() => {
+    const set = new Set<string>()
+    for (const p of profilesByRole.data ?? []) {
+      if (p.role === 'vendas') set.add(p.id)
+    }
+    return set
+  }, [profilesByRole.data])
+
+  const plannerStages = useMemo(() => {
+    return (funnel.data ?? []).filter(s => s.phase_slug === 'planner').sort((a, b) => a.ordem - b.ordem)
+  }, [funnel.data])
+  const totalPlanner = plannerStages.reduce((sum, s) => sum + s.current_count, 0)
+
+  const plannerLeaderboard = useMemo(() => {
+    return (leaderboard.data ?? []).filter(row => plannerIds.has(row.user_id))
+  }, [leaderboard.data, plannerIds])
+
+  const plannerVelocity = useMemo(() => {
+    return (velocity.data ?? [])
+      .filter(v => v.phase_slug === 'planner')
+      .sort((a, b) => a.ordem - b.ordem)
+  }, [velocity.data])
+
+  // Filtra ticket variation pra mostrar só planners
+  const plannerTicketVar = useMemo(() => {
+    return (ticketVar.data ?? []).filter(row => plannerIds.has(row.user_id))
+  }, [ticketVar.data, plannerIds])
+
+  // KPIs hero — agregados do leaderboard filtrado
+  const ganhosTotal = plannerLeaderboard.reduce((s, r) => s + r.cards_ganhos, 0)
+  const perdidosTotal = plannerLeaderboard.reduce((s, r) => s + r.cards_perdidos, 0)
+  const receitaTotal = plannerLeaderboard.reduce((s, r) => s + r.receita_total, 0)
+
   const prevGanhos = resumoPrev.data?.empresa.kpis.ganhos
   const prevFaturamento = resumoPrev.data?.empresa.kpis.faturamento
 
-  // Pivot Planner × Origem: { plannerId: { nome, origens: { origem: row } } }
+  // Pivot Origem × Planner — só planners de verdade
   const plannerOrigemPivot = useMemo(() => {
-    const rows = plannerByOrigem.data ?? []
+    const rows = (plannerByOrigem.data ?? []).filter(r => plannerIds.has(r.planner_id))
     const origensSet = new Set<string>()
     const byPlanner = new Map<string, { nome: string; origens: Record<string, PlannerByOrigemRow>; totalLeads: number; totalGanhos: number }>()
     for (const r of rows) {
@@ -103,7 +137,6 @@ export default function PlannerView() {
       entry.totalGanhos += r.ganhos
       byPlanner.set(r.planner_id, entry)
     }
-    // Ordena origens por volume total
     const origensList = Array.from(origensSet).sort((a, b) => {
       const aTotal = rows.filter(r => r.origem === a).reduce((s, r) => s + r.leads, 0)
       const bTotal = rows.filter(r => r.origem === b).reduce((s, r) => s + r.leads, 0)
@@ -113,32 +146,75 @@ export default function PlannerView() {
       .map(([id, v]) => ({ id, ...v }))
       .sort((a, b) => b.totalLeads - a.totalLeads)
     return { origensList, plannersList }
-  }, [plannerByOrigem.data])
+  }, [plannerByOrigem.data, plannerIds])
 
-  // Etapas do planner
-  const plannerStages = (funnel.data ?? []).filter(s => s.phase_slug === 'planner').sort((a, b) => a.ordem - b.ordem)
-  const totalPlanner = plannerStages.reduce((sum, s) => sum + s.current_count, 0)
+  const openCardsInStage = (stageId: string, stageName: string) => {
+    drillDown.open({
+      label: `Cards na etapa: ${stageName}`,
+      drillStageId: stageId,
+      drillSource: 'current_stage',
+    })
+  }
 
-  // Leaderboard só com quem atua em Planner
-  const plannerLeaderboard = (leaderboard.data ?? []).filter(row => row.fases.includes('planner'))
+  const openCardsByOwner = (ownerId: string, ownerName: string) => {
+    drillDown.open({
+      label: `Cards de ${ownerName}`,
+      drillSource: 'current_stage',
+      drillOwnerId: ownerId,
+    })
+  }
 
-  // Velocidade apenas de etapas do Planner
-  const plannerVelocity = (velocity.data ?? []).filter(v => v.phase_slug === 'planner').sort((a, b) => a.ordem - b.ordem)
+  const openLostCards = (reason?: string) => {
+    drillDown.open({
+      label: reason ? `Perdidos: ${reason}` : 'Cards perdidos',
+      drillSource: 'lost_deals',
+      drillLossReason: reason,
+      drillStatus: 'perdido',
+    })
+  }
 
-  // KPIs hero a partir do leaderboard (cards distintos no planner)
-  const ganhosTotal = plannerLeaderboard.reduce((s, r) => s + r.cards_ganhos, 0)
-  const perdidosTotal = plannerLeaderboard.reduce((s, r) => s + r.cards_perdidos, 0)
-  const receitaTotal = plannerLeaderboard.reduce((s, r) => s + r.receita_total, 0)
+  const openClosedDeals = () => {
+    drillDown.open({
+      label: 'Ganhos no período',
+      drillSource: 'closed_deals',
+      drillPhase: 'planner',
+    })
+  }
+
+  const openLeadsByOrigin = (origem: string) => {
+    setOrigins([origem])
+  }
+
+  const openPlannerOrigem = (ownerId: string, ownerName: string, origem: string) => {
+    setOrigins([origem])
+    drillDown.open({
+      label: `${ownerName} — ${ORIGEM_LABELS[origem] ?? origem}`,
+      drillSource: 'current_stage',
+      drillOwnerId: ownerId,
+    })
+  }
 
   return (
     <div className="flex flex-col gap-6">
       <header>
         <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Planner (Travel Planner / Closer)</h1>
         <p className="text-sm text-slate-500 mt-1">
-          O que está acontecendo com quem fecha a venda: propostas em andamento, ganhos no período,
-          quem está demorando e por que estamos perdendo.
+          O que está acontecendo com quem fecha a venda. Clique em qualquer número, barra ou linha pra ver os cards.
         </p>
       </header>
+
+      <SimpleFilterBar roleFilter="vendas" myButtonLabel="Meus cards" />
+
+      {origins.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center justify-between">
+          <span className="text-xs text-amber-800">
+            Filtrando por origem: <strong>{origins.map(o => ORIGEM_LABELS[o] ?? o).join(', ')}</strong>
+          </span>
+          <button onClick={() => setOrigins([])} className="text-xs text-amber-700 underline">
+            limpar
+          </button>
+        </div>
+      )}
 
       {/* KPIs hero */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -149,6 +225,8 @@ export default function PlannerView() {
           color="text-blue-600"
           bgColor="bg-blue-50"
           isLoading={funnel.isLoading}
+          onClick={plannerStages[0] ? () => openCardsInStage(plannerStages[0].stage_id, 'Carteira Planner') : undefined}
+          clickHint={plannerStages[0] ? 'Ver cards →' : undefined}
         />
         <KpiCard
           title="Ganhos no período"
@@ -158,6 +236,8 @@ export default function PlannerView() {
           bgColor="bg-emerald-50"
           isLoading={leaderboard.isLoading}
           delta={prevGanhos !== undefined ? { current: ganhosTotal, previous: prevGanhos } : undefined}
+          onClick={openClosedDeals}
+          clickHint="Ver ganhos →"
         />
         <KpiCard
           title="Perdidos no período"
@@ -166,6 +246,8 @@ export default function PlannerView() {
           color={perdidosTotal > 0 ? 'text-rose-600' : 'text-slate-400'}
           bgColor={perdidosTotal > 0 ? 'bg-rose-50' : 'bg-slate-50'}
           isLoading={leaderboard.isLoading}
+          onClick={() => openLostCards()}
+          clickHint="Ver perdidos →"
         />
         <KpiCard
           title="Receita total"
@@ -175,13 +257,15 @@ export default function PlannerView() {
           bgColor="bg-indigo-50"
           isLoading={leaderboard.isLoading}
           delta={prevFaturamento !== undefined ? { current: receitaTotal, previous: prevFaturamento } : undefined}
+          onClick={openClosedDeals}
+          clickHint="Ver ganhos →"
         />
       </div>
 
-      {/* Etapas do planner */}
+      {/* Carteira por etapa — barras clicáveis */}
       <WidgetCard
         title="Carteira por etapa do Planner"
-        subtitle="Quantos cards estão em cada etapa nesse momento"
+        subtitle="Quantos cards estão em cada etapa nesse momento. Clique numa barra pra ver os cards."
       >
         {funnel.isLoading ? (
           <div className="h-40 flex items-center justify-center text-slate-400">
@@ -196,11 +280,15 @@ export default function PlannerView() {
             {plannerStages.map(stage => {
               const share = totalPlanner > 0 ? (stage.current_count / totalPlanner) * 100 : 0
               return (
-                <div key={stage.stage_id} className="flex items-center gap-3">
-                  <span className="text-sm text-slate-700 w-64 truncate">{stage.stage_nome}</span>
+                <button
+                  key={stage.stage_id}
+                  onClick={() => openCardsInStage(stage.stage_id, stage.stage_nome)}
+                  className="w-full flex items-center gap-3 px-2 py-1.5 rounded-md hover:bg-indigo-50 group transition-colors"
+                >
+                  <span className="text-sm text-slate-700 group-hover:text-indigo-700 w-64 truncate text-left">{stage.stage_nome}</span>
                   <div className="flex-1 bg-slate-100 rounded h-6 overflow-hidden">
                     <div
-                      className="bg-indigo-500 h-full transition-all"
+                      className="bg-indigo-500 group-hover:bg-indigo-600 h-full transition-all"
                       style={{ width: `${Math.max(2, share)}%` }}
                     />
                   </div>
@@ -210,7 +298,7 @@ export default function PlannerView() {
                   <span className="w-14 text-right text-xs text-slate-500 tabular-nums">
                     {share.toFixed(0)}%
                   </span>
-                </div>
+                </button>
               )
             })}
           </div>
@@ -220,15 +308,18 @@ export default function PlannerView() {
       {/* Leaderboard Planner */}
       <WidgetCard
         title="Ranking dos Planners"
-        subtitle="Quem está na mesa do Planner no período — cards, ganhos, perdidos, receita"
+        subtitle={`Apenas pessoas com função Vendas/Planner (${plannerIds.size} no workspace). Clique numa pessoa pra ver os cards.`}
       >
-        {leaderboard.isLoading ? (
+        {leaderboard.isLoading || profilesByRole.isLoading ? (
           <div className="h-40 flex items-center justify-center text-slate-400">
             <Loader2 className="w-5 h-5 animate-spin" />
           </div>
         ) : plannerLeaderboard.length === 0 ? (
-          <div className="h-32 flex items-center justify-center text-sm text-slate-400">
-            Nenhum Planner atuou no período
+          <div className="h-32 flex items-center justify-center text-sm text-slate-400 flex-col gap-1">
+            <p>Nenhum Planner atuou no período</p>
+            {plannerIds.size === 0 && (
+              <p className="text-xs text-slate-300">Nenhuma pessoa com função Vendas/Planner cadastrada</p>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -249,15 +340,14 @@ export default function PlannerView() {
               </thead>
               <tbody>
                 {plannerLeaderboard.map((row, idx) => (
-                  <tr key={row.user_id} className="border-b border-slate-50 hover:bg-slate-50">
+                  <tr
+                    key={row.user_id}
+                    className="border-b border-slate-50 hover:bg-indigo-50 cursor-pointer"
+                    onClick={() => openCardsByOwner(row.user_id, row.user_nome)}
+                  >
                     <td className="py-2.5 text-slate-400 tabular-nums">{idx + 1}</td>
                     <td className="py-2.5 text-slate-900 font-medium">
-                      <button
-                        onClick={() => setIndividualUser(row.user_id)}
-                        className="hover:text-indigo-600 hover:underline text-left"
-                      >
-                        {row.user_nome}
-                      </button>
+                      <span className="hover:text-indigo-700 hover:underline">{row.user_nome}</span>
                     </td>
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.cards_envolvidos}</td>
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.cards_ganhos}</td>
@@ -298,10 +388,10 @@ export default function PlannerView() {
         )}
       </WidgetCard>
 
-      {/* Tempo nas etapas — velocity */}
+      {/* Tempo nas etapas */}
       <WidgetCard
         title="Quanto tempo cada etapa leva"
-        subtitle="Tempo típico (mediana) e o caso pior (quem demora mais) por etapa"
+        subtitle="Tempo típico (mediana) e o caso pior (quem demora mais) por etapa. Clique pra ver cards atuais na etapa."
         action={<Clock className="w-4 h-4 text-slate-300" />}
       >
         {velocity.isLoading ? (
@@ -325,8 +415,14 @@ export default function PlannerView() {
               </thead>
               <tbody>
                 {plannerVelocity.map(row => (
-                  <tr key={row.stage_id} className="border-b border-slate-50 hover:bg-slate-50">
-                    <td className="py-2.5 text-slate-900 font-medium">{row.stage_nome}</td>
+                  <tr
+                    key={row.stage_id}
+                    className="border-b border-slate-50 hover:bg-indigo-50 cursor-pointer"
+                    onClick={() => openCardsInStage(row.stage_id, row.stage_nome)}
+                  >
+                    <td className="py-2.5 text-slate-900 font-medium">
+                      <span className="hover:text-indigo-700 hover:underline">{row.stage_nome}</span>
+                    </td>
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.cards_passaram}</td>
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">
                       {row.mediana_dias > 0 ? `${row.mediana_dias.toFixed(0)}d` : '—'}
@@ -342,69 +438,16 @@ export default function PlannerView() {
         )}
       </WidgetCard>
 
-      {/* Performance Planner detalhada */}
-      <WidgetCard
-        title="Detalhe por Planner"
-        subtitle="Conversão, ticket médio e ciclo médio (tempo do recebimento até fechar/perder)"
-      >
-        {plannerPerf.isLoading ? (
-          <div className="h-40 flex items-center justify-center text-slate-400">
-            <Loader2 className="w-5 h-5 animate-spin" />
-          </div>
-        ) : !plannerPerf.data || plannerPerf.data.length === 0 ? (
-          <div className="h-32 flex items-center justify-center text-sm text-slate-400">
-            Sem dados de performance Planner no período
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 text-xs text-slate-500 uppercase tracking-wider">
-                  <th className="text-left py-2 font-medium">Pessoa</th>
-                  <th className="text-right py-2 font-medium">Total</th>
-                  <th className="text-right py-2 font-medium">Ganhos</th>
-                  <th className="text-right py-2 font-medium">Perdidos</th>
-                  <th className="text-right py-2 font-medium">Abertos</th>
-                  <th className="text-right py-2 font-medium">% Sucesso</th>
-                  <th className="text-right py-2 font-medium">Ticket médio</th>
-                  <th className="text-right py-2 font-medium">Ciclo (dias)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {plannerPerf.data.map(row => (
-                  <tr key={row.user_id} className="border-b border-slate-50 hover:bg-slate-50">
-                    <td className="py-2.5 text-slate-900 font-medium">{row.user_nome}</td>
-                    <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.total_cards}</td>
-                    <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.won_cards}</td>
-                    <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.lost_cards}</td>
-                    <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.open_cards}</td>
-                    <td className="py-2.5 text-right">
-                      <ConversionBadge rate={row.conversion_rate} />
-                    </td>
-                    <td className="py-2.5 text-right text-slate-700 tabular-nums">
-                      {formatCurrency(row.ticket_medio)}
-                    </td>
-                    <td className="py-2.5 text-right text-slate-700 tabular-nums">
-                      {row.ciclo_medio_dias > 0 ? row.ciclo_medio_dias.toFixed(0) : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </WidgetCard>
-
       {/* Variação de ticket */}
       <WidgetCard
         title="Variação de ticket por Planner"
-        subtitle="Quem tem ticket consistente vs quem oscila muito (uma venda grande pode enganar a média)"
+        subtitle="Quem tem ticket consistente vs quem oscila muito. Clique numa linha pra ver as vendas dele."
       >
         {ticketVar.isLoading ? (
           <div className="h-40 flex items-center justify-center text-slate-400">
             <Loader2 className="w-5 h-5 animate-spin" />
           </div>
-        ) : !ticketVar.data || ticketVar.data.length === 0 ? (
+        ) : plannerTicketVar.length === 0 ? (
           <div className="h-32 flex items-center justify-center text-sm text-slate-400">
             Nenhuma venda no período pra calcular variação
           </div>
@@ -422,12 +465,18 @@ export default function PlannerView() {
                 </tr>
               </thead>
               <tbody>
-                {ticketVar.data.map(row => {
+                {plannerTicketVar.map(row => {
                   const spread = row.ticket_max - row.ticket_min
                   const muitoVariavel = row.cards_ganhos >= 3 && spread > row.ticket_medio * 2
                   return (
-                    <tr key={row.user_id} className="border-b border-slate-50 hover:bg-slate-50">
-                      <td className="py-2.5 text-slate-900 font-medium">{row.user_nome}</td>
+                    <tr
+                      key={row.user_id}
+                      className="border-b border-slate-50 hover:bg-indigo-50 cursor-pointer"
+                      onClick={() => openCardsByOwner(row.user_id, row.user_nome)}
+                    >
+                      <td className="py-2.5 text-slate-900 font-medium">
+                        <span className="hover:text-indigo-700 hover:underline">{row.user_nome}</span>
+                      </td>
                       <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.cards_ganhos}</td>
                       <td className="py-2.5 text-right text-slate-600 tabular-nums">
                         {formatCurrency(row.ticket_min)}
@@ -455,7 +504,7 @@ export default function PlannerView() {
       {/* Motivos de perda */}
       <WidgetCard
         title="Por que estamos perdendo"
-        subtitle="Os motivos mais frequentes de perda no período — quanto mais 'Sem motivo informado' tiver, menos útil fica"
+        subtitle="Motivos mais frequentes. Clique pra ver os cards perdidos por aquele motivo."
       >
         {lossReasons.isLoading ? (
           <div className="h-40 flex items-center justify-center text-slate-400">
@@ -468,13 +517,17 @@ export default function PlannerView() {
         ) : (
           <div className="space-y-2">
             {lossReasons.data.map(reason => (
-              <div key={reason.motivo} className="flex items-center gap-3">
-                <span className="text-sm text-slate-700 w-72 truncate" title={reason.motivo}>
+              <button
+                key={reason.motivo}
+                onClick={() => openLostCards(reason.motivo)}
+                className="w-full flex items-center gap-3 px-2 py-1.5 rounded-md hover:bg-rose-50 transition-colors group"
+              >
+                <span className="text-sm text-slate-700 group-hover:text-rose-700 w-72 truncate text-left" title={reason.motivo}>
                   {reason.motivo || 'Sem motivo informado'}
                 </span>
                 <div className="flex-1 bg-slate-100 rounded h-5 overflow-hidden">
                   <div
-                    className="bg-rose-400 h-full"
+                    className="bg-rose-400 group-hover:bg-rose-500 h-full"
                     style={{ width: `${Math.max(2, reason.percentage)}%` }}
                   />
                 </div>
@@ -482,16 +535,16 @@ export default function PlannerView() {
                 <span className="w-12 text-sm text-rose-700 tabular-nums text-right">
                   {reason.percentage.toFixed(0)}%
                 </span>
-              </div>
+              </button>
             ))}
           </div>
         )}
       </WidgetCard>
 
-      {/* Origem × Planner — qual canal cada planner está recebendo */}
+      {/* Origem × Planner */}
       <WidgetCard
         title="Origem dos leads por Planner"
-        subtitle="Mostra de onde vêm os leads que cada Planner recebeu. Útil pra avaliar se diferença de conversão é skill ou só mix de canal."
+        subtitle="Se diferença de conversão é skill ou mix de canal. Clique numa célula pra ver os cards do cruzamento."
         action={<Layers className="w-4 h-4 text-slate-300" />}
       >
         {plannerByOrigem.isLoading ? (
@@ -520,8 +573,15 @@ export default function PlannerView() {
                 {plannerOrigemPivot.plannersList.map(p => {
                   const totalConv = p.totalLeads > 0 ? (p.totalGanhos / p.totalLeads) * 100 : 0
                   return (
-                    <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50">
-                      <td className="py-2.5 text-slate-900 font-medium">{p.nome}</td>
+                    <tr key={p.id} className="border-b border-slate-50">
+                      <td className="py-2.5 text-slate-900 font-medium">
+                        <button
+                          onClick={() => openCardsByOwner(p.id, p.nome)}
+                          className="hover:text-indigo-700 hover:underline"
+                        >
+                          {p.nome}
+                        </button>
+                      </td>
                       <td className="py-2.5 text-right text-slate-700 tabular-nums">
                         {p.totalGanhos}/{p.totalLeads}
                         <span className="ml-1 text-xs text-slate-400">({totalConv.toFixed(0)}%)</span>
@@ -533,15 +593,21 @@ export default function PlannerView() {
                         }
                         return (
                           <td key={o} className="py-2.5 text-right tabular-nums">
-                            <span className="text-slate-700">{cell.ganhos}/{cell.leads}</span>
-                            <span className={cn(
-                              'ml-1 text-xs',
-                              cell.conversao_pct >= 30 ? 'text-emerald-700'
-                              : cell.conversao_pct > 0 ? 'text-amber-700'
-                              : 'text-slate-400'
-                            )}>
-                              ({cell.conversao_pct?.toFixed(0) ?? 0}%)
-                            </span>
+                            <button
+                              onClick={() => openPlannerOrigem(p.id, p.nome, o)}
+                              className="hover:bg-indigo-50 rounded px-1 py-0.5"
+                              title="Ver cards desse cruzamento"
+                            >
+                              <span className="text-slate-700">{cell.ganhos}/{cell.leads}</span>
+                              <span className={cn(
+                                'ml-1 text-xs',
+                                cell.conversao_pct >= 30 ? 'text-emerald-700'
+                                : cell.conversao_pct > 0 ? 'text-amber-700'
+                                : 'text-slate-400'
+                              )}>
+                                ({cell.conversao_pct?.toFixed(0) ?? 0}%)
+                              </span>
+                            </button>
                           </td>
                         )
                       })}
@@ -551,16 +617,16 @@ export default function PlannerView() {
               </tbody>
             </table>
             <p className="text-xs text-slate-400 mt-3">
-              Formato: <span className="font-medium">ganhos/leads (% conversão)</span>. Total inclui leads de todas as origens recebidos pelo Planner no período.
+              Formato: <span className="font-medium">ganhos/leads (% sucesso)</span>. Clique no nome pra ver tudo dele, ou numa célula pra ver o cruzamento.
             </p>
           </div>
         )}
       </WidgetCard>
 
-      {/* Origem dos leads que o Planner recebeu */}
+      {/* Origem dos leads (linha clicável vira filtro global) */}
       <WidgetCard
         title="De onde vieram os leads no período"
-        subtitle="Útil pra comparar conversão por canal — lead de indicação geralmente fecha melhor que mkt"
+        subtitle="Clique numa linha pra filtrar a página inteira por aquela origem."
       >
         {resumo.isLoading ? (
           <div className="h-32 bg-slate-50 rounded-lg animate-pulse" />
@@ -583,10 +649,17 @@ export default function PlannerView() {
               <tbody>
                 {resumo.data.por_origem.map(row => {
                   const conv = row.leads > 0 ? Math.round((row.ganhos / row.leads) * 100) : 0
+                  const isActive = origins.includes(row.origem)
                   return (
-                    <tr key={row.origem} className="border-b border-slate-50 hover:bg-slate-50">
+                    <tr
+                      key={row.origem}
+                      onClick={() => openLeadsByOrigin(row.origem)}
+                      className={cn('border-b border-slate-50 hover:bg-indigo-50 cursor-pointer', isActive && 'bg-indigo-50')}
+                    >
                       <td className="py-2.5 text-slate-900 font-medium">
-                        {ORIGEM_LABELS[row.origem] ?? row.origem}
+                        <span className="hover:text-indigo-700 hover:underline">
+                          {ORIGEM_LABELS[row.origem] ?? row.origem}
+                        </span>
                       </td>
                       <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.leads}</td>
                       <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.ganhos}</td>

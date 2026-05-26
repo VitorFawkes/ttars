@@ -1,15 +1,16 @@
-import { useState } from 'react'
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Inbox, MessageCircle, CalendarCheck, Trophy, Loader2, ArrowRightLeft } from 'lucide-react'
 import KpiCard from '@/components/analytics/KpiCard'
 import { useFunnelConversion, useLossReasons } from '@/hooks/analytics/useFunnelConversion'
 import { useTeamLeaderboard } from '@/hooks/analytics/useTeamLeaderboard'
-import { useTeamPerformance } from '@/hooks/analytics/useTeamPerformance'
 import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { useResumoOverview, useResumoOverviewPrevious } from '@/hooks/analytics/useResumoOverview'
+import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
+import { useFilterProfilesWithRole } from '@/hooks/analytics/useFilterOptions'
 import { supabase } from '@/lib/supabase'
-import { formatCurrency } from '@/utils/whatsappFormatters'
 import WidgetCard from './WidgetCard'
+import SimpleFilterBar from './SimpleFilterBar'
 import { cn } from '@/lib/utils'
 
 interface SdrFollowThroughRow {
@@ -48,12 +49,11 @@ function useSdrFollowThroughLocal() {
 }
 
 // Etapas reconhecidas como marcos do funil SDR. Usado para cards de KPI.
-// O matcher é por substring lowercase para sobreviver a variações ("Conectado", "Lead Conectado" etc).
 const SDR_MILESTONES: Array<{ key: string; label: string; match: (n: string) => boolean }> = [
-  { key: 'novo', label: 'Novos leads', match: n => /novo\s*lead|entrada/i.test(n) },
+  { key: 'novo', label: 'Novos leads', match: n => /novo\s*lead|entrada|primeiro/i.test(n) },
   { key: 'conectado', label: 'Conectados', match: n => /conectad/i.test(n) },
-  { key: 'reuniao', label: 'Reunião agendada', match: n => /reuni[aã]o|meeting/i.test(n) },
-  { key: 'qualificado', label: 'Qualificados (Apresentação)', match: n => /apresenta[cç][aã]o|qualif/i.test(n) },
+  { key: 'reuniao', label: 'Reunião agendada', match: n => /reuni[aã]o|meeting|agendad/i.test(n) },
+  { key: 'qualificado', label: 'Qualificados', match: n => /apresenta[cç][aã]o|qualif/i.test(n) },
 ]
 
 const ORIGEM_LABELS: Record<string, string> = {
@@ -86,33 +86,77 @@ function ConversionBadge({ rate }: { rate: number }) {
 }
 
 export default function SdrView() {
-  const [individualUser, setIndividualUser] = useState<string | null>(null)
-  void individualUser // placeholder para futuro drawer
-
   const funnel = useFunnelConversion()
   const lossReasons = useLossReasons()
   const leaderboard = useTeamLeaderboard()
-  const sdrPerf = useTeamPerformance('sdr')
   const resumo = useResumoOverview()
   const resumoPrev = useResumoOverviewPrevious()
   const followThrough = useSdrFollowThroughLocal()
+  const profilesByRole = useFilterProfilesWithRole()
+  const drillDown = useDrillDownStore()
+  const { origins, setOrigins } = useAnalyticsFilters()
 
-  const prevLeads = resumoPrev.data?.empresa.kpis.leads_entrada
-  const prevGanhos = resumoPrev.data?.empresa.kpis.ganhos
+  // IDs de quem é SDR de verdade (role='sdr') no workspace atual
+  const sdrIds = useMemo(() => {
+    const set = new Set<string>()
+    for (const p of profilesByRole.data ?? []) {
+      if (p.role === 'sdr') set.add(p.id)
+    }
+    return set
+  }, [profilesByRole.data])
 
-  // Filtra apenas etapas SDR do funil
-  const sdrStages = (funnel.data ?? []).filter(s => s.phase_slug === 'sdr').sort((a, b) => a.ordem - b.ordem)
+  // Etapas SDR ordenadas
+  const sdrStages = useMemo(() => {
+    return (funnel.data ?? []).filter(s => s.phase_slug === 'sdr').sort((a, b) => a.ordem - b.ordem)
+  }, [funnel.data])
   const topStage = sdrStages[0]
   const topCount = topStage?.current_count ?? 0
 
-  // Resolve KPIs hero a partir das etapas do funil
-  const milestoneCounts = SDR_MILESTONES.map(m => {
-    const stage = sdrStages.find(s => m.match(s.stage_nome))
-    return { ...m, count: stage?.current_count ?? 0 }
-  })
+  // Marcos do funil mapeados pelas etapas reais
+  const milestoneStages = useMemo(() => {
+    return SDR_MILESTONES.map(m => {
+      const stage = sdrStages.find(s => m.match(s.stage_nome))
+      return { ...m, stage }
+    })
+  }, [sdrStages])
 
-  // Leaderboard só com quem atua em SDR
-  const sdrLeaderboard = (leaderboard.data ?? []).filter(row => row.fases.includes('sdr'))
+  // Leaderboard só com profiles que TÊM role='sdr'
+  const sdrLeaderboard = useMemo(() => {
+    return (leaderboard.data ?? []).filter(row => sdrIds.has(row.user_id))
+  }, [leaderboard.data, sdrIds])
+
+  // Quando há filtro de pessoa global ativo, exibe info
+  const prevLeads = resumoPrev.data?.empresa.kpis.leads_entrada
+
+  const openCardsInStage = (stageId: string, stageName: string) => {
+    drillDown.open({
+      label: `Cards na etapa: ${stageName}`,
+      drillStageId: stageId,
+      drillSource: 'current_stage',
+    })
+  }
+
+  const openCardsByOwner = (ownerId: string, ownerName: string) => {
+    drillDown.open({
+      label: `Cards de ${ownerName}`,
+      drillSource: 'current_stage',
+      drillOwnerId: ownerId,
+    })
+  }
+
+  const openLostCards = (reason?: string) => {
+    drillDown.open({
+      label: reason ? `Perdidos: ${reason}` : 'Cards perdidos',
+      drillSource: 'lost_deals',
+      drillLossReason: reason,
+      drillStatus: 'perdido',
+    })
+  }
+
+  const openLeadsByOrigin = (origem: string) => {
+    // Filtro global de origem — re-filtra toda a página
+    setOrigins([origem])
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -120,58 +164,76 @@ export default function SdrView() {
         <h1 className="text-2xl font-bold text-slate-900 tracking-tight">SDR — Pré-venda</h1>
         <p className="text-sm text-slate-500 mt-1">
           Atividade de quem qualifica os leads que entram: quantos chegaram, quantos conectaram,
-          quantos viraram reunião e quantos foram passados pro Planner.
+          quantos viraram reunião e quantos foram passados pro Planner. Clique em qualquer número pra ver os leads.
         </p>
       </header>
 
-      {/* KPIs hero — funil em números */}
+      <SimpleFilterBar roleFilter="sdr" myButtonLabel="Meus leads" />
+
+      {/* Aviso quando há filtro de origem global ativo */}
+      {origins.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center justify-between">
+          <span className="text-xs text-amber-800">
+            Filtrando por origem: <strong>{origins.map(o => ORIGEM_LABELS[o] ?? o).join(', ')}</strong>
+          </span>
+          <button onClick={() => setOrigins([])} className="text-xs text-amber-700 underline">
+            limpar
+          </button>
+        </div>
+      )}
+
+      {/* KPIs hero — funil em números, clicáveis */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           title="Novos leads no período"
-          value={milestoneCounts[0].count || resumo.data?.empresa.kpis.leads_entrada || 0}
+          value={milestoneStages[0].stage?.current_count ?? resumo.data?.empresa.kpis.leads_entrada ?? 0}
           icon={Inbox}
           color="text-blue-600"
           bgColor="bg-blue-50"
           isLoading={funnel.isLoading}
           delta={prevLeads !== undefined ? {
-            current: milestoneCounts[0].count || resumo.data?.empresa.kpis.leads_entrada || 0,
+            current: milestoneStages[0].stage?.current_count ?? 0,
             previous: prevLeads,
           } : undefined}
+          onClick={milestoneStages[0].stage ? () => openCardsInStage(milestoneStages[0].stage!.stage_id, milestoneStages[0].stage!.stage_nome) : undefined}
+          clickHint={milestoneStages[0].stage ? 'Ver leads →' : undefined}
         />
         <KpiCard
           title="Conectados"
-          value={milestoneCounts[1].count}
+          value={milestoneStages[1].stage?.current_count ?? 0}
           icon={MessageCircle}
           color="text-indigo-600"
           bgColor="bg-indigo-50"
           isLoading={funnel.isLoading}
+          onClick={milestoneStages[1].stage ? () => openCardsInStage(milestoneStages[1].stage!.stage_id, milestoneStages[1].stage!.stage_nome) : undefined}
+          clickHint={milestoneStages[1].stage ? 'Ver leads →' : undefined}
         />
         <KpiCard
           title="Reuniões agendadas"
-          value={milestoneCounts[2].count}
+          value={milestoneStages[2].stage?.current_count ?? 0}
           icon={CalendarCheck}
           color="text-purple-600"
           bgColor="bg-purple-50"
           isLoading={funnel.isLoading}
+          onClick={milestoneStages[2].stage ? () => openCardsInStage(milestoneStages[2].stage!.stage_id, milestoneStages[2].stage!.stage_nome) : undefined}
+          clickHint={milestoneStages[2].stage ? 'Ver leads →' : undefined}
         />
         <KpiCard
           title="Qualificados (passados pro Planner)"
-          value={milestoneCounts[3].count}
+          value={milestoneStages[3].stage?.current_count ?? 0}
           icon={Trophy}
           color="text-emerald-600"
           bgColor="bg-emerald-50"
           isLoading={funnel.isLoading}
-          delta={prevGanhos !== undefined ? {
-            current: milestoneCounts[3].count,
-            previous: prevGanhos,
-          } : undefined}
+          onClick={milestoneStages[3].stage ? () => openCardsInStage(milestoneStages[3].stage!.stage_id, milestoneStages[3].stage!.stage_nome) : undefined}
+          clickHint={milestoneStages[3].stage ? 'Ver leads →' : undefined}
         />
       </div>
 
-      {/* Funil SDR — etapas com conversão a partir do topo */}
+      {/* Funil SDR — barras clicáveis */}
       <WidgetCard
         title="Funil de qualificação SDR"
-        subtitle="Cada etapa mostra quantos cards passaram e a % em relação ao primeiro passo (novos leads)"
+        subtitle="Quantos cards estão em cada etapa e a % em relação ao primeiro passo. Clique numa barra pra ver os cards."
       >
         {funnel.isLoading ? (
           <div className="h-40 flex items-center justify-center text-slate-400">
@@ -186,12 +248,16 @@ export default function SdrView() {
             {sdrStages.map(stage => {
               const conv = topCount > 0 ? (stage.current_count / topCount) * 100 : 0
               return (
-                <div key={stage.stage_id} className="flex items-center gap-3">
-                  <span className="text-sm text-slate-700 w-48 truncate">{stage.stage_nome}</span>
+                <button
+                  key={stage.stage_id}
+                  onClick={() => openCardsInStage(stage.stage_id, stage.stage_nome)}
+                  className="w-full flex items-center gap-3 px-2 py-1.5 rounded-md hover:bg-indigo-50 transition-colors group"
+                >
+                  <span className="text-sm text-slate-700 group-hover:text-indigo-700 w-48 truncate text-left">{stage.stage_nome}</span>
                   <div className="flex-1 bg-slate-100 rounded h-6 overflow-hidden">
                     <div
-                      className="bg-indigo-500 h-full transition-all"
-                      style={{ width: `${Math.max(2, conv)}%` }}
+                      className="bg-indigo-500 group-hover:bg-indigo-600 h-full transition-all"
+                      style={{ width: `${Math.max(2, Math.min(100, conv))}%` }}
                     />
                   </div>
                   <span className="w-12 text-sm text-slate-700 tabular-nums text-right">
@@ -200,25 +266,28 @@ export default function SdrView() {
                   <span className="w-14 text-right">
                     <ConversionBadge rate={conv} />
                   </span>
-                </div>
+                </button>
               )
             })}
           </div>
         )}
       </WidgetCard>
 
-      {/* Leaderboard SDR */}
+      {/* Leaderboard SDR — só quem tem role='sdr', clicável */}
       <WidgetCard
         title="Ranking dos SDRs"
-        subtitle="Quem atua em SDR no período — leads na carteira, qualificados, perdidos"
+        subtitle={`Apenas pessoas com função SDR (${sdrIds.size} no workspace). Clique numa pessoa pra ver os cards dela.`}
       >
-        {leaderboard.isLoading ? (
+        {leaderboard.isLoading || profilesByRole.isLoading ? (
           <div className="h-40 flex items-center justify-center text-slate-400">
             <Loader2 className="w-5 h-5 animate-spin" />
           </div>
         ) : sdrLeaderboard.length === 0 ? (
-          <div className="h-32 flex items-center justify-center text-sm text-slate-400">
-            Nenhum SDR atuou no período
+          <div className="h-32 flex items-center justify-center text-sm text-slate-400 flex-col gap-1">
+            <p>Nenhum SDR atuou no período</p>
+            {sdrIds.size === 0 && (
+              <p className="text-xs text-slate-300">Nenhuma pessoa com função SDR cadastrada — configure em Configurações &gt; Times</p>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -237,15 +306,14 @@ export default function SdrView() {
               </thead>
               <tbody>
                 {sdrLeaderboard.map((row, idx) => (
-                  <tr key={row.user_id} className="border-b border-slate-50 hover:bg-slate-50">
+                  <tr
+                    key={row.user_id}
+                    className="border-b border-slate-50 hover:bg-indigo-50 cursor-pointer"
+                    onClick={() => openCardsByOwner(row.user_id, row.user_nome)}
+                  >
                     <td className="py-2.5 text-slate-400 tabular-nums">{idx + 1}</td>
                     <td className="py-2.5 text-slate-900 font-medium">
-                      <button
-                        onClick={() => setIndividualUser(row.user_id)}
-                        className="hover:text-indigo-600 hover:underline text-left"
-                      >
-                        {row.user_nome}
-                      </button>
+                      <span className="hover:text-indigo-700 hover:underline">{row.user_nome}</span>
                     </td>
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.cards_envolvidos}</td>
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.cards_ganhos}</td>
@@ -283,7 +351,7 @@ export default function SdrView() {
       {/* Handoffs → Venda no Planner */}
       <WidgetCard
         title="Handoffs do SDR que viraram venda"
-        subtitle="De cada SDR — quantos leads ele passou e quantos depois fecharam venda com o Planner"
+        subtitle="De cada SDR — quantos leads ele passou e quantos depois fecharam venda com o Planner. Clique pra ver os cards."
         action={<ArrowRightLeft className="w-4 h-4 text-slate-300" />}
       >
         {followThrough.isLoading ? (
@@ -336,8 +404,16 @@ export default function SdrView() {
                   </thead>
                   <tbody>
                     {followThrough.data.by_sdr.map(row => (
-                      <tr key={row.sdr_id ?? row.sdr_name ?? 'sem'} className="border-b border-slate-50 hover:bg-slate-50">
-                        <td className="py-2.5 text-slate-900 font-medium">{row.sdr_name ?? 'Sem SDR atribuído'}</td>
+                      <tr
+                        key={row.sdr_id ?? row.sdr_name ?? 'sem'}
+                        className={cn('border-b border-slate-50', row.sdr_id && 'hover:bg-indigo-50 cursor-pointer')}
+                        onClick={row.sdr_id ? () => openCardsByOwner(row.sdr_id!, row.sdr_name ?? '') : undefined}
+                      >
+                        <td className="py-2.5 text-slate-900 font-medium">
+                          <span className={row.sdr_id ? 'hover:text-indigo-700 hover:underline' : 'text-slate-400'}>
+                            {row.sdr_name ?? 'Sem SDR atribuído'}
+                          </span>
+                        </td>
                         <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.total}</td>
                         <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.won}</td>
                         <td className="py-2.5 text-right">
@@ -353,63 +429,10 @@ export default function SdrView() {
         )}
       </WidgetCard>
 
-      {/* Performance SDR detalhada (com ciclo) */}
-      <WidgetCard
-        title="Detalhe por SDR"
-        subtitle="Conversão, ticket médio dos leads passados e tempo médio até qualificar"
-      >
-        {sdrPerf.isLoading ? (
-          <div className="h-40 flex items-center justify-center text-slate-400">
-            <Loader2 className="w-5 h-5 animate-spin" />
-          </div>
-        ) : !sdrPerf.data || sdrPerf.data.length === 0 ? (
-          <div className="h-32 flex items-center justify-center text-sm text-slate-400">
-            Sem dados de performance SDR no período
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 text-xs text-slate-500 uppercase tracking-wider">
-                  <th className="text-left py-2 font-medium">Pessoa</th>
-                  <th className="text-right py-2 font-medium">Total</th>
-                  <th className="text-right py-2 font-medium">Qualificados</th>
-                  <th className="text-right py-2 font-medium">Perdidos</th>
-                  <th className="text-right py-2 font-medium">Abertos</th>
-                  <th className="text-right py-2 font-medium">% Sucesso</th>
-                  <th className="text-right py-2 font-medium">Ticket médio</th>
-                  <th className="text-right py-2 font-medium">Dias até qualificar</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sdrPerf.data.map(row => (
-                  <tr key={row.user_id} className="border-b border-slate-50 hover:bg-slate-50">
-                    <td className="py-2.5 text-slate-900 font-medium">{row.user_nome}</td>
-                    <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.total_cards}</td>
-                    <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.won_cards}</td>
-                    <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.lost_cards}</td>
-                    <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.open_cards}</td>
-                    <td className="py-2.5 text-right">
-                      <ConversionBadge rate={row.conversion_rate} />
-                    </td>
-                    <td className="py-2.5 text-right text-slate-700 tabular-nums">
-                      {formatCurrency(row.ticket_medio)}
-                    </td>
-                    <td className="py-2.5 text-right text-slate-700 tabular-nums">
-                      {row.ciclo_medio_dias > 0 ? row.ciclo_medio_dias.toFixed(0) : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </WidgetCard>
-
-      {/* Motivos de perda */}
+      {/* Motivos de perda — clicáveis */}
       <WidgetCard
         title="Por que perdemos leads no SDR"
-        subtitle="Os motivos mais frequentes — o ideal é o time preencher um motivo específico em cada perda"
+        subtitle="Motivos mais frequentes. Clique pra ver os cards perdidos por aquele motivo."
       >
         {lossReasons.isLoading ? (
           <div className="h-40 flex items-center justify-center text-slate-400">
@@ -422,13 +445,17 @@ export default function SdrView() {
         ) : (
           <div className="space-y-2">
             {lossReasons.data.map(reason => (
-              <div key={reason.motivo} className="flex items-center gap-3">
-                <span className="text-sm text-slate-700 w-72 truncate" title={reason.motivo}>
+              <button
+                key={reason.motivo}
+                onClick={() => openLostCards(reason.motivo)}
+                className="w-full flex items-center gap-3 px-2 py-1.5 rounded-md hover:bg-rose-50 transition-colors group"
+              >
+                <span className="text-sm text-slate-700 group-hover:text-rose-700 w-72 truncate text-left" title={reason.motivo}>
                   {reason.motivo || 'Sem motivo informado'}
                 </span>
                 <div className="flex-1 bg-slate-100 rounded h-5 overflow-hidden">
                   <div
-                    className="bg-rose-400 h-full"
+                    className="bg-rose-400 group-hover:bg-rose-500 h-full"
                     style={{ width: `${Math.max(2, reason.percentage)}%` }}
                   />
                 </div>
@@ -436,16 +463,16 @@ export default function SdrView() {
                 <span className="w-12 text-sm text-rose-700 tabular-nums text-right">
                   {reason.percentage.toFixed(0)}%
                 </span>
-              </div>
+              </button>
             ))}
           </div>
         )}
       </WidgetCard>
 
-      {/* Leads por origem */}
+      {/* Leads por origem — clicáveis */}
       <WidgetCard
         title="De onde vieram os leads"
-        subtitle="Quantos leads entraram por cada canal no período"
+        subtitle="Quantos leads entraram por cada canal. Clique numa linha pra filtrar a página inteira por aquela origem."
       >
         {resumo.isLoading ? (
           <div className="h-32 bg-slate-50 rounded-lg animate-pulse" />
@@ -462,30 +489,36 @@ export default function SdrView() {
                   <th className="text-right py-2 font-medium">Leads</th>
                   <th className="text-right py-2 font-medium">Ganhos</th>
                   <th className="text-right py-2 font-medium">% Sucesso</th>
-                  <th className="text-right py-2 font-medium">Faturamento</th>
                 </tr>
               </thead>
               <tbody>
                 {resumo.data.por_origem.map(row => {
                   const conv = row.leads > 0 ? Math.round((row.ganhos / row.leads) * 100) : 0
+                  const isActive = origins.includes(row.origem)
                   return (
-                    <tr key={row.origem} className="border-b border-slate-50 hover:bg-slate-50">
+                    <tr
+                      key={row.origem}
+                      onClick={() => openLeadsByOrigin(row.origem)}
+                      className={cn('border-b border-slate-50 hover:bg-indigo-50 cursor-pointer', isActive && 'bg-indigo-50')}
+                    >
                       <td className="py-2.5 text-slate-900 font-medium">
-                        {ORIGEM_LABELS[row.origem] ?? row.origem}
+                        <span className="hover:text-indigo-700 hover:underline">
+                          {ORIGEM_LABELS[row.origem] ?? row.origem}
+                        </span>
                       </td>
                       <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.leads}</td>
                       <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.ganhos}</td>
                       <td className="py-2.5 text-right">
                         <ConversionBadge rate={conv} />
                       </td>
-                      <td className="py-2.5 text-right text-slate-700 tabular-nums">
-                        {formatCurrency(row.faturamento)}
-                      </td>
                     </tr>
                   )
                 })}
               </tbody>
             </table>
+            <p className="text-xs text-slate-400 mt-3">
+              Clicar numa origem aplica como filtro nessa página. Volte limpando o filtro no topo.
+            </p>
           </div>
         )}
       </WidgetCard>

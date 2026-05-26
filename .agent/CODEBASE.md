@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-26
 > **Trigger:** ALWAYS ON
-> **Stats:** 209 tabelas | 210 paginas | 339 hooks | 23 views | 797 components
+> **Stats:** 209 tabelas | 211 paginas | 339 hooks | 23 views | 797 components
 
 ---
 
@@ -587,7 +587,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **210 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **211 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -728,6 +728,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `SLAView` | `src/pages/analytics-new/SLAView.tsx` |
 | `SaudeView` | `src/pages/analytics-new/SaudeView.tsx` |
 | `SdrView` | `src/pages/analytics-new/SdrView.tsx` |
+| `SimpleFilterBar` | `src/pages/analytics-new/SimpleFilterBar.tsx` |
 | `TeamView` | `src/pages/analytics-new/TeamView.tsx` |
 | `UnderConstruction` | `src/pages/analytics-new/UnderConstruction.tsx` |
 | `WhatsAppView` | `src/pages/analytics-new/WhatsAppView.tsx` |
