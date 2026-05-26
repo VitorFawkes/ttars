@@ -40,20 +40,20 @@ export default function AnalyticsWeddingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="h-full overflow-y-auto bg-slate-50">
       <div className="max-w-[1600px] mx-auto p-6 space-y-5">
         <Header />
         <FilterBar />
-        <div className="flex gap-5">
+        <div className="flex gap-5 items-start">
           <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
-          <main className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0">
             {activeTab === 'visao' && <VisaoGeral />}
             {activeTab === 'jornada' && <Jornada />}
             {activeTab === 'equipe' && <Equipe />}
             {activeTab === 'qualidade' && <Qualidade />}
             {activeTab === 'marketing' && <Marketing />}
             {activeTab === 'perdas' && <Perdas />}
-          </main>
+          </div>
         </div>
       </div>
     </div>
