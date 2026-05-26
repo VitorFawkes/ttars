@@ -184,78 +184,88 @@ function Dimensao({ title, stats, sumario, transicoes, onDrill, tipoLabel }: {
   return (
     <SectionCard
       title={title}
-      subtitle={`Universo: ${stats.com_ambos} leads (têm entrada E refinado). ${stats.manteve} mantiveram (${pctManteve}%), ${stats.mudou} mudaram.`}
+      subtitle={`Universo: ${formatNumber(stats.com_ambos)} leads · ${formatNumber(stats.manteve)} mantiveram (${pctManteve}%) · ${formatNumber(stats.mudou)} mudaram`}
     >
       <div className="mb-4 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded p-2.5">
         💡 <strong>Insight:</strong> {insight}
       </div>
 
-      <table className="w-full text-xs">
-        <thead className="text-left text-slate-500 border-b border-slate-200">
-          <tr>
-            <th className="py-2 font-medium">Disse no site</th>
-            <th className="py-2 font-medium text-right">Leads</th>
-            <th className="py-2 font-medium text-right">Manteve</th>
-            <th className="py-2 font-medium text-right">Subiu</th>
-            <th className="py-2 font-medium text-right">Desceu</th>
-            <th className="py-2 font-medium" style={{ width: '30%' }}>Distribuição</th>
-            <th className="py-2 font-medium">Quando muda, vai pra…</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sumario.map((s) => {
-            const w_manteve = (s.manteve / s.total) * 100
-            const w_subiu = (s.subiu / s.total) * 100
-            const w_desceu = (s.desceu / s.total) * 100
-            return (
-              <tr key={s.entrada} className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => onDrill(s.entrada)}>
-                <td className="py-2 font-medium text-slate-900">
-                  {s.entrada}
-                  {!s.amostra_suficiente && <span className="ml-1 text-[10px] text-amber-600">(n&lt;10)</span>}
-                </td>
-                <td className="py-2 text-right tabular-nums">{formatNumber(s.total)}</td>
-                <td className="py-2 text-right tabular-nums text-emerald-700 font-medium">{s.manteve}</td>
-                <td className="py-2 text-right tabular-nums text-amber-700">{s.subiu || ''}</td>
-                <td className="py-2 text-right tabular-nums text-rose-600">{s.desceu || ''}</td>
-                <td className="py-2">
-                  <div className="h-2.5 bg-slate-100 rounded-sm overflow-hidden flex">
-                    {w_manteve > 0 && <div className="bg-emerald-500" style={{ width: `${w_manteve}%` }} title={`${s.manteve} mantiveram`} />}
-                    {w_subiu > 0 && <div className="bg-amber-400" style={{ width: `${w_subiu}%` }} title={`${s.subiu} subiram`} />}
-                    {w_desceu > 0 && <div className="bg-rose-400" style={{ width: `${w_desceu}%` }} title={`${s.desceu} desceram`} />}
-                  </div>
-                  <div className="text-[10px] text-slate-500 mt-1 tabular-nums">{s.pct_manteve}% manteve</div>
-                </td>
-                <td className="py-2 text-slate-700">
-                  {s.top_destino ? <span className="text-amber-700">{s.top_destino}</span> : <span className="text-slate-300">—</span>}
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        {sumario.map((s) => <FaixaCard key={s.entrada} s={s} onClick={() => onDrill(s.entrada)} />)}
+      </div>
 
       {transicoes.length > 0 && (
-        <div className="mt-4 pt-3 border-t border-slate-100">
-          <div className="text-xs font-medium text-slate-700 mb-2">Todas as transições (de → para)</div>
+        <div className="mt-5 pt-4 border-t border-slate-100">
+          <div className="text-xs font-medium text-slate-700 mb-2">Todas as mudanças (de → para):</div>
           <div className="flex flex-wrap gap-2">
             {transicoes.map((t, i) => (
-              <div key={i} className="bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1 text-xs">
+              <div key={i} className="bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1 text-xs whitespace-nowrap">
                 <span className="text-slate-700">{t.de}</span>
-                <span className="text-amber-600 mx-1">→</span>
+                <span className="text-amber-600 mx-1.5">→</span>
                 <span className="font-medium text-slate-900">{t.para}</span>
-                <span className="text-slate-400 ml-1.5 tabular-nums">×{t.qtd}</span>
+                <span className="text-slate-500 ml-2 tabular-nums">{t.qtd} {t.qtd === 1 ? 'lead' : 'leads'}</span>
               </div>
             ))}
           </div>
         </div>
       )}
-
-      <p className="mt-3 text-[11px] text-slate-500">
-        <span className="inline-block w-3 h-2 bg-emerald-500 align-middle mr-1 rounded-sm" /> manteve ·
-        <span className="inline-block w-3 h-2 bg-amber-400 align-middle mx-1 rounded-sm" /> subiu (mais que disse) ·
-        <span className="inline-block w-3 h-2 bg-rose-400 align-middle mx-1 rounded-sm" /> desceu (menos que disse)
-      </p>
     </SectionCard>
+  )
+}
+
+function FaixaCard({ s, onClick }: { s: SumarioOrdenavel; onClick: () => void }) {
+  const pct = s.pct_manteve ?? 0
+  const corPct = pct >= 95 ? 'text-emerald-700' : pct >= 80 ? 'text-amber-700' : 'text-rose-600'
+  const corBg = pct >= 95 ? 'bg-emerald-50 border-emerald-200' : pct >= 80 ? 'bg-amber-50 border-amber-200' : 'bg-rose-50 border-rose-200'
+  const w_manteve = (s.manteve / s.total) * 100
+  const w_subiu = (s.subiu / s.total) * 100
+  const w_desceu = (s.desceu / s.total) * 100
+
+  return (
+    <button onClick={onClick} className={`text-left bg-white border ${corBg} rounded-xl p-4 hover:shadow-md transition`}>
+      <div className="flex items-baseline justify-between mb-2">
+        <div className="text-sm font-semibold text-slate-900">
+          {s.entrada}
+          {!s.amostra_suficiente && <span className="ml-1.5 text-[10px] text-amber-600 font-normal">amostra pequena</span>}
+        </div>
+        <div className={`text-xl font-bold tabular-nums ${corPct}`}>{pct}%</div>
+      </div>
+      <div className="text-[11px] text-slate-500 mb-3">
+        {formatNumber(s.total)} {s.total === 1 ? 'lead' : 'leads'} no universo
+      </div>
+
+      {/* Barra de distribuição */}
+      <div className="h-3 bg-slate-100 rounded-full overflow-hidden flex mb-2">
+        {w_manteve > 0 && <div className="bg-emerald-500 transition-all" style={{ width: `${w_manteve}%` }} />}
+        {w_subiu > 0 && <div className="bg-amber-400 transition-all" style={{ width: `${w_subiu}%` }} />}
+        {w_desceu > 0 && <div className="bg-rose-400 transition-all" style={{ width: `${w_desceu}%` }} />}
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 text-[11px]">
+        <div>
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 align-middle" />
+          <span className="text-slate-500">Manteve</span>
+          <div className="font-semibold text-slate-900 tabular-nums">{formatNumber(s.manteve)}</div>
+        </div>
+        <div>
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 mr-1 align-middle" />
+          <span className="text-slate-500">Subiu</span>
+          <div className={`font-semibold tabular-nums ${s.subiu > 0 ? 'text-amber-700' : 'text-slate-300'}`}>{formatNumber(s.subiu)}</div>
+        </div>
+        <div>
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-rose-400 mr-1 align-middle" />
+          <span className="text-slate-500">Desceu</span>
+          <div className={`font-semibold tabular-nums ${s.desceu > 0 ? 'text-rose-600' : 'text-slate-300'}`}>{formatNumber(s.desceu)}</div>
+        </div>
+      </div>
+
+      {s.top_destino && (
+        <div className="mt-3 pt-3 border-t border-slate-100 text-[11px]">
+          <span className="text-slate-500">Quando muda, mais comum vai pra: </span>
+          <span className="font-medium text-amber-700">{s.top_destino}</span>
+        </div>
+      )}
+    </button>
   )
 }
 
@@ -347,42 +357,12 @@ function DimensaoDestino({ data, onDrill }: {
     <>
       <SectionCard
         title="🏝️ Destino — Entrada × Realidade"
-        subtitle={`Universo: ${stats.com_ambos} leads. ${stats.manteve} mantiveram (${pctManteve}%), ${stats.mudou} mudaram.`}
+        subtitle={`Universo: ${formatNumber(stats.com_ambos)} leads · ${formatNumber(stats.manteve)} mantiveram (${pctManteve}%) · ${formatNumber(stats.mudou)} mudaram`}
       >
         <div className="mb-4 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded p-2.5">💡 <strong>Insight:</strong> {insight}</div>
-        <table className="w-full text-xs">
-          <thead className="text-left text-slate-500 border-b border-slate-200">
-            <tr>
-              <th className="py-2 font-medium">Disse no site</th>
-              <th className="py-2 font-medium text-right">Leads</th>
-              <th className="py-2 font-medium text-right">Manteve</th>
-              <th className="py-2 font-medium text-right">Mudou</th>
-              <th className="py-2 font-medium text-right">%</th>
-              <th className="py-2 font-medium">Quando muda, vai pra…</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sumario.map((s) => (
-              <tr key={s.entrada} className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => onDrill(s.entrada)}>
-                <td className="py-2 font-medium text-slate-900">
-                  {s.entrada}
-                  {!s.amostra_suficiente && <span className="ml-1 text-[10px] text-amber-600">(n&lt;10)</span>}
-                </td>
-                <td className="py-2 text-right tabular-nums">{formatNumber(s.total)}</td>
-                <td className="py-2 text-right tabular-nums text-emerald-700 font-medium">{s.manteve}</td>
-                <td className="py-2 text-right tabular-nums text-amber-700">{s.mudou || ''}</td>
-                <td className="py-2 text-right">
-                  <span className={`text-[11px] font-medium tabular-nums ${(s.pct_manteve ?? 0) >= 90 ? 'text-emerald-700' : (s.pct_manteve ?? 0) >= 70 ? 'text-amber-700' : 'text-rose-600'}`}>
-                    {s.pct_manteve}%
-                  </span>
-                </td>
-                <td className="py-2 text-slate-700">
-                  {s.top_destino ? <span className="text-amber-700">{s.top_destino}</span> : <span className="text-slate-300">—</span>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          {sumario.map((s) => <DestinoCard key={s.entrada} s={s} onClick={() => onDrill(s.entrada)} />)}
+        </div>
       </SectionCard>
 
       {top_transicoes.length > 0 && (
@@ -412,5 +392,53 @@ function DimensaoDestino({ data, onDrill }: {
         </SectionCard>
       )}
     </>
+  )
+}
+
+function DestinoCard({ s, onClick }: { s: SumarioDestino; onClick: () => void }) {
+  const pct = s.pct_manteve ?? 0
+  const corPct = pct >= 90 ? 'text-emerald-700' : pct >= 70 ? 'text-amber-700' : 'text-rose-600'
+  const corBg = pct >= 90 ? 'bg-emerald-50 border-emerald-200' : pct >= 70 ? 'bg-amber-50 border-amber-200' : 'bg-rose-50 border-rose-200'
+  const w_manteve = (s.manteve / s.total) * 100
+  const w_mudou = (s.mudou / s.total) * 100
+
+  return (
+    <button onClick={onClick} className={`text-left bg-white border ${corBg} rounded-xl p-4 hover:shadow-md transition`}>
+      <div className="flex items-baseline justify-between mb-2">
+        <div className="text-sm font-semibold text-slate-900">
+          {s.entrada}
+          {!s.amostra_suficiente && <span className="ml-1.5 text-[10px] text-amber-600 font-normal">amostra pequena</span>}
+        </div>
+        <div className={`text-xl font-bold tabular-nums ${corPct}`}>{pct}%</div>
+      </div>
+      <div className="text-[11px] text-slate-500 mb-3">
+        {formatNumber(s.total)} {s.total === 1 ? 'lead' : 'leads'} no universo
+      </div>
+
+      <div className="h-3 bg-slate-100 rounded-full overflow-hidden flex mb-2">
+        {w_manteve > 0 && <div className="bg-emerald-500 transition-all" style={{ width: `${w_manteve}%` }} />}
+        {w_mudou > 0 && <div className="bg-amber-400 transition-all" style={{ width: `${w_mudou}%` }} />}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 text-[11px]">
+        <div>
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 align-middle" />
+          <span className="text-slate-500">Manteve</span>
+          <div className="font-semibold text-slate-900 tabular-nums">{formatNumber(s.manteve)}</div>
+        </div>
+        <div>
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 mr-1 align-middle" />
+          <span className="text-slate-500">Mudou</span>
+          <div className={`font-semibold tabular-nums ${s.mudou > 0 ? 'text-amber-700' : 'text-slate-300'}`}>{formatNumber(s.mudou)}</div>
+        </div>
+      </div>
+
+      {s.top_destino && s.mudou > 0 && (
+        <div className="mt-3 pt-3 border-t border-slate-100 text-[11px]">
+          <span className="text-slate-500">Quando muda, mais comum vai pra: </span>
+          <span className="font-medium text-amber-700">{s.top_destino}</span>
+        </div>
+      )}
+    </button>
   )
 }
