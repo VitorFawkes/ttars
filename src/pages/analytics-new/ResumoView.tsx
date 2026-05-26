@@ -1,9 +1,11 @@
+import { useMemo } from 'react'
 import {
   TrendingUp, DollarSign, Trophy, Target, Users, ReceiptText, Calendar, Sparkles,
 } from 'lucide-react'
 import KpiCard from '@/components/analytics/KpiCard'
 import { useResumoOverview, useResumoOverviewPrevious } from '@/hooks/analytics/useResumoOverview'
 import { formatCurrency } from '@/utils/whatsappFormatters'
+import { getRankTier, rankBadgeClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
 import { cn } from '@/lib/utils'
 
@@ -41,6 +43,15 @@ export default function ResumoView() {
   const prevKpis = previous.data?.empresa.kpis
   const sparkline = data?.empresa.sparkline ?? []
   const maxSpark = Math.max(...sparkline.map(s => s.faturamento), 1)
+
+  // Amostra de conversões no período para rank relativo (top/meio/bottom 25%)
+  const convSample = useMemo(
+    () =>
+      (data?.por_origem ?? [])
+        .filter(r => r.leads > 0)
+        .map(r => Math.round((r.ganhos / r.leads) * 100)),
+    [data?.por_origem],
+  )
 
   return (
     <div className="flex flex-col gap-6">
@@ -211,6 +222,7 @@ export default function ResumoView() {
                 <tbody>
                   {data.por_origem.map(row => {
                     const conv = row.leads > 0 ? Math.round((row.ganhos / row.leads) * 100) : 0
+                    const tier = getRankTier(conv, convSample, 'higher_is_better')
                     return (
                       <tr key={row.origem} className="border-b border-slate-50 hover:bg-slate-50">
                         <td className="py-2.5 text-slate-900 font-medium">
@@ -222,10 +234,9 @@ export default function ResumoView() {
                           <span
                             className={cn(
                               'inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold',
-                              conv >= 30 ? 'bg-emerald-50 text-emerald-700' :
-                                conv >= 15 ? 'bg-amber-50 text-amber-700' :
-                                  'text-slate-500'
+                              rankBadgeClass(tier),
                             )}
+                            title={rankTierLabel(tier)}
                           >
                             {conv}%
                           </span>

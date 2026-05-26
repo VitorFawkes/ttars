@@ -1,7 +1,9 @@
+import { useMemo } from 'react'
 import { Repeat, Users, Trophy, Clock } from 'lucide-react'
 import KpiCard from '@/components/analytics/KpiCard'
 import { useRetencaoCohort } from '@/hooks/analytics/useRetencaoCohort'
 import { formatCurrency } from '@/utils/whatsappFormatters'
+import { getRankTier, rankBadgeClass, rankDotClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
 import { cn } from '@/lib/utils'
 
@@ -24,6 +26,9 @@ export default function RetentionView() {
       : 0
 
   const maxBucket = Math.max(...buckets.map(b => b.qtd), 1)
+
+  // Sample para comparar cohorts entre si — top 25% verde, bottom 25% vermelho
+  const cohortRetornoSample = useMemo(() => cohorts.map(c => c.taxa_retorno), [cohorts])
 
   return (
     <div className="flex flex-col gap-6">
@@ -98,37 +103,35 @@ export default function RetentionView() {
                 </tr>
               </thead>
               <tbody>
-                {cohorts.map(row => (
-                  <tr key={row.cohort_mes} className="border-b border-slate-50">
-                    <td className="py-2.5 text-slate-900 font-medium">{formatMes(row.cohort_mes)}</td>
-                    <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.tamanho}</td>
-                    <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.retornaram}</td>
-                    <td className="py-2.5 text-right tabular-nums">
-                      <span
-                        className={cn(
-                          'inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold',
-                          row.taxa_retorno >= 30 ? 'bg-emerald-50 text-emerald-700' :
-                            row.taxa_retorno >= 15 ? 'bg-amber-50 text-amber-700' :
-                              'text-slate-600'
-                        )}
-                      >
-                        {row.taxa_retorno}%
-                      </span>
-                    </td>
-                    <td className="py-2.5">
-                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden max-w-[200px]">
-                        <div
+                {cohorts.map(row => {
+                  const tier = getRankTier(row.taxa_retorno, cohortRetornoSample, 'higher_is_better')
+                  return (
+                    <tr key={row.cohort_mes} className="border-b border-slate-50">
+                      <td className="py-2.5 text-slate-900 font-medium">{formatMes(row.cohort_mes)}</td>
+                      <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.tamanho}</td>
+                      <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.retornaram}</td>
+                      <td className="py-2.5 text-right tabular-nums">
+                        <span
                           className={cn(
-                            'h-full',
-                            row.taxa_retorno >= 30 ? 'bg-emerald-500' :
-                              row.taxa_retorno >= 15 ? 'bg-amber-500' : 'bg-slate-400'
+                            'inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold',
+                            rankBadgeClass(tier),
                           )}
-                          style={{ width: `${Math.min(row.taxa_retorno * 2, 100)}%` }}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          title={rankTierLabel(tier)}
+                        >
+                          {row.taxa_retorno}%
+                        </span>
+                      </td>
+                      <td className="py-2.5">
+                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden max-w-[200px]">
+                          <div
+                            className={cn('h-full', rankDotClass(tier))}
+                            style={{ width: `${Math.min(row.taxa_retorno * 2, 100)}%` }}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

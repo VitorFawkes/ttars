@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import {
   Headphones,
   CheckCircle2,
@@ -8,6 +9,7 @@ import {
 } from 'lucide-react'
 import KpiCard from '@/components/analytics/KpiCard'
 import { useConciergeOverview, useConciergePendentes } from '@/hooks/analytics/useConciergeOverview'
+import { getRankTier, rankBadgeClass, rankTextClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
 import { cn } from '@/lib/utils'
 
@@ -47,6 +49,19 @@ export default function ConciergeView() {
   const maxVolumeMes = Math.max(...(data?.volume_mensal ?? []).map(v => v.qtd), 1)
   const maxPorTipo = Math.max(...(data?.por_tipo ?? []).map(t => t.qtd), 1)
   const maxPorCategoria = Math.max(...(data?.por_categoria ?? []).map(c => c.qtd), 1)
+
+  // Samples para coloração relativa nas tabelas (top/meio/bottom 25% do contexto)
+  const pendingHoursSample = useMemo(
+    () => (pendentes.data?.rows ?? []).map(r => r.horas_aberto),
+    [pendentes.data],
+  )
+  const conciergeTaxaSample = useMemo(
+    () =>
+      (data?.por_concierge ?? []).map(r =>
+        r.atendimentos > 0 ? Math.round((r.feitos / r.atendimentos) * 100) : 0,
+      ),
+    [data?.por_concierge],
+  )
 
   return (
     <div className="flex flex-col gap-6">
@@ -116,11 +131,7 @@ export default function ConciergeView() {
             </div>
             <div className="flex-1 min-w-[300px] h-3 bg-slate-100 rounded-full overflow-hidden">
               <div
-                className={cn(
-                  'h-full transition-all',
-                  taxaCobertura >= 70 ? 'bg-emerald-500' :
-                    taxaCobertura >= 40 ? 'bg-amber-500' : 'bg-rose-500'
-                )}
+                className="h-full bg-indigo-500 transition-all"
                 style={{ width: `${Math.min(taxaCobertura, 100)}%` }}
               />
             </div>
@@ -165,39 +176,40 @@ export default function ConciergeView() {
                 </tr>
               </thead>
               <tbody>
-                {pendentes.data.rows.map(row => (
-                  <tr key={row.atendimento_id} className="border-b border-slate-50 hover:bg-slate-50">
-                    <td className="py-2.5 text-slate-900 font-medium max-w-[220px] truncate">
-                      <a
-                        href={`/cards/${row.card_id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:text-indigo-600 inline-flex items-center gap-1"
-                      >
-                        {row.card_titulo}
-                        <ExternalLink className="w-3 h-3 opacity-50" />
-                      </a>
-                    </td>
-                    <td className="py-2.5 text-slate-600 text-xs">
-                      {TIPO_LABELS[row.tipo_concierge] ?? row.tipo_concierge}
-                    </td>
-                    <td className="py-2.5 text-slate-600 text-xs">{row.categoria.replace(/_/g, ' ')}</td>
-                    <td className="py-2.5 text-slate-600">{row.concierge_nome ?? '—'}</td>
-                    <td className="py-2.5 text-right tabular-nums">
-                      <span
-                        className={cn(
-                          'inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold',
-                          row.horas_aberto >= 48 ? 'bg-rose-100 text-rose-800' :
-                            row.horas_aberto >= 24 ? 'bg-orange-100 text-orange-800' :
-                              row.horas_aberto >= 8 ? 'bg-amber-100 text-amber-800' :
-                                'text-slate-600'
-                        )}
-                      >
-                        {formatHorasAberto(row.horas_aberto)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {pendentes.data.rows.map(row => {
+                  const tier = getRankTier(row.horas_aberto, pendingHoursSample, 'lower_is_better')
+                  return (
+                    <tr key={row.atendimento_id} className="border-b border-slate-50 hover:bg-slate-50">
+                      <td className="py-2.5 text-slate-900 font-medium max-w-[220px] truncate">
+                        <a
+                          href={`/cards/${row.card_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-indigo-600 inline-flex items-center gap-1"
+                        >
+                          {row.card_titulo}
+                          <ExternalLink className="w-3 h-3 opacity-50" />
+                        </a>
+                      </td>
+                      <td className="py-2.5 text-slate-600 text-xs">
+                        {TIPO_LABELS[row.tipo_concierge] ?? row.tipo_concierge}
+                      </td>
+                      <td className="py-2.5 text-slate-600 text-xs">{row.categoria.replace(/_/g, ' ')}</td>
+                      <td className="py-2.5 text-slate-600">{row.concierge_nome ?? '—'}</td>
+                      <td className="py-2.5 text-right tabular-nums">
+                        <span
+                          className={cn(
+                            'inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold',
+                            rankBadgeClass(tier),
+                          )}
+                          title={rankTierLabel(tier)}
+                        >
+                          {formatHorasAberto(row.horas_aberto)}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -317,17 +329,15 @@ export default function ConciergeView() {
               <tbody>
                 {data.por_concierge.map(row => {
                   const taxa = row.atendimentos > 0 ? Math.round((row.feitos / row.atendimentos) * 100) : 0
+                  const taxaTier = getRankTier(taxa, conciergeTaxaSample, 'higher_is_better')
                   return (
                     <tr key={row.user_id ?? 'sem'} className="border-b border-slate-50 hover:bg-slate-50">
                       <td className="py-2.5 text-slate-900 font-medium">{row.user_nome ?? '—'}</td>
                       <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.atendimentos}</td>
                       <td className="py-2.5 text-right tabular-nums">
                         <span
-                          className={cn(
-                            'text-slate-700',
-                            taxa >= 80 ? 'font-semibold text-emerald-700' :
-                              taxa < 50 ? 'font-semibold text-rose-700' : ''
-                          )}
+                          className={cn('font-semibold', rankTextClass(taxaTier))}
+                          title={rankTierLabel(taxaTier)}
                         >
                           {row.feitos} ({taxa}%)
                         </span>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Trophy, Target, Clock, Loader2, ListTodo, DollarSign, TrendingUp } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import KpiCard from '@/components/analytics/KpiCard'
@@ -10,6 +10,7 @@ import { useTeamIndividualEvolution } from '@/hooks/analytics/useTeamIndividualE
 import { useTeamTicketVariation } from '@/hooks/analytics/useTeamTicketVariation'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { formatCurrency } from '@/utils/whatsappFormatters'
+import { getRankTier, rankBadgeClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
 import { cn } from '@/lib/utils'
 
@@ -29,32 +30,34 @@ function pct(v: number): string {
   return `${v.toFixed(0)}%`
 }
 
-function WinRateBadge({ rate }: { rate: number }) {
-  const tone =
-    rate >= 50
-      ? 'bg-emerald-50 text-emerald-700'
-      : rate >= 30
-        ? 'bg-amber-50 text-amber-700'
-        : 'bg-rose-50 text-rose-700'
+function WinRateBadge({ rate, sample }: { rate: number; sample: readonly number[] }) {
+  const tier = getRankTier(rate, sample, 'higher_is_better')
   return (
-    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold tabular-nums', tone)}>
+    <span
+      className={cn(
+        'inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold tabular-nums',
+        rankBadgeClass(tier),
+      )}
+      title={rankTierLabel(tier)}
+    >
       {pct(rate)}
     </span>
   )
 }
 
-function ComplianceBadge({ rate }: { rate: number | null }) {
+function ComplianceBadge({ rate, sample }: { rate: number | null; sample: readonly (number | null)[] }) {
   if (rate === null) {
     return <span className="text-xs text-slate-400">—</span>
   }
-  const tone =
-    rate >= 90
-      ? 'bg-emerald-50 text-emerald-700'
-      : rate >= 70
-        ? 'bg-amber-50 text-amber-700'
-        : 'bg-rose-50 text-rose-700'
+  const tier = getRankTier(rate, sample, 'higher_is_better')
   return (
-    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold tabular-nums', tone)}>
+    <span
+      className={cn(
+        'inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold tabular-nums',
+        rankBadgeClass(tier),
+      )}
+      title={rankTierLabel(tier)}
+    >
       {pct(rate)}
     </span>
   )
@@ -72,6 +75,20 @@ export default function TeamView() {
 
   const leaderboardRows = (leaderboard.data ?? []).filter(row =>
     phaseFilter === 'all' ? true : row.fases.includes(phaseFilter)
+  )
+
+  // Samples para coloração relativa (top/meio/bottom 25% dentro do grupo visível)
+  const leaderboardWinRateSample = useMemo(
+    () => leaderboardRows.map(r => r.win_rate),
+    [leaderboardRows],
+  )
+  const phasePerfConvSample = useMemo(
+    () => (phasePerf.data ?? []).map(r => r.conversion_rate),
+    [phasePerf.data],
+  )
+  const slaComplianceSample = useMemo(
+    () => (sla.data ?? []).map(r => r.compliance_rate),
+    [sla.data],
   )
 
   const openOpenByOwner = (ownerId: string, ownerName: string) => {
@@ -223,7 +240,7 @@ export default function TeamView() {
                       </span>
                     </td>
                     <td className="py-2.5 text-right">
-                      <WinRateBadge rate={row.win_rate} />
+                      <WinRateBadge rate={row.win_rate} sample={leaderboardWinRateSample} />
                     </td>
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">
                       {formatCurrency(row.receita_total)}
@@ -330,7 +347,7 @@ export default function TeamView() {
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.lost_cards}</td>
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.open_cards}</td>
                     <td className="py-2.5 text-right">
-                      <WinRateBadge rate={row.conversion_rate} />
+                      <WinRateBadge rate={row.conversion_rate} sample={phasePerfConvSample} />
                     </td>
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">
                       {formatCurrency(row.ticket_medio)}
@@ -381,7 +398,7 @@ export default function TeamView() {
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.sla_cumpridas}</td>
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.sla_violadas}</td>
                     <td className="py-2.5 text-right">
-                      <ComplianceBadge rate={row.compliance_rate} />
+                      <ComplianceBadge rate={row.compliance_rate} sample={slaComplianceSample} />
                     </td>
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">
                       {row.tempo_medio_horas > 0 ? `${row.tempo_medio_horas.toFixed(1)}h` : '—'}

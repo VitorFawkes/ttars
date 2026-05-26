@@ -12,6 +12,7 @@ import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { useFilterProfilesWithRole } from '@/hooks/analytics/useFilterOptions'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency } from '@/utils/whatsappFormatters'
+import { getRankTier, rankBadgeClass, rankTextClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
 import { cn } from '@/lib/utils'
@@ -62,13 +63,16 @@ function pct(v: number): string {
   return `${v.toFixed(0)}%`
 }
 
-function ConversionBadge({ rate }: { rate: number }) {
-  const tone =
-    rate >= 50 ? 'bg-emerald-50 text-emerald-700'
-    : rate >= 30 ? 'bg-amber-50 text-amber-700'
-    : 'bg-rose-50 text-rose-700'
+function ConversionBadge({ rate, sample }: { rate: number; sample: readonly number[] }) {
+  const tier = getRankTier(rate, sample, 'higher_is_better')
   return (
-    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold tabular-nums', tone)}>
+    <span
+      className={cn(
+        'inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold tabular-nums',
+        rankBadgeClass(tier),
+      )}
+      title={rankTierLabel(tier)}
+    >
       {pct(rate)}
     </span>
   )
@@ -123,6 +127,26 @@ export default function PlannerView() {
 
   const prevGanhos = resumoPrev.data?.empresa.kpis.ganhos
   const prevFaturamento = resumoPrev.data?.empresa.kpis.faturamento
+
+  // Samples para coloração relativa (top/meio/bottom 25% no grupo visível)
+  const plannerWinRateSample = useMemo(
+    () => plannerLeaderboard.map(r => r.win_rate),
+    [plannerLeaderboard],
+  )
+  const origemConvSample = useMemo(
+    () =>
+      (resumo.data?.por_origem ?? [])
+        .filter(r => r.leads > 0)
+        .map(r => Math.round((r.ganhos / r.leads) * 100)),
+    [resumo.data?.por_origem],
+  )
+  const cellConvSample = useMemo(
+    () =>
+      (plannerByOrigem.data ?? [])
+        .filter(r => plannerIds.has(r.planner_id) && r.leads > 0)
+        .map(r => r.conversao_pct ?? 0),
+    [plannerByOrigem.data, plannerIds],
+  )
 
   // Pivot Origem × Planner — só planners de verdade
   const plannerOrigemPivot = useMemo(() => {
@@ -357,7 +381,7 @@ export default function PlannerView() {
                       </span>
                     </td>
                     <td className="py-2.5 text-right">
-                      <ConversionBadge rate={row.win_rate} />
+                      <ConversionBadge rate={row.win_rate} sample={plannerWinRateSample} />
                     </td>
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">
                       {formatCurrency(row.receita_total)}
@@ -391,7 +415,7 @@ export default function PlannerView() {
       {/* Tempo nas etapas */}
       <WidgetCard
         title="Quanto tempo cada etapa leva"
-        subtitle="Tempo típico (mediana) e o caso pior (quem demora mais) por etapa. Clique pra ver cards atuais na etapa."
+        subtitle="Em quanto tempo metade dos cards passa por cada etapa, e quanto leva quem mais demora. Clique pra ver cards atuais na etapa."
         action={<Clock className="w-4 h-4 text-slate-300" />}
       >
         {velocity.isLoading ? (
@@ -599,12 +623,13 @@ export default function PlannerView() {
                               title="Ver cards desse cruzamento"
                             >
                               <span className="text-slate-700">{cell.ganhos}/{cell.leads}</span>
-                              <span className={cn(
-                                'ml-1 text-xs',
-                                cell.conversao_pct >= 30 ? 'text-emerald-700'
-                                : cell.conversao_pct > 0 ? 'text-amber-700'
-                                : 'text-slate-400'
-                              )}>
+                              <span
+                                className={cn(
+                                  'ml-1 text-xs',
+                                  rankTextClass(getRankTier(cell.conversao_pct ?? 0, cellConvSample, 'higher_is_better')),
+                                )}
+                                title={rankTierLabel(getRankTier(cell.conversao_pct ?? 0, cellConvSample, 'higher_is_better'))}
+                              >
                                 ({cell.conversao_pct?.toFixed(0) ?? 0}%)
                               </span>
                             </button>
@@ -664,7 +689,7 @@ export default function PlannerView() {
                       <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.leads}</td>
                       <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.ganhos}</td>
                       <td className="py-2.5 text-right">
-                        <ConversionBadge rate={conv} />
+                        <ConversionBadge rate={conv} sample={origemConvSample} />
                       </td>
                       <td className="py-2.5 text-right text-slate-700 tabular-nums">
                         {formatCurrency(row.faturamento)}

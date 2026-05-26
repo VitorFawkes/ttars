@@ -128,22 +128,22 @@ export default function FunnelVelocityTable({ isLoading, rows }: Props) {
               </th>
               <th className="text-right py-2.5 px-2">
                 <SortHeader
-                  label="Mediana"
+                  label="Tempo típico"
                   sortKey="mediana_dias"
                   currentKey={sortKey}
                   dir={sortDir}
                   onToggle={toggleSort}
-                  title="p50 dos dias em etapa — metade dos cards passou em até X dias"
+                  title="Metade dos cards passa por essa etapa em até X dias"
                 />
               </th>
               <th className="text-right py-2.5 px-2">
                 <SortHeader
-                  label="p90"
+                  label="Quem mais demora"
                   sortKey="p90_dias"
                   currentKey={sortKey}
                   dir={sortDir}
                   onToggle={toggleSort}
-                  title="p90 dos dias em etapa — 9 em cada 10 cards passaram em até X dias"
+                  title="9 em cada 10 cards passam por essa etapa em até X dias"
                 />
               </th>
               <th className="text-right py-2.5 px-2">

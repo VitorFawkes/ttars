@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import ChartCard from '@/components/analytics/ChartCard'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import { cn } from '@/lib/utils'
+import { getRankTier, rankTextClass, rankTierLabel } from '@/utils/rankColor'
 import { getPhaseColor, relativeDelta, type FunnelMetric } from './constants'
 import type { FunnelStageV3 } from './useFunnelData'
 
@@ -85,7 +86,7 @@ export default function FunnelVisual({
     if (previousStages) for (const p of previousStages) prevByStage.set(p.stage_id, p)
 
     let acumulado = 0
-    return sorted.map((s, idx) => {
+    const rowsAcc: RowData[] = sorted.map((s, idx) => {
       const value = getValueForMetric(s, metric)
       acumulado += value
 
@@ -115,7 +116,14 @@ export default function FunnelVisual({
         isRoot: idx === 0,
       }
     })
+    return rowsAcc
   }, [stages, previousStages, metric])
+
+  // Sample para coloração relativa da conversão por etapa (top/meio/bottom 25%)
+  const convSample = useMemo(
+    () => rows.map(r => r.convFromPrev).filter((v): v is number => v != null),
+    [rows],
+  )
 
   // Layout de colunas: Etapa · Barra · %topo · Conv etapa · p50/p75 · [vs anterior]
   const gridCols = compareEnabled
@@ -164,9 +172,9 @@ export default function FunnelVisual({
             </div>
             <div
               className="text-slate-500 font-medium py-2.5 text-right whitespace-nowrap"
-              title="Mediana (p50) / percentil 75 (p75) de dias que um card leva passando pela etapa"
+              title="Tempo típico (em quanto tempo metade dos cards passa) / pior caso (em quanto tempo 3 a cada 4 passam)"
             >
-              Tempo p50/p75
+              Tempo típico / pior
             </div>
             {compareEnabled && (
               <div
@@ -270,16 +278,17 @@ export default function FunnelVisual({
                     {row.convFromPrev == null ? (
                       <span className="text-slate-300 text-[11px]">—</span>
                     ) : (
-                      <span
-                        className={cn(
-                          'text-[11px] font-semibold tabular-nums',
-                          row.convFromPrev < 50 && 'text-rose-600',
-                          row.convFromPrev >= 50 && row.convFromPrev < 100 && 'text-amber-600',
-                          row.convFromPrev >= 100 && 'text-emerald-600'
-                        )}
-                      >
-                        {row.convFromPrev.toFixed(1)}%
-                      </span>
+                      (() => {
+                        const tier = getRankTier(row.convFromPrev, convSample, 'higher_is_better')
+                        return (
+                          <span
+                            className={cn('text-[11px] font-semibold tabular-nums', rankTextClass(tier))}
+                            title={rankTierLabel(tier)}
+                          >
+                            {row.convFromPrev.toFixed(1)}%
+                          </span>
+                        )
+                      })()
                     )}
                   </div>
 
