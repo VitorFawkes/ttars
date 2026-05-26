@@ -4,6 +4,7 @@ import { X, Send, Loader2, GripVertical } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
 import { AVAILABLE_FIELDS, hasButtonVar as hasButtonVarForSlug, type FieldDescriptor, type FieldKey } from '../../../hooks/convidados/useTemplateVarConfig'
 import { cn } from '../../../lib/utils'
+import { parseLocalDate } from '../../../lib/localDate'
 
 interface FailedMessage {
   id: string
@@ -45,15 +46,13 @@ const MONTHS_FULL = [
   'julho','agosto','setembro','outubro','novembro','dezembro',
 ]
 function longDate(iso: string | null): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
+  const d = parseLocalDate(iso)
+  if (!d) return ''
   return `${String(d.getDate()).padStart(2, '0')} de ${MONTHS_FULL[d.getMonth()]} de ${d.getFullYear()}`
 }
 function shortDate(s: string | null): string {
-  if (!s) return ''
-  const d = new Date(s)
-  if (Number.isNaN(d.getTime())) return s
+  const d = parseLocalDate(s)
+  if (!d) return s ?? ''
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
 }
 function readString(obj: Record<string, unknown> | null, ...keys: string[]): string | null {
