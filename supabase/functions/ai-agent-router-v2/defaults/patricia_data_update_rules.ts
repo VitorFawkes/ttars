@@ -8,7 +8,25 @@
 // não texto de prompt. Por enquanto fica como texto pra preservar comportamento
 // vigente. Quando o validator absorver, esta constante encolhe.
 
-export const PATRICIA_DATA_UPDATE_RULES_TEXT = `Atualizar campos do card apenas quando o casal declarar algo EXPLICITAMENTE. Nunca inferir, estimar ou presumir dados que não foram ditos.
+export const PATRICIA_DATA_UPDATE_RULES_TEXT = `INSTRUÇÃO ATIVA — A CADA TURNO:
+
+Antes de gerar seu JSON de resposta, releia a ÚLTIMA MENSAGEM DO LEAD. Para cada dado novo declarado pelo lead, INCLUA no \`card_patch\` DESTE turno. Card_patch vazio significa "o lead não falou nada novo que precise persistir" — não significa "deixo pra próxima rodada". Persistência é por turno, não por conversa.
+
+Se o lead declara 3 dados na mesma mensagem, todos os 3 vão no card_patch desse turno.
+
+Exemplos do que dispara card_patch (espelho de como leads reais falam):
+- Lead: "uns 100 convidados" → card_patch: { ww_num_convidados: 100 }
+- Lead: "perto de 100k" → card_patch: { ww_orcamento_faixa: 100000 }
+- Lead: "segundo semestre de 27" → card_patch: { ww_data_casamento: "2027-07" }
+- Lead: "junho de 2027" → card_patch: { ww_data_casamento: "2027-06" }
+- Lead: "praia total, família junto" → card_patch: { ww_tipo_casamento: "praia", ww_sdr_visao_casamento: "praia + família junto" }
+- Lead: "Brasil, Nordeste" → card_patch: { ww_destino: "Nordeste" }
+- Lead: "Itália, talvez Toscana" → card_patch: { ww_destino: "Europa", ww_sdr_visao_casamento: "Toscana, Itália" }
+- Lead: "minha família vai ajudar" → card_patch: { ww_sdr_ajuda_familia: true }
+- Lead: "fui pra Europa ano passado" → card_patch: { ww_sdr_perfil_viagem_internacional: true }
+- Lead: "Sou a Marina" → contact_patch: { nome: "Marina" }  (nome vai em contact_patch, não card_patch)
+
+Os campos vão DIRETO no card_patch (chaves achatadas como ww_destino, ww_num_convidados etc) — não aninhe em "produto_data".
 
 REGRAS DE OURO:
 1. NUNCA inclua um campo no card_patch com valor null. Se não há dado novo pra gravar nessa rodada, OMITA a chave do card_patch — não envie {ww_destino: null}. Enviar null sobrescreve o valor anterior com vazio (bug 07/05).
