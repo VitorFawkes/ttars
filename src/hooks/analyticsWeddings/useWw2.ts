@@ -557,21 +557,23 @@ export type WwDriftVenda = {
   date_start: string
   date_end: string
   date_mode: 'cohort' | 'throughput'
-  total_vendas: number
+  total_leads: number
+  total_fechados: number
+  total_vendas: number  // alias legacy = total_fechados
   investimento: {
-    cobertura: { com_entrada: number; com_valor_real: number; com_ambos: number }
+    cobertura: { total_leads: number; total_fechados: number; com_entrada: number; com_valor_real: number; com_ambos: number }
     drift: { manteve: number; subiu: number; desceu: number; ticket_medio_geral: number | null }
     matriz: WwDriftInvestimentoMatriz[]
     ticket_por_entrada: WwDriftTicketPorEntrada[]
   }
   destino: {
-    cobertura: { com_entrada: number; com_vendido: number; com_ambos: number }
+    cobertura: { total_leads: number; total_fechados: number; com_entrada: number; com_vendido: number; com_ambos: number }
     drift: { manteve: number; mudou: number }
     matriz: WwDriftDestinoMatriz[]
     top_migracoes: { de: string; para: string; qtd: number }[]
   }
   convidados: {
-    cobertura: { com_entrada: number; com_refinado: number; com_ambos: number }
+    cobertura: { total_leads: number; total_fechados: number; com_entrada: number; com_refinado: number; com_ambos: number }
     drift: { manteve: number; subiu: number; desceu: number }
     matriz: WwDriftConvidadosMatriz[]
   }

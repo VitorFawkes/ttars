@@ -26,19 +26,37 @@ export function EntradaRealidade() {
 
 function UniversoHeader({ data }: { data: WwDriftVenda }) {
   const isCohort = data.date_mode === 'cohort'
+  const total = data.total_leads
+  const fechados = data.total_fechados
+  const naoFechados = total - fechados
+  const pctConv = total > 0 ? Math.round(100 * fechados / total) : 0
   return (
     <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 rounded-xl p-5">
       <div className="flex items-baseline justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-base font-semibold text-slate-900">🔄 Entrada × Realidade</h2>
-          <p className="text-sm text-slate-600 mt-0.5">
-            Universo: <strong>{formatNumber(data.total_vendas)} vendas fechadas</strong>
-            {isCohort ? ' cujos leads entraram' : ' que efetivamente fecharam'} no período.
-            Comparando o que o casal disse no site × o que <strong>contratou de verdade</strong>.
-          </p>
+          {isCohort ? (
+            <>
+              <p className="text-sm text-slate-600 mt-1">
+                Universo: <strong>{formatNumber(total)} leads</strong> que entraram no período.
+                <strong className="text-emerald-700"> {formatNumber(fechados)} já fecharam</strong> contrato
+                <span className="text-slate-500"> ({pctConv}%)</span>.
+              </p>
+              {naoFechados > 0 && (
+                <p className="text-xs text-slate-500 mt-1">
+                  Os outros <strong>{formatNumber(naoFechados)}</strong> ainda estão em aberto — a parte de "vendido" aparece em branco pra eles. Venda fechada = stage "Contrato Assinado".
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-slate-600 mt-1">
+              Universo: <strong>{formatNumber(fechados)} vendas fechadas</strong> nesse período
+              (filtro pela data efetiva do contrato).
+            </p>
+          )}
         </div>
         <div className="text-xs bg-white border border-indigo-200 rounded-lg px-3 py-1.5 text-indigo-700 whitespace-nowrap">
-          📅 Modo: <strong>{isCohort ? 'Data de criação (cohort)' : 'Data de evento (throughput)'}</strong>
+          📅 Modo: <strong>{isCohort ? 'Entrada do lead (cohort)' : 'Data da venda (throughput)'}</strong>
         </div>
       </div>
     </div>
@@ -53,7 +71,7 @@ function InvestimentoDrift({ data }: { data: WwDriftVenda }) {
   const { cobertura, drift, matriz, ticket_por_entrada } = inv
   const universo = cobertura.com_ambos
 
-  if (data.total_vendas === 0) {
+  if (data.total_leads === 0) {
     return (
       <SectionCard title="💰 Investimento — entrada × valor vendido" subtitle="Nenhuma venda no período selecionado">
         <EmptyState message="Sem vendas fechadas no período" />
@@ -75,7 +93,7 @@ function InvestimentoDrift({ data }: { data: WwDriftVenda }) {
         com_entrada={cobertura.com_entrada}
         com_realidade={cobertura.com_valor_real}
         com_ambos={cobertura.com_ambos}
-        total={data.total_vendas}
+        total={data.total_leads}
         nome_entrada="faixa no site"
         nome_realidade="valor R$ do pacote"
       />
@@ -199,7 +217,7 @@ function DestinoDrift({ data }: { data: WwDriftVenda }) {
   const destinosV = Array.from(new Set(matriz.map(m => m.dest_v)))
   const matrizMap = new Map(matriz.map(m => [`${m.dest_e}|${m.dest_v}`, m.qtd]))
 
-  if (data.total_vendas === 0) return null
+  if (data.total_leads === 0) return null
 
   return (
     <SectionCard
@@ -210,7 +228,7 @@ function DestinoDrift({ data }: { data: WwDriftVenda }) {
         com_entrada={cobertura.com_entrada}
         com_realidade={cobertura.com_vendido}
         com_ambos={cobertura.com_ambos}
-        total={data.total_vendas}
+        total={data.total_leads}
         nome_entrada="destino no site"
         nome_realidade="destino vendido"
       />
@@ -282,7 +300,7 @@ function ConvidadosDrift({ data }: { data: WwDriftVenda }) {
   const universo = cobertura.com_ambos
   const matrizMap = new Map(matriz.map(m => [`${m.conv_e}|${m.conv_r}`, m.qtd]))
 
-  if (data.total_vendas === 0) return null
+  if (data.total_leads === 0) return null
 
   const convE = CONV_ORDER.filter(c => matriz.some(m => m.conv_e === c))
   const convR = CONV_ORDER.filter(c => matriz.some(m => m.conv_r === c))
@@ -296,7 +314,7 @@ function ConvidadosDrift({ data }: { data: WwDriftVenda }) {
         com_entrada={cobertura.com_entrada}
         com_realidade={cobertura.com_refinado}
         com_ambos={cobertura.com_ambos}
-        total={data.total_vendas}
+        total={data.total_leads}
         nome_entrada="convidados no site"
         nome_realidade="convidados refinado"
       />

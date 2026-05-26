@@ -84,11 +84,11 @@ BEGIN
     SELECT id INTO v_pipeline_id FROM pipelines WHERE produto::TEXT='WEDDING' AND org_id=v_org_id LIMIT 1;
     IF v_pipeline_id IS NULL THEN RETURN json_build_object('error','pipeline WEDDING não encontrado'); END IF;
 
-    -- cohort: filtra por data de criação do card (lead entrou no período)
-    -- throughput: filtra por data da venda OU data de atualização (desfecho aconteceu no período)
+    -- "Fechou" estritamente = status='ganho' OU stage is_won (Contrato Assinado).
+    -- pos_venda como phase NÃO basta — a fase inclui reunião/proposta/negociação.
     CREATE TEMP TABLE _ww_ql ON COMMIT DROP AS
     SELECT c.id,
-           (c.status_comercial='ganho' OR ph.slug='pos_venda') AS fechou,
+           (c.status_comercial='ganho' OR s.is_won = TRUE) AS fechou,
            _ww2_norm_faixa_strict(c.produto_data->>'ww_mkt_orcamento_form') AS faixa_e,
            _ww2_norm_conv_strict(c.produto_data->>'ww_mkt_convidados_form') AS conv_e,
            _ww2_norm_dest_strict(c.produto_data->>'ww_mkt_destino_form') AS dest_e,
@@ -96,7 +96,6 @@ BEGIN
            _ww2_norm_origem(c.marketing_data) AS origem
       FROM cards c
       LEFT JOIN pipeline_stages s ON s.id = c.pipeline_stage_id
-      LEFT JOIN pipeline_phases ph ON ph.id = s.phase_id
      WHERE c.deleted_at IS NULL AND c.archived_at IS NULL
        AND c.produto::TEXT='WEDDING' AND c.org_id=v_org_id
        AND (
@@ -250,16 +249,20 @@ DECLARE
     v_org_id UUID := COALESCE(p_org_id, requesting_org_id());
     v_pipeline_id UUID;
     v_total INT;
+    v_total_fechados INT;
     v_inv_json JSON; v_dest_json JSON; v_conv_json JSON;
 BEGIN
     SELECT id INTO v_pipeline_id FROM pipelines WHERE produto::TEXT='WEDDING' AND org_id=v_org_id LIMIT 1;
     IF v_pipeline_id IS NULL THEN RETURN json_build_object('error','pipeline WEDDING não encontrado'); END IF;
 
-    -- Universo SEMPRE = vendas fechadas. O modo de data muda QUAL data o filtro respeita:
-    -- cohort: vendas fechadas cujo card foi CRIADO no período (lead entrou)
-    -- throughput: vendas que EFETIVAMENTE FECHARAM no período (evento de venda)
+    -- "Fechou" estritamente = status='ganho' OU stage is_won (Contrato Assinado).
+    -- cohort:     universo = TODOS leads criados no período (fechados + não fechados).
+    --             Quem não fechou aparece com a parte de "vendido" em branco.
+    -- throughput: universo = só vendas que EFETIVAMENTE FECHARAM no período,
+    --             filtrado pela data da venda.
     CREATE TEMP TABLE _ww_dv ON COMMIT DROP AS
     SELECT c.id,
+           (c.status_comercial='ganho' OR s.is_won = TRUE) AS fechou,
            _ww2_norm_faixa_strict(c.produto_data->>'ww_mkt_orcamento_form') AS faixa_e,
            NULLIF(REPLACE(REPLACE(c.produto_data->>'ww_closer_valor_pacote','.',''),',','.'),'')::NUMERIC AS valor_pac,
            _ww2_norm_dest_strict(c.produto_data->>'ww_mkt_destino_form') AS dest_e,
@@ -272,15 +275,14 @@ BEGIN
            _ww2_norm_origem(c.marketing_data) AS origem
       FROM cards c
       LEFT JOIN pipeline_stages s ON s.id = c.pipeline_stage_id
-      LEFT JOIN pipeline_phases ph ON ph.id = s.phase_id
      WHERE c.deleted_at IS NULL AND c.archived_at IS NULL
        AND c.produto::TEXT='WEDDING' AND c.org_id=v_org_id
-       AND (c.status_comercial='ganho' OR ph.slug='pos_venda')
        AND (
          (p_date_mode = 'cohort'
             AND c.created_at >= p_date_start AND c.created_at <= p_date_end)
          OR
          (p_date_mode = 'throughput'
+            AND (c.status_comercial='ganho' OR s.is_won = TRUE)
             AND COALESCE(c.data_fechamento, c.ganho_pos_at, c.ganho_planner_at, c.ganho_sdr_at, c.updated_at) >= p_date_start
             AND COALESCE(c.data_fechamento, c.ganho_pos_at, c.ganho_planner_at, c.ganho_sdr_at, c.updated_at) <= p_date_end)
        );
@@ -288,14 +290,18 @@ BEGIN
     SELECT COUNT(*) INTO v_total FROM _ww_dv;
 
     -- ── INVESTIMENTO: entrada × VALOR REAL VENDIDO (R$ pacote → faixa)
+    -- Valor real só existe quando lead fechou. Não-fechados não contribuem ao drift.
     WITH dados AS (
         SELECT faixa_e,
-               _ww_valor_to_faixa(valor_pac) AS faixa_v,
-               valor_pac
+               fechou,
+               CASE WHEN fechou THEN _ww_valor_to_faixa(valor_pac) END AS faixa_v,
+               CASE WHEN fechou THEN valor_pac END AS valor_pac
           FROM _ww_dv
     ),
     cobertura AS (
         SELECT
+            COUNT(*) AS total_leads,
+            COUNT(*) FILTER (WHERE fechou) AS total_fechados,
             COUNT(*) FILTER (WHERE faixa_e IS NOT NULL) AS com_entrada,
             COUNT(*) FILTER (WHERE valor_pac >= 5000) AS com_valor_real,
             COUNT(*) FILTER (WHERE faixa_e IS NOT NULL AND valor_pac >= 5000) AS com_ambos
@@ -338,27 +344,35 @@ BEGIN
         'ticket_por_entrada', COALESCE((SELECT json_agg(row_to_json(t) ORDER BY _ww_faixa_ordem(t.faixa_e)) FROM ticket_por_entrada t WHERE t.amostra > 0), '[]'::JSON)
     ) INTO v_inv_json;
 
-    -- ── DESTINO: entrada × vendido
-    WITH cobertura AS (
-        SELECT COUNT(*) FILTER (WHERE dest_e IS NOT NULL) AS com_entrada,
+    -- ── DESTINO: entrada × vendido (só para quem fechou)
+    WITH dados AS (
+        SELECT dest_e,
+               CASE WHEN fechou THEN dest_v END AS dest_v,
+               fechou
+          FROM _ww_dv
+    ),
+    cobertura AS (
+        SELECT COUNT(*) AS total_leads,
+               COUNT(*) FILTER (WHERE fechou) AS total_fechados,
+               COUNT(*) FILTER (WHERE dest_e IS NOT NULL) AS com_entrada,
                COUNT(*) FILTER (WHERE dest_v IS NOT NULL) AS com_vendido,
                COUNT(*) FILTER (WHERE dest_e IS NOT NULL AND dest_v IS NOT NULL) AS com_ambos
-          FROM _ww_dv
+          FROM dados
     ),
     drift AS (
         SELECT COUNT(*) FILTER (WHERE dest_e IS NOT NULL AND dest_v IS NOT NULL AND dest_e = dest_v) AS manteve,
                COUNT(*) FILTER (WHERE dest_e IS NOT NULL AND dest_v IS NOT NULL AND dest_e != dest_v) AS mudou
-          FROM _ww_dv
+          FROM dados
     ),
     matriz AS (
         SELECT dest_e, dest_v, COUNT(*) AS qtd
-          FROM _ww_dv
+          FROM dados
          WHERE dest_e IS NOT NULL AND dest_v IS NOT NULL
          GROUP BY dest_e, dest_v
     ),
     top_migracoes AS (
         SELECT dest_e AS de, dest_v AS para, COUNT(*) AS qtd
-          FROM _ww_dv
+          FROM dados
          WHERE dest_e IS NOT NULL AND dest_v IS NOT NULL AND dest_e != dest_v
          GROUP BY dest_e, dest_v
          ORDER BY COUNT(*) DESC
@@ -371,22 +385,30 @@ BEGIN
         'top_migracoes', COALESCE((SELECT json_agg(row_to_json(t)) FROM top_migracoes t), '[]'::JSON)
     ) INTO v_dest_json;
 
-    -- ── CONVIDADOS: entrada × refinado (com cobertura explícita)
-    WITH cobertura AS (
-        SELECT COUNT(*) FILTER (WHERE conv_e IS NOT NULL) AS com_entrada,
+    -- ── CONVIDADOS: entrada × refinado pela closer (só para quem fechou)
+    WITH dados AS (
+        SELECT conv_e,
+               CASE WHEN fechou THEN conv_r END AS conv_r,
+               fechou
+          FROM _ww_dv
+    ),
+    cobertura AS (
+        SELECT COUNT(*) AS total_leads,
+               COUNT(*) FILTER (WHERE fechou) AS total_fechados,
+               COUNT(*) FILTER (WHERE conv_e IS NOT NULL) AS com_entrada,
                COUNT(*) FILTER (WHERE conv_r IS NOT NULL) AS com_refinado,
                COUNT(*) FILTER (WHERE conv_e IS NOT NULL AND conv_r IS NOT NULL) AS com_ambos
-          FROM _ww_dv
+          FROM dados
     ),
     drift AS (
         SELECT COUNT(*) FILTER (WHERE conv_e IS NOT NULL AND conv_r IS NOT NULL AND _ww_conv_ordem(conv_e) = _ww_conv_ordem(conv_r)) AS manteve,
                COUNT(*) FILTER (WHERE conv_e IS NOT NULL AND conv_r IS NOT NULL AND _ww_conv_ordem(conv_r) > _ww_conv_ordem(conv_e)) AS subiu,
                COUNT(*) FILTER (WHERE conv_e IS NOT NULL AND conv_r IS NOT NULL AND _ww_conv_ordem(conv_r) < _ww_conv_ordem(conv_e)) AS desceu
-          FROM _ww_dv
+          FROM dados
     ),
     matriz AS (
         SELECT conv_e, conv_r, COUNT(*) AS qtd
-          FROM _ww_dv
+          FROM dados
          WHERE conv_e IS NOT NULL AND conv_r IS NOT NULL
          GROUP BY conv_e, conv_r
     )
@@ -396,12 +418,15 @@ BEGIN
         'matriz', COALESCE((SELECT json_agg(row_to_json(m)) FROM matriz m), '[]'::JSON)
     ) INTO v_conv_json;
 
+    SELECT COUNT(*) INTO v_total_fechados FROM _ww_dv WHERE fechou;
     DROP TABLE _ww_dv;
     RETURN json_build_object(
         'date_start', p_date_start, 'date_end', p_date_end,
         'pipeline_id', v_pipeline_id, 'org_id', v_org_id,
         'date_mode', p_date_mode,
-        'total_vendas', v_total,
+        'total_leads',    v_total,
+        'total_fechados', v_total_fechados,
+        'total_vendas',   v_total_fechados,  -- alias legacy
         'investimento', v_inv_json,
         'destino',      v_dest_json,
         'convidados',   v_conv_json
