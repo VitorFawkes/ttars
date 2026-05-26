@@ -37,6 +37,8 @@ type Pontuacao = {
         data_casamento?: string
         num_convidados?: number
         investimento_total?: number
+        is_indicacao?: boolean
+        indicado_por?: string
     }
     scoring_inputs: Record<string, boolean>
     score_result: { score?: number; qualificado?: boolean; disqualified?: boolean }
@@ -390,7 +392,17 @@ function Tabela({
                     return (
                         <tr key={p.id} className="hover:bg-slate-50">
                             <td className="p-3">
-                                <div className="font-medium text-slate-900">{nomePrincipal}</div>
+                                <div className="font-medium text-slate-900 flex items-center gap-1.5 flex-wrap">
+                                    <span>{nomePrincipal}</span>
+                                    {p.dados_lead?.is_indicacao && (
+                                        <span
+                                            className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-700 text-[10px] font-medium border border-rose-200"
+                                            title={p.dados_lead?.indicado_por ? `Indicação · ${p.dados_lead.indicado_por}` : 'Indicação'}
+                                        >
+                                            Indicação{p.dados_lead?.indicado_por ? ` · ${p.dados_lead.indicado_por}` : ''}
+                                        </span>
+                                    )}
+                                </div>
                                 <div className="text-xs text-slate-500">
                                     {p.telefone ? formatPhoneBR(p.telefone) : ''}
                                     {p.dados_lead?.investimento_total && p.dados_lead?.num_convidados && (

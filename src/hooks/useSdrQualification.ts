@@ -47,6 +47,10 @@ export type DadosLead = {
     destino_outro_queria?: string
     /** Quando casal pede destino fora do catálogo mas está aberto: quais destinos do catálogo aceita. */
     destino_outro_aberto_a?: string
+    /** Marca se o lead chegou por indicação. */
+    is_indicacao?: boolean
+    /** Texto livre com quem indicou (nome de cliente, fornecedor, amigo etc). */
+    indicado_por?: string
     observacoes?: string
 }
 

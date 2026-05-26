@@ -199,7 +199,7 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
         session.setInputs(next)
     }
 
-    const handleDadoChange = (campo: keyof DadosLead, valor: string | number | undefined) => {
+    const handleDadoChange = (campo: keyof DadosLead, valor: string | number | boolean | undefined) => {
         const newDados = { ...session.dadosLead, [campo]: valor }
         session.setDados(newDados)
         if (campo === 'investimento_total' || campo === 'num_convidados') {
@@ -330,6 +330,37 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                                                 onChange={(e) => handleDadoChange('nome_casal', e.target.value)}
                                                 placeholder="João e Maria"
                                             />
+                                        </div>
+                                        <div className="col-span-2 rounded-lg border border-slate-200 bg-white p-3">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <div>
+                                                    <Label className="text-sm font-medium text-slate-700">
+                                                        É indicação?
+                                                    </Label>
+                                                    <p className="text-xs text-slate-500">
+                                                        Marque se o casal chegou indicado por alguém.
+                                                    </p>
+                                                </div>
+                                                <Switch
+                                                    checked={session.dadosLead.is_indicacao === true}
+                                                    onCheckedChange={(v) => {
+                                                        const next: DadosLead = { ...session.dadosLead, is_indicacao: v }
+                                                        if (!v) next.indicado_por = undefined
+                                                        session.setDados(next)
+                                                    }}
+                                                />
+                                            </div>
+                                            {session.dadosLead.is_indicacao === true && (
+                                                <div className="mt-3">
+                                                    <Label className="text-xs text-slate-600">Quem indicou?</Label>
+                                                    <Input
+                                                        value={session.dadosLead.indicado_por ?? ''}
+                                                        onChange={(e) => handleDadoChange('indicado_por', e.target.value)}
+                                                        placeholder="Nome do indicador"
+                                                        autoFocus
+                                                    />
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="col-span-2">
                                             <div className="flex items-center justify-between mb-1 flex-wrap gap-1">
