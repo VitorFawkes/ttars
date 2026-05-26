@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, Cell, Pie, PieChart } from 'recharts'
 import { useWw2LeadQuality } from '@/hooks/analyticsWeddings/useWw2'
 import { useFilterParams } from '../components/FilterBar'
@@ -13,12 +13,6 @@ export function Qualidade() {
   const { data, isLoading, error } = useWw2LeadQuality(filters)
   const [drill, setDrill] = useState<DrillContext | null>(null)
 
-  // ⚠️ hooks SEMPRE antes de early returns
-  const maxQtd = useMemo(() => {
-    const items = data?.cruzamentos?.origem_faixa ?? []
-    return Math.max(...items.map(r => r.qtd), 1)
-  }, [data?.cruzamentos?.origem_faixa])
-
   if (isLoading) return <LoadingSkeleton rows={6} />
   if (error) return <ErrorBanner error={error as Error} />
   if (!data) return <EmptyState message="Sem dados" />
@@ -26,10 +20,24 @@ export function Qualidade() {
   const baseCtx = { dateStart: filters.dateStart, dateEnd: filters.dateEnd }
   const { distribuicoes, cruzamentos, perfil_ideal } = data
 
-  // Matriz origem × faixa: pivot pra heatmap
-  const origins = Array.from(new Set(cruzamentos.origem_faixa.map(r => r.origem)))
-  const faixas = Array.from(new Set(cruzamentos.origem_faixa.map(r => r.faixa)))
-  const matrixMap = new Map(cruzamentos.origem_faixa.map(r => [`${r.origem}|${r.faixa}`, r.qtd]))
+  // Helpers pros 3 heatmaps entre dimensões
+  const FAIXA_ORDER = ['Até R$50 mil', 'R$50-80 mil', 'R$50-100 mil', 'R$80-100 mil', 'R$100-200 mil', 'R$200-500 mil', 'Mais de R$500 mil']
+  const CONV_ORDER = ['Apenas o casal', 'Até 20', '20-50', '50-80', '80-100', '+100']
+  const fxc = cruzamentos.faixa_x_convidados ?? []
+  const fxcFaixas = FAIXA_ORDER.filter(f => fxc.some(r => r.faixa === f))
+  const fxcConvs = CONV_ORDER.filter(c => fxc.some(r => r.convidados === c))
+  const fxcMap = new Map(fxc.map(r => [`${r.faixa}|${r.convidados}`, r.qtd]))
+  const fxcMax = Math.max(1, ...fxc.map(r => r.qtd))
+  const fxl = cruzamentos.faixa_x_local ?? []
+  const fxlFaixas = FAIXA_ORDER.filter(f => fxl.some(r => r.faixa === f))
+  const fxlLocais = Array.from(new Set(fxl.map(r => r.destino))).slice(0, 10)
+  const fxlMap = new Map(fxl.map(r => [`${r.faixa}|${r.destino}`, r.qtd]))
+  const fxlMax = Math.max(1, ...fxl.map(r => r.qtd))
+  const cxl = cruzamentos.convidados_x_local ?? []
+  const cxlConvs = CONV_ORDER.filter(c => cxl.some(r => r.convidados === c))
+  const cxlLocais = Array.from(new Set(cxl.map(r => r.destino))).slice(0, 10)
+  const cxlMap = new Map(cxl.map(r => [`${r.convidados}|${r.destino}`, r.qtd]))
+  const cxlMax = Math.max(1, ...cxl.map(r => r.qtd))
 
   return (
     <div className="space-y-5">
@@ -155,29 +163,30 @@ export function Qualidade() {
         )}
       </SectionCard>
 
-      {origins.length > 0 && faixas.length > 0 && (
-        <SectionCard title="Origem × Faixa de investimento" subtitle="Heatmap — onde se concentram os leads de cada origem">
+      {/* === Cruzamentos entre as 3 dimensões === */}
+      <SectionCard title="🔀 Faixa × Nº de convidados" subtitle="Mostra qual faixa de orçamento se cruza com qual tamanho de casamento. Clique numa célula pra ver os leads.">
+        {fxc.length === 0 ? <EmptyState message="Sem cruzamento disponível" /> : (
           <div className="overflow-x-auto">
             <table className="text-xs">
               <thead>
                 <tr>
-                  <th className="px-2 py-1 text-left font-medium text-slate-500">Origem ↓ / Faixa →</th>
-                  {faixas.map(f => <th key={f} className="px-2 py-1 text-center font-medium text-slate-500 whitespace-nowrap">{f}</th>)}
+                  <th className="px-2 py-1 text-left font-medium text-slate-500">Faixa ↓ / Convidados →</th>
+                  {fxcConvs.map(c => <th key={c} className="px-2 py-1 text-center font-medium text-slate-500 whitespace-nowrap">{c}</th>)}
                 </tr>
               </thead>
               <tbody>
-                {origins.map(o => (
-                  <tr key={o}>
-                    <td className="px-2 py-1 font-medium text-slate-700 whitespace-nowrap">{o.length > 30 ? o.slice(0, 30) + '…' : o}</td>
-                    {faixas.map(f => {
-                      const qtd = matrixMap.get(`${o}|${f}`) ?? 0
-                      const intensity = qtd / maxQtd
-                      const bg = qtd === 0 ? 'transparent' : `rgba(79, 70, 229, ${0.1 + intensity * 0.7})`
+                {fxcFaixas.map(f => (
+                  <tr key={f}>
+                    <td className="px-2 py-1 font-medium text-slate-700 whitespace-nowrap">{f}</td>
+                    {fxcConvs.map(c => {
+                      const qtd = fxcMap.get(`${f}|${c}`) ?? 0
+                      const intensity = qtd / fxcMax
+                      const bg = qtd === 0 ? 'transparent' : `rgba(79, 70, 229, ${0.08 + intensity * 0.7})`
                       const color = intensity > 0.5 ? 'white' : 'rgb(15, 23, 42)'
                       return (
-                        <td key={f} className="px-2 py-1 text-center cursor-pointer hover:opacity-80"
+                        <td key={c} className="px-2 py-1 text-center cursor-pointer hover:opacity-80 min-w-[60px]"
                             style={{ background: bg, color }}
-                            onClick={() => qtd > 0 && setDrill({ ...baseCtx, origem: o, faixa: f, title: `${o} × ${f}` })}>
+                            onClick={() => qtd > 0 && setDrill({ ...baseCtx, faixa: f, title: `${f} × ${c}` })}>
                           {qtd > 0 ? qtd : ''}
                         </td>
                       )
@@ -187,8 +196,78 @@ export function Qualidade() {
               </tbody>
             </table>
           </div>
-        </SectionCard>
-      )}
+        )}
+      </SectionCard>
+
+      <SectionCard title="🔀 Faixa × Local" subtitle="Onde casa cada faixa de orçamento? Top 10 destinos.">
+        {fxl.length === 0 ? <EmptyState message="Sem dados" /> : (
+          <div className="overflow-x-auto">
+            <table className="text-xs">
+              <thead>
+                <tr>
+                  <th className="px-2 py-1 text-left font-medium text-slate-500">Faixa ↓ / Local →</th>
+                  {fxlLocais.map(d => <th key={d} className="px-2 py-1 text-center font-medium text-slate-500 whitespace-nowrap">{d.length > 16 ? d.slice(0,16)+'…' : d}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {fxlFaixas.map(f => (
+                  <tr key={f}>
+                    <td className="px-2 py-1 font-medium text-slate-700 whitespace-nowrap">{f}</td>
+                    {fxlLocais.map(d => {
+                      const qtd = fxlMap.get(`${f}|${d}`) ?? 0
+                      const intensity = qtd / fxlMax
+                      const bg = qtd === 0 ? 'transparent' : `rgba(8, 145, 178, ${0.08 + intensity * 0.7})`
+                      const color = intensity > 0.5 ? 'white' : 'rgb(15, 23, 42)'
+                      return (
+                        <td key={d} className="px-2 py-1 text-center cursor-pointer hover:opacity-80 min-w-[60px]"
+                            style={{ background: bg, color }}
+                            onClick={() => qtd > 0 && setDrill({ ...baseCtx, faixa: f, destino: d, title: `${f} × ${d}` })}>
+                          {qtd > 0 ? qtd : ''}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </SectionCard>
+
+      <SectionCard title="🔀 Nº de convidados × Local" subtitle="Casamento pequeno casa onde? Grande casa onde?">
+        {cxl.length === 0 ? <EmptyState message="Sem dados" /> : (
+          <div className="overflow-x-auto">
+            <table className="text-xs">
+              <thead>
+                <tr>
+                  <th className="px-2 py-1 text-left font-medium text-slate-500">Convidados ↓ / Local →</th>
+                  {cxlLocais.map(d => <th key={d} className="px-2 py-1 text-center font-medium text-slate-500 whitespace-nowrap">{d.length > 16 ? d.slice(0,16)+'…' : d}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {cxlConvs.map(c => (
+                  <tr key={c}>
+                    <td className="px-2 py-1 font-medium text-slate-700 whitespace-nowrap">{c}</td>
+                    {cxlLocais.map(d => {
+                      const qtd = cxlMap.get(`${c}|${d}`) ?? 0
+                      const intensity = qtd / cxlMax
+                      const bg = qtd === 0 ? 'transparent' : `rgba(22, 163, 74, ${0.08 + intensity * 0.7})`
+                      const color = intensity > 0.5 ? 'white' : 'rgb(15, 23, 42)'
+                      return (
+                        <td key={d} className="px-2 py-1 text-center cursor-pointer hover:opacity-80 min-w-[60px]"
+                            style={{ background: bg, color }}
+                            onClick={() => qtd > 0 && setDrill({ ...baseCtx, destino: d, title: `${c} convidados × ${d}` })}>
+                          {qtd > 0 ? qtd : ''}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </SectionCard>
 
       <DrillDrawer ctx={drill} onClose={() => setDrill(null)} />
     </div>

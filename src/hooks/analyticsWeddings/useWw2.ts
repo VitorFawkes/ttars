@@ -111,7 +111,9 @@ export type Ww2TeamPerformance = {
 export type Ww2Dist = { label: string; qtd: number; pct: number }
 export type Ww2FaixaConv = { faixa: string; leads: number; fechados: number; taxa: number }
 export type Ww2DestinoConv = { destino: string; leads: number; fechados: number; taxa: number }
-export type Ww2OrigemFaixa = { origem: string; faixa: string; qtd: number }
+export type Ww2FaixaXConv = { faixa: string; convidados: string; qtd: number }
+export type Ww2FaixaXLocal = { faixa: string; destino: string; qtd: number }
+export type Ww2ConvXLocal = { convidados: string; destino: string; qtd: number }
 
 export type Ww2LeadQuality = {
   distribuicoes: {
@@ -122,7 +124,9 @@ export type Ww2LeadQuality = {
   cruzamentos: {
     faixa_conv: Ww2FaixaConv[]
     destino_conv: Ww2DestinoConv[]
-    origem_faixa: Ww2OrigemFaixa[]
+    faixa_x_convidados: Ww2FaixaXConv[]
+    faixa_x_local: Ww2FaixaXLocal[]
+    convidados_x_local: Ww2ConvXLocal[]
   }
   perfil_ideal: {
     faixa_top: string | null
@@ -301,6 +305,82 @@ export function useWw2DrillDown(filters: DrillFilters | null) {
       : Promise.resolve(null),
     enabled: !!orgId && !!filters,
     staleTime: 30_000,
+  })
+}
+
+// ── Journey ─────────────────────────────────────────────────────────────────
+
+export type Ww2FunilPasso = {
+  passo: string
+  ordem: number
+  cards: number
+  pct_total: number
+  pct_anterior: number | null
+}
+
+export type Ww2TempoMetrico = {
+  amostra: number
+  mediana_dias: number | null
+  p75_dias: number | null
+  avg_dias?: number | null
+  nota?: string
+}
+
+export type Ww2Tempos = {
+  lead_para_reuniao_sdr: Ww2TempoMetrico
+  reuniao_sdr_para_reuniao_closer: Ww2TempoMetrico
+  lead_para_closer: Ww2TempoMetrico
+  lead_para_fechamento: Ww2TempoMetrico
+}
+
+export type Ww2OrcamentoReal = {
+  faixa_entrada: string
+  leads_total: number
+  leads_fechados: number
+  leads_com_valor: number
+  valor_medio_real: number
+  valor_mediano_real: number
+  taxa_fechamento: number
+}
+
+export type Ww2DestinoMudou = {
+  destino_entrada: string
+  leads_total: number
+  manteve: number
+  mudou: number
+  sem_dado_final: number
+  pct_manteve: number | null
+  principal_destino_final: string | null
+}
+
+export type Ww2LeadPreso = {
+  card_id: string
+  titulo: string
+  gargalo: string
+  dias: number
+  origem: string
+  faixa: string | null
+}
+
+export type Ww2Journey = {
+  date_start: string
+  date_end: string
+  pipeline_id: string
+  org_id: string
+  funil_real: Ww2FunilPasso[]
+  tempos: Ww2Tempos
+  orcamento_real: Ww2OrcamentoReal[]
+  destino_mudou: Ww2DestinoMudou[]
+  ranking_lentos: Ww2LeadPreso[]
+}
+
+export function useWw2Journey(filters: Ww2Filters) {
+  const orgId = useOrgId()
+  return useQuery({
+    queryKey: ['ww2', 'journey', orgId, filters],
+    queryFn: () => callRpc<Ww2Journey>('ww2_journey', baseParams(orgId, filters)),
+    enabled: !!orgId,
+    staleTime: 60_000,
   })
 }
 
