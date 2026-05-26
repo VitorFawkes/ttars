@@ -27,7 +27,7 @@ export function MobileProposalHero({ proposal }: MobileProposalHeroProps) {
   const heroImage = coverImageUrl || coverRichContent?.cover_image_url as string | undefined || coverItem?.image_url
 
   return (
-    <div className="relative">
+    <div className="relative" data-tour="hero">
       {/* Imagem de fundo */}
       {heroImage ? (
         <div className="relative h-64 w-full overflow-hidden">

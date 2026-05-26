@@ -25,6 +25,10 @@ interface MobileSectionProps {
   onChangeQuantity: (itemId: string, quantity: number) => void
   /** Token público (cliente) ou ID (consultor) pra mostrar botão de comentar */
   commentMode?: { kind: 'public'; proposalToken: string } | { kind: 'admin'; proposalId: string }
+  /** Marcador opcional para o tour do cliente (ex: "section-required") */
+  dataTourSection?: string
+  /** Quando true, marca o botão de comentário desta seção como alvo do tour */
+  dataTourCommentBtn?: boolean
 }
 
 // Cores por tipo de seção
@@ -46,6 +50,8 @@ export function MobileSection({
   onSelectOption,
   onChangeQuantity,
   commentMode,
+  dataTourSection,
+  dataTourCommentBtn,
 }: MobileSectionProps) {
   const items = section.items || []
   if (items.length === 0) return null
@@ -146,7 +152,7 @@ export function MobileSection({
   }
 
   return (
-    <section className="bg-white rounded-2xl shadow-sm border border-slate-100 mx-4 mb-4">
+    <section className="bg-white rounded-2xl shadow-sm border border-slate-100 mx-4 mb-4" data-tour={dataTourSection}>
       {/* Header */}
       <header className="px-4 py-3 border-b border-slate-100 flex items-center gap-3 bg-white">
         <div className={cn(
@@ -175,13 +181,15 @@ export function MobileSection({
           )}
         </div>
         {commentMode && (
-          <CommentButton
-            mode={commentMode}
-            scope={{ kind: 'section', sectionId: section.id }}
-            scopeLabel={cleanTitle(section.title)}
-            size="sm"
-            variant="icon"
-          />
+          <span data-tour={dataTourCommentBtn ? 'comment-btn' : undefined}>
+            <CommentButton
+              mode={commentMode}
+              scope={{ kind: 'section', sectionId: section.id }}
+              scopeLabel={cleanTitle(section.title)}
+              size="sm"
+              variant="icon"
+            />
+          </span>
         )}
       </header>
 

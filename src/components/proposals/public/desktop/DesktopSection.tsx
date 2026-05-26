@@ -25,6 +25,10 @@ interface DesktopSectionProps {
   onChangeQuantity: (itemId: string, quantity: number) => void
   /** Token público da proposta (cliente) ou ID (consultor) pra mostrar botão Comentar */
   commentMode?: { kind: 'public'; proposalToken: string } | { kind: 'admin'; proposalId: string }
+  /** Marcador opcional para o tour do cliente (ex: "section-required") */
+  dataTourSection?: string
+  /** Quando true, marca o botão de comentário desta seção como alvo do tour */
+  dataTourCommentBtn?: boolean
 }
 
 export function DesktopSection({
@@ -35,6 +39,8 @@ export function DesktopSection({
   onSelectOption,
   onChangeQuantity,
   commentMode,
+  dataTourSection,
+  dataTourCommentBtn,
 }: DesktopSectionProps) {
   const config = SECTION_TYPE_CONFIG[section.section_type] || SECTION_TYPE_CONFIG.custom
   const items = section.items || []
@@ -102,7 +108,7 @@ export function DesktopSection({
     .trim()
 
   return (
-    <section className="mb-8">
+    <section className="mb-8" data-tour={dataTourSection}>
       {/* Header da seção */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
@@ -137,13 +143,15 @@ export function DesktopSection({
             </span>
           )}
           {commentMode && (
-            <CommentButton
-              mode={commentMode}
-              scope={{ kind: 'section', sectionId: section.id }}
-              scopeLabel={cleanTitle || config.defaultTitle}
-              size="sm"
-              variant="icon"
-            />
+            <span data-tour={dataTourCommentBtn ? 'comment-btn' : undefined}>
+              <CommentButton
+                mode={commentMode}
+                scope={{ kind: 'section', sectionId: section.id }}
+                scopeLabel={cleanTitle || config.defaultTitle}
+                size="sm"
+                variant="icon"
+              />
+            </span>
           )}
         </div>
       </div>

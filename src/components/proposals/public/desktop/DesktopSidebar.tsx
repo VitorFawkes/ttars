@@ -167,7 +167,7 @@ export function DesktopSidebar({
       )}
 
       {/* Total */}
-      <div className="p-4 border-t border-slate-200 bg-emerald-50">
+      <div className="p-4 border-t border-slate-200 bg-emerald-50" data-tour="sidebar-total">
         <div className="flex items-end justify-between mb-1">
           <span className="text-sm text-emerald-700 font-medium">Total da viagem</span>
           <div className="text-right">
@@ -188,6 +188,7 @@ export function DesktopSidebar({
         <button
           onClick={onAccept}
           disabled={!hasSelections || incompleteSections.length > 0}
+          data-tour="accept-btn"
           className={cn(
             "w-full py-4 rounded-xl font-semibold text-lg transition-all",
             hasSelections && incompleteSections.length === 0

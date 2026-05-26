@@ -53,7 +53,7 @@ export function DesktopProposalHero({ proposal }: DesktopProposalHeroProps) {
   )
 
   return (
-    <div className="mb-8">
+    <div className="mb-8" data-tour="hero">
       {/* Imagem decorativa (se houver) */}
       {heroImage ? (
         <div className="mb-6 overflow-hidden rounded-2xl">

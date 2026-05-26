@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { usePublicProposal } from '@/hooks/useProposal'
 import { usePublicPortal } from '@/hooks/useTripPlanBlocks'
@@ -7,6 +7,9 @@ import { MobileProposalViewer } from '@/components/proposals/public/mobile'
 import { PortalTabs, type PortalTab } from '@/components/trip-plan-portal/PortalTabs'
 import { TravelGuideTab } from '@/components/trip-plan-portal/TravelGuideTab'
 import { PendingTab } from '@/components/trip-plan-portal/PendingTab'
+import { ProposalClientTour } from '@/components/proposals/public/ProposalClientTour'
+import { ProposalTourFAB } from '@/components/proposals/public/ProposalTourFAB'
+import { useProposalClientTour } from '@/hooks/useProposalClientTour'
 import { Loader2, AlertCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
@@ -35,6 +38,35 @@ export default function ProposalView() {
             })
         }
     }, [proposal?.id, token])
+
+    // Tour do cliente — só nas fases pré-aceite
+    const tour = useProposalClientTour({
+        proposalId: proposal?.id,
+        token,
+        status: proposal?.status,
+        forceDevice: forceMobile ? 'mobile' : undefined,
+    })
+
+    // Extrai contexto do tour a partir do metadata da versão ativa
+    const versionMetadata = (proposal?.active_version?.metadata as Record<string, unknown>) || {}
+    const tourFirstName = (versionMetadata.client_first_name as string | undefined)
+        || (versionMetadata.contact_first_name as string | undefined)
+    const tourDestino = versionMetadata.destination as string | undefined
+    const tourCtx = useMemo(() => ({
+        firstName: tourFirstName,
+        destino: tourDestino,
+    }), [tourFirstName, tourDestino])
+
+    // Auto-start uma única vez por carga, depois que o DOM dos viewers renderiza
+    const autoStartedRef = useRef(false)
+    const { shouldAutoStart, openTour } = tour
+    useEffect(() => {
+        if (shouldAutoStart && !autoStartedRef.current) {
+            autoStartedRef.current = true
+            const t = setTimeout(() => openTour(), 800)
+            return () => clearTimeout(t)
+        }
+    }, [shouldAutoStart, openTour])
 
     if (isLoading) {
         return (
@@ -126,11 +158,29 @@ export default function ProposalView() {
         )
     }
 
-    // Force mobile mode if requested via URL param
-    if (forceMobile) {
-        return <MobileProposalViewer proposal={proposal} />
-    }
+    // Use router for automatic mobile/desktop detection (ou mobile forçado via ?mode=mobile)
+    const viewer = forceMobile
+        ? <MobileProposalViewer proposal={proposal} />
+        : <ProposalViewRouter proposal={proposal} />
 
-    // Use router for automatic mobile/desktop detection
-    return <ProposalViewRouter proposal={proposal} />
+    return (
+        <>
+            {viewer}
+            {tour.isEligibleStatus && (
+                <>
+                    <ProposalClientTour
+                        device={tour.device}
+                        isOpen={tour.isOpen}
+                        ctx={tourCtx}
+                        onCompleted={tour.onCompleted}
+                        onSkipped={tour.onSkipped}
+                        onStepView={tour.onStepView}
+                    />
+                    {!tour.isOpen && (
+                        <ProposalTourFAB device={tour.device} onClick={tour.openTour} />
+                    )}
+                </>
+            )}
+        </>
+    )
 }
