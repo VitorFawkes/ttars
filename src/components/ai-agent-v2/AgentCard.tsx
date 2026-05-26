@@ -1,4 +1,4 @@
-import { MoreVertical, Copy, Trash2, MessageSquare, BarChart3, Edit3 } from 'lucide-react'
+import { MoreVertical, Copy, Trash2, MessageSquare, BarChart3, Edit3, AlertTriangle, Loader2 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -6,7 +6,8 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
-import type { AiAgent } from '@/hooks/v2/useAiAgents'
+import { toast } from 'sonner'
+import { useTogglePhoneLineConfig, type AiAgent } from '@/hooks/v2/useAiAgents'
 import { TIPO_CONFIG } from './agent-constants'
 
 interface AgentCardProps {
@@ -39,7 +40,11 @@ export function AgentCard({
   const tipoConfig = TIPO_CONFIG[agent.tipo]
   const TipoIcon = tipoConfig.icon
   const skillCount = agent.ai_agent_skills?.filter(s => s.enabled)?.length ?? 0
-  const lineCount = agent.ai_agent_phone_line_config?.filter(l => l.ativa)?.length ?? 0
+  const phoneLines = agent.ai_agent_phone_line_config ?? []
+  const lineCount = phoneLines.filter(l => l.ativa).length
+  const linkedLines = phoneLines.length
+  const showLineWarning = agent.ativa && lineCount === 0
+  const toggleLine = useTogglePhoneLineConfig(agent.id)
 
   const stopPropagation = (e: React.MouseEvent) => e.stopPropagation()
 
@@ -143,6 +148,57 @@ export function AgentCard({
           </p>
         </div>
       </div>
+
+      {/* Aviso: agente ligada mas nenhuma linha ativa → não responde */}
+      {showLineWarning && (
+        <div
+          onClick={stopPropagation}
+          className="mb-3 flex items-start gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg"
+        >
+          <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-amber-800 font-medium">
+              {linkedLines === 0 ? 'Sem linha WhatsApp vinculada' : 'Nenhuma linha WhatsApp ativa'}
+            </p>
+            <p className="text-[11px] text-amber-700 mt-0.5">
+              {linkedLines === 0
+                ? 'Agente ligada mas não tem como receber mensagens. Vincule uma linha no editor.'
+                : 'A agente está ligada mas não vai responder. Ative pelo menos uma linha.'}
+            </p>
+            {linkedLines === 1 && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 mt-1.5 text-xs border-amber-300 text-amber-800 hover:bg-amber-100"
+                disabled={toggleLine.isPending}
+                onClick={() => {
+                  const line = phoneLines[0]
+                  toggleLine.mutate(
+                    { configId: line.id, ativa: true },
+                    {
+                      onSuccess: () => toast.success(`Linha "${line.whatsapp_linha_config?.phone_number_label || 'WhatsApp'}" ativada`),
+                      onError: () => toast.error('Erro ao ativar linha'),
+                    },
+                  )
+                }}
+              >
+                {toggleLine.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                Ativar {phoneLines[0].whatsapp_linha_config?.phone_number_label || 'linha'}
+              </Button>
+            )}
+            {linkedLines >= 2 && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 mt-1.5 text-xs border-amber-300 text-amber-800 hover:bg-amber-100"
+                onClick={() => onEdit(agent.id)}
+              >
+                Gerenciar linhas
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Footer: Toggle + Status */}
       <div className="flex items-center justify-between pt-3 border-t border-slate-100" onClick={stopPropagation}>
