@@ -233,10 +233,13 @@ function MatrizDimensaoView({ title, subtitle, dim, onDrill }: {
   if (dim.stats.com_ambos < 10) {
     return (
       <SectionCard title={title} subtitle={`Universo ${dim.stats.com_ambos} leads — insuficiente.`}>
-        <EmptyState message="Aguardando mais refinamentos da closer." />
+        <EmptyState message="Aguardando mais refinamentos da closer. Tente um período mais longo no filtro." />
       </SectionCard>
     )
   }
+
+  // Aviso quando NENHUM lead mudou (só diagonal visível)
+  const semVariacao = dim.stats.mudou === 0 && dim.stats.com_ambos > 0
 
   const cats = dim.categorias ?? []
   const cellMap = new Map(dim.matriz.map(c => [`${c.e}|${c.r}`, c.qtd]))
@@ -251,6 +254,12 @@ function MatrizDimensaoView({ title, subtitle, dim, onDrill }: {
 
   return (
     <SectionCard title={title} subtitle={subtitle}>
+      {semVariacao && (
+        <div className="mb-4 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-3">
+          <strong>⚠ Nesse período, todos os {dim.stats.com_ambos} leads refinados confirmaram a mesma categoria que disseram no site.</strong> Sem mudanças pra analisar.
+          {' '}Tente um período mais longo (Últimos 90 dias, 12 meses ou Tudo) pra ver mais movimento entre as faixas.
+        </div>
+      )}
       <div className="overflow-x-auto">
         <table className="text-xs border-collapse">
           <thead>
