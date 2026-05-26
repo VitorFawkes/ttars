@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-05-25
+> **Last Updated:** 2026-05-26
 > **Trigger:** ALWAYS ON
-> **Stats:** 208 tabelas | 201 paginas | 336 hooks | 23 views | 797 components
+> **Stats:** 209 tabelas | 206 paginas | 337 hooks | 23 views | 797 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **336 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **337 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -440,6 +440,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useWeddings()` | `useWeddings.ts` |
 | `useWeddingsWithGuestCounts()` | `useWeddingsWithGuestCounts.ts` |
 | `useWorkspaceMembers()` | `useWorkspaceMembers.ts` |
+| `useWw2()` | `useWw2.ts` |
 
 #### Pipeline & Cards
 | Hook | File |
@@ -584,7 +585,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **201 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **206 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -602,6 +603,11 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `SdrDashboard` | `src/pages/AnalyticsV2/dashboards/SdrDashboard.tsx` |
 | `VendasDashboard` | `src/pages/AnalyticsV2/dashboards/VendasDashboard.tsx` |
 | `AnalyticsWeddingsPage` | `src/pages/AnalyticsWeddings/AnalyticsWeddingsPage.tsx` |
+| `Equipe` | `src/pages/AnalyticsWeddings/tabs/Equipe.tsx` |
+| `Marketing` | `src/pages/AnalyticsWeddings/tabs/Marketing.tsx` |
+| `Perdas` | `src/pages/AnalyticsWeddings/tabs/Perdas.tsx` |
+| `Qualidade` | `src/pages/AnalyticsWeddings/tabs/Qualidade.tsx` |
+| `VisaoGeral` | `src/pages/AnalyticsWeddings/tabs/VisaoGeral.tsx` |
 | `CalendarPage` | `src/pages/CalendarPage.tsx` |
 | `CardByConversation` | `src/pages/CardByConversation.tsx` |
 | `CardDetail` | `src/pages/CardDetail.tsx` |
