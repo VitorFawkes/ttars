@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
-import { CheckCircle2, XCircle, Clock, Target, Loader2, Search, Link2, ChevronRight, Plus, Users, Trash2, Pencil } from 'lucide-react'
-import { useListarPontuacoes, useVincularACard, useDesvincularDeCard, useVoltarParaRascunho, useDescartarPontuacao, type DadosLead } from '../../hooks/useSdrQualification'
+import React, { useMemo, useState } from 'react'
+import { CheckCircle2, XCircle, Clock, Target, Loader2, Search, Link2, ChevronRight, ChevronDown, Plus, Users, Trash2, Pencil, MapPin, Calendar, Wallet, FileText } from 'lucide-react'
+import { useListarPontuacoes, useVincularACard, useDesvincularDeCard, useVoltarParaRascunho, useDescartarPontuacao, type DadosLead, type SdrScoreResult } from '../../hooks/useSdrQualification'
 import { useMeusCardsSdr } from '../../hooks/useMeusLeadsSdr'
 import { Badge } from '../../components/ui/Badge'
 import { Input } from '../../components/ui/Input'
@@ -30,18 +30,9 @@ type Pontuacao = {
     telefone: string | null
     status: string
     version: number
-    dados_lead: {
-        nome_contato?: string
-        nome_casal?: string
-        telefone?: string
-        data_casamento?: string
-        num_convidados?: number
-        investimento_total?: number
-        is_indicacao?: boolean
-        indicado_por?: string
-    }
+    dados_lead: DadosLead
     scoring_inputs: Record<string, boolean>
-    score_result: { score?: number; qualificado?: boolean; disqualified?: boolean }
+    score_result: SdrScoreResult
     rules_version: string | null
     sdr_user_id: string
     sdr_nome: string | null
@@ -56,6 +47,7 @@ export default function PontuacoesPage() {
     const [sessao, setSessao] = useState<SessaoSheet>(null)
     const [vincularFor, setVincularFor] = useState<Pontuacao | null>(null)
     const [novaPontuacaoOpen, setNovaPontuacaoOpen] = useState(false)
+    const [expandedId, setExpandedId] = useState<string | null>(null)
     const desvincular = useDesvincularDeCard()
     const voltarRascunho = useVoltarParaRascunho()
     const descartar = useDescartarPontuacao()
@@ -243,7 +235,7 @@ export default function PontuacoesPage() {
                     {/* Finalizadas */}
                     <Secao
                         titulo="Finalizadas"
-                        descricao="Pontuações já registradas. Editar volta a pontuação pra rascunho — você sobrescreve."
+                        descricao="Pontuações já registradas. Clique numa linha pra ver os dados preenchidos. Editar volta a pontuação pra rascunho — você sobrescreve."
                         items={finalizadas}
                         emptyMsg="Ainda não há pontuações finalizadas."
                         onContinuar={null}
@@ -251,6 +243,8 @@ export default function PontuacoesPage() {
                         onDesvincular={handleDesvincular}
                         onEditar={handleEditar}
                         onExcluir={handleExcluir}
+                        expandedId={expandedId}
+                        onToggleExpand={(id) => setExpandedId((cur) => (cur === id ? null : id))}
                     />
 
                     {/* Descartadas — colapsado por padrão se vazio */}
@@ -315,6 +309,8 @@ function Secao({
     onDesvincular,
     onEditar,
     onExcluir,
+    expandedId,
+    onToggleExpand,
 }: {
     titulo: string
     descricao: string
@@ -326,6 +322,8 @@ function Secao({
     onDesvincular?: ((p: Pontuacao) => void) | null
     onEditar?: ((p: Pontuacao) => void) | null
     onExcluir?: ((p: Pontuacao) => void) | null
+    expandedId?: string | null
+    onToggleExpand?: (id: string) => void
 }) {
     return (
         <section className={destaque ? '' : ''}>
@@ -345,7 +343,7 @@ function Secao({
                 {items.length === 0 ? (
                     <p className="p-6 text-sm text-slate-400 text-center">{emptyMsg}</p>
                 ) : (
-                    <Tabela items={items} onContinuar={onContinuar} onVincular={onVincular} onDesvincular={onDesvincular} onEditar={onEditar} onExcluir={onExcluir} />
+                    <Tabela items={items} onContinuar={onContinuar} onVincular={onVincular} onDesvincular={onDesvincular} onEditar={onEditar} onExcluir={onExcluir} expandedId={expandedId} onToggleExpand={onToggleExpand} />
                 )}
             </div>
         </section>
@@ -359,6 +357,8 @@ function Tabela({
     onDesvincular,
     onEditar,
     onExcluir,
+    expandedId,
+    onToggleExpand,
 }: {
     items: Pontuacao[]
     onContinuar: ((p: Pontuacao) => void) | null
@@ -366,6 +366,8 @@ function Tabela({
     onDesvincular?: ((p: Pontuacao) => void) | null
     onEditar?: ((p: Pontuacao) => void) | null
     onExcluir?: ((p: Pontuacao) => void) | null
+    expandedId?: string | null
+    onToggleExpand?: (id: string) => void
 }) {
     return (
         <table className="w-full text-sm">
@@ -386,13 +388,26 @@ function Tabela({
                     const qualificado = p.score_result?.qualificado ?? false
                     const disq = p.score_result?.disqualified ?? false
                     const isDraft = p.status === 'rascunho'
+                    const isFinalizada = p.status === 'finalizado'
+                    const isExpandable = isFinalizada && !!onToggleExpand
+                    const isExpanded = isExpandable && expandedId === p.id
                     const dataExibicao = p.finalized_at ?? p.created_at
                     const nomePrincipal = p.dados_lead?.nome_contato || p.dados_lead?.nome_casal || p.card_titulo || '(sem nome)'
                     const nomeCasal = p.dados_lead?.nome_casal ?? null
+                    const stop = (e: React.MouseEvent) => e.stopPropagation()
                     return (
-                        <tr key={p.id} className="hover:bg-slate-50">
+                        <React.Fragment key={p.id}>
+                        <tr
+                            className={'hover:bg-slate-50 ' + (isExpandable ? 'cursor-pointer ' : '') + (isExpanded ? 'bg-slate-50' : '')}
+                            onClick={isExpandable ? () => onToggleExpand!(p.id) : undefined}
+                        >
                             <td className="p-3">
                                 <div className="font-medium text-slate-900 flex items-center gap-1.5 flex-wrap">
+                                    {isExpandable && (
+                                        isExpanded
+                                            ? <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                            : <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                    )}
                                     <span>{nomePrincipal}</span>
                                     {p.dados_lead?.is_indicacao && (
                                         <span
@@ -438,7 +453,7 @@ function Tabela({
                             </td>
                             <td className="p-3 text-slate-700">
                                 {p.card_id ? (
-                                    <a href={`/cards/${p.card_id}`} className="text-indigo-600 hover:underline text-xs">
+                                    <a href={`/cards/${p.card_id}`} onClick={stop} className="text-indigo-600 hover:underline text-xs">
                                         {p.card_titulo ?? 'Abrir'}
                                     </a>
                                 ) : (
@@ -450,7 +465,7 @@ function Tabela({
                                 <div className="inline-flex items-center gap-1">
                                     {!p.card_id && onVincular && (
                                         <button
-                                            onClick={() => onVincular(p)}
+                                            onClick={(e) => { stop(e); onVincular(p) }}
                                             className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-slate-200 hover:border-indigo-300 hover:text-indigo-700 transition"
                                             title="Vincular a um card existente"
                                         >
@@ -460,7 +475,7 @@ function Tabela({
                                     )}
                                     {p.card_id && onDesvincular && (
                                         <button
-                                            onClick={() => onDesvincular(p)}
+                                            onClick={(e) => { stop(e); onDesvincular(p) }}
                                             className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-slate-200 hover:border-rose-300 hover:text-rose-700 transition"
                                             title="Desvincular do card"
                                         >
@@ -469,7 +484,7 @@ function Tabela({
                                     )}
                                     {!isDraft && p.status === 'finalizado' && onEditar && (
                                         <button
-                                            onClick={() => onEditar(p)}
+                                            onClick={(e) => { stop(e); onEditar(p) }}
                                             className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-slate-200 hover:border-indigo-300 hover:text-indigo-700 transition"
                                             title="Editar (volta pra rascunho, sobrescreve)"
                                         >
@@ -478,7 +493,7 @@ function Tabela({
                                     )}
                                     {p.status !== 'descartado' && onExcluir && (
                                         <button
-                                            onClick={() => onExcluir(p)}
+                                            onClick={(e) => { stop(e); onExcluir(p) }}
                                             className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-slate-200 hover:border-rose-300 hover:text-rose-700 transition"
                                             title="Excluir (vai para Descartadas)"
                                         >
@@ -487,7 +502,7 @@ function Tabela({
                                     )}
                                     {isDraft && onContinuar && (
                                         <button
-                                            onClick={() => onContinuar(p)}
+                                            onClick={(e) => { stop(e); onContinuar(p) }}
                                             className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white transition"
                                         >
                                             Continuar <ChevronRight className="w-3 h-3" />
@@ -496,10 +511,256 @@ function Tabela({
                                 </div>
                             </td>
                         </tr>
+                        {isExpanded && (
+                            <tr className="bg-slate-50">
+                                <td colSpan={7} className="p-0 border-t border-slate-200">
+                                    <DetalheFinalizada pontuacao={p} onEditar={onEditar ?? null} />
+                                </td>
+                            </tr>
+                        )}
+                        </React.Fragment>
                     )
                 })}
             </tbody>
         </table>
+    )
+}
+
+const MESES_PT = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+]
+
+function formatarMesAno(yyyyMm: string): string {
+    const m = yyyyMm.match(/^(\d{4})-(\d{2})$/)
+    if (!m) return yyyyMm
+    const ano = m[1]
+    const mes = parseInt(m[2], 10)
+    if (mes < 1 || mes > 12) return yyyyMm
+    return `${MESES_PT[mes - 1]} ${ano}`
+}
+
+function formatarDataExata(yyyyMmDd: string): string {
+    const m = yyyyMmDd.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (!m) return yyyyMmDd
+    return `${m[3]}/${m[2]}/${m[1]}`
+}
+
+function formatarDataCasamento(dados: DadosLead): string | null {
+    if (dados.data_casamento_datas && dados.data_casamento_datas.length > 0) {
+        return dados.data_casamento_datas.map(formatarDataExata).join(', ')
+    }
+    if (dados.data_casamento_meses && dados.data_casamento_meses.length > 0) {
+        return dados.data_casamento_meses.map(formatarMesAno).join(' ou ')
+    }
+    const v = dados.data_casamento
+    if (!v) return null
+    if (v === 'indefinido' || v === '__indefinido__') return 'Casal ainda não definiu'
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return formatarDataExata(v)
+    if (/^\d{4}-\d{2}$/.test(v)) return formatarMesAno(v)
+    return v
+}
+
+function DetalheFinalizada({
+    pontuacao: p,
+    onEditar,
+}: {
+    pontuacao: Pontuacao
+    onEditar: ((p: Pontuacao) => void) | null
+}) {
+    const dados = p.dados_lead ?? {}
+    const breakdown = p.score_result?.breakdown ?? []
+    const disqualifiers = p.score_result?.disqualifiers_hit ?? []
+
+    const destinosPontuados = breakdown.filter((b) => b.dimension.startsWith('destino_'))
+    const valorPontuado = breakdown.filter((b) => b.dimension.startsWith('valor'))
+    const SINAIS_OBJETIVOS = new Set([
+        'viagem_internacional_recente',
+        'familia_ajudando',
+        'planejamento_avancado',
+    ])
+    const sinaisPontuados = breakdown.filter((b) => SINAIS_OBJETIVOS.has(b.dimension))
+    const subjetivosPontuados = breakdown.filter((b) => b.dimension === 'referencia_casamento_premium')
+
+    const valorPorConvidado =
+        dados.investimento_total && dados.num_convidados && dados.num_convidados > 0
+            ? dados.investimento_total / dados.num_convidados
+            : null
+
+    const dataCasamentoTxt = formatarDataCasamento(dados)
+    const temOutroDestino = !!(dados.destino_outro_queria || dados.destino_outro_aberto_a)
+
+    return (
+        <div className="px-5 py-4 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Identificação */}
+                <div className="bg-white border border-slate-200 rounded-lg p-3">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-2 flex items-center gap-1.5">
+                        <Users className="w-3 h-3" /> Identificação
+                    </div>
+                    <dl className="space-y-1.5 text-sm">
+                        <Linha label="Contato" valor={dados.nome_contato} />
+                        <Linha label="Telefone" valor={dados.telefone ? formatPhoneBR(dados.telefone) : null} />
+                        <Linha label="Casal" valor={dados.nome_casal} />
+                        {dados.is_indicacao && (
+                            <Linha label="Indicação" valor={dados.indicado_por || 'sim'} accent="rose" />
+                        )}
+                    </dl>
+                </div>
+
+                {/* Data do casamento */}
+                <div className="bg-white border border-slate-200 rounded-lg p-3">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-2 flex items-center gap-1.5">
+                        <Calendar className="w-3 h-3" /> Data prevista
+                    </div>
+                    <div className="text-sm text-slate-800">
+                        {dataCasamentoTxt ?? <span className="text-slate-400">— não informado</span>}
+                    </div>
+                </div>
+
+                {/* Investimento e convidados */}
+                <div className="bg-white border border-slate-200 rounded-lg p-3">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-2 flex items-center gap-1.5">
+                        <Wallet className="w-3 h-3" /> Investimento e convidados
+                    </div>
+                    <dl className="space-y-1.5 text-sm">
+                        <Linha
+                            label="Investimento total"
+                            valor={dados.investimento_total ? formatBRL(dados.investimento_total) : null}
+                        />
+                        <Linha label="Convidados" valor={dados.num_convidados ? String(dados.num_convidados) : null} />
+                        <Linha
+                            label="Custo / convidado"
+                            valor={valorPorConvidado != null ? formatBRL(valorPorConvidado) : null}
+                        />
+                        {valorPontuado.length > 0 && (
+                            <div className="pt-1">
+                                {valorPontuado.map((b) => (
+                                    <Badge key={b.rule_id} className="bg-emerald-100 text-emerald-700">
+                                        {b.label} · +{b.weight} pts
+                                    </Badge>
+                                ))}
+                            </div>
+                        )}
+                    </dl>
+                </div>
+
+                {/* Destinos pontuados */}
+                <div className="bg-white border border-slate-200 rounded-lg p-3">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-2 flex items-center gap-1.5">
+                        <MapPin className="w-3 h-3" /> Destinos pontuados
+                    </div>
+                    {destinosPontuados.length === 0 ? (
+                        <p className="text-sm text-slate-400">Nenhum destino do catálogo marcado</p>
+                    ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                            {destinosPontuados.map((b) => (
+                                <Badge key={b.rule_id} className="bg-indigo-100 text-indigo-700">
+                                    {b.label} · +{b.weight}
+                                </Badge>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Outro destino (fora do catálogo, com flex) */}
+            {temOutroDestino && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <div className="text-[11px] uppercase tracking-wide text-amber-800 font-medium mb-2">
+                        Outro destino (fora do catálogo)
+                    </div>
+                    <dl className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                        <Linha label="Queria" valor={dados.destino_outro_queria} />
+                        <Linha label="Aberto a" valor={dados.destino_outro_aberto_a} />
+                    </dl>
+                </div>
+            )}
+
+            {/* Sinais + subjetivos pontuados */}
+            {(sinaisPontuados.length > 0 || subjetivosPontuados.length > 0) && (
+                <div className="bg-white border border-slate-200 rounded-lg p-3">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-2 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3 h-3" /> Sinais e avaliação
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                        {sinaisPontuados.map((b) => (
+                            <Badge key={b.rule_id} className="bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                {b.label} · +{b.weight}
+                            </Badge>
+                        ))}
+                        {subjetivosPontuados.map((b) => (
+                            <Badge key={b.rule_id} className="bg-violet-50 text-violet-700 border border-violet-200">
+                                {b.label} · +{b.weight}
+                            </Badge>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Desqualificadores */}
+            {disqualifiers.length > 0 && (
+                <div className="bg-rose-50 border border-rose-200 rounded-lg p-3">
+                    <div className="text-[11px] uppercase tracking-wide text-rose-800 font-medium mb-2 flex items-center gap-1.5">
+                        <XCircle className="w-3 h-3" /> Motivos de desqualificação
+                    </div>
+                    <ul className="space-y-1 text-sm text-rose-900">
+                        {disqualifiers.map((d) => (
+                            <li key={d.rule_id}>• {d.label}</li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
+            {/* Notas */}
+            {p.notas && p.notas.trim().length > 0 && (
+                <div className="bg-white border border-slate-200 rounded-lg p-3">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-2 flex items-center gap-1.5">
+                        <FileText className="w-3 h-3" /> Notas internas
+                    </div>
+                    <p className="text-sm text-slate-800 whitespace-pre-wrap">{p.notas}</p>
+                </div>
+            )}
+
+            {/* Footer com autoria + ação editar */}
+            <div className="flex items-center justify-between pt-1">
+                <p className="text-xs text-slate-500">
+                    Registrada por <span className="font-medium text-slate-700">{p.sdr_nome ?? 'SDR'}</span>
+                    {' · '}
+                    {timeAgo(p.finalized_at ?? p.created_at)}
+                </p>
+                {onEditar && (
+                    <Button
+                        variant="outline"
+                        onClick={() => onEditar(p)}
+                        className="gap-1.5"
+                    >
+                        <Pencil className="w-3.5 h-3.5" />
+                        Editar (volta pra rascunho)
+                    </Button>
+                )}
+            </div>
+        </div>
+    )
+}
+
+function Linha({
+    label,
+    valor,
+    accent,
+}: {
+    label: string
+    valor: string | null | undefined
+    accent?: 'rose'
+}) {
+    const accentClass = accent === 'rose' ? 'text-rose-700 font-medium' : 'text-slate-800'
+    return (
+        <div className="flex items-baseline gap-2">
+            <dt className="text-xs text-slate-500 shrink-0 w-28">{label}</dt>
+            <dd className={'text-sm ' + (valor ? accentClass : 'text-slate-400')}>
+                {valor || '—'}
+            </dd>
+        </div>
     )
 }
 
