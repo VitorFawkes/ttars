@@ -486,6 +486,112 @@ export function useWw2Journey(filters: Ww2Filters) {
   })
 }
 
+// ── Visão A: Qualidade do Lead (taxa de conversão + ticket por categoria) ───
+export type WwQualidadeCategoria = {
+  categoria: string
+  entraram: number
+  fecharam: number
+  taxa_pct: number | null
+  ticket_medio: number | null
+  ticket_p25: number | null
+  ticket_p75: number | null
+  ticket_amostra: number
+}
+
+export type WwQualidadeHeatmap = {
+  faixa: string
+  destino: string
+  entraram: number
+  fecharam: number
+  taxa_pct: number | null
+  ticket_medio: number | null
+}
+
+export type WwQualidadeLead = {
+  date_start: string
+  date_end: string
+  date_mode: 'data_entrada'
+  total_entraram: number
+  total_fecharam: number
+  taxa_conversao_geral_pct: number | null
+  cobertura: { com_faixa: number; com_destino: number; com_convidados: number }
+  por_faixa: WwQualidadeCategoria[]
+  por_destino: WwQualidadeCategoria[]
+  por_convidados: WwQualidadeCategoria[]
+  heatmap_faixa_destino: WwQualidadeHeatmap[]
+  error?: string
+}
+
+export function useWwQualidadeLead(filters: Ww2Filters) {
+  const orgId = useOrgId()
+  return useQuery({
+    queryKey: ['ww', 'qualidade-lead', orgId, filters.dateStart, filters.dateEnd, filters.origins],
+    queryFn: () => callRpc<WwQualidadeLead>('ww_qualidade_lead', {
+      p_date_start: filters.dateStart,
+      p_date_end: filters.dateEnd,
+      p_org_id: orgId,
+      p_origins: filters.origins?.length ? filters.origins : null,
+    }),
+    enabled: !!orgId,
+    staleTime: 60_000,
+  })
+}
+
+// ── Visão B: Drift da Venda (entrada × o que vendeu) ────────────────────────
+export type WwDriftInvestimentoMatriz = { faixa_e: string; faixa_v: string; qtd: number; ticket_medio: number | null }
+export type WwDriftTicketPorEntrada = {
+  faixa_e: string
+  amostra: number
+  ticket_medio: number | null
+  p25: number | null
+  mediana: number | null
+  p75: number | null
+  minv: number | null
+  maxv: number | null
+}
+export type WwDriftDestinoMatriz = { dest_e: string; dest_v: string; qtd: number }
+export type WwDriftConvidadosMatriz = { conv_e: string; conv_r: string; qtd: number }
+
+export type WwDriftVenda = {
+  date_start: string
+  date_end: string
+  date_mode: 'data_venda'
+  total_vendas: number
+  investimento: {
+    cobertura: { com_entrada: number; com_valor_real: number; com_ambos: number }
+    drift: { manteve: number; subiu: number; desceu: number; ticket_medio_geral: number | null }
+    matriz: WwDriftInvestimentoMatriz[]
+    ticket_por_entrada: WwDriftTicketPorEntrada[]
+  }
+  destino: {
+    cobertura: { com_entrada: number; com_vendido: number; com_ambos: number }
+    drift: { manteve: number; mudou: number }
+    matriz: WwDriftDestinoMatriz[]
+    top_migracoes: { de: string; para: string; qtd: number }[]
+  }
+  convidados: {
+    cobertura: { com_entrada: number; com_refinado: number; com_ambos: number }
+    drift: { manteve: number; subiu: number; desceu: number }
+    matriz: WwDriftConvidadosMatriz[]
+  }
+  error?: string
+}
+
+export function useWwDriftVenda(filters: Ww2Filters) {
+  const orgId = useOrgId()
+  return useQuery({
+    queryKey: ['ww', 'drift-venda', orgId, filters.dateStart, filters.dateEnd, filters.origins],
+    queryFn: () => callRpc<WwDriftVenda>('ww_drift_venda', {
+      p_date_start: filters.dateStart,
+      p_date_end: filters.dateEnd,
+      p_org_id: orgId,
+      p_origins: filters.origins?.length ? filters.origins : null,
+    }),
+    enabled: !!orgId,
+    staleTime: 60_000,
+  })
+}
+
 export function useWw2FilterOptions() {
   const orgId = useOrgId()
   return useQuery({
