@@ -12,7 +12,7 @@ export function Jornada() {
   if (error) return <ErrorBanner error={error as Error} />
   if (!data) return <EmptyState message="Sem dados" />
 
-  const { funil_real, tempos, orcamento_real, destino_mudou, ranking_lentos } = data
+  const { funil_real, tempos, orcamento_real, destino_mudou, ranking_lentos, dados_fechamento } = data
 
   return (
     <div className="space-y-5">
@@ -93,10 +93,59 @@ export function Jornada() {
         </div>
       </SectionCard>
 
+      {/* === Dados de fechamento === */}
+      {dados_fechamento && dados_fechamento.cards_com_dados_fechamento > 0 && (
+        <SectionCard
+          title="📋 Dados de fechamento (preenchidos pelo Closer no AC)"
+          subtitle={`${dados_fechamento.cards_com_dados_fechamento} cards têm pelo menos 1 campo de fechamento preenchido`}
+        >
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-gradient-to-br from-emerald-50 to-white border border-emerald-100 rounded-lg p-3">
+              <div className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">Valor do pacote</div>
+              <div className="mt-1 text-xl font-semibold text-slate-900">{formatCurrency(dados_fechamento.valor_pacote_mediano ?? 0)}</div>
+              <div className="text-[11px] text-slate-500">mediano (de {dados_fechamento.cards_com_valor_pacote} pacotes)</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">médio: {formatCurrency(dados_fechamento.valor_pacote_medio ?? 0)}</div>
+            </div>
+            <div className="bg-gradient-to-br from-indigo-50 to-white border border-indigo-100 rounded-lg p-3">
+              <div className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">Grupo WhatsApp criado</div>
+              <div className="mt-1 text-xl font-semibold text-slate-900">{formatNumber(dados_fechamento.grupo_whats_sim)}<span className="text-sm font-normal text-slate-500 ml-1">de {formatNumber(dados_fechamento.grupo_whats_sim + dados_fechamento.grupo_whats_nao)}</span></div>
+              <div className="text-[11px] text-emerald-600 font-medium">
+                {dados_fechamento.grupo_whats_sim + dados_fechamento.grupo_whats_nao > 0
+                  ? `${Math.round(100 * dados_fechamento.grupo_whats_sim / (dados_fechamento.grupo_whats_sim + dados_fechamento.grupo_whats_nao))}% criam grupo`
+                  : '—'}
+              </div>
+            </div>
+            <div className="bg-gradient-to-br from-amber-50 to-white border border-amber-100 rounded-lg p-3">
+              <div className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">Cerimonial incluso</div>
+              <div className="mt-1 text-xs space-y-0.5">
+                {(dados_fechamento.cerimonial_top ?? []).slice(0, 4).map(c => (
+                  <div key={c.qtd_cerimonialista} className="flex justify-between">
+                    <span className="text-slate-700">{c.qtd_cerimonialista}</span>
+                    <span className="font-medium tabular-nums">{c.cards}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="bg-gradient-to-br from-purple-50 to-white border border-purple-100 rounded-lg p-3">
+              <div className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">Prazo de contrato</div>
+              <div className="mt-1 text-xs space-y-0.5">
+                {(dados_fechamento.prazo_contrato_top ?? []).slice(0, 4).map(p => (
+                  <div key={p.prazo} className="flex justify-between">
+                    <span className="text-slate-700">{p.prazo}</span>
+                    <span className="font-medium tabular-nums">{p.cards}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="text-[11px] text-slate-400 mt-2">{dados_fechamento.cards_com_monde_venda} com nº venda Monde</div>
+            </div>
+          </div>
+        </SectionCard>
+      )}
+
       {/* === Entrada × Realidade — Orçamento === */}
       <SectionCard
         title="💰 Entrada × Realidade — Orçamento"
-        subtitle="Faixa que o lead disse no formulário do site × valor REAL que assinou no contrato"
+        subtitle="Faixa que o lead disse no formulário do site × valor REAL do pacote Welcome contratado (campo AC 'Pacote WW')"
       >
         {orcamento_real.length === 0 ? <EmptyState message="Sem dados" /> : (
           <table className="w-full text-xs">
@@ -130,8 +179,8 @@ export function Jornada() {
             </tbody>
           </table>
         )}
-        <p className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
-          ⓘ Muitos contratos antigos têm "valor_final" não preenchido. Quando você começar a registrar valor em <strong>todos</strong> os fechamentos, esta tabela vira o gráfico mais útil — mostra se quem disse "Até R$50k" gasta de verdade R$60k, R$80k, etc.
+        <p className="mt-3 text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 rounded p-2">
+          <strong>Lendo a tabela:</strong> "Mediano" é o valor que metade dos pacotes cobra. Note que o pacote Welcome cobre só assessoria/planejamento — o valor total que o casal investe no casamento (hotel, comida, decoração) é maior. Ainda assim, dá pra ver: quem disse "R$200-500 mil" no formulário fecha pacote Welcome de R$100 mil em mediana (~30% do declarado).
         </p>
       </SectionCard>
 

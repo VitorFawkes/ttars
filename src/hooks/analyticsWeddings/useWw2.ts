@@ -362,6 +362,18 @@ export type Ww2LeadPreso = {
   faixa: string | null
 }
 
+export type Ww2DadosFechamento = {
+  cards_com_dados_fechamento: number
+  grupo_whats_sim: number
+  grupo_whats_nao: number
+  cards_com_valor_pacote: number
+  valor_pacote_mediano: number | null
+  valor_pacote_medio: number | null
+  cerimonial_top: { qtd_cerimonialista: string; cards: number }[] | null
+  prazo_contrato_top: { prazo: string; cards: number }[] | null
+  cards_com_monde_venda: number
+}
+
 export type Ww2Journey = {
   date_start: string
   date_end: string
@@ -372,6 +384,7 @@ export type Ww2Journey = {
   orcamento_real: Ww2OrcamentoReal[]
   destino_mudou: Ww2DestinoMudou[]
   ranking_lentos: Ww2LeadPreso[]
+  dados_fechamento?: Ww2DadosFechamento
 }
 
 export function useWw2Journey(filters: Ww2Filters) {
