@@ -8,17 +8,25 @@ import { DrillDrawer, type DrillContext } from '../components/DrillDrawer'
 import { formatCurrency, formatNumber } from '../lib/format'
 
 type Stats = { com_entrada: number; com_refinado: number; com_ambos: number; manteve: number; mudou: number; com_valor_pacote?: number }
-type SumarioOrdenavel = { entrada: string; total: number; manteve: number; subiu: number; desceu: number; pct_manteve: number | null; top_destino: string | null; amostra_suficiente: boolean }
-type SumarioDestino = { entrada: string; total: number; manteve: number; mudou: number; pct_manteve: number | null; top_destino: string | null; amostra_suficiente: boolean }
-type Transicao = { de: string; para: string; qtd: number }
+type MatrizCelula = { e: string; r: string; qtd: number }
+type MatrizDimensao = { stats: Stats; categorias: string[]; matriz: MatrizCelula[] }
 type ValorPorFaixa = { entrada: string; amostra: number; p25: number | null; mediana: number | null; p75: number | null; media: number | null; minimo: number | null; maximo: number | null; amostra_suficiente: boolean }
+type ValorPorCategoria = { categoria: string; amostra: number; p25: number | null; mediana: number | null; p75: number | null; media: number | null; minimo: number | null; maximo: number | null }
+type CrossCelula = { inv?: string; conv?: string; dest?: string; qtd: number }
 
 type EntradaRealidadeData = {
   total_leads: number
   total_fechados: number
-  convidados: { stats: Stats; sumario: SumarioOrdenavel[]; top_transicoes: Transicao[] }
-  investimento: { stats: Stats; sumario: SumarioOrdenavel[]; top_transicoes: Transicao[]; valores_por_faixa: ValorPorFaixa[] }
-  destino: { stats: Stats; sumario: SumarioDestino[]; top_transicoes: Transicao[]; destino_livre_quando_outro: { texto: string; qtd: number }[] }
+  convidados: MatrizDimensao
+  investimento: MatrizDimensao & { valores_por_faixa_entrada: ValorPorFaixa[] }
+  destino: MatrizDimensao & { destino_livre_quando_outro: { texto: string; qtd: number }[] }
+  cross_real: {
+    investimento_x_convidados: CrossCelula[]
+    investimento_x_destino: CrossCelula[]
+    convidados_x_destino: CrossCelula[]
+    valor_pacote_por_convidados: ValorPorCategoria[]
+    valor_pacote_por_destino: ValorPorCategoria[]
+  }
   error?: string
 }
 
@@ -29,7 +37,7 @@ export function EntradaRealidade() {
   const [drill, setDrill] = useState<DrillContext | null>(null)
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['ww2', 'er-v2', org?.id, filters.dateStart, filters.dateEnd, filters.origins, onlyFechados],
+    queryKey: ['ww2', 'er-v3', org?.id, filters.dateStart, filters.dateEnd, filters.origins, onlyFechados],
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any).rpc('ww2_entrada_realidade', {
@@ -46,7 +54,7 @@ export function EntradaRealidade() {
     staleTime: 60_000,
   })
 
-  if (isLoading) return <LoadingSkeleton rows={8} />
+  if (isLoading) return <LoadingSkeleton rows={10} />
   if (error) return <ErrorBanner error={error as Error} />
   if (!data || data.error) return <EmptyState message={data?.error ?? 'Sem dados'} />
 
@@ -54,10 +62,9 @@ export function EntradaRealidade() {
 
   return (
     <div className="space-y-5">
-      {/* Header e aviso crítico */}
       <SectionCard
         title="🔄 Entrada × Realidade"
-        subtitle="O que o lead disse no formulário do site vs o que a closer refinou depois da reunião — com aviso de honestidade estatística."
+        subtitle="Comparação completa: o que o lead disse no formulário × o que a closer refinou depois. Matrizes de transição, valores reais, perfil real dos casamentos."
         action={
           <button
             onClick={() => setOnlyFechados(!onlyFechados)}
@@ -72,29 +79,93 @@ export function EntradaRealidade() {
         <CoverageBanner data={data} />
       </SectionCard>
 
-      <Dimensao
-        title="👥 Convidados — Entrada × Realidade"
-        stats={data.convidados.stats}
-        sumario={data.convidados.sumario}
-        transicoes={data.convidados.top_transicoes}
+      <MatrizDimensaoView
+        title="👥 Convidados — matriz de transição completa"
+        subtitle="Linha = o que o lead disse no site. Coluna = o que a closer confirmou depois. Cada célula = quantos leads. % é da LINHA (do total que disse aquela faixa)."
+        dim={data.convidados}
         onDrill={(e) => setDrill({ ...baseCtx, title: `Leads que disseram "${e}" convidados` })}
-        tipoLabel="convidados"
       />
 
-      <Dimensao
-        title="💰 Investimento — Entrada × Realidade (faixa)"
-        stats={data.investimento.stats}
-        sumario={data.investimento.sumario}
-        transicoes={data.investimento.top_transicoes}
+      <MatrizDimensaoView
+        title="💰 Investimento — matriz de transição completa"
+        subtitle="A faixa que o lead declarou no site × a faixa refinada pela closer."
+        dim={data.investimento}
         onDrill={(e) => setDrill({ ...baseCtx, faixa: e, title: `Leads na faixa ${e}` })}
-        tipoLabel="faixa"
       />
 
-      <ValoresPacote valores={data.investimento.valores_por_faixa} stats={data.investimento.stats} />
+      <ValoresPacotePorFaixaEntrada valores={data.investimento.valores_por_faixa_entrada} stats={data.investimento.stats} />
 
-      <DimensaoDestino
-        data={data.destino}
+      <MatrizDimensaoView
+        title="🏝️ Destino — matriz de transição completa"
+        subtitle="Onde o lead disse que queria casar × onde efetivamente casou."
+        dim={data.destino}
         onDrill={(e) => setDrill({ ...baseCtx, destino: e, title: `Leads que disseram "${e}"` })}
+      />
+
+      {data.destino.destino_livre_quando_outro?.length > 0 && (
+        <SectionCard title='✍️ Quem disse "Outro" no formulário — escreveu o quê?' subtitle="Texto livre do que o casal escreveu.">
+          <ul className="space-y-1.5">
+            {data.destino.destino_livre_quando_outro.map((v, i) => (
+              <li key={i} className="text-xs text-slate-700 border-l-2 border-indigo-200 pl-2">
+                <span className="font-medium tabular-nums text-slate-400 mr-2">×{v.qtd}</span>{v.texto}
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
+      )}
+
+      {/* === PERFIL REAL DOS CASAMENTOS === */}
+      <div className="pt-3">
+        <h2 className="text-lg font-semibold text-slate-900 tracking-tight">🎯 Perfil REAL dos casamentos</h2>
+        <p className="text-xs text-slate-500 mt-1">Cruzamentos entre dimensões usando os valores <strong>refinados</strong> pela closer (não o que disseram no site). Mostra como os casamentos REAIS se distribuem.</p>
+      </div>
+
+      <CrossMatriz
+        title="Faixa real × Nº convidados real"
+        subtitle="Quanto investe casamento de cada tamanho? (ambos refinados pela closer)"
+        data={data.cross_real.investimento_x_convidados}
+        rows={data.investimento.categorias}
+        cols={data.convidados.categorias}
+        getRow={(c) => c.inv!}
+        getCol={(c) => c.conv!}
+        cellColor="emerald"
+        onDrill={(row, col) => setDrill({ ...baseCtx, faixa: row, title: `${row} × ${col} convidados` })}
+      />
+
+      <CrossMatriz
+        title="Faixa real × Local real"
+        subtitle="Quanto investe casamento em cada destino? (ambos refinados)"
+        data={data.cross_real.investimento_x_destino}
+        rows={data.investimento.categorias}
+        cols={data.destino.categorias}
+        getRow={(c) => c.inv!}
+        getCol={(c) => c.dest!}
+        cellColor="indigo"
+        onDrill={(row, col) => setDrill({ ...baseCtx, faixa: row, destino: col, title: `${row} × ${col}` })}
+      />
+
+      <CrossMatriz
+        title="Nº convidados real × Local real"
+        subtitle="Casamento de cada tamanho casa onde?"
+        data={data.cross_real.convidados_x_destino}
+        rows={data.convidados.categorias}
+        cols={data.destino.categorias}
+        getRow={(c) => c.conv!}
+        getCol={(c) => c.dest!}
+        cellColor="purple"
+        onDrill={(row, col) => setDrill({ ...baseCtx, destino: col, title: `${row} convidados × ${col}` })}
+      />
+
+      <ValorPacotePorCategoria
+        title="💸 Valor real do pacote × Nº convidados real"
+        subtitle="Distribuição estatística (min, p25, mediana, p75, máx) do valor de pacote para cada tamanho de casamento."
+        data={data.cross_real.valor_pacote_por_convidados}
+      />
+
+      <ValorPacotePorCategoria
+        title="💸 Valor real do pacote × Local real"
+        subtitle="Distribuição estatística do valor de pacote para cada destino."
+        data={data.cross_real.valor_pacote_por_destino}
       />
 
       <DrillDrawer ctx={drill} onClose={() => setDrill(null)} />
@@ -104,9 +175,9 @@ export function EntradaRealidade() {
 
 function CoverageBanner({ data }: { data: EntradaRealidadeData }) {
   const cards = [
-    { dim: 'Convidados', s: data.convidados.stats, color: 'indigo' },
-    { dim: 'Investimento', s: data.investimento.stats, color: 'emerald' },
-    { dim: 'Destino', s: data.destino.stats, color: 'purple' },
+    { dim: 'Convidados', s: data.convidados.stats, color: 'indigo' as const },
+    { dim: 'Investimento', s: data.investimento.stats, color: 'emerald' as const },
+    { dim: 'Destino', s: data.destino.stats, color: 'purple' as const },
   ]
   return (
     <div>
@@ -149,136 +220,210 @@ function CoverageBanner({ data }: { data: EntradaRealidadeData }) {
           )
         })}
       </div>
-      <div className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2.5">
-        <strong>⚠ Como ler:</strong> "manteve" significa que a closer confirmou a mesma faixa que o lead marcou no site.
-        Taxa de refinamento baixa (ex: 20%) significa que <strong>80% dos leads não têm dado pra comparar</strong> — a análise abaixo cobre só o universo refinado.
-        Quanto mais alta a taxa de "manteve", mais o formulário do site está bem ajustado às escolhas reais.
-      </div>
     </div>
   )
 }
 
-function Dimensao({ title, stats, sumario, transicoes, onDrill, tipoLabel }: {
+function MatrizDimensaoView({ title, subtitle, dim, onDrill }: {
   title: string
-  stats: Stats
-  sumario: SumarioOrdenavel[]
-  transicoes: Transicao[]
+  subtitle: string
+  dim: MatrizDimensao
   onDrill: (entrada: string) => void
-  tipoLabel: string
 }) {
-  if (stats.com_ambos < 10) {
+  if (dim.stats.com_ambos < 10) {
     return (
-      <SectionCard title={title} subtitle={`Apenas ${stats.com_ambos} leads têm entrada E refinado — amostra insuficiente pra análise séria.`}>
-        <EmptyState message={`Universo de análise muito pequeno (${stats.com_ambos} leads). Quando o time refinar mais leads, esta análise fica útil.`} />
+      <SectionCard title={title} subtitle={`Universo ${dim.stats.com_ambos} leads — insuficiente.`}>
+        <EmptyState message="Aguardando mais refinamentos da closer." />
       </SectionCard>
     )
   }
 
-  const pctManteve = Math.round(100 * stats.manteve / stats.com_ambos)
-  const insight = pctManteve >= 95
-    ? `Praticamente todos os leads mantêm a ${tipoLabel} que disseram no formulário. O formulário do site captura bem o intent.`
-    : pctManteve >= 80
-    ? `A maioria mantém, mas ${stats.mudou} casos ({${100 - pctManteve}%}) mudaram — vale olhar pra onde.`
-    : `Muitos leads mudam de ${tipoLabel} entre o formulário e a reunião. O formulário pode estar capturando intent vago.`
+  const cats = dim.categorias ?? []
+  const cellMap = new Map(dim.matriz.map(c => [`${c.e}|${c.r}`, c.qtd]))
+  const rowTotals = new Map<string, number>()
+  cats.forEach(cat => {
+    rowTotals.set(cat, dim.matriz.filter(c => c.e === cat).reduce((s, c) => s + c.qtd, 0))
+  })
+
+  // Detectar categorias fora da ordem padrão (destinos que apareceram extras)
+  const allRowCats = Array.from(new Set([...cats, ...dim.matriz.map(c => c.e)]))
+  const allColCats = Array.from(new Set([...cats, ...dim.matriz.map(c => c.r)]))
 
   return (
-    <SectionCard
-      title={title}
-      subtitle={`Universo: ${formatNumber(stats.com_ambos)} leads · ${formatNumber(stats.manteve)} mantiveram (${pctManteve}%) · ${formatNumber(stats.mudou)} mudaram`}
-    >
-      <div className="mb-4 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded p-2.5">
-        💡 <strong>Insight:</strong> {insight}
+    <SectionCard title={title} subtitle={subtitle}>
+      <div className="overflow-x-auto">
+        <table className="text-xs border-collapse">
+          <thead>
+            <tr>
+              <th className="sticky left-0 bg-white px-3 py-2 text-left font-medium text-slate-500 border-b border-slate-200">
+                Entrada ↓ / Refinado →
+              </th>
+              {allColCats.map(c => (
+                <th key={c} className="px-2 py-2 text-center font-medium text-slate-500 border-b border-slate-200 whitespace-nowrap" style={{ minWidth: 80 }}>
+                  {c}
+                </th>
+              ))}
+              <th className="px-3 py-2 text-right font-medium text-slate-500 border-b border-slate-200 bg-slate-50">Total linha</th>
+            </tr>
+          </thead>
+          <tbody>
+            {allRowCats.map(rowCat => {
+              const rowTotal = rowTotals.get(rowCat) ?? dim.matriz.filter(c => c.e === rowCat).reduce((s, c) => s + c.qtd, 0)
+              if (rowTotal === 0) return null
+              return (
+                <tr key={rowCat} className="hover:bg-slate-50">
+                  <td className="sticky left-0 bg-white hover:bg-slate-50 px-3 py-2 font-medium text-slate-800 border-b border-slate-100 whitespace-nowrap">
+                    <button onClick={() => onDrill(rowCat)} className="text-left hover:text-indigo-700">
+                      {rowCat}
+                    </button>
+                  </td>
+                  {allColCats.map(colCat => {
+                    const qtd = cellMap.get(`${rowCat}|${colCat}`) ?? 0
+                    if (qtd === 0) {
+                      return <td key={colCat} className="px-2 py-2 text-center text-slate-300 border-b border-slate-100">—</td>
+                    }
+                    const isDiagonal = rowCat === colCat
+                    const pctOfRow = rowTotal > 0 ? (qtd / rowTotal) * 100 : 0
+                    const intensity = pctOfRow / 100
+                    const bg = isDiagonal
+                      ? `rgba(16, 185, 129, ${0.15 + intensity * 0.6})`
+                      : `rgba(245, 158, 11, ${0.10 + intensity * 0.55})`
+                    const textColor = intensity > 0.5 ? 'white' : 'rgb(15, 23, 42)'
+                    return (
+                      <td key={colCat}
+                          className="px-2 py-2 text-center border-b border-slate-100 cursor-pointer hover:opacity-80 transition"
+                          style={{ background: bg, color: textColor }}
+                          onClick={() => onDrill(rowCat)}>
+                        <div className="font-semibold tabular-nums">{qtd}</div>
+                        <div className="text-[10px] opacity-80 tabular-nums">{Math.round(pctOfRow)}%</div>
+                      </td>
+                    )
+                  })}
+                  <td className="px-3 py-2 text-right font-semibold text-slate-700 border-b border-slate-100 bg-slate-50 tabular-nums">
+                    {formatNumber(rowTotal)}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {sumario.map((s) => <FaixaCard key={s.entrada} s={s} onClick={() => onDrill(s.entrada)} />)}
-      </div>
-
-      {transicoes.length > 0 && (
-        <div className="mt-5 pt-4 border-t border-slate-100">
-          <div className="text-xs font-medium text-slate-700 mb-2">Todas as mudanças (de → para):</div>
-          <div className="flex flex-wrap gap-2">
-            {transicoes.map((t, i) => (
-              <div key={i} className="bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1 text-xs whitespace-nowrap">
-                <span className="text-slate-700">{t.de}</span>
-                <span className="text-amber-600 mx-1.5">→</span>
-                <span className="font-medium text-slate-900">{t.para}</span>
-                <span className="text-slate-500 ml-2 tabular-nums">{t.qtd} {t.qtd === 1 ? 'lead' : 'leads'}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <p className="mt-3 text-[11px] text-slate-500">
+        <span className="inline-block w-3 h-3 align-middle mr-1 rounded-sm" style={{ background: 'rgba(16,185,129,0.55)' }} /> diagonal = manteve a faixa ·
+        <span className="inline-block w-3 h-3 align-middle mx-1 rounded-sm" style={{ background: 'rgba(245,158,11,0.5)' }} /> fora da diagonal = mudou ·
+        % é da linha (entrada)
+      </p>
     </SectionCard>
   )
 }
 
-function FaixaCard({ s, onClick }: { s: SumarioOrdenavel; onClick: () => void }) {
-  const pct = s.pct_manteve ?? 0
-  const corPct = pct >= 95 ? 'text-emerald-700' : pct >= 80 ? 'text-amber-700' : 'text-rose-600'
-  const corBg = pct >= 95 ? 'bg-emerald-50 border-emerald-200' : pct >= 80 ? 'bg-amber-50 border-amber-200' : 'bg-rose-50 border-rose-200'
-  const w_manteve = (s.manteve / s.total) * 100
-  const w_subiu = (s.subiu / s.total) * 100
-  const w_desceu = (s.desceu / s.total) * 100
+function CrossMatriz({ title, subtitle, data, rows, cols, getRow, getCol, cellColor, onDrill }: {
+  title: string
+  subtitle: string
+  data: CrossCelula[]
+  rows: string[]
+  cols: string[]
+  getRow: (c: CrossCelula) => string
+  getCol: (c: CrossCelula) => string
+  cellColor: 'emerald' | 'indigo' | 'purple'
+  onDrill: (row: string, col: string) => void
+}) {
+  if (data.length === 0) {
+    return <SectionCard title={title} subtitle={subtitle}><EmptyState message="Sem dados suficientes ainda." /></SectionCard>
+  }
+  const cellMap = new Map(data.map(c => [`${getRow(c)}|${getCol(c)}`, c.qtd]))
+
+  const allRows = Array.from(new Set([...rows, ...data.map(getRow)]))
+  const allCols = Array.from(new Set([...cols, ...data.map(getCol)]))
+
+  // Totais por linha/coluna
+  const rowTotals = new Map<string, number>()
+  const colTotals = new Map<string, number>()
+  allRows.forEach(r => rowTotals.set(r, data.filter(c => getRow(c) === r).reduce((s, c) => s + c.qtd, 0)))
+  allCols.forEach(c => colTotals.set(c, data.filter(cc => getCol(cc) === c).reduce((s, cc) => s + cc.qtd, 0)))
+  const grandTotal = data.reduce((s, c) => s + c.qtd, 0)
+
+  const colors: Record<string, string> = {
+    emerald: 'rgba(16, 185, 129',
+    indigo: 'rgba(79, 70, 229',
+    purple: 'rgba(147, 51, 234',
+  }
+  const baseColor = colors[cellColor]
+
+  // Cor proporcional ao % do TOTAL GERAL (mostra hot spots)
+  const maxQtd = Math.max(...data.map(c => c.qtd), 1)
 
   return (
-    <button onClick={onClick} className={`text-left bg-white border ${corBg} rounded-xl p-4 hover:shadow-md transition`}>
-      <div className="flex items-baseline justify-between mb-2">
-        <div className="text-sm font-semibold text-slate-900">
-          {s.entrada}
-          {!s.amostra_suficiente && <span className="ml-1.5 text-[10px] text-amber-600 font-normal">amostra pequena</span>}
-        </div>
-        <div className={`text-xl font-bold tabular-nums ${corPct}`}>{pct}%</div>
+    <SectionCard title={title} subtitle={subtitle}>
+      <div className="overflow-x-auto">
+        <table className="text-xs border-collapse">
+          <thead>
+            <tr>
+              <th className="sticky left-0 bg-white px-3 py-2 text-left font-medium text-slate-500 border-b border-slate-200"></th>
+              {allCols.map(c => (
+                <th key={c} className="px-2 py-2 text-center font-medium text-slate-500 border-b border-slate-200 whitespace-nowrap" style={{ minWidth: 70 }}>
+                  {c.length > 14 ? c.slice(0, 14) + '…' : c}
+                </th>
+              ))}
+              <th className="px-3 py-2 text-right font-medium text-slate-600 border-b border-slate-200 bg-slate-50">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {allRows.map(rowCat => {
+              const rowTotal = rowTotals.get(rowCat) ?? 0
+              if (rowTotal === 0) return null
+              return (
+                <tr key={rowCat} className="hover:bg-slate-50">
+                  <td className="sticky left-0 bg-white hover:bg-slate-50 px-3 py-2 font-medium text-slate-800 border-b border-slate-100 whitespace-nowrap">{rowCat}</td>
+                  {allCols.map(colCat => {
+                    const qtd = cellMap.get(`${rowCat}|${colCat}`) ?? 0
+                    if (qtd === 0) return <td key={colCat} className="px-2 py-2 text-center text-slate-300 border-b border-slate-100">—</td>
+                    const intensity = qtd / maxQtd
+                    const bg = `${baseColor}, ${0.10 + intensity * 0.75})`
+                    const textColor = intensity > 0.5 ? 'white' : 'rgb(15, 23, 42)'
+                    const pctOfRow = rowTotal > 0 ? Math.round((qtd / rowTotal) * 100) : 0
+                    return (
+                      <td key={colCat}
+                          className="px-2 py-2 text-center border-b border-slate-100 cursor-pointer hover:opacity-80 transition"
+                          style={{ background: bg, color: textColor }}
+                          onClick={() => onDrill(rowCat, colCat)}
+                          title={`${qtd} casais · ${pctOfRow}% dos que ${rowCat.toLowerCase()}`}>
+                        <div className="font-semibold tabular-nums">{qtd}</div>
+                        <div className="text-[10px] opacity-80 tabular-nums">{pctOfRow}%</div>
+                      </td>
+                    )
+                  })}
+                  <td className="px-3 py-2 text-right font-semibold text-slate-700 border-b border-slate-100 bg-slate-50 tabular-nums">{formatNumber(rowTotal)}</td>
+                </tr>
+              )
+            })}
+            <tr className="bg-slate-50">
+              <td className="sticky left-0 bg-slate-50 px-3 py-2 font-semibold text-slate-600 border-t-2 border-slate-200">Total coluna</td>
+              {allCols.map(colCat => {
+                const t = colTotals.get(colCat) ?? 0
+                return (
+                  <td key={colCat} className="px-2 py-2 text-center font-semibold text-slate-600 border-t-2 border-slate-200 tabular-nums">
+                    {t > 0 ? formatNumber(t) : '—'}
+                  </td>
+                )
+              })}
+              <td className="px-3 py-2 text-right font-bold text-slate-900 border-t-2 border-slate-200 tabular-nums">{formatNumber(grandTotal)}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-      <div className="text-[11px] text-slate-500 mb-3">
-        {formatNumber(s.total)} {s.total === 1 ? 'lead' : 'leads'} no universo
-      </div>
-
-      {/* Barra de distribuição */}
-      <div className="h-3 bg-slate-100 rounded-full overflow-hidden flex mb-2">
-        {w_manteve > 0 && <div className="bg-emerald-500 transition-all" style={{ width: `${w_manteve}%` }} />}
-        {w_subiu > 0 && <div className="bg-amber-400 transition-all" style={{ width: `${w_subiu}%` }} />}
-        {w_desceu > 0 && <div className="bg-rose-400 transition-all" style={{ width: `${w_desceu}%` }} />}
-      </div>
-
-      <div className="grid grid-cols-3 gap-2 text-[11px]">
-        <div>
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 align-middle" />
-          <span className="text-slate-500">Manteve</span>
-          <div className="font-semibold text-slate-900 tabular-nums">{formatNumber(s.manteve)}</div>
-        </div>
-        <div>
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 mr-1 align-middle" />
-          <span className="text-slate-500">Subiu</span>
-          <div className={`font-semibold tabular-nums ${s.subiu > 0 ? 'text-amber-700' : 'text-slate-300'}`}>{formatNumber(s.subiu)}</div>
-        </div>
-        <div>
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-rose-400 mr-1 align-middle" />
-          <span className="text-slate-500">Desceu</span>
-          <div className={`font-semibold tabular-nums ${s.desceu > 0 ? 'text-rose-600' : 'text-slate-300'}`}>{formatNumber(s.desceu)}</div>
-        </div>
-      </div>
-
-      {s.top_destino && (
-        <div className="mt-3 pt-3 border-t border-slate-100 text-[11px]">
-          <span className="text-slate-500">Quando muda, mais comum vai pra: </span>
-          <span className="font-medium text-amber-700">{s.top_destino}</span>
-        </div>
-      )}
-    </button>
+      <p className="mt-3 text-[11px] text-slate-500">Cada célula: número absoluto + % da linha. Clique pra ver os leads.</p>
+    </SectionCard>
   )
 }
 
-function ValoresPacote({ valores, stats }: { valores: ValorPorFaixa[]; stats: Stats }) {
-  if (!valores || valores.length === 0 || (stats.com_valor_pacote ?? 0) < 10) {
-    return null
-  }
+function ValoresPacotePorFaixaEntrada({ valores, stats }: { valores: ValorPorFaixa[]; stats: Stats }) {
+  if (!valores || valores.length === 0 || (stats.com_valor_pacote ?? 0) < 10) return null
   const globalMax = Math.max(...valores.map(v => v.maximo ?? 0), 1)
-
   return (
     <SectionCard
-      title="💸 Investimento — Valor REAL do pacote por faixa de entrada"
-      subtitle={`${stats.com_valor_pacote} contratos com valor de pacote registrado (excluindo outliers <R$5k). Mostra distribuição estatística por faixa que o lead disse no site.`}
+      title="💸 Valor REAL do pacote por faixa de entrada"
+      subtitle={`${stats.com_valor_pacote} contratos com valor (excluindo outliers <R$5k). Mostra range completo: min, p25-p75 (faixa típica), mediana, máx.`}
     >
       <table className="w-full text-xs">
         <thead className="text-left text-slate-500 border-b border-slate-200">
@@ -290,155 +435,95 @@ function ValoresPacote({ valores, stats }: { valores: ValorPorFaixa[]; stats: St
             <th className="py-2 font-medium text-right">Mediana</th>
             <th className="py-2 font-medium text-right">P75</th>
             <th className="py-2 font-medium text-right">Máx</th>
-            <th className="py-2 font-medium" style={{ width: '35%' }}>Faixa real (min · p25-p75 · máx)</th>
+            <th className="py-2 font-medium" style={{ width: '35%' }}>Faixa real</th>
           </tr>
         </thead>
         <tbody>
-          {valores.map((r) => {
-            const leftMin = ((r.minimo ?? 0) / globalMax) * 100
-            const widthRange = (((r.maximo ?? 0) - (r.minimo ?? 0)) / globalMax) * 100
-            const leftP25 = ((r.p25 ?? 0) / globalMax) * 100
-            const widthIQR = (((r.p75 ?? 0) - (r.p25 ?? 0)) / globalMax) * 100
-            const leftP50 = ((r.mediana ?? 0) / globalMax) * 100
-            return (
-              <tr key={r.entrada} className="border-b border-slate-100">
-                <td className="py-2 font-medium text-slate-900">
-                  {r.entrada}
-                  {!r.amostra_suficiente && <span className="ml-1 text-[10px] text-amber-600">(n&lt;10)</span>}
-                </td>
-                <td className="py-2 text-right tabular-nums">{r.amostra}</td>
-                <td className="py-2 text-right tabular-nums text-slate-500">{formatCurrency(r.minimo ?? 0)}</td>
-                <td className="py-2 text-right tabular-nums text-slate-500">{formatCurrency(r.p25 ?? 0)}</td>
-                <td className="py-2 text-right tabular-nums font-semibold text-slate-900">{formatCurrency(r.mediana ?? 0)}</td>
-                <td className="py-2 text-right tabular-nums text-slate-500">{formatCurrency(r.p75 ?? 0)}</td>
-                <td className="py-2 text-right tabular-nums text-slate-500">{formatCurrency(r.maximo ?? 0)}</td>
-                <td className="py-2 relative h-6">
-                  <div className="absolute top-1/2 -translate-y-1/2 h-1 bg-slate-200 rounded" style={{ left: `${leftMin}%`, width: `${widthRange}%` }} />
-                  <div className="absolute top-1/2 -translate-y-1/2 h-2.5 bg-indigo-400 rounded" style={{ left: `${leftP25}%`, width: `${widthIQR}%` }} />
-                  <div className="absolute top-1/2 -translate-y-1/2 w-1 h-4 bg-indigo-900 rounded" style={{ left: `${leftP50}%` }} />
-                </td>
-              </tr>
-            )
-          })}
+          {valores.map((r) => <ValorRow key={r.entrada} v={r} globalMax={globalMax} />)}
         </tbody>
       </table>
       <p className="mt-3 text-[11px] text-slate-500">
-        <span className="inline-block w-3 h-1 bg-slate-200 align-middle mr-1" /> range completo (min-máx) ·
-        <span className="inline-block w-3 h-2 bg-indigo-400 align-middle mx-1" /> 50% no meio (p25-p75) ·
+        <span className="inline-block w-3 h-1 bg-slate-200 align-middle mr-1" /> min-máx ·
+        <span className="inline-block w-3 h-2 bg-indigo-400 align-middle mx-1" /> p25-p75 ·
         <span className="inline-block w-1 h-3 bg-indigo-900 align-middle mx-1" /> mediana
       </p>
-      <div className="mt-3 text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 rounded p-2.5">
-        💡 <strong>Como ler:</strong> O pacote Welcome cobre só a assessoria/planejamento — não o casamento todo.
-        Se quem disse "R$200-500 mil" tem mediana de pacote R$100k, isso significa que pagou ~R$100k pra Welcome, e provavelmente o casamento total ficou entre R$200-500k declarado.
-      </div>
     </SectionCard>
   )
 }
 
-function DimensaoDestino({ data, onDrill }: {
-  data: { stats: Stats; sumario: SumarioDestino[]; top_transicoes: Transicao[]; destino_livre_quando_outro: { texto: string; qtd: number }[] }
-  onDrill: (e: string) => void
+function ValorPacotePorCategoria({ title, subtitle, data }: {
+  title: string
+  subtitle: string
+  data: ValorPorCategoria[]
 }) {
-  const { stats, sumario, top_transicoes, destino_livre_quando_outro } = data
-  if (stats.com_ambos < 10) {
-    return (
-      <SectionCard title="🏝️ Destino — Entrada × Realidade" subtitle="Amostra insuficiente.">
-        <EmptyState message={`Só ${stats.com_ambos} leads têm entrada e destino refinado.`} />
-      </SectionCard>
-    )
-  }
-
-  const pctManteve = Math.round(100 * stats.manteve / stats.com_ambos)
-  const insight = pctManteve >= 90
-    ? `Destino é a dimensão mais estável: ${pctManteve}% mantêm o que disseram. Os ${stats.mudou} que mudaram revelam ofertas alternativas.`
-    : `${stats.mudou} de ${stats.com_ambos} leads mudaram de destino. Veja pra onde estão indo.`
-
+  if (!data || data.length === 0) return null
+  const globalMax = Math.max(...data.map(v => v.maximo ?? 0), 1)
   return (
-    <>
-      <SectionCard
-        title="🏝️ Destino — Entrada × Realidade"
-        subtitle={`Universo: ${formatNumber(stats.com_ambos)} leads · ${formatNumber(stats.manteve)} mantiveram (${pctManteve}%) · ${formatNumber(stats.mudou)} mudaram`}
-      >
-        <div className="mb-4 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded p-2.5">💡 <strong>Insight:</strong> {insight}</div>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-          {sumario.map((s) => <DestinoCard key={s.entrada} s={s} onClick={() => onDrill(s.entrada)} />)}
-        </div>
-      </SectionCard>
-
-      {top_transicoes.length > 0 && (
-        <SectionCard title="Mudanças de destino (top 10)" subtitle="Casais que disseram um destino e acabaram em outro">
-          <div className="flex flex-wrap gap-2">
-            {top_transicoes.map((t, i) => (
-              <div key={i} className="bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1 text-xs">
-                <span className="text-slate-700">{t.de}</span>
-                <span className="text-amber-600 mx-1">→</span>
-                <span className="font-medium text-slate-900">{t.para}</span>
-                <span className="text-slate-400 ml-1.5 tabular-nums">×{t.qtd}</span>
-              </div>
-            ))}
-          </div>
-        </SectionCard>
-      )}
-
-      {destino_livre_quando_outro.length > 0 && (
-        <SectionCard title='✍️ Quem disse "Outro" no formulário — escreveu o quê?' subtitle="Texto livre do que o casal queria.">
-          <ul className="space-y-1.5">
-            {destino_livre_quando_outro.map((v, i) => (
-              <li key={i} className="text-xs text-slate-700 border-l-2 border-indigo-200 pl-2">
-                <span className="font-medium tabular-nums text-slate-400 mr-2">×{v.qtd}</span>{v.texto}
-              </li>
-            ))}
-          </ul>
-        </SectionCard>
-      )}
-    </>
+    <SectionCard title={title} subtitle={subtitle}>
+      <table className="w-full text-xs">
+        <thead className="text-left text-slate-500 border-b border-slate-200">
+          <tr>
+            <th className="py-2 font-medium">Categoria refinada</th>
+            <th className="py-2 font-medium text-right">n</th>
+            <th className="py-2 font-medium text-right">Mín</th>
+            <th className="py-2 font-medium text-right">P25</th>
+            <th className="py-2 font-medium text-right">Mediana</th>
+            <th className="py-2 font-medium text-right">P75</th>
+            <th className="py-2 font-medium text-right">Máx</th>
+            <th className="py-2 font-medium" style={{ width: '35%' }}>Faixa real</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((r) => (
+            <tr key={r.categoria} className="border-b border-slate-100">
+              <td className="py-2 font-medium text-slate-900">
+                {r.categoria}
+                {r.amostra < 10 && <span className="ml-1 text-[10px] text-amber-600">(n&lt;10)</span>}
+              </td>
+              <td className="py-2 text-right tabular-nums">{r.amostra}</td>
+              <td className="py-2 text-right tabular-nums text-slate-500">{formatCurrency(r.minimo ?? 0)}</td>
+              <td className="py-2 text-right tabular-nums text-slate-500">{formatCurrency(r.p25 ?? 0)}</td>
+              <td className="py-2 text-right tabular-nums font-semibold text-slate-900">{formatCurrency(r.mediana ?? 0)}</td>
+              <td className="py-2 text-right tabular-nums text-slate-500">{formatCurrency(r.p75 ?? 0)}</td>
+              <td className="py-2 text-right tabular-nums text-slate-500">{formatCurrency(r.maximo ?? 0)}</td>
+              <td className="py-2"><RangeBar v={r} globalMax={globalMax} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </SectionCard>
   )
 }
 
-function DestinoCard({ s, onClick }: { s: SumarioDestino; onClick: () => void }) {
-  const pct = s.pct_manteve ?? 0
-  const corPct = pct >= 90 ? 'text-emerald-700' : pct >= 70 ? 'text-amber-700' : 'text-rose-600'
-  const corBg = pct >= 90 ? 'bg-emerald-50 border-emerald-200' : pct >= 70 ? 'bg-amber-50 border-amber-200' : 'bg-rose-50 border-rose-200'
-  const w_manteve = (s.manteve / s.total) * 100
-  const w_mudou = (s.mudou / s.total) * 100
-
+function ValorRow({ v, globalMax }: { v: ValorPorFaixa; globalMax: number }) {
   return (
-    <button onClick={onClick} className={`text-left bg-white border ${corBg} rounded-xl p-4 hover:shadow-md transition`}>
-      <div className="flex items-baseline justify-between mb-2">
-        <div className="text-sm font-semibold text-slate-900">
-          {s.entrada}
-          {!s.amostra_suficiente && <span className="ml-1.5 text-[10px] text-amber-600 font-normal">amostra pequena</span>}
-        </div>
-        <div className={`text-xl font-bold tabular-nums ${corPct}`}>{pct}%</div>
-      </div>
-      <div className="text-[11px] text-slate-500 mb-3">
-        {formatNumber(s.total)} {s.total === 1 ? 'lead' : 'leads'} no universo
-      </div>
+    <tr className="border-b border-slate-100">
+      <td className="py-2 font-medium text-slate-900">
+        {v.entrada}
+        {!v.amostra_suficiente && <span className="ml-1 text-[10px] text-amber-600">(n&lt;10)</span>}
+      </td>
+      <td className="py-2 text-right tabular-nums">{v.amostra}</td>
+      <td className="py-2 text-right tabular-nums text-slate-500">{formatCurrency(v.minimo ?? 0)}</td>
+      <td className="py-2 text-right tabular-nums text-slate-500">{formatCurrency(v.p25 ?? 0)}</td>
+      <td className="py-2 text-right tabular-nums font-semibold text-slate-900">{formatCurrency(v.mediana ?? 0)}</td>
+      <td className="py-2 text-right tabular-nums text-slate-500">{formatCurrency(v.p75 ?? 0)}</td>
+      <td className="py-2 text-right tabular-nums text-slate-500">{formatCurrency(v.maximo ?? 0)}</td>
+      <td className="py-2"><RangeBar v={v} globalMax={globalMax} /></td>
+    </tr>
+  )
+}
 
-      <div className="h-3 bg-slate-100 rounded-full overflow-hidden flex mb-2">
-        {w_manteve > 0 && <div className="bg-emerald-500 transition-all" style={{ width: `${w_manteve}%` }} />}
-        {w_mudou > 0 && <div className="bg-amber-400 transition-all" style={{ width: `${w_mudou}%` }} />}
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 text-[11px]">
-        <div>
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 align-middle" />
-          <span className="text-slate-500">Manteve</span>
-          <div className="font-semibold text-slate-900 tabular-nums">{formatNumber(s.manteve)}</div>
-        </div>
-        <div>
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 mr-1 align-middle" />
-          <span className="text-slate-500">Mudou</span>
-          <div className={`font-semibold tabular-nums ${s.mudou > 0 ? 'text-amber-700' : 'text-slate-300'}`}>{formatNumber(s.mudou)}</div>
-        </div>
-      </div>
-
-      {s.top_destino && s.mudou > 0 && (
-        <div className="mt-3 pt-3 border-t border-slate-100 text-[11px]">
-          <span className="text-slate-500">Quando muda, mais comum vai pra: </span>
-          <span className="font-medium text-amber-700">{s.top_destino}</span>
-        </div>
-      )}
-    </button>
+function RangeBar({ v, globalMax }: { v: { p25: number | null; p75: number | null; mediana: number | null; minimo: number | null; maximo: number | null }; globalMax: number }) {
+  const leftMin = ((v.minimo ?? 0) / globalMax) * 100
+  const widthRange = (((v.maximo ?? 0) - (v.minimo ?? 0)) / globalMax) * 100
+  const leftP25 = ((v.p25 ?? 0) / globalMax) * 100
+  const widthIQR = (((v.p75 ?? 0) - (v.p25 ?? 0)) / globalMax) * 100
+  const leftP50 = ((v.mediana ?? 0) / globalMax) * 100
+  return (
+    <div className="relative h-6">
+      <div className="absolute top-1/2 -translate-y-1/2 h-1 bg-slate-200 rounded" style={{ left: `${leftMin}%`, width: `${widthRange}%` }} />
+      <div className="absolute top-1/2 -translate-y-1/2 h-2.5 bg-indigo-400 rounded" style={{ left: `${leftP25}%`, width: `${widthIQR}%` }} />
+      <div className="absolute top-1/2 -translate-y-1/2 w-1 h-4 bg-indigo-900 rounded" style={{ left: `${leftP50}%` }} />
+    </div>
   )
 }
