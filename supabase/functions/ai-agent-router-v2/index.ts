@@ -2055,6 +2055,32 @@ Deno.serve(async (req) => {
       if (turnInsertErr) {
         console.error(`[v2] FALHA AO PERSISTIR ASSISTANT TURN: ${turnInsertErr.message}`, turnInsertErr);
       }
+
+      // Denormalizar pontuação no card (cards.sdr_qualification_score_latest)
+      // pra UI ler — mesmo shape que o trigger de SDR humano (migration
+      // 20260512d_sdr_qualifications.sql). Inclui source/agent_id pra distinguir
+      // IA de humano. Se humano qualificar depois, o trigger existente
+      // sobrescreve com a versão humana (comportamento esperado).
+      if (cardId && qualificationResult && typeof qualificationResult.score === "number") {
+        const { error: cardScoreErr } = await supabase
+          .from("cards")
+          .update({
+            sdr_qualification_score_latest: {
+              qualification_id: null,
+              score: qualificationResult.score,
+              qualificado: qualificationResult.qualificado ?? false,
+              disqualified: (qualificationResult as { disqualified?: boolean }).disqualified ?? false,
+              finalized_at: new Date().toISOString(),
+              sdr_user_id: null,
+              source: "ai_agent",
+              agent_id: agent.id,
+            },
+          })
+          .eq("id", cardId);
+        if (cardScoreErr) {
+          console.error(`[v2] FALHA AO DENORMALIZAR SCORE NO CARD: ${cardScoreErr.message}`, cardScoreErr);
+        }
+      }
     }
 
     // Quando o validator bloqueia (action="block"), o flow acima não envia
