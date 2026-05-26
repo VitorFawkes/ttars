@@ -13,6 +13,7 @@ import {
   type TemplateVarConfig,
 } from '../../../hooks/convidados/useTemplateVarConfig'
 import { cn } from '../../../lib/utils'
+import { parseLocalDate } from '../../../lib/localDate'
 
 interface ConfigurarEnvioModalProps {
   open: boolean
@@ -38,16 +39,14 @@ const MONTHS_FULL = [
 ]
 
 function longDate(iso: string | null | undefined): string | null {
-  if (!iso) return null
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return null
+  const d = parseLocalDate(iso)
+  if (!d) return null
   return `${String(d.getDate()).padStart(2, '0')} de ${MONTHS_FULL[d.getMonth()]} de ${d.getFullYear()}`
 }
 
 function shortDate(iso: string | null | undefined): string | null {
-  if (!iso) return null
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return null
+  const d = parseLocalDate(iso)
+  if (!d) return null
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
 }
 
