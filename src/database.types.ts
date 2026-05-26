@@ -4032,6 +4032,172 @@ export type Database = {
           },
         ]
       }
+      calendly_webhook_events: {
+        Row: {
+          card_id: string | null
+          contato_id: string | null
+          created_at: string
+          error_message: string | null
+          event_end_time: string | null
+          event_name: string | null
+          event_start_time: string | null
+          event_type: string
+          event_uri: string | null
+          event_uuid: string | null
+          id: string
+          invitee_email: string | null
+          invitee_name: string | null
+          invitee_phone: string | null
+          meeting_join_url: string | null
+          meeting_location_type: string | null
+          org_id: string | null
+          organizer_email: string | null
+          payload: Json
+          processed_at: string | null
+          processed_status: string | null
+          signature_header: string | null
+          signature_valid: boolean | null
+          tarefa_id: string | null
+        }
+        Insert: {
+          card_id?: string | null
+          contato_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          event_end_time?: string | null
+          event_name?: string | null
+          event_start_time?: string | null
+          event_type: string
+          event_uri?: string | null
+          event_uuid?: string | null
+          id?: string
+          invitee_email?: string | null
+          invitee_name?: string | null
+          invitee_phone?: string | null
+          meeting_join_url?: string | null
+          meeting_location_type?: string | null
+          org_id?: string | null
+          organizer_email?: string | null
+          payload: Json
+          processed_at?: string | null
+          processed_status?: string | null
+          signature_header?: string | null
+          signature_valid?: boolean | null
+          tarefa_id?: string | null
+        }
+        Update: {
+          card_id?: string | null
+          contato_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          event_end_time?: string | null
+          event_name?: string | null
+          event_start_time?: string | null
+          event_type?: string
+          event_uri?: string | null
+          event_uuid?: string | null
+          id?: string
+          invitee_email?: string | null
+          invitee_name?: string | null
+          invitee_phone?: string | null
+          meeting_join_url?: string | null
+          meeting_location_type?: string | null
+          org_id?: string | null
+          organizer_email?: string | null
+          payload?: Json
+          processed_at?: string | null
+          processed_status?: string | null
+          signature_header?: string | null
+          signature_valid?: boolean | null
+          tarefa_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendly_webhook_events_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendly_webhook_events_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_archived_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendly_webhook_events_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_acoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendly_webhook_events_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_cards_contatos_summary"
+            referencedColumns: ["card_id"]
+          },
+          {
+            foreignKeyName: "calendly_webhook_events_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "view_deleted_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendly_webhook_events_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "contatos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendly_webhook_events_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "v_contact_proposals"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "calendly_webhook_events_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "view_deleted_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendly_webhook_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendly_webhook_events_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "tarefas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendly_webhook_events_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "v_meu_dia_concierge"
+            referencedColumns: ["tarefa_id"]
+          },
+          {
+            foreignKeyName: "calendly_webhook_events_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "view_agenda"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       card_alert_rules: {
         Row: {
           body_template: string | null
@@ -12371,6 +12537,7 @@ export type Database = {
           org_id: string
           payload: Json | null
           proposal_id: string
+          recipient_id: string | null
           referrer: string | null
           scroll_depth: number | null
           section_id: string | null
@@ -12389,6 +12556,7 @@ export type Database = {
           org_id?: string
           payload?: Json | null
           proposal_id: string
+          recipient_id?: string | null
           referrer?: string | null
           scroll_depth?: number | null
           section_id?: string | null
@@ -12407,6 +12575,7 @@ export type Database = {
           org_id?: string
           payload?: Json | null
           proposal_id?: string
+          recipient_id?: string | null
           referrer?: string | null
           scroll_depth?: number | null
           section_id?: string | null
@@ -12454,6 +12623,13 @@ export type Database = {
             columns: ["proposal_id"]
             isOneToOne: false
             referencedRelation: "v_proposal_analytics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposal_events_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "proposal_recipients"
             referencedColumns: ["id"]
           },
           {
@@ -12897,6 +13073,104 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      proposal_recipients: {
+        Row: {
+          contato_id: string
+          created_at: string
+          created_by: string | null
+          first_opened_at: string | null
+          id: string
+          is_primary: boolean
+          last_opened_at: string | null
+          open_count: number
+          org_id: string
+          proposal_id: string
+          recipient_token: string
+          sent_at: string | null
+          sent_via: string | null
+        }
+        Insert: {
+          contato_id: string
+          created_at?: string
+          created_by?: string | null
+          first_opened_at?: string | null
+          id?: string
+          is_primary?: boolean
+          last_opened_at?: string | null
+          open_count?: number
+          org_id: string
+          proposal_id: string
+          recipient_token: string
+          sent_at?: string | null
+          sent_via?: string | null
+        }
+        Update: {
+          contato_id?: string
+          created_at?: string
+          created_by?: string | null
+          first_opened_at?: string | null
+          id?: string
+          is_primary?: boolean
+          last_opened_at?: string | null
+          open_count?: number
+          org_id?: string
+          proposal_id?: string
+          recipient_token?: string
+          sent_at?: string | null
+          sent_via?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proposal_recipients_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "contatos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposal_recipients_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "v_contact_proposals"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "proposal_recipients_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "view_deleted_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposal_recipients_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposal_recipients_proposal_id_fkey"
+            columns: ["proposal_id"]
+            isOneToOne: false
+            referencedRelation: "proposals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposal_recipients_proposal_id_fkey"
+            columns: ["proposal_id"]
+            isOneToOne: false
+            referencedRelation: "v_contact_proposals"
+            referencedColumns: ["proposal_id"]
+          },
+          {
+            foreignKeyName: "proposal_recipients_proposal_id_fkey"
+            columns: ["proposal_id"]
+            isOneToOne: false
+            referencedRelation: "v_proposal_analytics"
             referencedColumns: ["id"]
           },
         ]
@@ -18986,6 +19260,16 @@ export type Database = {
         Args: { p_field: string; p_source: string }
         Returns: boolean
       }
+      _ww_conv_ordem: { Args: { p_conv: string }; Returns: number }
+      _ww_faixa_ordem: { Args: { p_faixa: string }; Returns: number }
+      _ww_valor_to_faixa: { Args: { p_valor: number }; Returns: string }
+      _ww2_norm_conv_strict: { Args: { p_raw: string }; Returns: string }
+      _ww2_norm_convidados: { Args: { p_raw: string }; Returns: string }
+      _ww2_norm_dest_strict: { Args: { p_raw: string }; Returns: string }
+      _ww2_norm_destino: { Args: { p_raw: string }; Returns: string }
+      _ww2_norm_faixa: { Args: { p_raw: string }; Returns: string }
+      _ww2_norm_faixa_strict: { Args: { p_raw: string }; Returns: string }
+      _ww2_norm_origem: { Args: { p_marketing_data: Json }; Returns: string }
       abrir_cancelamento: {
         Args: {
           p_modo: string
@@ -19690,6 +19974,23 @@ export type Database = {
           p_value_min?: number
         }
         Returns: Json
+      }
+      analytics_planner_by_origem: {
+        Args: {
+          p_date_end: string
+          p_date_start: string
+          p_owner_ids?: string[]
+          p_product?: string
+        }
+        Returns: {
+          conversao_pct: number
+          ganhos: number
+          leads: number
+          origem: string
+          planner_id: string
+          planner_nome: string
+          receita_total: number
+        }[]
       }
       analytics_planner_open_portfolio: {
         Args: { p_from?: string; p_product?: string; p_to?: string }
@@ -20561,6 +20862,10 @@ export type Database = {
         }
         Returns: Json
       }
+      analytics_weddings_overview: {
+        Args: { p_date_end?: string; p_date_start?: string; p_org_id?: string }
+        Returns: Json
+      }
       analytics_whatsapp_conversations: {
         Args: {
           p_from?: string
@@ -20719,6 +21024,7 @@ export type Database = {
         Returns: number
       }
       calculate_reactivation_patterns: { Args: never; Returns: number }
+      calendly_local_dt: { Args: { ts: string }; Returns: string }
       can_manage_gifts: { Args: never; Returns: boolean }
       cancelar_item_viagem: {
         Args: { p_item_id: string; p_motivo?: string }
@@ -21070,6 +21376,7 @@ export type Database = {
         Returns: Json
       }
       fn_check_integration_health: { Args: never; Returns: Json }
+      fn_enqueue_calendly_meeting_reminders: { Args: never; Returns: number }
       fn_enqueue_idle_followups: { Args: never; Returns: Json }
       fn_enqueue_temporal_events: { Args: never; Returns: number }
       fn_infer_trip_item_tipo: {
@@ -21885,6 +22192,7 @@ export type Database = {
         Returns: undefined
       }
       record_card_open: { Args: { p_card_id: string }; Returns: Json }
+      register_recipient_open: { Args: { p_token: string }; Returns: Json }
       registrar_nps: {
         Args: { p_comentario?: string; p_nota: number; p_token: string }
         Returns: Json
@@ -21978,6 +22286,7 @@ export type Database = {
         }
         Returns: Json
       }
+      resolve_proposal_token: { Args: { p_token: string }; Returns: Json }
       resolve_whatsapp_target_for_card: {
         Args: { p_card_id: string }
         Returns: Json
@@ -22369,6 +22678,139 @@ export type Database = {
       }
       vincular_contato_a_empresa: {
         Args: { p_contato_id: string; p_empresa_id: string }
+        Returns: Json
+      }
+      ww_drift_venda: {
+        Args: {
+          p_date_end?: string
+          p_date_mode?: string
+          p_date_start?: string
+          p_org_id?: string
+          p_origins?: string[]
+        }
+        Returns: Json
+      }
+      ww_qualidade_lead: {
+        Args: {
+          p_date_end?: string
+          p_date_mode?: string
+          p_date_start?: string
+          p_org_id?: string
+          p_origins?: string[]
+        }
+        Returns: Json
+      }
+      ww2_drill_down: {
+        Args: {
+          p_consultor_id?: string
+          p_date_end?: string
+          p_date_start?: string
+          p_destino?: string
+          p_faixa?: string
+          p_limit?: number
+          p_motivo_perda?: string
+          p_offset?: number
+          p_org_id?: string
+          p_origem?: string
+          p_phase_slug?: string
+          p_stage_id?: string
+          p_status?: string
+        }
+        Returns: Json
+      }
+      ww2_entrada_realidade: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_only_fechados?: boolean
+          p_org_id?: string
+          p_origins?: string[]
+        }
+        Returns: Json
+      }
+      ww2_filter_options: { Args: { p_org_id?: string }; Returns: Json }
+      ww2_journey: {
+        Args: {
+          p_consultor_ids?: string[]
+          p_date_end?: string
+          p_date_mode?: string
+          p_date_start?: string
+          p_destinos?: string[]
+          p_faixas?: string[]
+          p_org_id?: string
+          p_origins?: string[]
+          p_tipos?: string[]
+        }
+        Returns: Json
+      }
+      ww2_lead_quality: {
+        Args: {
+          p_consultor_ids?: string[]
+          p_date_end?: string
+          p_date_mode?: string
+          p_date_start?: string
+          p_destinos?: string[]
+          p_faixas?: string[]
+          p_org_id?: string
+          p_origins?: string[]
+          p_tipos?: string[]
+        }
+        Returns: Json
+      }
+      ww2_loss_reasons: {
+        Args: {
+          p_consultor_ids?: string[]
+          p_date_end?: string
+          p_date_mode?: string
+          p_date_start?: string
+          p_destinos?: string[]
+          p_faixas?: string[]
+          p_org_id?: string
+          p_origins?: string[]
+          p_tipos?: string[]
+        }
+        Returns: Json
+      }
+      ww2_marketing: {
+        Args: {
+          p_consultor_ids?: string[]
+          p_date_end?: string
+          p_date_mode?: string
+          p_date_start?: string
+          p_destinos?: string[]
+          p_faixas?: string[]
+          p_org_id?: string
+          p_origins?: string[]
+          p_tipos?: string[]
+        }
+        Returns: Json
+      }
+      ww2_overview: {
+        Args: {
+          p_consultor_ids?: string[]
+          p_date_end?: string
+          p_date_mode?: string
+          p_date_start?: string
+          p_destinos?: string[]
+          p_faixas?: string[]
+          p_org_id?: string
+          p_origins?: string[]
+          p_tipos?: string[]
+        }
+        Returns: Json
+      }
+      ww2_team_performance: {
+        Args: {
+          p_consultor_ids?: string[]
+          p_date_end?: string
+          p_date_mode?: string
+          p_date_start?: string
+          p_destinos?: string[]
+          p_faixas?: string[]
+          p_org_id?: string
+          p_origins?: string[]
+          p_tipos?: string[]
+        }
         Returns: Json
       }
     }
