@@ -84,23 +84,17 @@ BEGIN
     SELECT id INTO v_pipeline_id FROM pipelines WHERE produto::TEXT='WEDDING' AND org_id=v_org_id LIMIT 1;
     IF v_pipeline_id IS NULL THEN RETURN json_build_object('error','pipeline WEDDING não encontrado'); END IF;
 
-    -- "Fechou" = qualquer card na phase 'pos_venda' OU status='ganho' OU stage is_won.
-    -- Importante: a phase pos_venda no Welcome Weddings contém TODAS as etapas
-    -- pós-contrato (Boas-vindas/Questionário, Concepção, Fornecedores, Convidados/
-    -- Logística, Pré-evento, Casamento Realizado, Pós-casamento). É a melhor
-    -- proxy operacional para "venda fechada" porque o time pula a stage
-    -- "Contrato Assinado" e move direto pro pós-venda.
+    -- "Fechou" = card tem ww_closer_data_ganho preenchido (sinal canônico operacional).
+    -- Em throughput: filtra pela data do ganho.
     CREATE TEMP TABLE _ww_ql ON COMMIT DROP AS
     SELECT c.id,
-           (c.status_comercial='ganho' OR s.is_won = TRUE OR ph.slug = 'pos_venda') AS fechou,
+           (NULLIF(c.produto_data->>'ww_closer_data_ganho','') IS NOT NULL) AS fechou,
            _ww2_norm_faixa_strict(c.produto_data->>'ww_mkt_orcamento_form') AS faixa_e,
            _ww2_norm_conv_strict(c.produto_data->>'ww_mkt_convidados_form') AS conv_e,
            _ww2_norm_dest_strict(c.produto_data->>'ww_mkt_destino_form') AS dest_e,
            NULLIF(REPLACE(REPLACE(c.produto_data->>'ww_closer_valor_pacote','.',''),',','.'),'')::NUMERIC AS valor_pac,
            _ww2_norm_origem(c.marketing_data) AS origem
       FROM cards c
-      LEFT JOIN pipeline_stages s ON s.id = c.pipeline_stage_id
-      LEFT JOIN pipeline_phases ph ON ph.id = s.phase_id
      WHERE c.deleted_at IS NULL AND c.archived_at IS NULL
        AND c.produto::TEXT='WEDDING' AND c.org_id=v_org_id
        AND (
@@ -108,8 +102,8 @@ BEGIN
             AND c.created_at >= p_date_start AND c.created_at <= p_date_end)
          OR
          (p_date_mode = 'throughput'
-            AND COALESCE(c.data_fechamento, c.ganho_pos_at, c.ganho_planner_at, c.ganho_sdr_at, c.updated_at) >= p_date_start
-            AND COALESCE(c.data_fechamento, c.ganho_pos_at, c.ganho_planner_at, c.ganho_sdr_at, c.updated_at) <= p_date_end)
+            AND NULLIF(c.produto_data->>'ww_closer_data_ganho','')::TIMESTAMPTZ >= p_date_start
+            AND NULLIF(c.produto_data->>'ww_closer_data_ganho','')::TIMESTAMPTZ <= p_date_end)
        );
     IF p_origins IS NOT NULL THEN DELETE FROM _ww_ql WHERE origem != ALL(p_origins); END IF;
 
@@ -260,16 +254,18 @@ BEGIN
     SELECT id INTO v_pipeline_id FROM pipelines WHERE produto::TEXT='WEDDING' AND org_id=v_org_id LIMIT 1;
     IF v_pipeline_id IS NULL THEN RETURN json_build_object('error','pipeline WEDDING não encontrado'); END IF;
 
-    -- "Fechou" = card em pos_venda OU status='ganho' OU is_won (estado atual do card).
-    -- "Data da venda" = quando o card foi MOVIDO pra pos_venda (em activities).
-    --   Cards trazidos via integração SEM activity de transição → data_venda NULL,
-    --   não aparecem no modo throughput (visibilidade honesta da instrumentação).
+    -- "Fechou" = card tem ww_closer_data_ganho preenchido (campo "Data/Hora do
+    -- Ganho" que o closer registra no fechamento do contrato). Esse é o sinal
+    -- canônico operacional, validado com o time. status_comercial='ganho' não
+    -- serve porque o trigger só dispara em stages com is_won=true e o time
+    -- pula essa stage.
+    -- "Data da venda" = ww_closer_data_ganho.
     -- cohort:     universo = TODOS leads criados no período (fluxo de entrada).
-    -- throughput: universo = vendas que efetivamente fecharam no período (transição → pos_venda).
+    -- throughput: universo = vendas que fecharam no período (data_ganho no período).
     CREATE TEMP TABLE _ww_dv ON COMMIT DROP AS
     SELECT c.id,
-           (c.status_comercial='ganho' OR s.is_won = TRUE OR ph.slug = 'pos_venda') AS fechou,
-           av.data_venda,
+           NULLIF(c.produto_data->>'ww_closer_data_ganho','')::TIMESTAMPTZ AS data_venda,
+           (NULLIF(c.produto_data->>'ww_closer_data_ganho','') IS NOT NULL) AS fechou,
            _ww2_norm_faixa_strict(c.produto_data->>'ww_mkt_orcamento_form') AS faixa_e,
            NULLIF(REPLACE(REPLACE(c.produto_data->>'ww_closer_valor_pacote','.',''),',','.'),'')::NUMERIC AS valor_pac,
            _ww2_norm_dest_strict(c.produto_data->>'ww_mkt_destino_form') AS dest_e,
@@ -281,19 +277,6 @@ BEGIN
            _ww2_norm_conv_strict(c.produto_data->>'ww_convidados_refinado') AS conv_r,
            _ww2_norm_origem(c.marketing_data) AS origem
       FROM cards c
-      LEFT JOIN pipeline_stages s ON s.id = c.pipeline_stage_id
-      LEFT JOIN pipeline_phases ph ON ph.id = s.phase_id
-      LEFT JOIN LATERAL (
-        SELECT MIN(a.created_at) AS data_venda
-          FROM activities a
-         WHERE a.card_id = c.id
-           AND a.tipo = 'stage_changed'
-           AND (a.metadata->>'new_stage_id')::uuid IN (
-             SELECT s2.id FROM pipeline_stages s2
-             JOIN pipeline_phases ph2 ON ph2.id = s2.phase_id
-             WHERE ph2.slug = 'pos_venda' AND s2.pipeline_id = v_pipeline_id
-           )
-      ) av ON TRUE
      WHERE c.deleted_at IS NULL AND c.archived_at IS NULL
        AND c.produto::TEXT='WEDDING' AND c.org_id=v_org_id
        AND (
@@ -301,9 +284,8 @@ BEGIN
             AND c.created_at >= p_date_start AND c.created_at <= p_date_end)
          OR
          (p_date_mode = 'throughput'
-            AND av.data_venda IS NOT NULL
-            AND av.data_venda >= p_date_start
-            AND av.data_venda <= p_date_end)
+            AND NULLIF(c.produto_data->>'ww_closer_data_ganho','')::TIMESTAMPTZ >= p_date_start
+            AND NULLIF(c.produto_data->>'ww_closer_data_ganho','')::TIMESTAMPTZ <= p_date_end)
        );
     IF p_origins IS NOT NULL THEN DELETE FROM _ww_dv WHERE origem != ALL(p_origins); END IF;
     SELECT COUNT(*) INTO v_total FROM _ww_dv;

@@ -37,24 +37,20 @@ function UniversoHeader({ data }: { data: WwDriftVenda }) {
             <>
               <p className="text-sm text-slate-600 mt-1">
                 Universo: <strong>{formatNumber(total)} leads</strong> que entraram no período.
-                Desses, <strong className="text-emerald-700">{formatNumber(fechados)} estão hoje em fase Pós-venda</strong>
-                <span className="text-slate-500"> (estado atual — pode incluir vendas antigas trazidas via integração)</span>.
+                Desses, <strong className="text-emerald-700">{formatNumber(fechados)} fecharam contrato</strong>.
               </p>
               <p className="text-xs text-slate-500 mt-1">
-                Pra ver <strong>quantas vendas fecharam de fato no período</strong>, troca o filtro de data pra "Data de evento".
+                Pra ver quantas vendas fecharam dentro do período (independente de quando o lead entrou), troca pra "Data de evento".
               </p>
             </>
           ) : (
-            <>
-              <p className="text-sm text-slate-600 mt-1">
-                Universo: <strong className="text-emerald-700">{formatNumber(fechados)} vendas fechadas</strong> nesse período.
-                Conta a partir do momento que o card foi <strong>movido para a fase Pós-venda</strong>.
-              </p>
-              <p className="text-xs text-slate-500 mt-1">
-                Cards trazidos via integração sem registro de transição não aparecem aqui — só os que foram fechados dentro do CRM no período.
-              </p>
-            </>
+            <p className="text-sm text-slate-600 mt-1">
+              Universo: <strong className="text-emerald-700">{formatNumber(fechados)} vendas fechadas</strong> nesse período.
+            </p>
           )}
+          <p className="text-[11px] text-slate-400 mt-1">
+            Venda fechada = card tem campo <code className="bg-white px-1 rounded">Data/Hora do Ganho</code> preenchido pelo closer.
+          </p>
         </div>
         <div className="text-xs bg-white border border-indigo-200 rounded-lg px-3 py-1.5 text-indigo-700 whitespace-nowrap">
           📅 Modo: <strong>{isCohort ? 'Entrada do lead (cohort)' : 'Data da venda (throughput)'}</strong>

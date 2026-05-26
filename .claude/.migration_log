@@ -988,3 +988,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-26T21:03:25Z | supabase/migrations/20260526k_log_link_opened_rpc.sql | applied_to_prod
 2026-05-26T21:05:15Z | supabase/migrations/20260526l_log_proposal_event_rpc.sql | applied_to_prod
 2026-05-26T21:06:31Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
+2026-05-26T21:17:02Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
