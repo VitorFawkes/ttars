@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Heart, ChevronRight, CheckCircle2, Users, Calendar, BedDouble, BellOff, Trash2, Check, X, Ban } from 'lucide-react'
 import { cn } from '../../../lib/utils'
+import { parseLocalDate } from '../../../lib/localDate'
 import { mockHotelRooms } from '../../../hooks/convidados/mockHotel'
 import { useUpdateWeddingEtapa } from '../../../hooks/convidados/useUpdateWeddingEtapa'
 import { useWeddingFluxo } from '../../../hooks/convidados/useWeddingFluxo'
@@ -23,22 +24,22 @@ const MONTH_FULL = [
 ]
 
 const SHORT_DATE = (iso: string): string => {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
+  const d = parseLocalDate(iso)
+  if (!d) return ''
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
 }
 
 const LONG_DATE = (iso: string): string => {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
+  const d = parseLocalDate(iso)
+  if (!d) return ''
   return `${String(d.getDate()).padStart(2, '0')} de ${MONTH_FULL[d.getMonth()]} de ${d.getFullYear()}`
 }
 
 function formatWeddingCode(titulo: string, iso: string | null): string {
   const t = titulo.trim().slice(0, 40)
   if (!iso) return `W - ${t}`
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return `W - ${t}`
+  const d = parseLocalDate(iso)
+  if (!d) return `W - ${t}`
   const dd = String(d.getDate()).padStart(2, '0')
   const mon = MONTH_CODE[d.getMonth()] ?? '---'
   const yy = String(d.getFullYear()).slice(-2)
@@ -47,8 +48,8 @@ function formatWeddingCode(titulo: string, iso: string | null): string {
 
 function isPast(iso: string | null): boolean {
   if (!iso) return false
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return false
+  const d = parseLocalDate(iso)
+  if (!d) return false
   // Considera "passado" se a data já se foi (não inclui hoje)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
