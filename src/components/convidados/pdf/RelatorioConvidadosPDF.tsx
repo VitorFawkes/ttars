@@ -1,5 +1,6 @@
 import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer'
 import type { Guest, RsvpCounts } from '../../../hooks/convidados/types'
+import { parseLocalDate } from '../../../lib/localDate'
 
 // ── Fontes ──────────────────────────────────────────────────────────────
 // Usa fontes built-in do PDF — Helvetica (sans) e Times (serif).
@@ -25,17 +26,17 @@ const MONTHS = [
 ]
 
 function longDate(iso: string | null): string | null {
-  if (!iso) return null
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return null
+  const d = parseLocalDate(iso)
+  if (!d) return null
   return `${String(d.getDate()).padStart(2, '0')} de ${MONTHS[d.getMonth()]} de ${d.getFullYear()}`
 }
 function shortDate(d: Date): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
 }
 function daysUntil(iso: string | null): number | null {
-  if (!iso) return null
-  const target = new Date(iso); target.setHours(0, 0, 0, 0)
+  const target = parseLocalDate(iso)
+  if (!target) return null
+  target.setHours(0, 0, 0, 0)
   const today = new Date(); today.setHours(0, 0, 0, 0)
   return Math.round((target.getTime() - today.getTime()) / 86_400_000)
 }
