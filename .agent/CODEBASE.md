@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-26
 > **Trigger:** ALWAYS ON
-> **Stats:** 209 tabelas | 206 paginas | 337 hooks | 23 views | 797 components
+> **Stats:** 209 tabelas | 208 paginas | 337 hooks | 23 views | 798 components
 
 ---
 
@@ -585,7 +585,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **206 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **208 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -718,10 +718,12 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `FunnelView` | `src/pages/analytics-new/FunnelView.tsx` |
 | `OperationsView` | `src/pages/analytics-new/OperationsView.tsx` |
 | `PipelineView` | `src/pages/analytics-new/PipelineView.tsx` |
+| `PlannerView` | `src/pages/analytics-new/PlannerView.tsx` |
 | `ResumoView` | `src/pages/analytics-new/ResumoView.tsx` |
 | `RetentionView` | `src/pages/analytics-new/RetentionView.tsx` |
 | `SLAView` | `src/pages/analytics-new/SLAView.tsx` |
 | `SaudeView` | `src/pages/analytics-new/SaudeView.tsx` |
+| `SdrView` | `src/pages/analytics-new/SdrView.tsx` |
 | `TeamView` | `src/pages/analytics-new/TeamView.tsx` |
 | `UnderConstruction` | `src/pages/analytics-new/UnderConstruction.tsx` |
 | `WhatsAppView` | `src/pages/analytics-new/WhatsAppView.tsx` |

@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
+import DeltaBadge from './DeltaBadge'
 import { cn } from '@/lib/utils'
 
 interface KpiCardProps {
@@ -11,6 +12,15 @@ interface KpiCardProps {
     isLoading?: boolean
     onClick?: () => void
     clickHint?: string
+    /** Quando preenchido, mostra delta % em relação ao período imediatamente anterior */
+    delta?: {
+        current: number
+        previous: number | null | undefined
+        /** Quando true (ex: perdidos, vencidas), queda é considerada boa */
+        inverse?: boolean
+        /** Texto curto após a %, ex: "vs período anterior" */
+        hint?: string
+    }
 }
 
 export default function KpiCard({
@@ -23,6 +33,7 @@ export default function KpiCard({
     isLoading,
     onClick,
     clickHint,
+    delta,
 }: KpiCardProps) {
     if (isLoading) {
         return (
@@ -57,6 +68,16 @@ export default function KpiCard({
                     <p className="text-2xl font-bold text-slate-900 tracking-tight">{value}</p>
                     {subtitle && (
                         <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>
+                    )}
+                    {delta && (
+                        <div className="mt-1">
+                            <DeltaBadge
+                                current={delta.current}
+                                previous={delta.previous}
+                                inverse={delta.inverse}
+                                hint={delta.hint ?? 'vs período anterior'}
+                            />
+                        </div>
                     )}
                     {clickHint && (
                         <p className="text-[10px] text-indigo-400 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">{clickHint}</p>

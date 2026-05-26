@@ -19,6 +19,11 @@ const PHASES: { value: string; label: string }[] = [
   { value: 'pos_venda', label: 'Pós-venda' },
 ]
 
+const PHASE_FILTERS: { value: string; label: string }[] = [
+  { value: 'all', label: 'Todos' },
+  ...PHASES,
+]
+
 // RPCs analytics_team_* retornam taxas já como 0-100 (não 0-1), apenas formata.
 function pct(v: number): string {
   return `${v.toFixed(0)}%`
@@ -56,13 +61,18 @@ function ComplianceBadge({ rate }: { rate: number | null }) {
 }
 
 export default function TeamView() {
-  const [phaseTab, setPhaseTab] = useState<string>('sdr')
+  const [phaseFilter, setPhaseFilter] = useState<string>('all')
   const [individualUser, setIndividualUser] = useState<{ id: string; nome: string } | null>(null)
   const leaderboard = useTeamLeaderboard()
+  const phaseTab = phaseFilter === 'all' ? 'sdr' : phaseFilter
   const phasePerf = useTeamPerformance(phaseTab)
   const sla = useTeamSlaCompliance()
   const ticketVar = useTeamTicketVariation()
   const drillDown = useDrillDownStore()
+
+  const leaderboardRows = (leaderboard.data ?? []).filter(row =>
+    phaseFilter === 'all' ? true : row.fases.includes(phaseFilter)
+  )
 
   const openOpenByOwner = (ownerId: string, ownerName: string) => {
     drillDown.open({
@@ -88,6 +98,24 @@ export default function TeamView() {
           Performance do time consolidado, breakdown por fase (SDR, Planner, Pós-venda) e cumprimento de SLA.
         </p>
       </header>
+
+      {/* Filtro de fase global — afeta leaderboard e tabela de performance */}
+      <div className="flex items-center gap-1 bg-white rounded-lg border border-slate-200 p-1 w-fit">
+        {PHASE_FILTERS.map(p => (
+          <button
+            key={p.value}
+            onClick={() => setPhaseFilter(p.value)}
+            className={cn(
+              'px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
+              phaseFilter === p.value
+                ? 'bg-indigo-50 text-indigo-700'
+                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+            )}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
 
       {/* KPIs do time */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -138,9 +166,11 @@ export default function TeamView() {
           <div className="h-32 flex items-center justify-center text-sm text-rose-600">
             Erro ao carregar leaderboard
           </div>
-        ) : !leaderboard.data || leaderboard.data.length === 0 ? (
+        ) : leaderboardRows.length === 0 ? (
           <div className="h-32 flex items-center justify-center text-sm text-slate-400">
-            Sem dados de equipe para esse período
+            {phaseFilter === 'all'
+              ? 'Sem dados de equipe para esse período'
+              : `Ninguém atuou na fase ${PHASES.find(p => p.value === phaseFilter)?.label} no período`}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -152,6 +182,7 @@ export default function TeamView() {
                   <th className="text-left py-2 font-medium">Fases</th>
                   <th className="text-right py-2 font-medium">Envolvidos</th>
                   <th className="text-right py-2 font-medium">Ganhos</th>
+                  <th className="text-right py-2 font-medium">Perdidos</th>
                   <th className="text-right py-2 font-medium">Win rate</th>
                   <th className="text-right py-2 font-medium">Receita</th>
                   <th className="text-right py-2 font-medium">Ticket médio</th>
@@ -160,7 +191,7 @@ export default function TeamView() {
                 </tr>
               </thead>
               <tbody>
-                {leaderboard.data.map((row, idx) => (
+                {leaderboardRows.map((row, idx) => (
                   <tr key={row.user_id} className="border-b border-slate-50 hover:bg-slate-50">
                     <td className="py-2.5 text-slate-400 tabular-nums">{idx + 1}</td>
                     <td className="py-2.5 text-slate-900 font-medium">
@@ -186,6 +217,11 @@ export default function TeamView() {
                     </td>
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.cards_envolvidos}</td>
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.cards_ganhos}</td>
+                    <td className="py-2.5 text-right tabular-nums">
+                      <span className={cn(row.cards_perdidos > 0 ? 'text-rose-700' : 'text-slate-400')}>
+                        {row.cards_perdidos}
+                      </span>
+                    </td>
                     <td className="py-2.5 text-right">
                       <WinRateBadge rate={row.win_rate} />
                     </td>
@@ -235,22 +271,24 @@ export default function TeamView() {
         title="Performance por fase"
         subtitle="Métricas específicas de cada fase — conversão, ticket médio e ciclo médio por consultor"
       >
-        <div className="flex gap-1 mb-4 border-b border-slate-100">
-          {PHASES.map(p => (
-            <button
-              key={p.value}
-              onClick={() => setPhaseTab(p.value)}
-              className={cn(
-                'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
-                phaseTab === p.value
-                  ? 'border-indigo-600 text-indigo-700'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-              )}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
+        {phaseFilter === 'all' && (
+          <div className="flex gap-1 mb-4 border-b border-slate-100">
+            {PHASES.map(p => (
+              <button
+                key={p.value}
+                onClick={() => setPhaseFilter(p.value)}
+                className={cn(
+                  'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
+                  phaseTab === p.value
+                    ? 'border-indigo-600 text-indigo-700'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {phasePerf.isLoading ? (
           <div className="h-40 flex items-center justify-center text-slate-400">
