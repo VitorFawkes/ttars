@@ -93,9 +93,12 @@ function InvestimentoDrift({ data }: { data: WwDriftVenda }) {
         com_entrada={cobertura.com_entrada}
         com_realidade={cobertura.com_valor_real}
         com_ambos={cobertura.com_ambos}
-        total={data.total_leads}
+        total_leads={data.total_leads}
+        total_fechados={data.total_fechados}
+        isCohort={data.date_mode === 'cohort'}
         nome_entrada="faixa no site"
         nome_realidade="valor R$ do pacote"
+        avisoQuandoFaltaRealidade="Closer não preencheu o valor R$ do pacote (ww_closer_valor_pacote) nessas vendas."
       />
 
       {universo === 0 ? (
@@ -228,9 +231,12 @@ function DestinoDrift({ data }: { data: WwDriftVenda }) {
         com_entrada={cobertura.com_entrada}
         com_realidade={cobertura.com_vendido}
         com_ambos={cobertura.com_ambos}
-        total={data.total_leads}
+        total_leads={data.total_leads}
+        total_fechados={data.total_fechados}
+        isCohort={data.date_mode === 'cohort'}
         nome_entrada="destino no site"
         nome_realidade="destino vendido"
+        avisoQuandoFaltaRealidade="Closer não preencheu o destino contratado nessas vendas."
       />
 
       {universo === 0 ? (
@@ -314,9 +320,12 @@ function ConvidadosDrift({ data }: { data: WwDriftVenda }) {
         com_entrada={cobertura.com_entrada}
         com_realidade={cobertura.com_refinado}
         com_ambos={cobertura.com_ambos}
-        total={data.total_leads}
+        total_leads={data.total_leads}
+        total_fechados={data.total_fechados}
+        isCohort={data.date_mode === 'cohort'}
         nome_entrada="convidados no site"
         nome_realidade="convidados refinado"
+        avisoQuandoFaltaRealidade="Closer não refinou o nº de convidados nessas vendas."
       />
 
       {universo === 0 ? (
@@ -370,29 +379,49 @@ function ConvidadosDrift({ data }: { data: WwDriftVenda }) {
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-function CoberturaBanner({ com_entrada, com_realidade, com_ambos, total, nome_entrada, nome_realidade }: {
-  com_entrada: number; com_realidade: number; com_ambos: number; total: number
+function CoberturaBanner({ com_entrada, com_realidade, com_ambos, total_leads, total_fechados, isCohort, nome_entrada, nome_realidade, avisoQuandoFaltaRealidade }: {
+  com_entrada: number; com_realidade: number; com_ambos: number
+  total_leads: number; total_fechados: number
+  isCohort: boolean
   nome_entrada: string; nome_realidade: string
+  avisoQuandoFaltaRealidade?: string
 }) {
-  if (total === 0) return null
-  const pctEntrada = total > 0 ? Math.round(100 * com_entrada / total) : 0
-  const pctReal = total > 0 ? Math.round(100 * com_realidade / total) : 0
-  const pctAmbos = total > 0 ? Math.round(100 * com_ambos / total) : 0
+  const base = isCohort ? total_leads : total_fechados
+  if (base === 0) return null
+  const labelBase = isCohort ? 'dos leads' : 'das vendas'
+  const pctEntrada = Math.round(100 * com_entrada / base)
+  // "Tem realidade" só faz sentido percentualmente sobre fechados (porque realidade depende de venda)
+  const pctReal = total_fechados > 0 ? Math.round(100 * com_realidade / total_fechados) : 0
+  const pctAmbos = base > 0 ? Math.round(100 * com_ambos / base) : 0
+  const gapVendasSemRealidade = total_fechados - com_realidade
+
   return (
-    <div className="mb-4 grid grid-cols-3 gap-2 text-xs">
-      <div className="bg-slate-50 border border-slate-200 rounded-lg p-2">
-        <div className="text-slate-500">Tem {nome_entrada}</div>
-        <div className="text-slate-900 font-semibold mt-0.5">{com_entrada} <span className="text-slate-400 text-[11px] font-normal">({pctEntrada}% das vendas)</span></div>
+    <>
+      <div className="mb-2 grid grid-cols-3 gap-2 text-xs">
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-2">
+          <div className="text-slate-500">Tem {nome_entrada}</div>
+          <div className="text-slate-900 font-semibold mt-0.5">{com_entrada} <span className="text-slate-400 text-[11px] font-normal">({pctEntrada}% {labelBase})</span></div>
+        </div>
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-2">
+          <div className="text-slate-500">Tem {nome_realidade}</div>
+          <div className="text-slate-900 font-semibold mt-0.5">
+            {com_realidade}
+            {total_fechados > 0 && (
+              <span className="text-slate-400 text-[11px] font-normal"> ({pctReal}% das {total_fechados} vendas fechadas)</span>
+            )}
+          </div>
+        </div>
+        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-2">
+          <div className="text-indigo-600">Universo p/ comparação</div>
+          <div className="text-indigo-900 font-semibold mt-0.5">{com_ambos} <span className="text-indigo-500 text-[11px] font-normal">({pctAmbos}% {labelBase})</span></div>
+        </div>
       </div>
-      <div className="bg-slate-50 border border-slate-200 rounded-lg p-2">
-        <div className="text-slate-500">Tem {nome_realidade}</div>
-        <div className="text-slate-900 font-semibold mt-0.5">{com_realidade} <span className="text-slate-400 text-[11px] font-normal">({pctReal}%)</span></div>
-      </div>
-      <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-2">
-        <div className="text-indigo-600">Universo p/ comparação</div>
-        <div className="text-indigo-900 font-semibold mt-0.5">{com_ambos} <span className="text-indigo-500 text-[11px] font-normal">({pctAmbos}%)</span></div>
-      </div>
-    </div>
+      {gapVendasSemRealidade > 0 && avisoQuandoFaltaRealidade && (
+        <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-900">
+          <strong>⚠️ {gapVendasSemRealidade} {gapVendasSemRealidade === 1 ? 'venda fechada não tem' : 'vendas fechadas não têm'} esse dado preenchido.</strong> {avisoQuandoFaltaRealidade}
+        </div>
+      )}
+    </>
   )
 }
 
