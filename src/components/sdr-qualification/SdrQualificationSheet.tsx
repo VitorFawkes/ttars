@@ -308,19 +308,25 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                                 <section className="bg-slate-50 -mx-6 px-6 py-4 border-y border-slate-200">
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
-                                            <Label className="text-xs text-slate-600">Nome da pessoa que está falando</Label>
+                                            <Label className="text-xs text-slate-600">
+                                                Nome da pessoa que está falando <span className="text-rose-500">*</span>
+                                            </Label>
                                             <Input
                                                 value={session.dadosLead.nome_contato ?? ''}
                                                 onChange={(e) => handleDadoChange('nome_contato', e.target.value)}
                                                 placeholder="João"
+                                                required
                                             />
                                         </div>
                                         <div>
-                                            <Label className="text-xs text-slate-600">Telefone</Label>
+                                            <Label className="text-xs text-slate-600">
+                                                Telefone <span className="text-rose-500">*</span>
+                                            </Label>
                                             <Input
                                                 value={session.dadosLead.telefone ?? telefone ?? ''}
                                                 onChange={(e) => handleDadoChange('telefone', e.target.value)}
                                                 placeholder="(11) 99999-9999"
+                                                required
                                             />
                                         </div>
                                         <div className="col-span-2">
@@ -721,21 +727,38 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                             </div>
 
                             {/* Footer com botão único Registrar */}
-                            <div className="border-t border-slate-200 bg-white px-6 py-4">
-                                <Button
-                                    onClick={handleFinalizar}
-                                    disabled={!session.qualificationId || session.saving || finalizar.isPending}
-                                    className="w-full"
-                                    size="lg"
-                                >
-                                    {finalizar.isPending ? (
+                            <div className="border-t border-slate-200 bg-white px-6 py-4 space-y-2">
+                                {(() => {
+                                    const nomeOk = !!session.dadosLead.nome_contato?.trim()
+                                    const telOk = !!(session.dadosLead.telefone ?? telefone ?? '').trim()
+                                    const podeRegistrar = nomeOk && telOk
+                                    const faltando: string[] = []
+                                    if (!nomeOk) faltando.push('nome')
+                                    if (!telOk) faltando.push('telefone')
+                                    return (
                                         <>
-                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />Registrando...
+                                            {!podeRegistrar && (
+                                                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5">
+                                                    Preencha {faltando.join(' e ')} pra registrar.
+                                                </p>
+                                            )}
+                                            <Button
+                                                onClick={handleFinalizar}
+                                                disabled={!session.qualificationId || session.saving || finalizar.isPending || !podeRegistrar}
+                                                className="w-full"
+                                                size="lg"
+                                            >
+                                                {finalizar.isPending ? (
+                                                    <>
+                                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />Registrando...
+                                                    </>
+                                                ) : (
+                                                    'Registrar pontuação'
+                                                )}
+                                            </Button>
                                         </>
-                                    ) : (
-                                        'Registrar pontuação'
-                                    )}
-                                </Button>
+                                    )
+                                })()}
                             </div>
                         </>
                     )}
