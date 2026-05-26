@@ -387,6 +387,95 @@ export type Ww2Journey = {
   dados_fechamento?: Ww2DadosFechamento
 }
 
+// ── Entrada × Realidade ─────────────────────────────────────────────────────
+
+export type Ww2CelulaMatriz = { entrada: string; real: string; qtd: number }
+export type Ww2SumarioOrdenavel = {
+  entrada: string
+  total: number
+  sem_real: number
+  manteve: number
+  subiu: number
+  desceu: number
+  pct_manteve: number | null
+  pct_drift_up: number | null
+  pct_drift_down: number | null
+}
+export type Ww2SumarioDestino = {
+  entrada: string
+  total: number
+  sem_real: number
+  manteve: number
+  mudou: number
+  pct_manteve: number | null
+  pct_mudou: number | null
+  mais_comum_quando_muda: string | null
+}
+export type Ww2Transicao = { de: string; para: string; qtd: number }
+
+export type Ww2ValorPorFaixa = {
+  entrada: string
+  amostra: number
+  p25: number | null
+  mediana: number | null
+  p75: number | null
+  media: number | null
+  minimo: number | null
+  maximo: number | null
+}
+
+export type Ww2DimensaoOrdenavel = {
+  ordem_categorias: string[]
+  matriz: Ww2CelulaMatriz[]
+  sumario: Ww2SumarioOrdenavel[]
+  top_transicoes: Ww2Transicao[]
+  com_entrada: number
+  com_refinado: number
+}
+
+export type Ww2DimensaoInvestimento = Ww2DimensaoOrdenavel & {
+  valor_pacote_por_faixa: Ww2ValorPorFaixa[]
+  com_valor_real: number
+}
+
+export type Ww2DimensaoDestino = {
+  matriz: Ww2CelulaMatriz[]
+  sumario: Ww2SumarioDestino[]
+  top_transicoes: Ww2Transicao[]
+  destino_livre_quando_outro: { texto: string; qtd: number }[]
+  com_entrada: number
+  com_refinado: number
+}
+
+export type Ww2EntradaRealidade = {
+  date_start: string
+  date_end: string
+  pipeline_id: string
+  org_id: string
+  only_fechados: boolean
+  total_leads: number
+  total_fechados: number
+  convidados: Ww2DimensaoOrdenavel
+  investimento: Ww2DimensaoInvestimento
+  destino: Ww2DimensaoDestino
+}
+
+export function useWw2EntradaRealidade(filters: Ww2Filters & { onlyFechados?: boolean }) {
+  const orgId = useOrgId()
+  return useQuery({
+    queryKey: ['ww2', 'entrada-realidade', orgId, filters],
+    queryFn: () => callRpc<Ww2EntradaRealidade>('ww2_entrada_realidade', {
+      p_date_start: filters.dateStart,
+      p_date_end: filters.dateEnd,
+      p_org_id: orgId,
+      p_origins: filters.origins?.length ? filters.origins : null,
+      p_only_fechados: filters.onlyFechados ?? false,
+    }),
+    enabled: !!orgId,
+    staleTime: 60_000,
+  })
+}
+
 export function useWw2Journey(filters: Ww2Filters) {
   const orgId = useOrgId()
   return useQuery({

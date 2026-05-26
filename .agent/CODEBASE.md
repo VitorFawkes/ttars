@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-26
 > **Trigger:** ALWAYS ON
-> **Stats:** 209 tabelas | 209 paginas | 339 hooks | 23 views | 797 components
+> **Stats:** 209 tabelas | 210 paginas | 339 hooks | 23 views | 797 components
 
 ---
 
@@ -587,7 +587,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **209 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **210 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -605,6 +605,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `SdrDashboard` | `src/pages/AnalyticsV2/dashboards/SdrDashboard.tsx` |
 | `VendasDashboard` | `src/pages/AnalyticsV2/dashboards/VendasDashboard.tsx` |
 | `AnalyticsWeddingsPage` | `src/pages/AnalyticsWeddings/AnalyticsWeddingsPage.tsx` |
+| `EntradaRealidade` | `src/pages/AnalyticsWeddings/tabs/EntradaRealidade.tsx` |
 | `Equipe` | `src/pages/AnalyticsWeddings/tabs/Equipe.tsx` |
 | `Jornada` | `src/pages/AnalyticsWeddings/tabs/Jornada.tsx` |
 | `Marketing` | `src/pages/AnalyticsWeddings/tabs/Marketing.tsx` |
