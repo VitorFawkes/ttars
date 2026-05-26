@@ -984,3 +984,7 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-26T20:12:41Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
 2026-05-26T20:49:50Z | supabase/migrations/20260526i_proposal_recipients.sql | applied_to_prod
 2026-05-26T20:51:26Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
+2026-05-26T21:01:22Z | supabase/migrations/20260526j_grant_anon_recipient_id_on_proposal_events.sql | applied_to_prod
+2026-05-26T21:03:25Z | supabase/migrations/20260526k_log_link_opened_rpc.sql | applied_to_prod
+2026-05-26T21:05:15Z | supabase/migrations/20260526l_log_proposal_event_rpc.sql | applied_to_prod
+2026-05-26T21:06:31Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod

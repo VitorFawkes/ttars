@@ -260,14 +260,16 @@ BEGIN
     SELECT id INTO v_pipeline_id FROM pipelines WHERE produto::TEXT='WEDDING' AND org_id=v_org_id LIMIT 1;
     IF v_pipeline_id IS NULL THEN RETURN json_build_object('error','pipeline WEDDING não encontrado'); END IF;
 
-    -- "Fechou" estritamente = status='ganho' OU stage is_won (Contrato Assinado).
-    -- cohort:     universo = TODOS leads criados no período (fechados + não fechados).
-    --             Quem não fechou aparece com a parte de "vendido" em branco.
-    -- throughput: universo = só vendas que EFETIVAMENTE FECHARAM no período,
-    --             filtrado pela data da venda.
+    -- "Fechou" = card em pos_venda OU status='ganho' OU is_won (estado atual do card).
+    -- "Data da venda" = quando o card foi MOVIDO pra pos_venda (em activities).
+    --   Cards trazidos via integração SEM activity de transição → data_venda NULL,
+    --   não aparecem no modo throughput (visibilidade honesta da instrumentação).
+    -- cohort:     universo = TODOS leads criados no período (fluxo de entrada).
+    -- throughput: universo = vendas que efetivamente fecharam no período (transição → pos_venda).
     CREATE TEMP TABLE _ww_dv ON COMMIT DROP AS
     SELECT c.id,
            (c.status_comercial='ganho' OR s.is_won = TRUE OR ph.slug = 'pos_venda') AS fechou,
+           av.data_venda,
            _ww2_norm_faixa_strict(c.produto_data->>'ww_mkt_orcamento_form') AS faixa_e,
            NULLIF(REPLACE(REPLACE(c.produto_data->>'ww_closer_valor_pacote','.',''),',','.'),'')::NUMERIC AS valor_pac,
            _ww2_norm_dest_strict(c.produto_data->>'ww_mkt_destino_form') AS dest_e,
@@ -281,6 +283,17 @@ BEGIN
       FROM cards c
       LEFT JOIN pipeline_stages s ON s.id = c.pipeline_stage_id
       LEFT JOIN pipeline_phases ph ON ph.id = s.phase_id
+      LEFT JOIN LATERAL (
+        SELECT MIN(a.created_at) AS data_venda
+          FROM activities a
+         WHERE a.card_id = c.id
+           AND a.tipo = 'stage_changed'
+           AND (a.metadata->>'new_stage_id')::uuid IN (
+             SELECT s2.id FROM pipeline_stages s2
+             JOIN pipeline_phases ph2 ON ph2.id = s2.phase_id
+             WHERE ph2.slug = 'pos_venda' AND s2.pipeline_id = v_pipeline_id
+           )
+      ) av ON TRUE
      WHERE c.deleted_at IS NULL AND c.archived_at IS NULL
        AND c.produto::TEXT='WEDDING' AND c.org_id=v_org_id
        AND (
@@ -288,9 +301,9 @@ BEGIN
             AND c.created_at >= p_date_start AND c.created_at <= p_date_end)
          OR
          (p_date_mode = 'throughput'
-            AND (c.status_comercial='ganho' OR s.is_won = TRUE)
-            AND COALESCE(c.data_fechamento, c.ganho_pos_at, c.ganho_planner_at, c.ganho_sdr_at, c.updated_at) >= p_date_start
-            AND COALESCE(c.data_fechamento, c.ganho_pos_at, c.ganho_planner_at, c.ganho_sdr_at, c.updated_at) <= p_date_end)
+            AND av.data_venda IS NOT NULL
+            AND av.data_venda >= p_date_start
+            AND av.data_venda <= p_date_end)
        );
     IF p_origins IS NOT NULL THEN DELETE FROM _ww_dv WHERE origem != ALL(p_origins); END IF;
     SELECT COUNT(*) INTO v_total FROM _ww_dv;

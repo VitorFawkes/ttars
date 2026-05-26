@@ -28,31 +28,32 @@ function UniversoHeader({ data }: { data: WwDriftVenda }) {
   const isCohort = data.date_mode === 'cohort'
   const total = data.total_leads
   const fechados = data.total_fechados
-  const naoFechados = total - fechados
-  const pctConv = total > 0 ? Math.round(100 * fechados / total) : 0
   return (
     <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 rounded-xl p-5">
       <div className="flex items-baseline justify-between flex-wrap gap-3">
-        <div>
+        <div className="max-w-3xl">
           <h2 className="text-base font-semibold text-slate-900">🔄 Entrada × Realidade</h2>
           {isCohort ? (
             <>
               <p className="text-sm text-slate-600 mt-1">
                 Universo: <strong>{formatNumber(total)} leads</strong> que entraram no período.
-                <strong className="text-emerald-700"> {formatNumber(fechados)} já fecharam</strong> contrato
-                <span className="text-slate-500"> ({pctConv}%)</span>.
+                Desses, <strong className="text-emerald-700">{formatNumber(fechados)} estão hoje em fase Pós-venda</strong>
+                <span className="text-slate-500"> (estado atual — pode incluir vendas antigas trazidas via integração)</span>.
               </p>
-              {naoFechados > 0 && (
-                <p className="text-xs text-slate-500 mt-1">
-                  Os outros <strong>{formatNumber(naoFechados)}</strong> ainda estão em aberto — a parte de "vendido" aparece em branco pra eles. Venda fechada = stage "Contrato Assinado".
-                </p>
-              )}
+              <p className="text-xs text-slate-500 mt-1">
+                Pra ver <strong>quantas vendas fecharam de fato no período</strong>, troca o filtro de data pra "Data de evento".
+              </p>
             </>
           ) : (
-            <p className="text-sm text-slate-600 mt-1">
-              Universo: <strong>{formatNumber(fechados)} vendas fechadas</strong> nesse período
-              (filtro pela data efetiva do contrato).
-            </p>
+            <>
+              <p className="text-sm text-slate-600 mt-1">
+                Universo: <strong className="text-emerald-700">{formatNumber(fechados)} vendas fechadas</strong> nesse período.
+                Conta a partir do momento que o card foi <strong>movido para a fase Pós-venda</strong>.
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                Cards trazidos via integração sem registro de transição não aparecem aqui — só os que foram fechados dentro do CRM no período.
+              </p>
+            </>
           )}
         </div>
         <div className="text-xs bg-white border border-indigo-200 rounded-lg px-3 py-1.5 text-indigo-700 whitespace-nowrap">
