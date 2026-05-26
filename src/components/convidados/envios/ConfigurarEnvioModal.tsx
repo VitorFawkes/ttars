@@ -4,11 +4,9 @@ import { X, Save, Send, GripVertical, Heart, Users, Loader2, AlertCircle, Eye } 
 import { supabase } from '../../../lib/supabase'
 import { useGuests } from '../../../hooks/convidados/useGuests'
 import { useWhatsAppLinhas } from '../../../hooks/useWhatsAppLinhas'
-import { useWhatsAppTemplates } from '../../../hooks/useWhatsAppTemplates'
+import { parseTemplateBody, useWhatsAppTemplates } from '../../../hooks/useWhatsAppTemplates'
 import {
   AVAILABLE_FIELDS,
-  getTemplateVarCount,
-  hasButtonVar,
   useTemplateVarConfig,
   type FieldDescriptor,
   type FieldKey,
@@ -119,9 +117,6 @@ function fieldPreview(
 }
 
 export function ConfigurarEnvioModal({ open, onClose, cardId, weddingTitulo, templateSlug, targetGuestIds }: ConfigurarEnvioModalProps) {
-  const varCount = getTemplateVarCount(templateSlug)
-  const showButton = hasButtonVar(templateSlug)
-
   const { config, isLoading: configLoading, save, isSaving } = useTemplateVarConfig(templateSlug)
   const { data: guests = [], isLoading: guestsLoading } = useGuests(cardId)
   const { data: linhas = [] } = useWhatsAppLinhas('WEDDING')
@@ -131,6 +126,15 @@ export function ConfigurarEnvioModal({ open, onClose, cardId, weddingTitulo, tem
     () => templates.find(t => t.name === templateSlug) ?? null,
     [templates, templateSlug],
   )
+  // Detecta dinamicamente do template real da Meta quantas vars o body tem e
+  // se há placeholder em URL de botão. Enquanto o template não chega da API,
+  // varCount=0 e o componente mostra um skeleton no lugar dos slots.
+  const parsedTemplate = useMemo(
+    () => selectedTemplate ? parseTemplateBody(selectedTemplate) : null,
+    [selectedTemplate],
+  )
+  const varCount = parsedTemplate?.paramCount ?? 0
+  const showButton = (parsedTemplate?.buttonUrlParamCount ?? 0) > 0
   const { data: card } = useQuery<CardExtras | null>({
     queryKey: ['card-extras', cardId],
     enabled: open && !!cardId,
@@ -348,28 +352,47 @@ export function ConfigurarEnvioModal({ open, onClose, cardId, weddingTitulo, tem
                 <button
                   type="button"
                   onClick={handleSave}
-                  disabled={isSaving || configLoading}
+                  disabled={isSaving || configLoading || !parsedTemplate}
                   className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50 disabled:opacity-50"
                 >
                   <Save className="w-3.5 h-3.5" />
                   {isSaving ? 'Salvando…' : savedFlash ? 'Salvo ✓' : 'Salvar Padrão'}
                 </button>
               </div>
-              <div className="space-y-2">
-                {vars.map((varKey, i) => (
-                  <VarSlot
-                    key={i}
-                    label={`Var ${i + 1}`}
-                    fieldKey={varKey}
-                    preview={varKey ? fieldPreview(varKey, card ?? { titulo: weddingTitulo, produto_data: null, data_viagem_inicio: null }, firstContact ?? undefined) : null}
-                    onDrop={fieldKey => handleDropOnVar(i, fieldKey)}
-                    onClear={() => handleClearVar(i)}
-                  />
-                ))}
-              </div>
+              {!parsedTemplate && templatesLoading ? (
+                <div className="space-y-2">
+                  {[0, 1, 2].map(i => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-slate-300 w-12 shrink-0">···</span>
+                      <div className="flex-1 h-9 rounded-md bg-slate-100 animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+              ) : !parsedTemplate ? (
+                <div className="text-xs text-slate-500 italic px-1 py-2">
+                  Selecione a linha WhatsApp para carregar o template.
+                </div>
+              ) : varCount === 0 ? (
+                <div className="text-xs text-slate-500 italic px-1 py-2">
+                  Este template não tem variáveis a preencher.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {vars.map((varKey, i) => (
+                    <VarSlot
+                      key={i}
+                      label={`Var ${i + 1}`}
+                      fieldKey={varKey}
+                      preview={varKey ? fieldPreview(varKey, card ?? { titulo: weddingTitulo, produto_data: null, data_viagem_inicio: null }, firstContact ?? undefined) : null}
+                      onDrop={fieldKey => handleDropOnVar(i, fieldKey)}
+                      onClear={() => handleClearVar(i)}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Variável do botão (só promom1-4) */}
+            {/* Variável do botão — só aparece se o template real tem {{N}} numa URL de botão. */}
             {showButton && (
               <div>
                 <h4 className="text-sm font-medium text-slate-700 mb-2">Variável do Botão</h4>

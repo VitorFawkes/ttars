@@ -898,9 +898,9 @@ function ContactGiftCard({
         } catch { toast.error('Erro ao adicionar item') }
     }
 
-    const handleAddCustom = async (name: string, unitPrice: number, quantity: number) => {
+    const handleAddCustom = async (name: string, unitPrice: number, quantity: number, imagePath?: string | null) => {
         try {
-            await ops.addCustomItem.mutateAsync({ customName: name, quantity, unitPrice })
+            await ops.addCustomItem.mutateAsync({ customName: name, quantity, unitPrice, customImagePath: imagePath ?? null })
             toast.success(`${name} adicionado`)
         } catch { toast.error('Erro ao adicionar item') }
     }

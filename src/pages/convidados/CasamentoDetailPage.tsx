@@ -37,6 +37,7 @@ import {
 import { useWeddingFluxo, type WeddingFluxoAssignment } from '../../hooks/convidados/useWeddingFluxo'
 import { mockHotelRooms } from '../../hooks/convidados/mockHotel'
 import { NovoGuestModal } from '../../components/convidados/NovoGuestModal'
+import { EditarCasamentoModal } from '../../components/convidados/EditarCasamentoModal'
 import { GuestKanbanBoard } from '../../components/convidados/guests/GuestKanbanBoard'
 import { Button } from '../../components/ui/Button'
 import { BaixarPdfButton } from '../../components/convidados/pdf/BaixarPdfButton'
@@ -74,6 +75,7 @@ export default function CasamentoDetailPage() {
   const fluxo = useWeddingFluxo(cardId)
 
   const [showAdd, setShowAdd] = useState(false)
+  const [showEditar, setShowEditar] = useState(false)
   const [search, setSearch] = useState('')
   const [confirmEncerrar, setConfirmEncerrar] = useState(false)
   const [confirmCancelar, setConfirmCancelar] = useState(false)
@@ -200,7 +202,12 @@ export default function CasamentoDetailPage() {
           >
             <ExternalLink className="w-4 h-4" /> Acessar card
           </a>
-          <Button variant="outline" size="sm" className="gap-1.5" disabled>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setShowEditar(true)}
+          >
             <Pencil className="w-4 h-4" /> Editar
           </Button>
 
@@ -325,6 +332,14 @@ export default function CasamentoDetailPage() {
           onClose={() => setShowAdd(false)}
           defaultCardId={cardId ?? undefined}
           lockedCard
+        />
+      )}
+
+      {showEditar && cardId && (
+        <EditarCasamentoModal
+          open={showEditar}
+          onClose={() => setShowEditar(false)}
+          cardId={cardId}
         />
       )}
     </div>

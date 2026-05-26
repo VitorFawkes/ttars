@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { Clock, PackageCheck, Truck, DollarSign, Search, Filter, Loader2, Check } from 'lucide-react'
+import { Clock, PackageCheck, Truck, DollarSign, Search, Filter, Loader2, Check, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAllGiftAssignments, type GiftFilters } from '@/hooks/useAllGiftAssignments'
 import GiftKanbanBoard from './GiftKanbanBoard'
+import PremiumGiftModal from './PremiumGiftModal'
+import { usePremiumGifts } from '@/hooks/usePremiumGifts'
 
 const formatBRL = (value: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
@@ -10,11 +12,14 @@ const formatBRL = (value: number) =>
 export default function CentralEnvios() {
     const [filters, setFilters] = useState<GiftFilters>({})
     const [search, setSearch] = useState('')
+    const [showModal, setShowModal] = useState(false)
 
     const { assignments, isLoading, stats } = useAllGiftAssignments({
         ...filters,
         search: search || undefined,
     })
+
+    const { createPremiumGift } = usePremiumGifts()
 
     const toggleType = (type: 'trip' | 'premium' | null) => {
         setFilters(f => ({ ...f, giftType: f.giftType === type ? null : type }))
@@ -22,6 +27,16 @@ export default function CentralEnvios() {
 
     return (
         <div className="space-y-5">
+            <div className="flex items-center justify-end">
+                <button
+                    onClick={() => setShowModal(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+                >
+                    <Plus className="h-4 w-4" />
+                    Novo Envio
+                </button>
+            </div>
+
             <div className="grid grid-cols-4 gap-4">
                 <div className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3">
                     <div className="h-10 w-10 rounded-lg bg-amber-100 flex items-center justify-center">
@@ -87,7 +102,7 @@ export default function CentralEnvios() {
                             )}
                         >
                             {filters.giftType === 'trip' && <Check className="h-3 w-3" strokeWidth={3} />}
-                            Viagem
+                            Vinculado a viagem
                         </button>
                         <button
                             onClick={() => toggleType('premium')}
@@ -100,7 +115,7 @@ export default function CentralEnvios() {
                             )}
                         >
                             {filters.giftType === 'premium' && <Check className="h-3 w-3" strokeWidth={3} />}
-                            Premium
+                            Avulso
                         </button>
                     </div>
                     <label className="flex items-center gap-2 text-xs text-slate-600 select-none">
@@ -130,6 +145,17 @@ export default function CentralEnvios() {
                         <span className="text-red-500 ml-2">({stats.overdueCount} atrasado{stats.overdueCount !== 1 ? 's' : ''})</span>
                     )}
                 </p>
+            )}
+
+            {showModal && (
+                <PremiumGiftModal
+                    onClose={() => setShowModal(false)}
+                    onSubmit={async input => {
+                        await createPremiumGift.mutateAsync(input)
+                        setShowModal(false)
+                    }}
+                    isSubmitting={createPremiumGift.isPending}
+                />
             )}
         </div>
     )

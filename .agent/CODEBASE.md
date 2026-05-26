@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-26
 > **Trigger:** ALWAYS ON
-> **Stats:** 209 tabelas | 208 paginas | 337 hooks | 23 views | 798 components
+> **Stats:** 209 tabelas | 208 paginas | 339 hooks | 23 views | 797 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **337 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **339 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -429,12 +429,14 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useTurnLog()` | `useTurnLog.ts` |
 | `useTurnLogsForConversation()` | `useTurnLogsForConversation.ts` |
 | `useUpdateGuestStatus()` | `useUpdateGuestStatus.ts` |
+| `useUpdateWedding()` | `useUpdateWedding.ts` |
 | `useUpdateWeddingEtapa()` | `useUpdateWeddingEtapa.ts` |
 | `useVendasRpcs()` | `useVendasRpcs.ts` |
 | `useViagem()` | `useViagem.ts` |
 | `useViagemInterna()` | `useViagemInterna.ts` |
 | `useViagemMutations()` | `useViagemMutations.ts` |
 | `useWedding()` | `useWedding.ts` |
+| `useWeddingEditValues()` | `useWeddingEditValues.ts` |
 | `useWeddingFluxo()` | `useWeddingFluxo.ts` |
 | `useWeddingLotes()` | `useWeddingLotes.ts` |
 | `useWeddings()` | `useWeddings.ts` |
