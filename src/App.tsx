@@ -152,12 +152,11 @@ import { reportSupabaseNetworkError } from './lib/supabaseHealth'
 function isNetworkError(error: Error): boolean {
     const msg = error.message?.toLowerCase() ?? ''
     return (
-        !navigator.onLine ||
         msg.includes('failed to fetch') ||
         msg.includes('networkerror') ||
         msg.includes('load failed') ||
         msg.includes('network request failed') ||
-        error.name === 'TypeError' && msg.includes('fetch')
+        (error.name === 'TypeError' && msg.includes('fetch'))
     )
 }
 
