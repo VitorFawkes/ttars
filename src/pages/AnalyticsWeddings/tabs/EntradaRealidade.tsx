@@ -33,11 +33,11 @@ type EntradaRealidadeData = {
 export function EntradaRealidade() {
   const filters = useFilterParams()
   const { org } = useOrg()
-  const [onlyFechados, setOnlyFechados] = useState(false)
+  const [incluirTodos, setIncluirTodos] = useState(false)
   const [drill, setDrill] = useState<DrillContext | null>(null)
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['ww2', 'er-v3', org?.id, filters.dateStart, filters.dateEnd, filters.origins, onlyFechados],
+    queryKey: ['ww2', 'er-v3', org?.id, filters.dateStart, filters.dateEnd, filters.origins, incluirTodos],
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any).rpc('ww2_entrada_realidade', {
@@ -45,7 +45,7 @@ export function EntradaRealidade() {
         p_date_end: filters.dateEnd,
         p_org_id: org?.id,
         p_origins: filters.origins?.length ? filters.origins : null,
-        p_only_fechados: onlyFechados,
+        p_only_fechados: !incluirTodos,
       })
       if (error) throw error
       return data as EntradaRealidadeData
@@ -64,18 +64,23 @@ export function EntradaRealidade() {
     <div className="space-y-5">
       <SectionCard
         title="🔄 Entrada × Realidade"
-        subtitle="Comparação completa: o que o lead disse no formulário × o que a closer refinou depois. Matrizes de transição, valores reais, perfil real dos casamentos."
+        subtitle="O que o lead disse no formulário × o que efetivamente VENDEU. Por padrão só conta vendas fechadas — a realidade só existe quando teve contrato."
         action={
           <button
-            onClick={() => setOnlyFechados(!onlyFechados)}
+            onClick={() => setIncluirTodos(!incluirTodos)}
             className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition ${
-              onlyFechados ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+              incluirTodos ? 'bg-amber-50 border-amber-300 text-amber-700' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
             }`}
+            title="Incluir leads que só foram refinados pela closer mas não fecharam contrato"
           >
-            {onlyFechados ? '✓ Apenas fechados' : 'Apenas fechados'}
+            {incluirTodos ? '✓ Incluir não fechados' : 'Incluir não fechados'}
           </button>
         }
       >
+        <div className="mb-3 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded p-2.5">
+          ✅ <strong>Analisando {incluirTodos ? 'todos leads refinados (fechados + não fechados)' : `apenas as ${formatNumber(data.total_fechados)} vendas fechadas`}.</strong>
+          {!incluirTodos && ' Se uma faixa não tem venda, aparece zerada — isso é informação real.'}
+        </div>
         <CoverageBanner data={data} />
       </SectionCard>
 
@@ -278,18 +283,22 @@ function MatrizDimensaoView({ title, subtitle, dim, onDrill }: {
           <tbody>
             {allRowCats.map(rowCat => {
               const rowTotal = rowTotals.get(rowCat) ?? dim.matriz.filter(c => c.e === rowCat).reduce((s, c) => s + c.qtd, 0)
-              if (rowTotal === 0) return null
+              const linhaVazia = rowTotal === 0
               return (
-                <tr key={rowCat} className="hover:bg-slate-50">
+                <tr key={rowCat} className={`hover:bg-slate-50 ${linhaVazia ? 'opacity-50' : ''}`}>
                   <td className="sticky left-0 bg-white hover:bg-slate-50 px-3 py-2 font-medium text-slate-800 border-b border-slate-100 whitespace-nowrap">
-                    <button onClick={() => onDrill(rowCat)} className="text-left hover:text-indigo-700">
-                      {rowCat}
-                    </button>
+                    {linhaVazia ? (
+                      <span className="text-slate-500">{rowCat}</span>
+                    ) : (
+                      <button onClick={() => onDrill(rowCat)} className="text-left hover:text-indigo-700">
+                        {rowCat}
+                      </button>
+                    )}
                   </td>
                   {allColCats.map(colCat => {
                     const qtd = cellMap.get(`${rowCat}|${colCat}`) ?? 0
                     if (qtd === 0) {
-                      return <td key={colCat} className="px-2 py-2 text-center text-slate-300 border-b border-slate-100">—</td>
+                      return <td key={colCat} className="px-2 py-2 text-center text-slate-300 border-b border-slate-100">0</td>
                     }
                     const isDiagonal = rowCat === colCat
                     const pctOfRow = rowTotal > 0 ? (qtd / rowTotal) * 100 : 0
@@ -308,7 +317,7 @@ function MatrizDimensaoView({ title, subtitle, dim, onDrill }: {
                       </td>
                     )
                   })}
-                  <td className="px-3 py-2 text-right font-semibold text-slate-700 border-b border-slate-100 bg-slate-50 tabular-nums">
+                  <td className={`px-3 py-2 text-right font-semibold border-b border-slate-100 bg-slate-50 tabular-nums ${linhaVazia ? 'text-slate-400' : 'text-slate-700'}`}>
                     {formatNumber(rowTotal)}
                   </td>
                 </tr>
@@ -380,13 +389,13 @@ function CrossMatriz({ title, subtitle, data, rows, cols, getRow, getCol, cellCo
           <tbody>
             {allRows.map(rowCat => {
               const rowTotal = rowTotals.get(rowCat) ?? 0
-              if (rowTotal === 0) return null
+              const linhaVazia = rowTotal === 0
               return (
-                <tr key={rowCat} className="hover:bg-slate-50">
+                <tr key={rowCat} className={`hover:bg-slate-50 ${linhaVazia ? 'opacity-50' : ''}`}>
                   <td className="sticky left-0 bg-white hover:bg-slate-50 px-3 py-2 font-medium text-slate-800 border-b border-slate-100 whitespace-nowrap">{rowCat}</td>
                   {allCols.map(colCat => {
                     const qtd = cellMap.get(`${rowCat}|${colCat}`) ?? 0
-                    if (qtd === 0) return <td key={colCat} className="px-2 py-2 text-center text-slate-300 border-b border-slate-100">—</td>
+                    if (qtd === 0) return <td key={colCat} className="px-2 py-2 text-center text-slate-300 border-b border-slate-100">0</td>
                     const intensity = qtd / maxQtd
                     const bg = `${baseColor}, ${0.10 + intensity * 0.75})`
                     const textColor = intensity > 0.5 ? 'white' : 'rgb(15, 23, 42)'
@@ -402,7 +411,7 @@ function CrossMatriz({ title, subtitle, data, rows, cols, getRow, getCol, cellCo
                       </td>
                     )
                   })}
-                  <td className="px-3 py-2 text-right font-semibold text-slate-700 border-b border-slate-100 bg-slate-50 tabular-nums">{formatNumber(rowTotal)}</td>
+                  <td className={`px-3 py-2 text-right font-semibold border-b border-slate-100 bg-slate-50 tabular-nums ${linhaVazia ? 'text-slate-400' : 'text-slate-700'}`}>{formatNumber(rowTotal)}</td>
                 </tr>
               )
             })}

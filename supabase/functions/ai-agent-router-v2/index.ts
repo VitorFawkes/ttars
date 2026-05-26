@@ -2035,6 +2035,7 @@ Deno.serve(async (req) => {
           input_tokens: singleAgentResult.input_tokens,
           output_tokens: singleAgentResult.output_tokens,
           validator: verdict,
+          raw_messages: singleAgentResult.output.messages,
           send_results: sendResults,
           forced_moment_key: forcedMomentKey,
           qualification_result: qualificationResult,
@@ -2115,6 +2116,7 @@ Deno.serve(async (req) => {
         skills_used: toolResults,
         context_used: {
           validator: verdict,
+          raw_messages: singleAgentResult.output.messages,
           send_results: sendResults,
           fallback_triggered: true,
           input_tokens: singleAgentResult.input_tokens,
