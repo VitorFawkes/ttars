@@ -97,7 +97,9 @@ export const Toolbox: React.FC<ToolboxProps> = ({ hasTrigger }) => {
                                                 <div className="flex-shrink-0 w-6 h-6 rounded flex items-center justify-center bg-slate-100 mt-0.5">
                                                     {item.category === 'echo'
                                                         ? <EchoBadge iconOnly size={12} />
-                                                        : <Icon className="w-3.5 h-3.5 text-slate-700" />
+                                                        : item.imageUrl
+                                                            ? <img src={item.imageUrl} alt="" className="w-4 h-4 object-contain" />
+                                                            : <Icon className="w-3.5 h-3.5 text-slate-700" />
                                                     }
                                                 </div>
                                                 <div className="flex-1 min-w-0">

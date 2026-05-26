@@ -131,6 +131,43 @@ export const CreateTaskEditor: React.FC<ConfigEditorProps> = ({ config, onChange
                     />
                 </div>
             )}
+
+            <div className="pt-2 border-t border-slate-200">
+                <Label className="text-xs font-semibold">Vencimento</Label>
+                <label className="mt-2 flex items-center gap-2 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        checked={!!config.use_trigger_start_time}
+                        onChange={(e) => set({
+                            use_trigger_start_time: e.target.checked,
+                            trigger_start_time_offset_minutes: e.target.checked
+                                ? (config.trigger_start_time_offset_minutes ?? 0)
+                                : null,
+                        })}
+                        className="w-4 h-4"
+                    />
+                    <span className="text-sm">Usar data/hora do gatilho como vencimento</span>
+                </label>
+                <p className="text-[11px] text-slate-500 mt-1 ml-6">
+                    Útil pro gatilho Calendly: vencimento da tarefa = horário da reunião agendada.
+                </p>
+
+                {!!config.use_trigger_start_time && (
+                    <div className="mt-2 ml-6 space-y-1">
+                        <Label className="text-xs">Offset em minutos (opcional)</Label>
+                        <Input
+                            type="number"
+                            value={(config.trigger_start_time_offset_minutes as number) ?? 0}
+                            onChange={(e) => set({ trigger_start_time_offset_minutes: Number(e.target.value) || 0 })}
+                            placeholder="0"
+                            className="w-32"
+                        />
+                        <p className="text-[11px] text-slate-500">
+                            Negativo = antes da reunião (ex: <code>-60</code> cria tarefa 1h antes). Positivo = depois.
+                        </p>
+                    </div>
+                )}
+            </div>
         </div>
     )
 }

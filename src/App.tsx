@@ -114,6 +114,7 @@ import ActionRequirementsTab from './components/admin/studio/ActionRequirementsT
 import NotificationConfigPage from './components/settings/customization/NotificationConfigPage'
 // Automações unificadas (hub novo)
 import AutomationsListPage from './pages/admin/automations/AutomationsListPage'
+import BackendAutomationsPage from './pages/admin/automations/BackendAutomationsPage'
 import NewAutomationPage from './pages/admin/automations/NewAutomationPage'
 import AutomationBuilderPage from './pages/admin/automations/AutomationBuilderPage'
 import CronRoteamentoDetailPage from './pages/admin/automations/CronRoteamentoDetailPage'
@@ -386,6 +387,7 @@ function App() {
                     <Route path="automations/roteamento/:id" element={<CronRoteamentoDetailPage />} />
                     <Route path="automations/:id" element={<CadenceBuilderPage />} />
                     <Route path="automations/:id/monitor" element={<CadenceMonitorPage />} />
+                    <Route path="automations-backend" element={<BackendAutomationsPage />} />
 
                     <Route path="customization/notifications" element={<NotificationConfigPage />} />
                     <Route path="customization/alert-rules" element={<CardAlertRulesPage />} />

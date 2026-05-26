@@ -69,7 +69,11 @@ const BaseNodeComponent: React.FC<NodeProps<WorkflowNode>> = ({ id, type, data, 
             {/* Cabeçalho colorido por categoria */}
             <div className={`flex items-center gap-2 px-3 py-2 rounded-t-xl ${colors.bg}`}>
                 <div className="flex-shrink-0 w-6 h-6 rounded flex items-center justify-center">
-                    {isEcho ? <EchoBadge iconOnly size={16} /> : <Icon className="w-4 h-4 text-slate-700" />}
+                    {isEcho
+                        ? <EchoBadge iconOnly size={16} />
+                        : meta.imageUrl
+                            ? <img src={meta.imageUrl} alt="" className="w-5 h-5 object-contain" />
+                            : <Icon className="w-4 h-4 text-slate-700" />}
                 </div>
                 <div className="flex-1 min-w-0">
                     <div className="text-[10px] uppercase tracking-wide font-medium text-slate-500 truncate">

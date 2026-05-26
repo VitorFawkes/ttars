@@ -62,6 +62,55 @@ function formatBrazilNow(): string {
     });
 }
 
+// Formata um timestamp ISO no fuso de Brasília. Usado pra interpolar variáveis
+// do trigger Calendly (ex: {{trigger.event_start_time}} = data da reunião).
+function formatBrazilDateTime(iso: string | null | undefined): string {
+    if (!iso) return '';
+    try {
+        return new Date(iso).toLocaleString('pt-BR', {
+            timeZone: 'America/Sao_Paulo',
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit',
+        });
+    } catch {
+        return String(iso);
+    }
+}
+
+// Substitui placeholders {{trigger.x}}, {{contact.x}}, {{card.x}} num texto.
+// `eventData` é o JSONB do entry da fila — contém as variáveis do trigger
+// (ex: invitee_name, event_start_time pro Calendly).
+// Quando aplicável, usa formato amigável (data BR) em vez do raw ISO.
+function renderTriggerVars(
+    text: string | null | undefined,
+    eventData?: Record<string, any> | null,
+    contato?: { nome?: string | null } | null,
+    card?: { titulo?: string | null } | null,
+): string {
+    if (!text) return '';
+    const data = eventData || {};
+    const startFormatted = formatBrazilDateTime(data.event_start_time);
+    const endFormatted = formatBrazilDateTime(data.event_end_time);
+    const firstName = (contato?.nome || '').split(' ')[0] || '';
+    return text
+        // Trigger (event payload)
+        .replace(/\{\{\s*trigger\.invitee_name\s*\}\}/g, String(data.invitee_name ?? ''))
+        .replace(/\{\{\s*trigger\.invitee_email\s*\}\}/g, String(data.invitee_email ?? ''))
+        .replace(/\{\{\s*trigger\.invitee_phone\s*\}\}/g, String(data.invitee_phone ?? ''))
+        .replace(/\{\{\s*trigger\.event_name\s*\}\}/g, String(data.event_name ?? ''))
+        .replace(/\{\{\s*trigger\.event_start_time_iso\s*\}\}/g, String(data.event_start_time ?? ''))
+        .replace(/\{\{\s*trigger\.event_end_time_iso\s*\}\}/g, String(data.event_end_time ?? ''))
+        .replace(/\{\{\s*trigger\.event_start_time\s*\}\}/g, startFormatted)
+        .replace(/\{\{\s*trigger\.event_end_time\s*\}\}/g, endFormatted)
+        .replace(/\{\{\s*trigger\.organizer_email\s*\}\}/g, String(data.organizer_email ?? ''))
+        .replace(/\{\{\s*trigger\.meeting_join_url\s*\}\}/g, String(data.meeting_join_url ?? ''))
+        // Card + contact (compatibilidade com renderVars existente)
+        .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato?.nome || '')
+        .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
+        .replace(/\{\{\s*card\.titulo\s*\}\}/g, card?.titulo || '')
+        .replace(/\{\{\s*now\s*\}\}/g, formatBrazilNow());
+}
+
 serve(async (req) => {
     if (req.method === "OPTIONS") {
         return new Response("ok", { headers: corsHeaders });
@@ -655,12 +704,13 @@ async function processEntryQueue(supabaseClient: SupabaseClient) {
             }
 
             let result;
+            const eventData = item.event_data || {};
             if (trigger.action_type === 'create_task') {
-                result = await executeCreateTaskAction(supabaseClient, item.card_id, trigger, item.org_id);
+                result = await executeCreateTaskAction(supabaseClient, item.card_id, trigger, item.org_id, eventData);
             } else if (trigger.action_type === 'start_cadence') {
-                result = await executeStartCadenceAction(supabaseClient, item.card_id, trigger, item.org_id);
+                result = await executeStartCadenceAction(supabaseClient, item.card_id, trigger, item.org_id, eventData);
             } else if (trigger.action_type === 'send_message') {
-                result = await executeSendMessageAction(supabaseClient, item.card_id, trigger);
+                result = await executeSendMessageAction(supabaseClient, item.card_id, trigger, eventData);
             } else if (trigger.action_type === 'change_stage') {
                 result = await executeChangeStageAction(supabaseClient, item.card_id, trigger, item.org_id);
             } else if (trigger.action_type === 'add_tag') {
@@ -668,9 +718,9 @@ async function processEntryQueue(supabaseClient: SupabaseClient) {
             } else if (trigger.action_type === 'remove_tag') {
                 result = await executeRemoveTagAction(supabaseClient, item.card_id, trigger, item.org_id);
             } else if (trigger.action_type === 'notify_internal') {
-                result = await executeNotifyInternalAction(supabaseClient, item.card_id, trigger, item.org_id);
+                result = await executeNotifyInternalAction(supabaseClient, item.card_id, trigger, item.org_id, eventData);
             } else if (trigger.action_type === 'update_field') {
-                result = await executeUpdateFieldAction(supabaseClient, item.card_id, trigger, item.org_id);
+                result = await executeUpdateFieldAction(supabaseClient, item.card_id, trigger, item.org_id, eventData);
             } else if (trigger.action_type === 'trigger_n8n_webhook') {
                 result = await executeTriggerN8nWebhookAction(supabaseClient, item.card_id, trigger, item.org_id);
             } else if (trigger.action_type === 'send_media') {
@@ -739,7 +789,8 @@ async function executeCreateTaskAction(
     supabaseClient: SupabaseClient,
     cardId: string,
     trigger: any,
-    orgId: string
+    orgId: string,
+    eventData?: Record<string, any>
 ) {
     // task_configs = array de configs. Fallback para task_config (legacy, objeto único).
     const rawConfigs: any[] = Array.isArray(trigger.task_configs) && trigger.task_configs.length > 0
@@ -753,12 +804,19 @@ async function executeCreateTaskAction(
     // Buscar card uma única vez
     const { data: card, error: cardError } = await supabaseClient
         .from("cards")
-        .select("id, dono_atual_id, responsavel_id")
+        .select("id, titulo, dono_atual_id, responsavel_id, pessoa_principal_id")
         .eq("id", cardId)
         .single();
 
     if (cardError || !card) {
         throw new Error(`Card not found: ${cardId}`);
+    }
+
+    // Resolver contato pra render de variáveis
+    let contato: { nome?: string | null } | null = null;
+    if (card.pessoa_principal_id) {
+        const { data: c } = await supabaseClient.from("contatos").select("nome").eq("id", card.pessoa_principal_id).maybeSingle();
+        contato = c;
     }
 
     // Calcular data de vencimento uma única vez (compartilhada)
@@ -818,20 +876,52 @@ async function executeCreateTaskAction(
             assignToId = taskConfig.assign_to_user_id;
         }
 
+        // Override de data de vencimento: usar trigger.event_start_time
+        // (data da reunião do Calendly).
+        // Default sensato: se há event_start_time no payload (trigger Calendly emite),
+        // assume que a tarefa deve vencer NA reunião — exceto se o usuário desmarcou
+        // explicitamente (use_trigger_start_time === false). Pra outros triggers
+        // (stage_enter, card_created, etc.) que não emitem event_start_time, comportamento
+        // segue o delay_minutes do trigger.
+        let taskDueDate = dueDate;
+        const hasEventStart = !!eventData?.event_start_time;
+        const optedIn = taskConfig.use_trigger_start_time === true;
+        const optedOut = taskConfig.use_trigger_start_time === false;
+        const shouldUseEventStart = hasEventStart && (optedIn || !optedOut);
+        if (shouldUseEventStart) {
+            try {
+                const base = new Date(eventData!.event_start_time as string);
+                if (!isNaN(base.getTime())) {
+                    const offsetMin = Number(taskConfig.trigger_start_time_offset_minutes) || 0;
+                    taskDueDate = new Date(base.getTime() + offsetMin * 60 * 1000);
+                }
+            } catch { /* mantém dueDate */ }
+        }
+
+        const renderedTitulo = renderTriggerVars(
+            taskConfig.titulo || 'Tarefa Automática',
+            eventData, contato, card,
+        );
+        const renderedDescricao = renderTriggerVars(
+            taskConfig.descricao || '',
+            eventData, contato, card,
+        );
+
         const { data: task, error: taskError } = await supabaseClient
             .from("tarefas")
             .insert({
                 card_id: cardId,
                 org_id: orgId,
                 tipo: taskTipo,
-                titulo: taskConfig.titulo || 'Tarefa Automática',
-                descricao: taskConfig.descricao || '',
+                titulo: renderedTitulo,
+                descricao: renderedDescricao,
                 responsavel_id: assignToId,
                 prioridade: mapPrioridade(taskConfig.prioridade) || 'alta',
-                data_vencimento: dueDate.toISOString(),
+                data_vencimento: taskDueDate.toISOString(),
                 metadata: {
                     created_by_trigger: trigger.id,
-                    trigger_name: trigger.name
+                    trigger_name: trigger.name,
+                    used_trigger_start_time: !!taskConfig.use_trigger_start_time,
                 }
             })
             .select()
@@ -870,7 +960,8 @@ async function executeStartCadenceAction(
     supabaseClient: SupabaseClient,
     cardId: string,
     trigger: any,
-    orgId: string
+    orgId: string,
+    eventData?: Record<string, any>
 ) {
     const templateId = trigger.target_template_id;
 
@@ -963,7 +1054,9 @@ async function executeStartCadenceAction(
         throw new Error("Template has no steps");
     }
 
-    // Criar instância
+    // Criar instância — propaga event_data do trigger pra que steps acessem
+    // via instance.context.trigger_event_data (ex: data_reuniao do Calendly
+    // pra vencimento de tarefa)
     const { data: instance, error: instanceError } = await supabaseClient
         .from("cadence_instances")
         .insert({
@@ -971,7 +1064,8 @@ async function executeStartCadenceAction(
             org_id: orgId,
             template_id: templateId,
             current_step_id: initialSteps[0].id,
-            status: 'active'
+            status: 'active',
+            context: eventData ? { trigger_event_data: eventData } : null
         })
         .select()
         .single();
@@ -1036,6 +1130,7 @@ interface DispatchArgs {
     phoneLabel: string;        // ex: 'automation:trigger-x' ou 'cadence:nome-template'
     sentByUserName: string;    // ex: 'Automação' ou 'Cadência'
     metadata: Record<string, unknown>;
+    eventData?: Record<string, any>;  // Variáveis do trigger (ex: Calendly) — substituídas em {{trigger.x}}
 }
 
 interface DispatchResult {
@@ -1060,13 +1155,9 @@ async function dispatchEchoMessage(args: DispatchArgs): Promise<DispatchResult> 
     const echoApiKey = Deno.env.get("ECHO_API_KEY") ?? "";
     const echoBase = echoApiUrl.replace(/\/send-message\/?$/, '').replace(/\/+$/, '');
 
-    const firstName = (contato.nome || '').split(' ')[0] || '';
-    const nowBr = formatBrazilNow();
-    const renderVars = (s: string) => s
-        .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato.nome || '')
-        .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
-        .replace(/\{\{\s*card\.titulo\s*\}\}/g, cardTitulo || '')
-        .replace(/\{\{\s*now\s*\}\}/g, nowBr);
+    const eventData = args.eventData;
+    // renderVars agora delega pra renderTriggerVars (que tb cobre {{trigger.x}})
+    const renderVars = (s: string) => renderTriggerVars(s, eventData, { nome: contato.nome }, { titulo: cardTitulo });
 
     const normalizedPhone = (contato.telefone || '').replace(/\D/g, "");
 
@@ -1382,7 +1473,8 @@ async function resolveEchoUserId(
 async function executeSendMessageAction(
     supabaseClient: SupabaseClient,
     cardId: string,
-    trigger: any
+    trigger: any,
+    eventData?: Record<string, any>
 ) {
     const config = trigger.action_config || {};
     const templateId: string | undefined = config.template_id;
@@ -1477,6 +1569,7 @@ async function executeSendMessageAction(
         phoneLabel: `automation:${trigger.name || trigger.id}`,
         sentByUserName: 'Automação',
         metadata: automationMetadata,
+        eventData,
     });
 
     if (!dispatch.sent) {
@@ -1675,7 +1768,8 @@ async function executeNotifyInternalAction(
     supabaseClient: SupabaseClient,
     cardId: string,
     trigger: any,
-    orgId: string
+    orgId: string,
+    eventData?: Record<string, any>
 ) {
     const config = trigger.action_config || {};
     const recipientMode: string = (config.recipient_mode as string) || 'card_owner';
@@ -1714,18 +1808,11 @@ async function executeNotifyInternalAction(
         return { skipped: true, reason: 'no_recipient' };
     }
 
-    // Resolver contato pra renderizar variáveis (mesmo conjunto usado em
-    // mensagens e mídia: contact.nome, contact.primeiro_nome, card.titulo)
+    // Resolver contato pra renderizar variáveis (delega pra renderTriggerVars
+    // que cobre {{contact.x}}, {{card.x}}, {{now}} e {{trigger.x}})
     const contato = await resolveCardContact(supabaseClient, cardId);
-    const firstName = (contato?.nome || '').split(' ')[0] || '';
-    const nowBr = formatBrazilNow();
-    const renderVars = (s: string) => s
-        .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato?.nome || '')
-        .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
-        .replace(/\{\{\s*card\.titulo\s*\}\}/g, card.titulo || '')
-        .replace(/\{\{\s*now\s*\}\}/g, nowBr);
-    const title = renderVars(rawTitle).slice(0, 200);
-    const body = renderVars(rawBody).slice(0, 500);
+    const title = renderTriggerVars(rawTitle, eventData, contato, card).slice(0, 200);
+    const body = renderTriggerVars(rawBody, eventData, contato, card).slice(0, 500);
 
     const rows = recipients.map((userId) => ({
         user_id: userId,
@@ -1826,14 +1913,20 @@ async function executeUpdateFieldAction(
     supabaseClient: SupabaseClient,
     cardId: string,
     trigger: any,
-    orgId: string
+    orgId: string,
+    eventData?: Record<string, any>
 ) {
     const config = trigger.action_config || {};
     const fieldKey: string | undefined = config.field_key;
-    const rawValue: unknown = config.value;
+    let rawValue: unknown = config.value;
 
     if (!fieldKey) {
         return { skipped: true, reason: 'no_field_key' };
+    }
+
+    // Substitui variáveis se o valor for string (ex: usar {{trigger.event_start_time_iso}} em data_reuniao)
+    if (typeof rawValue === 'string') {
+        rawValue = renderTriggerVars(rawValue, eventData, null, null);
     }
 
     const coerced = coerceFieldValue(fieldKey, rawValue);
@@ -2386,7 +2479,24 @@ async function executeTaskStep(
     // - viagem_inicio / viagem_fim (cards.data_viagem_inicio / fim)
     // - welcome_inicio / welcome_fim (cards.produto_data->'data_exata_da_viagem'->'start'/'end')
     let anchorDate: Date | null = null;
-    if (step.data_anchor && step.data_anchor !== 'now') {
+
+    // Override: se a instância foi disparada por um trigger que emite event_start_time
+    // (ex: Calendly) e o task_config tem use_trigger_start_time !== false (default),
+    // usa esse horário como anchor. Default sensato pro caso "tarefa de reunião".
+    const triggerEventData = instance.context?.trigger_event_data as Record<string, any> | undefined;
+    const triggerEventStart = triggerEventData?.event_start_time;
+    const optedOut = config.use_trigger_start_time === false;
+    if (triggerEventStart && !optedOut) {
+        try {
+            const d = new Date(triggerEventStart);
+            if (!isNaN(d.getTime())) {
+                anchorDate = d;
+                console.log(`[CadenceEngine] Task step ${step.id}: using trigger event_start_time as anchor (${triggerEventStart})`);
+            }
+        } catch { /* ignora, segue lógica normal */ }
+    }
+
+    if (!anchorDate && step.data_anchor && step.data_anchor !== 'now') {
         try {
             // Buscar dados extras do card (produto_data) se necessário
             let cardExtras: Record<string, unknown> | null = null;
@@ -2428,7 +2538,14 @@ async function executeTaskStep(
     // Base do cálculo: anchor (se resolvido) ou now()
     const calcBase = anchorDate ?? new Date();
     let taskDueDate = new Date(calcBase);
-    if (offsetValue !== 0) {
+
+    // Se anchor veio do trigger event_start_time, aplica offset em minutos
+    // (config.trigger_start_time_offset_minutes) e ignora a lógica de offsetUnit/Value
+    // que assume contexto de cadência tradicional.
+    if (triggerEventStart && !optedOut && anchorDate) {
+        const minutesOffset = Number(config.trigger_start_time_offset_minutes) || 0;
+        taskDueDate = new Date(anchorDate.getTime() + minutesOffset * 60 * 1000);
+    } else if (offsetValue !== 0) {
         if (offsetUnit === 'hours') {
             const minutesToAdd = offsetValue * 60;
             if (template.respect_business_hours && offsetValue > 0) {

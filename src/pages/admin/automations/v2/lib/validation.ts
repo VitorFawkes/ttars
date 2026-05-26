@@ -55,6 +55,14 @@ export function validateNode(type: WorkflowNodeType, config: Record<string, unkn
         case 'trigger.time_in_stage':
             error = requireKey(config, 'stage_id')
             break
+        case 'trigger.calendly_invitee_created':
+            // Filtros opcionais. Se marcar "criar card", exige pipeline + stage + dono.
+            if (config.create_card_if_missing) {
+                if (!config.create_card_pipeline_id) error = 'Escolha o pipeline pra criar o card'
+                else if (!config.create_card_stage_id) error = 'Escolha a etapa inicial'
+                else if (config.owner_mode === 'fixed' && !config.owner_user_id) error = 'Escolha o usuário dono'
+            }
+            break
 
         case 'action.create_task':
             error = requireKey(config, 'titulo')

@@ -41,6 +41,12 @@ const VARIABLE_HINTS = [
     '{{contact.primeiro_nome}}',
     '{{contact.nome}}',
     '{{card.titulo}}',
+    '{{now}}',
+    // Calendly
+    '{{trigger.invitee_name}}',
+    '{{trigger.event_start_time}}',
+    '{{trigger.event_name}}',
+    '{{trigger.meeting_join_url}}',
 ]
 
 export const MediaStepEditor: React.FC<MediaStepEditorProps> = ({

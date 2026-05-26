@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-05-25
+> **Last Updated:** 2026-05-26
 > **Trigger:** ALWAYS ON
-> **Stats:** 208 tabelas | 197 paginas | 327 hooks | 23 views | 785 components
+> **Stats:** 209 tabelas | 198 paginas | 327 hooks | 23 views | 785 components
 
 ---
 
@@ -575,7 +575,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **197 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **198 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -671,6 +671,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `AutomationBuilderPage` | `src/pages/admin/automations/AutomationBuilderPage.tsx` |
 | `AutomationMonitorPage` | `src/pages/admin/automations/AutomationMonitorPage.tsx` |
 | `AutomationsListPage` | `src/pages/admin/automations/AutomationsListPage.tsx` |
+| `BackendAutomationsPage` | `src/pages/admin/automations/BackendAutomationsPage.tsx` |
 | `CronRoteamentoDetailPage` | `src/pages/admin/automations/CronRoteamentoDetailPage.tsx` |
 | `NewAutomationPage` | `src/pages/admin/automations/NewAutomationPage.tsx` |
 | `WorkflowEditorPage` | `src/pages/admin/automations/v2/WorkflowEditorPage.tsx` |

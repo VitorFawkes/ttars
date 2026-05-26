@@ -21,6 +21,7 @@ import { usePipelinePhases } from '@/hooks/usePipelinePhases'
 import { useCardTags } from '@/hooks/useCardTags'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { useProductContext } from '@/hooks/useProductContext'
+import { useFilterProfiles } from '@/hooks/analytics/useFilterOptions'
 import type { TriggerNodeType } from '../types'
 
 interface TriggerEditorProps {
@@ -45,6 +46,7 @@ const FIELD_WHITELIST = [
     { value: 'data_viagem_inicio', label: 'Data de início da viagem' },
     { value: 'data_viagem_fim',    label: 'Data de fim da viagem' },
     { value: 'destino',           label: 'Destino' },
+    { value: 'data_reuniao',      label: 'Data da Reunião' },
 ]
 
 export const TriggerEditor: React.FC<TriggerEditorProps> = ({ type, config, onChange }) => {
@@ -53,6 +55,7 @@ export const TriggerEditor: React.FC<TriggerEditorProps> = ({ type, config, onCh
     const { data: stages = [] } = usePipelineStages(pipelineId)
     const { data: phases = [] } = usePipelinePhases(pipelineId)
     const { tags } = useCardTags(product || undefined)
+    const { data: workspaceProfiles = [] } = useFilterProfiles()
 
     const set = (patch: Record<string, unknown>) => onChange({ ...config, ...patch })
 
@@ -166,6 +169,20 @@ export const TriggerEditor: React.FC<TriggerEditorProps> = ({ type, config, onCh
                             ]}
                         />
                     </div>
+                    <div className="space-y-2">
+                        <Label className="text-xs">Fase do card (opcional)</Label>
+                        <CustomSelect
+                            value={(config.phase_id as string) || ''}
+                            onChange={(v) => set({ phase_id: v || null })}
+                            options={[
+                                { value: '', label: 'Qualquer fase' },
+                                ...phases.map((p) => ({ value: p.id, label: p.label })),
+                            ]}
+                        />
+                        <p className="text-xs text-slate-400">
+                            Quando setado, só dispara se o card estiver numa etapa dessa fase (ex: SDR, Planner, Pós-venda).
+                        </p>
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-2">
                             <Label className="text-xs">De (opcional)</Label>
@@ -268,6 +285,154 @@ export const TriggerEditor: React.FC<TriggerEditorProps> = ({ type, config, onCh
                     </div>
                 </div>
             )
+
+        case 'trigger.calendly_invitee_created': {
+            const createIfMissing = !!config.create_card_if_missing
+            return (
+                <div className="space-y-4">
+                    <p className="text-xs text-slate-500">
+                        Dispara quando uma reunião é agendada no Calendly. Os campos de filtro são opcionais.
+                    </p>
+
+                    <details className="bg-indigo-50 border border-indigo-200 rounded-md px-3 py-2">
+                        <summary className="text-xs font-medium text-indigo-900 cursor-pointer">
+                            Variáveis disponíveis nos próximos passos
+                        </summary>
+                        <div className="mt-2 text-xs text-indigo-900 space-y-1 font-mono">
+                            <div><code>{'{{trigger.invitee_name}}'}</code> — nome do convidado</div>
+                            <div><code>{'{{trigger.invitee_email}}'}</code> — email do convidado</div>
+                            <div><code>{'{{trigger.invitee_phone}}'}</code> — telefone (se houver)</div>
+                            <div><code>{'{{trigger.event_start_time}}'}</code> — data/hora da reunião (formato BR)</div>
+                            <div><code>{'{{trigger.event_end_time}}'}</code> — fim da reunião</div>
+                            <div><code>{'{{trigger.event_name}}'}</code> — nome do tipo de evento</div>
+                            <div><code>{'{{trigger.meeting_join_url}}'}</code> — link da chamada</div>
+                            <div><code>{'{{trigger.organizer_email}}'}</code> — email do organizador</div>
+                        </div>
+                        <p className="mt-2 text-xs text-indigo-700">
+                            Use em campos de texto das ações (criar tarefa, mandar mensagem, atualizar campo).
+                            Em "criar tarefa" também tem opção "usar data da reunião como vencimento".
+                        </p>
+                    </details>
+
+                    <div className="space-y-2">
+                        <Label className="text-xs">Organizador (email — opcional)</Label>
+                        <Input
+                            type="email"
+                            placeholder="ex: ana.carolina@welcometrips.com.br"
+                            value={(config.organizer_email as string) || ''}
+                            onChange={(e) => set({ organizer_email: e.target.value || null })}
+                        />
+                        <p className="text-xs text-slate-400">Só dispara se o organizador da reunião for esse email.</p>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label className="text-xs">Nome do evento contém (opcional)</Label>
+                        <Input
+                            placeholder="ex: Wedding Planner"
+                            value={(config.event_name_pattern as string) || ''}
+                            onChange={(e) => set({ event_name_pattern: e.target.value || null })}
+                        />
+                        <p className="text-xs text-slate-400">Filtra pelo nome do tipo de evento configurado no Calendly.</p>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-200">
+                        <Label className="text-xs font-semibold">Quando não houver card existente</Label>
+                        <label className="mt-2 flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={createIfMissing}
+                                onChange={(e) => {
+                                    const checked = e.target.checked
+                                    set({
+                                        create_card_if_missing: checked,
+                                        create_card_pipeline_id: checked ? (config.create_card_pipeline_id ?? pipelineId ?? null) : null,
+                                        create_card_stage_id: checked ? (config.create_card_stage_id ?? null) : null,
+                                    })
+                                }}
+                                className="w-4 h-4"
+                            />
+                            <span className="text-sm">Criar card novo automaticamente</span>
+                        </label>
+                        <p className="text-xs text-slate-400 mt-1">
+                            Desmarcado: reunião de lead desconhecido fica só no log e não dispara este fluxo.
+                        </p>
+
+                        {createIfMissing && (
+                            <div className="mt-3 space-y-3 pl-3 border-l-2 border-indigo-200">
+                                <div className="space-y-2">
+                                    <Label className="text-xs">Pipeline</Label>
+                                    <p className="text-xs text-slate-500">
+                                        Usando o pipeline ativo deste workspace.
+                                    </p>
+                                    <Input
+                                        value={pipelineId || ''}
+                                        readOnly
+                                        className="text-xs font-mono bg-slate-50"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-xs">Etapa inicial</Label>
+                                    <CustomSelect
+                                        value={(config.create_card_stage_id as string) || ''}
+                                        onChange={(v) => set({ create_card_stage_id: v || null })}
+                                        options={[
+                                            { value: '', label: 'Selecionar etapa...' },
+                                            ...stages.map((s) => ({ value: s.id, label: s.nome })),
+                                        ]}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-xs">Dono do card</Label>
+                                    <CustomSelect
+                                        value={(config.owner_mode as string) || 'organizer'}
+                                        onChange={(v) => set({ owner_mode: v, owner_user_id: v === 'fixed' ? config.owner_user_id : null })}
+                                        options={[
+                                            { value: 'organizer', label: 'Organizador da reunião (Calendly)' },
+                                            { value: 'fixed', label: 'Usuário fixo' },
+                                            { value: 'none', label: 'Sem dono (atribuir depois)' },
+                                        ]}
+                                    />
+                                    {(config.owner_mode as string) === 'organizer' && (
+                                        <p className="text-xs text-slate-400">
+                                            Casa o email do organizador com um usuário do workspace. Se não achar, card fica sem dono.
+                                        </p>
+                                    )}
+                                    {(config.owner_mode as string) === 'fixed' && (
+                                        <CustomSelect
+                                            value={(config.owner_user_id as string) || ''}
+                                            onChange={(v) => set({ owner_user_id: v || null })}
+                                            options={[
+                                                { value: '', label: 'Selecionar usuário...' },
+                                                ...workspaceProfiles.map((p) => ({ value: p.id, label: p.nome })),
+                                            ]}
+                                        />
+                                    )}
+                                </div>
+
+                                {(config.owner_mode as string) !== 'none' && (
+                                    <div className="space-y-2">
+                                        <Label className="text-xs">Atribuir como</Label>
+                                        <CustomSelect
+                                            value={(config.owner_role as string) || 'sdr'}
+                                            onChange={(v) => set({ owner_role: v })}
+                                            options={[
+                                                { value: 'sdr', label: 'SDR' },
+                                                { value: 'vendas', label: 'Planner / Vendas' },
+                                                { value: 'pos', label: 'Pós-venda' },
+                                                { value: 'concierge', label: 'Concierge' },
+                                            ]}
+                                        />
+                                        <p className="text-xs text-slate-400">
+                                            Define em qual papel o usuário fica responsável pelo card.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )
+        }
     }
 }
 

@@ -32,6 +32,7 @@ import {
   type ActionType, type CardType, type EventType, type InboundMatchMode, type RecipePreset, type TimeOffsetSource,
 } from '@/lib/automation-recipes'
 import { usePipelinePhases } from '@/hooks/usePipelinePhases'
+import { useFilterProfiles } from '@/hooks/analytics/useFilterOptions'
 
 type Step = 'gallery' | 'editor' | 'review'
 
@@ -140,6 +141,7 @@ const EVENT_OPTIONS: Array<{ value: EventType; label: string }> = [
   { value: 'inbound_message_pattern', label: EVENT_TYPE_LABELS.inbound_message_pattern },
   { value: 'time_offset_from_date', label: EVENT_TYPE_LABELS.time_offset_from_date },
   { value: 'time_in_stage', label: EVENT_TYPE_LABELS.time_in_stage },
+  { value: 'calendly_invitee_created', label: EVENT_TYPE_LABELS.calendly_invitee_created },
 ]
 
 const TASK_TIPO_OPTIONS = [
@@ -1181,6 +1183,8 @@ function EventConfigEditor({
   const needsInboundPattern = form.event_type === 'inbound_message_pattern'
   const needsTimeOffset = form.event_type === 'time_offset_from_date'
   const needsTimeInStage = form.event_type === 'time_in_stage'
+  const needsCalendlyConfig = form.event_type === 'calendly_invitee_created'
+  const { data: workspaceProfiles = [] } = useFilterProfiles()
   const supportsCardTypeFilter = EVENTS_SUPPORTING_CARD_TYPE_FILTER.has(form.event_type)
 
   const selectedField = needsField
@@ -1329,6 +1333,25 @@ function EventConfigEditor({
               />
             </div>
           )}
+
+          <div>
+            <Label>Fase do card (opcional)</Label>
+            <Select
+              value={(form.event_config.phase_id as string) || ''}
+              onChange={(v) =>
+                setForm({
+                  event_config: { ...form.event_config, phase_id: v || null },
+                })
+              }
+              options={[
+                { value: '', label: 'Qualquer fase' },
+                ...phases.map((p) => ({ value: p.id, label: p.label })),
+              ]}
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              Quando setado, só dispara se o card estiver numa etapa dessa fase (ex: SDR, Planner, Pós-venda).
+            </p>
+          </div>
         </>
       )}
 
@@ -1488,6 +1511,163 @@ function EventConfigEditor({
           <p className="text-xs text-slate-500 mt-1">
             Dispara se o card continua na mesma etapa por mais dias que o definido. Verificação diária às 9h.
           </p>
+        </div>
+      )}
+
+      {needsCalendlyConfig && (
+        <div className="space-y-3 p-3 rounded-md border border-slate-200 bg-slate-50">
+          <p className="text-xs text-slate-600">
+            Dispara quando uma reunião é agendada no Calendly. Os filtros abaixo são opcionais.
+          </p>
+
+          <details className="bg-indigo-50 border border-indigo-200 rounded-md px-3 py-2">
+            <summary className="text-xs font-medium text-indigo-900 cursor-pointer">
+              Variáveis disponíveis nos próximos passos
+            </summary>
+            <div className="mt-2 text-xs text-indigo-900 space-y-1 font-mono">
+              <div><code>{'{{trigger.invitee_name}}'}</code> — nome do convidado</div>
+              <div><code>{'{{trigger.invitee_email}}'}</code> — email do convidado</div>
+              <div><code>{'{{trigger.invitee_phone}}'}</code> — telefone (se houver)</div>
+              <div><code>{'{{trigger.event_start_time}}'}</code> — data/hora da reunião (BR)</div>
+              <div><code>{'{{trigger.event_end_time}}'}</code> — fim da reunião</div>
+              <div><code>{'{{trigger.event_name}}'}</code> — nome do tipo de evento</div>
+              <div><code>{'{{trigger.meeting_join_url}}'}</code> — link da chamada</div>
+              <div><code>{'{{trigger.organizer_email}}'}</code> — email do organizador</div>
+            </div>
+            <p className="mt-2 text-xs text-indigo-700">
+              Use em campos de texto das ações. Pra criar tarefa com data da reunião, marque "usar data da reunião como vencimento" no editor da tarefa.
+            </p>
+          </details>
+
+          <div>
+            <Label>Organizador (email — opcional)</Label>
+            <Input
+              type="email"
+              placeholder="ex: ana.carolina@welcometrips.com.br"
+              value={(form.event_config.organizer_email as string) || ''}
+              onChange={(e) =>
+                setForm({ event_config: { ...form.event_config, organizer_email: e.target.value || null } })
+              }
+            />
+            <p className="text-xs text-slate-500 mt-1">Só dispara se o organizador da reunião for esse email.</p>
+          </div>
+
+          <div>
+            <Label>Nome do evento contém (opcional)</Label>
+            <Input
+              placeholder="ex: Wedding Planner"
+              value={(form.event_config.event_name_pattern as string) || ''}
+              onChange={(e) =>
+                setForm({ event_config: { ...form.event_config, event_name_pattern: e.target.value || null } })
+              }
+            />
+            <p className="text-xs text-slate-500 mt-1">Filtra pelo nome do tipo de evento configurado no Calendly.</p>
+          </div>
+
+          <div className="pt-2 border-t border-slate-200">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!form.event_config.create_card_if_missing}
+                onChange={(e) => {
+                  const checked = e.target.checked
+                  setForm({
+                    event_config: {
+                      ...form.event_config,
+                      create_card_if_missing: checked,
+                      create_card_pipeline_id: checked
+                        ? (form.event_config.create_card_pipeline_id ?? pipelineId ?? null)
+                        : null,
+                      create_card_stage_id: checked ? form.event_config.create_card_stage_id ?? null : null,
+                    },
+                  })
+                }}
+                className="w-4 h-4"
+              />
+              <span className="text-sm font-medium">Criar card novo se não houver match</span>
+            </label>
+            <p className="text-xs text-slate-500 mt-1 ml-6">
+              Desmarcado: reunião de lead desconhecido fica só no log e não dispara este fluxo.
+            </p>
+
+            {!!form.event_config.create_card_if_missing && (
+              <div className="mt-3 ml-6 space-y-2">
+                <div>
+                  <Label>Etapa inicial</Label>
+                  <Select
+                    value={(form.event_config.create_card_stage_id as string) || ''}
+                    onChange={(v: string) =>
+                      setForm({ event_config: { ...form.event_config, create_card_stage_id: v || null } })
+                    }
+                    options={[
+                      { value: '', label: 'Selecionar etapa...' },
+                      ...stages.map((s) => ({ value: s.id, label: s.nome })),
+                    ]}
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Pipeline: usa o pipeline ativo deste workspace.</p>
+                </div>
+                <div>
+                  <Label>Dono do card</Label>
+                  <Select
+                    value={(form.event_config.owner_mode as string) || 'organizer'}
+                    onChange={(v: string) =>
+                      setForm({
+                        event_config: {
+                          ...form.event_config,
+                          owner_mode: v,
+                          owner_user_id: v === 'fixed' ? form.event_config.owner_user_id : null,
+                        },
+                      })
+                    }
+                    options={[
+                      { value: 'organizer', label: 'Organizador da reunião (Calendly)' },
+                      { value: 'fixed', label: 'Usuário fixo' },
+                      { value: 'none', label: 'Sem dono (atribuir depois)' },
+                    ]}
+                  />
+                  {(form.event_config.owner_mode as string) === 'organizer' && (
+                    <p className="text-xs text-slate-500 mt-1">
+                      Casa o email do organizador com um usuário do workspace. Se não achar, card fica sem dono.
+                    </p>
+                  )}
+                  {(form.event_config.owner_mode as string) === 'fixed' && (
+                    <div className="mt-2">
+                      <Select
+                        value={(form.event_config.owner_user_id as string) || ''}
+                        onChange={(v: string) =>
+                          setForm({ event_config: { ...form.event_config, owner_user_id: v || null } })
+                        }
+                        options={[
+                          { value: '', label: 'Selecionar usuário...' },
+                          ...workspaceProfiles.map((p) => ({ value: p.id, label: p.nome })),
+                        ]}
+                      />
+                    </div>
+                  )}
+                </div>
+                {(form.event_config.owner_mode as string) !== 'none' && (
+                  <div>
+                    <Label>Atribuir como</Label>
+                    <Select
+                      value={(form.event_config.owner_role as string) || 'sdr'}
+                      onChange={(v: string) =>
+                        setForm({ event_config: { ...form.event_config, owner_role: v } })
+                      }
+                      options={[
+                        { value: 'sdr', label: 'SDR' },
+                        { value: 'vendas', label: 'Planner / Vendas' },
+                        { value: 'pos', label: 'Pós-venda' },
+                        { value: 'concierge', label: 'Concierge' },
+                      ]}
+                    />
+                    <p className="text-xs text-slate-500 mt-1">
+                      Define em qual papel o usuário fica responsável pelo card.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

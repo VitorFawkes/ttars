@@ -32,6 +32,7 @@ export type TriggerNodeType =
     | 'trigger.inbound_message_pattern'
     | 'trigger.time_offset_from_date'
     | 'trigger.time_in_stage'
+    | 'trigger.calendly_invitee_created'
 
 export type ActionNodeType =
     // card
@@ -74,6 +75,8 @@ export interface NodeTypeMeta {
     category: NodeCategory
     /** Importado de lucide-react no componente que renderiza */
     iconName: string
+    /** Quando setado, sobrescreve o iconName e renderiza esta imagem (ex: logo de provider externo) */
+    imageUrl?: string
     /** Se true, é o ponto de partida (só 1 por workflow) */
     isTrigger: boolean
     /** Se true, não tem saída (ex: end). Padrão: false */

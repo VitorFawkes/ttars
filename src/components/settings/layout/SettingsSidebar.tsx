@@ -32,6 +32,7 @@ import {
     Upload,
     Sparkles,
     Tag,
+    Server,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -152,6 +153,7 @@ export default function SettingsSidebar() {
                             <NavItem to="/settings/customization/sections" icon={Layers} label="Seções" />
                             <NavItem to="/settings/customization/action-requirements" icon={FileCheck} label="Requisitos de Ação" />
                             <NavItem to="/settings/automations" icon={Zap} label="Automações" />
+                            <NavItem to="/settings/automations-backend" icon={Server} label="Backend" />
                             <NavItem to="/settings/automacoes/templates" icon={MessageSquare} label="Templates de Mensagem" />
                             <NavItem to="/settings/ai-agents" icon={Bot} label="Agentes IA" />
                             <NavItem to="/settings/ai-agents-v2" icon={Sparkles} label="Agentes IA v2" />

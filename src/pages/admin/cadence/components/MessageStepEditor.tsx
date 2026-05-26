@@ -39,6 +39,12 @@ const VARIABLE_HINTS = [
     '{{contact.primeiro_nome}}',
     '{{contact.nome}}',
     '{{card.titulo}}',
+    '{{now}}',
+    // Calendly (disponíveis quando o gatilho é "Reunião agendada no Calendly")
+    '{{trigger.invitee_name}}',
+    '{{trigger.event_start_time}}',
+    '{{trigger.event_name}}',
+    '{{trigger.meeting_join_url}}',
 ]
 
 export const MessageStepEditor: React.FC<MessageStepEditorProps> = ({

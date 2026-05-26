@@ -72,6 +72,7 @@ export type EventType =
   | 'time_offset_from_date'
   | 'time_in_stage'
   | 'cron_roteamento'
+  | 'calendly_invitee_created'
 
 /**
  * Fontes de data para gatilhos time_offset_from_date.
@@ -182,6 +183,7 @@ export const FIELD_CHANGED_OPTIONS: Array<{
   },
   { key: 'taxa_status', label: 'Status da taxa' },
   { key: 'data_viagem_inicio', label: 'Data da viagem' },
+  { key: 'data_reuniao', label: 'Data da Reunião' },
 ]
 
 /**
@@ -547,4 +549,5 @@ export const EVENT_TYPE_LABELS: Record<EventType, string> = {
   time_offset_from_date: 'Antes/depois de uma data',
   time_in_stage: 'Card parado X dias em etapa',
   cron_roteamento: 'Roteamento automático diário',
+  calendly_invitee_created: 'Reunião agendada no Calendly',
 }

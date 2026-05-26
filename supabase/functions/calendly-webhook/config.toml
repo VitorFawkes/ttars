@@ -1,0 +1,4 @@
+# calendly-webhook: Recebe webhooks do Calendly
+# verify_jwt desabilitado porque Calendly não envia JWT - é um webhook externo
+[auth]
+verify_jwt = false
