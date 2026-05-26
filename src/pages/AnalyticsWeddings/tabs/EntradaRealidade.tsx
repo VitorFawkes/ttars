@@ -25,18 +25,20 @@ export function EntradaRealidade() {
 }
 
 function UniversoHeader({ data }: { data: WwDriftVenda }) {
+  const isCohort = data.date_mode === 'cohort'
   return (
     <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 rounded-xl p-5">
       <div className="flex items-baseline justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-base font-semibold text-slate-900">🔄 Entrada × Realidade</h2>
           <p className="text-sm text-slate-600 mt-0.5">
-            Universo: <strong>{formatNumber(data.total_vendas)} vendas fechadas</strong> no período.
-            Comparando o que o casal disse no formulário do site × o que <strong>efetivamente contratou</strong>.
+            Universo: <strong>{formatNumber(data.total_vendas)} vendas fechadas</strong>
+            {isCohort ? ' cujos leads entraram' : ' que efetivamente fecharam'} no período.
+            Comparando o que o casal disse no site × o que <strong>contratou de verdade</strong>.
           </p>
         </div>
-        <div className="text-xs bg-white border border-indigo-200 rounded-lg px-3 py-1.5 text-indigo-700">
-          📅 Filtrando por <strong>data da venda</strong>
+        <div className="text-xs bg-white border border-indigo-200 rounded-lg px-3 py-1.5 text-indigo-700 whitespace-nowrap">
+          📅 Modo: <strong>{isCohort ? 'Data de criação (cohort)' : 'Data de evento (throughput)'}</strong>
         </div>
       </div>
     </div>

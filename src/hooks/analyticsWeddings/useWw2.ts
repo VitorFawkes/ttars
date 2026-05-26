@@ -510,7 +510,7 @@ export type WwQualidadeHeatmap = {
 export type WwQualidadeLead = {
   date_start: string
   date_end: string
-  date_mode: 'data_entrada'
+  date_mode: 'cohort' | 'throughput'
   total_entraram: number
   total_fecharam: number
   taxa_conversao_geral_pct: number | null
@@ -525,12 +525,13 @@ export type WwQualidadeLead = {
 export function useWwQualidadeLead(filters: Ww2Filters) {
   const orgId = useOrgId()
   return useQuery({
-    queryKey: ['ww', 'qualidade-lead', orgId, filters.dateStart, filters.dateEnd, filters.origins],
+    queryKey: ['ww', 'qualidade-lead', orgId, filters.dateStart, filters.dateEnd, filters.dateMode, filters.origins],
     queryFn: () => callRpc<WwQualidadeLead>('ww_qualidade_lead', {
       p_date_start: filters.dateStart,
       p_date_end: filters.dateEnd,
       p_org_id: orgId,
       p_origins: filters.origins?.length ? filters.origins : null,
+      p_date_mode: filters.dateMode,
     }),
     enabled: !!orgId,
     staleTime: 60_000,
@@ -555,7 +556,7 @@ export type WwDriftConvidadosMatriz = { conv_e: string; conv_r: string; qtd: num
 export type WwDriftVenda = {
   date_start: string
   date_end: string
-  date_mode: 'data_venda'
+  date_mode: 'cohort' | 'throughput'
   total_vendas: number
   investimento: {
     cobertura: { com_entrada: number; com_valor_real: number; com_ambos: number }
@@ -580,12 +581,13 @@ export type WwDriftVenda = {
 export function useWwDriftVenda(filters: Ww2Filters) {
   const orgId = useOrgId()
   return useQuery({
-    queryKey: ['ww', 'drift-venda', orgId, filters.dateStart, filters.dateEnd, filters.origins],
+    queryKey: ['ww', 'drift-venda', orgId, filters.dateStart, filters.dateEnd, filters.dateMode, filters.origins],
     queryFn: () => callRpc<WwDriftVenda>('ww_drift_venda', {
       p_date_start: filters.dateStart,
       p_date_end: filters.dateEnd,
       p_org_id: orgId,
       p_origins: filters.origins?.length ? filters.origins : null,
+      p_date_mode: filters.dateMode,
     }),
     enabled: !!orgId,
     staleTime: 60_000,

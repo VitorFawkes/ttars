@@ -60,11 +60,15 @@ END $$;
 -- ════════════════════════════════════════════════════════════════════════════
 -- VISÃO A — Qualidade de lead (quem vira venda?)
 -- ════════════════════════════════════════════════════════════════════════════
+DROP FUNCTION IF EXISTS public.ww_qualidade_lead(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[]);
+DROP FUNCTION IF EXISTS public.ww_qualidade_lead(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[], TEXT);
+
 CREATE OR REPLACE FUNCTION public.ww_qualidade_lead(
     p_date_start TIMESTAMPTZ DEFAULT (NOW() - INTERVAL '180 days'),
     p_date_end   TIMESTAMPTZ DEFAULT NOW(),
     p_org_id     UUID DEFAULT NULL,
-    p_origins    TEXT[] DEFAULT NULL
+    p_origins    TEXT[] DEFAULT NULL,
+    p_date_mode  TEXT DEFAULT 'cohort'
 )
 RETURNS JSON
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public'
@@ -80,6 +84,8 @@ BEGIN
     SELECT id INTO v_pipeline_id FROM pipelines WHERE produto::TEXT='WEDDING' AND org_id=v_org_id LIMIT 1;
     IF v_pipeline_id IS NULL THEN RETURN json_build_object('error','pipeline WEDDING não encontrado'); END IF;
 
+    -- cohort: filtra por data de criação do card (lead entrou no período)
+    -- throughput: filtra por data da venda OU data de atualização (desfecho aconteceu no período)
     CREATE TEMP TABLE _ww_ql ON COMMIT DROP AS
     SELECT c.id,
            (c.status_comercial='ganho' OR ph.slug='pos_venda') AS fechou,
@@ -93,7 +99,14 @@ BEGIN
       LEFT JOIN pipeline_phases ph ON ph.id = s.phase_id
      WHERE c.deleted_at IS NULL AND c.archived_at IS NULL
        AND c.produto::TEXT='WEDDING' AND c.org_id=v_org_id
-       AND c.created_at >= p_date_start AND c.created_at <= p_date_end;
+       AND (
+         (p_date_mode = 'cohort'
+            AND c.created_at >= p_date_start AND c.created_at <= p_date_end)
+         OR
+         (p_date_mode = 'throughput'
+            AND COALESCE(c.data_fechamento, c.ganho_pos_at, c.ganho_planner_at, c.ganho_sdr_at, c.updated_at) >= p_date_start
+            AND COALESCE(c.data_fechamento, c.ganho_pos_at, c.ganho_planner_at, c.ganho_sdr_at, c.updated_at) <= p_date_end)
+       );
     IF p_origins IS NOT NULL THEN DELETE FROM _ww_ql WHERE origem != ALL(p_origins); END IF;
 
     SELECT COUNT(*), COUNT(*) FILTER (WHERE fechou) INTO v_total_entraram, v_total_fecharam FROM _ww_ql;
@@ -203,7 +216,7 @@ BEGIN
     RETURN json_build_object(
         'date_start', p_date_start, 'date_end', p_date_end,
         'pipeline_id', v_pipeline_id, 'org_id', v_org_id,
-        'date_mode', 'data_entrada',
+        'date_mode', p_date_mode,
         'total_entraram', v_total_entraram,
         'total_fecharam', v_total_fecharam,
         'taxa_conversao_geral_pct', CASE WHEN v_total_entraram > 0 THEN ROUND(100.0 * v_total_fecharam / v_total_entraram, 1) ELSE NULL END,
@@ -215,16 +228,20 @@ BEGIN
     );
 END $func$;
 
-GRANT EXECUTE ON FUNCTION public.ww_qualidade_lead(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[]) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.ww_qualidade_lead(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[], TEXT) TO authenticated;
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- VISÃO B — Drift de venda (entrada × o que vendeu)
 -- ════════════════════════════════════════════════════════════════════════════
+DROP FUNCTION IF EXISTS public.ww_drift_venda(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[]);
+DROP FUNCTION IF EXISTS public.ww_drift_venda(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[], TEXT);
+
 CREATE OR REPLACE FUNCTION public.ww_drift_venda(
     p_date_start TIMESTAMPTZ DEFAULT (NOW() - INTERVAL '180 days'),
     p_date_end   TIMESTAMPTZ DEFAULT NOW(),
     p_org_id     UUID DEFAULT NULL,
-    p_origins    TEXT[] DEFAULT NULL
+    p_origins    TEXT[] DEFAULT NULL,
+    p_date_mode  TEXT DEFAULT 'cohort'
 )
 RETURNS JSON
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public'
@@ -238,6 +255,9 @@ BEGIN
     SELECT id INTO v_pipeline_id FROM pipelines WHERE produto::TEXT='WEDDING' AND org_id=v_org_id LIMIT 1;
     IF v_pipeline_id IS NULL THEN RETURN json_build_object('error','pipeline WEDDING não encontrado'); END IF;
 
+    -- Universo SEMPRE = vendas fechadas. O modo de data muda QUAL data o filtro respeita:
+    -- cohort: vendas fechadas cujo card foi CRIADO no período (lead entrou)
+    -- throughput: vendas que EFETIVAMENTE FECHARAM no período (evento de venda)
     CREATE TEMP TABLE _ww_dv ON COMMIT DROP AS
     SELECT c.id,
            _ww2_norm_faixa_strict(c.produto_data->>'ww_mkt_orcamento_form') AS faixa_e,
@@ -256,8 +276,14 @@ BEGIN
      WHERE c.deleted_at IS NULL AND c.archived_at IS NULL
        AND c.produto::TEXT='WEDDING' AND c.org_id=v_org_id
        AND (c.status_comercial='ganho' OR ph.slug='pos_venda')
-       AND COALESCE(c.data_fechamento, c.ganho_pos_at, c.ganho_planner_at, c.ganho_sdr_at, c.updated_at) >= p_date_start
-       AND COALESCE(c.data_fechamento, c.ganho_pos_at, c.ganho_planner_at, c.ganho_sdr_at, c.updated_at) <= p_date_end;
+       AND (
+         (p_date_mode = 'cohort'
+            AND c.created_at >= p_date_start AND c.created_at <= p_date_end)
+         OR
+         (p_date_mode = 'throughput'
+            AND COALESCE(c.data_fechamento, c.ganho_pos_at, c.ganho_planner_at, c.ganho_sdr_at, c.updated_at) >= p_date_start
+            AND COALESCE(c.data_fechamento, c.ganho_pos_at, c.ganho_planner_at, c.ganho_sdr_at, c.updated_at) <= p_date_end)
+       );
     IF p_origins IS NOT NULL THEN DELETE FROM _ww_dv WHERE origem != ALL(p_origins); END IF;
     SELECT COUNT(*) INTO v_total FROM _ww_dv;
 
@@ -374,7 +400,7 @@ BEGIN
     RETURN json_build_object(
         'date_start', p_date_start, 'date_end', p_date_end,
         'pipeline_id', v_pipeline_id, 'org_id', v_org_id,
-        'date_mode', 'data_venda',
+        'date_mode', p_date_mode,
         'total_vendas', v_total,
         'investimento', v_inv_json,
         'destino',      v_dest_json,
@@ -382,4 +408,4 @@ BEGIN
     );
 END $func$;
 
-GRANT EXECUTE ON FUNCTION public.ww_drift_venda(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[]) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.ww_drift_venda(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[], TEXT) TO authenticated;

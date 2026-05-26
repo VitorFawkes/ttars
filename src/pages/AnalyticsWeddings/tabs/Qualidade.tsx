@@ -40,23 +40,25 @@ export function Qualidade() {
 }
 
 function UniversoHeader({ data }: { data: WwQualidadeLead }) {
+  const isCohort = data.date_mode === 'cohort'
   return (
     <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 rounded-xl p-5">
       <div className="flex items-baseline justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-base font-semibold text-slate-900">🎯 Qualidade do lead</h2>
           <p className="text-sm text-slate-600 mt-1">
-            <strong>{formatNumber(data.total_entraram)} leads entraram</strong> no período,
+            <strong>{formatNumber(data.total_entraram)} leads</strong>
+            {isCohort ? ' entraram' : ' tiveram desfecho'} no período,
             <strong className="text-emerald-700"> {formatNumber(data.total_fecharam)} fecharam</strong>
-            <span className="text-slate-500"> · taxa de conversão geral </span>
+            <span className="text-slate-500"> · taxa de conversão </span>
             <strong className="text-indigo-700">{data.taxa_conversao_geral_pct ?? 0}%</strong>
           </p>
           <p className="text-xs text-slate-500 mt-1">
             Cobertura: {data.cobertura.com_faixa} com faixa, {data.cobertura.com_destino} com destino, {data.cobertura.com_convidados} com nº convidados.
           </p>
         </div>
-        <div className="text-xs bg-white border border-indigo-200 rounded-lg px-3 py-1.5 text-indigo-700">
-          📅 Filtrando por <strong>data de entrada</strong>
+        <div className="text-xs bg-white border border-indigo-200 rounded-lg px-3 py-1.5 text-indigo-700 whitespace-nowrap">
+          📅 Modo: <strong>{isCohort ? 'Data de criação (cohort)' : 'Data de evento (throughput)'}</strong>
         </div>
       </div>
     </div>
