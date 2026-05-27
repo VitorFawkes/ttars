@@ -239,7 +239,20 @@ export const TriggerEditor: React.FC<TriggerEditorProps> = ({ type, config, onCh
                 </div>
             )
 
-        case 'trigger.time_offset_from_date':
+        case 'trigger.time_offset_from_date': {
+            const isMeeting = (config.source as string) === 'card.data_reuniao'
+            // Para reunião: minutes_offset (negativo=antes, 0=exato, positivo=depois)
+            const minutesOffset = (config.minutes_offset as number) ?? 0
+            const meetingMode = minutesOffset < 0 ? 'antes' : minutesOffset > 0 ? 'depois' : 'exato'
+            const absMin = Math.abs(minutesOffset)
+            // Unidade amigável: horas se múltiplo de 60, senão minutos
+            const meetingUnit = absMin > 0 && absMin % 60 === 0 ? 'horas' : 'minutos'
+            const meetingQty = meetingUnit === 'horas' ? absMin / 60 : absMin
+            const applyMeeting = (mode: string, qty: number, unit: string) => {
+                if (mode === 'exato') { set({ minutes_offset: 0 }); return }
+                const mins = unit === 'horas' ? qty * 60 : qty
+                set({ minutes_offset: mode === 'antes' ? -Math.abs(mins) : Math.abs(mins) })
+            }
             return (
                 <div className="space-y-3">
                     <div className="space-y-2">
@@ -250,16 +263,54 @@ export const TriggerEditor: React.FC<TriggerEditorProps> = ({ type, config, onCh
                             options={[{ value: '', label: 'Selecionar data...' }, ...TIME_OFFSET_SOURCES]}
                         />
                     </div>
-                    <div className="space-y-2">
-                        <Label className="text-xs">Dias de defasagem (positivo = depois, negativo = antes)</Label>
-                        <Input
-                            type="number"
-                            value={(config.days_offset as number) ?? 0}
-                            onChange={(e) => set({ days_offset: parseInt(e.target.value) || 0 })}
-                        />
-                    </div>
+
+                    {isMeeting ? (
+                        <div className="space-y-2">
+                            <Label className="text-xs">Quando disparar</Label>
+                            <CustomSelect
+                                value={meetingMode}
+                                onChange={(v) => applyMeeting(v, meetingQty || 1, meetingUnit)}
+                                options={[
+                                    { value: 'exato', label: 'Na data e hora exata da reunião' },
+                                    { value: 'antes', label: 'Antes da reunião' },
+                                    { value: 'depois', label: 'Depois da reunião' },
+                                ]}
+                            />
+                            {meetingMode !== 'exato' && (
+                                <div className="grid grid-cols-2 gap-2">
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        value={meetingQty || 1}
+                                        onChange={(e) => applyMeeting(meetingMode, parseInt(e.target.value) || 1, meetingUnit)}
+                                    />
+                                    <CustomSelect
+                                        value={meetingUnit}
+                                        onChange={(u) => applyMeeting(meetingMode, meetingQty || 1, u)}
+                                        options={[
+                                            { value: 'minutos', label: 'minutos' },
+                                            { value: 'horas', label: 'horas' },
+                                        ]}
+                                    />
+                                </div>
+                            )}
+                            <p className="text-xs text-slate-400">
+                                Dispara no horário exato (precisão de ~5 min). Ex: "30 minutos antes" lembra o lead antes da reunião.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            <Label className="text-xs">Dias de defasagem (positivo = depois, negativo = antes)</Label>
+                            <Input
+                                type="number"
+                                value={(config.days_offset as number) ?? 0}
+                                onChange={(e) => set({ days_offset: parseInt(e.target.value) || 0 })}
+                            />
+                        </div>
+                    )}
                 </div>
             )
+        }
 
         case 'trigger.time_in_stage':
             return (

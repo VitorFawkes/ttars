@@ -1455,30 +1455,82 @@ function EventConfigEditor({
               ]}
             />
           </div>
-          <div>
-            <Label>Quantos dias antes ou depois?</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                value={(form.event_config.offset_days as number) ?? 0}
-                onChange={(e) =>
-                  setForm({ event_config: { ...form.event_config, offset_days: Number(e.target.value) } })
+          {(form.event_config.source as string) === 'card.data_reuniao' ? (
+            <div>
+              <Label>Quando disparar</Label>
+              {(() => {
+                const mins = Number(form.event_config.minutes_offset ?? 0)
+                const mode = mins < 0 ? 'antes' : mins > 0 ? 'depois' : 'exato'
+                const unit = Math.abs(mins) > 0 && Math.abs(mins) % 60 === 0 ? 'horas' : 'minutos'
+                const qty = unit === 'horas' ? Math.abs(mins) / 60 : Math.abs(mins)
+                const apply = (m: string, q: number, u: string) => {
+                  if (m === 'exato') { setForm({ event_config: { ...form.event_config, minutes_offset: 0 } }); return }
+                  const v = u === 'horas' ? q * 60 : q
+                  setForm({ event_config: { ...form.event_config, minutes_offset: m === 'antes' ? -Math.abs(v) : Math.abs(v) } })
                 }
-                className="w-32"
-              />
-              <span className="text-sm text-slate-500">
-                {(() => {
-                  const n = Number(form.event_config.offset_days ?? 0)
-                  if (n === 0) return '(no próprio dia)'
-                  if (n < 0) return `(${Math.abs(n)} dia${Math.abs(n) > 1 ? 's' : ''} antes)`
-                  return `(${n} dia${n > 1 ? 's' : ''} depois)`
-                })()}
-              </span>
+                return (
+                  <div className="space-y-2">
+                    <Select
+                      value={mode}
+                      onChange={(v: string) => apply(v, qty || 1, unit)}
+                      options={[
+                        { value: 'exato', label: 'Na data e hora exata da reunião' },
+                        { value: 'antes', label: 'Antes da reunião' },
+                        { value: 'depois', label: 'Depois da reunião' },
+                      ]}
+                    />
+                    {mode !== 'exato' && (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min={1}
+                          value={qty || 1}
+                          onChange={(e) => apply(mode, Number(e.target.value) || 1, unit)}
+                          className="w-24"
+                        />
+                        <Select
+                          value={unit}
+                          onChange={(u: string) => apply(mode, qty || 1, u)}
+                          options={[
+                            { value: 'minutos', label: 'minutos' },
+                            { value: 'horas', label: 'horas' },
+                          ]}
+                        />
+                      </div>
+                    )}
+                    <p className="text-xs text-slate-500">
+                      Dispara no horário exato (precisão ~5 min). Ex: "30 minutos antes" avisa antes da reunião.
+                    </p>
+                  </div>
+                )
+              })()}
             </div>
-            <p className="text-xs text-slate-500 mt-1">
-              Use número negativo para <strong>antes</strong> da data (ex: -7 = 7 dias antes). Positivo para <strong>depois</strong>. Zero = no próprio dia.
-            </p>
-          </div>
+          ) : (
+            <div>
+              <Label>Quantos dias antes ou depois?</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  value={(form.event_config.offset_days as number) ?? 0}
+                  onChange={(e) =>
+                    setForm({ event_config: { ...form.event_config, offset_days: Number(e.target.value) } })
+                  }
+                  className="w-32"
+                />
+                <span className="text-sm text-slate-500">
+                  {(() => {
+                    const n = Number(form.event_config.offset_days ?? 0)
+                    if (n === 0) return '(no próprio dia)'
+                    if (n < 0) return `(${Math.abs(n)} dia${Math.abs(n) > 1 ? 's' : ''} antes)`
+                    return `(${n} dia${n > 1 ? 's' : ''} depois)`
+                  })()}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Use número negativo para <strong>antes</strong> da data (ex: -7 = 7 dias antes). Positivo para <strong>depois</strong>. Zero = no próprio dia.
+              </p>
+            </div>
+          )}
           {Boolean(form.event_config.source) && (
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-md text-sm text-slate-700">
               <strong>Quando dispara:</strong>{' '}
