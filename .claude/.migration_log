@@ -1038,3 +1038,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-27T16:22:12Z | supabase/migrations/20260527l_analytics_planner_stage_x_owner.sql | applied_to_prod
 2026-05-27T16:23:18Z | supabase/migrations/20260527m_planner_stage_x_owner_round_cast.sql | applied_to_prod
 2026-05-27T17:36:40Z | supabase/migrations/20260527c_ww_stage_map_pipeline6.sql | applied_to_prod
+2026-05-27T17:55:26Z | supabase/migrations/20260527o_wedding_guests_relax_identity.sql | applied_to_prod
+2026-05-27T18:09:57Z | supabase/migrations/20260527n_planner_forecast_per_card.sql | applied_to_prod
