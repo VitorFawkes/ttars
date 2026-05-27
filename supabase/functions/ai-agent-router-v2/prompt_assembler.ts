@@ -269,6 +269,12 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
   // -------- Voice ---------------------------------------------------------
   const voiceBlock = renderVoice(voice);
 
+  // -------- Custo referência destino (ranges por região) ------------------
+  // Patricia tem ordem de grandeza por região "na cabeça" como SDR humano
+  // premium. Bloco só aparece quando o default foi preenchido com valores
+  // reais (PLACEHOLDER_* removidos).
+  const custoReferenciaBlock = renderCustoReferencia(defaults, resolverCtx);
+
   // -------- Boundaries ----------------------------------------------------
   // Com defaults curados: buildBoundaries lê brand_active + competitors do banco
   // e renderiza Grupo A (admin) + Grupo B (design da IA, hardcoded).
@@ -285,7 +291,10 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
   const silentSignalsBlock = renderSilentSignals(silentSignals);
 
   // -------- Qualification (regras como referência) ------------------------
-  const qualificationBlock = renderQualification(scoringRules, scoringThreshold);
+  // Com defaults curados (Patricia): versão enxuta — o <qualification_result>
+  // já entrega o breakdown JSON com pesos dos itens que o casal acionou.
+  // A tabela completa de pesos vira ruído duplicado.
+  const qualificationBlock = renderQualification(scoringRules, scoringThreshold, defaults);
 
   // -------- Few-shot examples ---------------------------------------------
   const examplesBlock = renderFewShots(fewShotExamples);
@@ -337,6 +346,7 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
     agentScheduleBlock,
     voiceBlock,
     boundariesBlock,
+    custoReferenciaBlock,
     dataUpdateRulesBlock,
     contextRulesBlock,
     playbookBlock,
@@ -706,11 +716,55 @@ Quando o casal pedir horário fora dessa janela, trate como escolha comercial da
 </agent_schedule>`;
 }
 
+/**
+ * Renderiza <custo_referencia_destino> — tabela de ranges por região +
+ * regra de uso por julgamento.
+ *
+ * Só renderiza se o default tem texto não-placeholder (custo_referencia_text
+ * fica null em getDefaultsForAgent enquanto os ranges reais não foram
+ * preenchidos no arquivo do default).
+ */
+function renderCustoReferencia(
+  defaults: AgentDefaults | null,
+  ctx: ResolverContext,
+): string {
+  if (!defaults || !defaults.custo_referencia_text) return "";
+  const text = resolveAgentPlaceholders(defaults.custo_referencia_text, ctx).trim();
+  if (!text) return "";
+  return `<custo_referencia_destino>
+${text}
+</custo_referencia_destino>`;
+}
+
 function renderVoice(voice: VoiceConfig): string {
   const toneTags = voice.tone_tags?.join(", ") || "";
-  const rules = voice.rules || voice.custom_rules || [];
+  const rawRules = voice.rules || voice.custom_rules || [];
   const typicalPhrases = voice.typical_phrases || [];
   const forbiddenPhrases = voice.forbidden_phrases || [];
+
+  // Filtra rules que duplicam o que regionalisms / emoji_policy já vão gerar.
+  // Sem isso o bloco voice tem 3 menções de "a gente" / "emoji" — barulho.
+  const hasRegionalismsCovered = !!(voice.regionalisms && (
+    voice.regionalisms.uses_a_gente ||
+    voice.regionalisms.uses_voces_casal ||
+    voice.regionalisms.uses_gerundio === false ||
+    voice.regionalisms.casual_tu_mano === false
+  ));
+  const hasEmojiPolicy = voice.emoji_policy === "after_rapport" || voice.emoji_policy === "never";
+
+  const rules = rawRules.filter((r) => {
+    const lower = r.toLowerCase();
+    // Dedup contra regionalisms
+    if (hasRegionalismsCovered) {
+      if (/\ba gente\b/.test(lower) && /\bn[óo]s\b/.test(lower)) return false;
+      if (/\bvoc[êe]s\b/.test(lower) && /(casal|parceiro)/.test(lower)) return false;
+      if (/ger[uú]ndio/.test(lower)) return false;
+      if (/(\btu\b|mano|cara)/.test(lower)) return false;
+    }
+    // Dedup contra emoji_policy
+    if (hasEmojiPolicy && /emoji/.test(lower)) return false;
+    return true;
+  });
 
   let regionalisms = "";
   if (voice.regionalisms) {
@@ -730,20 +784,32 @@ function renderVoice(voice: VoiceConfig): string {
     emojiRule = "- Zero emoji na PRIMEIRA mensagem (antes de estabelecer rapport). Depois, máx 1 por mensagem.";
   }
 
+  const sections: string[] = [];
+  sections.push(`Tom: ${toneTags}\nFormalidade (1=informal, 5=formal): ${voice.formality ?? 3}`);
+
+  const ruleLines = [
+    ...rules.map((r) => `- ${r}`),
+    ...(regionalisms ? [regionalisms] : []),
+    ...(emojiRule ? [emojiRule] : []),
+  ].filter((s) => s.length > 0);
+  if (ruleLines.length > 0) {
+    sections.push(`Regras de tom:\n${ruleLines.join("\n")}`);
+  }
+
+  if (typicalPhrases.length > 0) {
+    sections.push(
+      `Frases típicas (use natural, não force):\n${typicalPhrases.map((p) => `- "${p}"`).join("\n")}`,
+    );
+  }
+
+  if (forbiddenPhrases.length > 0) {
+    sections.push(
+      `Frases proibidas (NUNCA usar):\n${forbiddenPhrases.map((p) => `- "${p}"`).join("\n")}`,
+    );
+  }
+
   return `<voice>
-Tom: ${toneTags}
-Formalidade (1=informal, 5=formal): ${voice.formality ?? 3}
-
-Regras de tom:
-${rules.map((r) => `- ${r}`).join("\n")}
-${regionalisms ? "\n" + regionalisms : ""}
-${emojiRule ? "\n" + emojiRule : ""}
-
-Frases típicas (use natural, não force):
-${typicalPhrases.map((p) => `- "${p}"`).join("\n")}
-
-Frases proibidas (NUNCA usar):
-${forbiddenPhrases.map((p) => `- "${p}"`).join("\n")}
+${sections.join("\n\n")}
 </voice>`;
 }
 
@@ -1044,13 +1110,34 @@ ${signals.map((s, i) => {
 </silent_signals>`;
 }
 
-function renderQualification(rules: ScoringRule[], threshold: number): string {
+function renderQualification(
+  rules: ScoringRule[],
+  threshold: number,
+  defaults: AgentDefaults | null = null,
+): string {
   if (rules.length === 0) {
     return `<qualification>
 Não há regras de scoring configuradas. Decida qualificação por feeling, baseando-se em sinais como destino mainstream/exótico, tamanho do convite, sinais de poder aquisitivo.
 </qualification>`;
   }
 
+  // Agente com defaults curados (Patricia): versão enxuta. A tabela completa
+  // de pesos é redundante com o <qualification_result> que o router injeta
+  // (breakdown JSON já carrega dimension+label+weight dos itens acionados).
+  if (defaults) {
+    return `<qualification>
+Threshold pra qualificar: **${threshold} pontos**.
+
+Você NÃO calcula a nota. O router chama \`calculate_qualification_score\` antes do seu turno e injeta o resultado em \`<qualification_result>\` quando disponível — você usa o resultado dali. O \`breakdown\` JSON desse bloco mostra quais dimensões pontuaram e com que peso — é a tabela viva do score do casal.
+
+Quando chamar a tool manualmente:
+- Ao final da Sondagem (já tem destino + data + convidados + investimento) E não há \`<qualification_result>\` no contexto.
+- Quando lead revela info nova que muda score E não há \`<qualification_result>\` recalculado.
+- Se \`<qualification_result>\` está presente, NÃO chame a tool — use o valor dali.
+</qualification>`;
+  }
+
+  // Sem defaults curados: comportamento antigo (tabela completa).
   const qualify = rules.filter((r) => r.rule_type === "qualify");
   const disqualify = rules.filter((r) => r.rule_type === "disqualify");
   const bonus = rules.filter((r) => r.rule_type === "bonus");
@@ -1068,7 +1155,7 @@ Não há regras de scoring configuradas. Decida qualificação por feeling, base
     } else if (cv.formula === "budget_above") {
       desc = `Orçamento total > R$ ${cv.value}`;
     } else if (cv.question) {
-      desc = `${desc}: ${(cv.question as string).substring(0, 200)}`;
+      desc = `${desc}: ${cv.question as string}`;
     }
     return `- (${r.weight > 0 ? "+" : ""}${r.weight}) ${desc}`;
   };
@@ -1100,7 +1187,7 @@ function renderFewShots(examples: PlaybookFewShotExample[]): string {
   return `<examples>
 Exemplos curados pelo admin (referência de tom + estrutura — não copiar literal):
 
-${examples.slice(0, 5).map((ex, i) => {
+${examples.slice(0, 12).map((ex, i) => {
     return `### Exemplo ${i + 1}${ex.related_moment_key ? ` (momento: ${ex.related_moment_key})` : ""}
 Lead: "${ex.lead_message}"
 Você: "${ex.agent_response}"
@@ -1457,6 +1544,8 @@ ${forced.literal_phrases && forced.literal_phrases.length > 0
   : ""}
 
 🔀 EXCEÇÃO única — se o lead acabou de mandar uma objeção FORTE ou pedido explícito que contradiz o momento forçado (ex: "não quero marcar reunião, só quero saber preço"), você pode escolher outro \`current_moment_key\` correspondente (ex: \`objecao_preco\`). Mas em conversa normal, NÃO desvie.
+
+📌 PERGUNTA FACTUAL NO MESMO TURNO — se na ÚLTIMA mensagem o lead fez uma pergunta factual (custo, prazo, como funciona, alguma dúvida específica), você DEVE responder a pergunta ANTES de apresentar o pitch/slots do momento forçado. A ordem é: (1) responder a pergunta com o que você sabe (ou clarificar se ambígua), (2) aí sim emendar com o pitch/slots. Pular a pergunta pra entregar o pitch direto viola o princípio 10 e te denuncia como bot mal treinado.
 </turn_policy>`;
     }
   }
@@ -1636,6 +1725,17 @@ Retorne JSON ESTRITO conforme schema:
   "contact_patch": { /* nome, email, data_nascimento, ou {} */ },
   "current_moment_key": "abertura | sondagem | objecao_preco | ... | null",
   "tool_calls": [{ "tool_name": "...", "args": {...} }],
+  "self_analysis": {
+    "contradicao_detectada": { "campos": ["..."], "descricao": "..." } /* ou null */,
+    "pitch_saturado_self": false,
+    "pitch_count_recent": 0,
+    "inviabilidade_calc": "abaixo_minimo_resistente | fronteira_defensiva | null",
+    "valor_por_convidado_brl": 0 /* ou null */,
+    "pendencia_resolver": "..." /* string curta, ou null */,
+    "sinais_defensivos_lead": false,
+    "pergunta_lead_nao_respondida": "..." /* string com a pergunta, ou null */,
+    "lead_intent": "explorando | qualificando | objetando | pronto_pra_fechar"
+  },
   "internal_reasoning": "Por que escolhi esse momento, quais sinais observei..."
 }
 \`\`\`
@@ -1646,6 +1746,7 @@ REGRAS:
 - \`contact_patch\`: vazio ({}) se nada mudar; só nome, email, data_nascimento.
 - \`current_moment_key\`: slug do momento detectado, ou null.
 - \`tool_calls\`: vazio ([]) na maioria dos turnos.
+- \`self_analysis\`: SEMPRE incluir o objeto (mesmo que campos individuais sejam null). Preencher conforme \`<self_analysis_protocol>\` acima. É lido pelo validator e pelo router pra decidir comportamento do próximo turno.
 - \`internal_reasoning\`: 1-3 frases pra log/auditoria. Não vai pro WhatsApp.
 </output_format>`;
 }

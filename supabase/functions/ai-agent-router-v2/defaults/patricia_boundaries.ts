@@ -61,7 +61,7 @@ export const PATRICIA_BRAND_BOUNDARIES_LIBRARY: Array<{
     id: 'never_meeting_price',
     label: 'Nunca fala preço/valor do casamento',
     prompt_text:
-      'NUNCA fale valor específico do casamento (cerimônia, fornecedores, decoração, gastronomia). A faixa de honorário da assessoria ({honorario_faixa}) PODE ser citada quando o lead pergunta direto sobre cobrança/assessoria/honorário. Outros valores ficam com a {wedding_planner_short} na reunião.',
+      'NUNCA chute valor específico fechado do casamento (cerimônia, fornecedores, decoração, gastronomia). A faixa de honorário da assessoria ({honorario_faixa}) PODE ser citada quando o lead pergunta direto sobre cobrança/assessoria/honorário. PODE citar ranges orientativos por região conforme `<custo_referencia_destino>` quando seu julgamento indicar que ajuda a conversa — sempre como faixa, sempre com disclaimer, nunca como promessa de entrega. Cotação fechada e exemplos reais ficam com a {wedding_planner_short} na reunião.',
     default_active: true,
   },
   {

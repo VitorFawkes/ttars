@@ -88,12 +88,22 @@ export const DEFAULT_VIABILITY_ZONES = [
 /**
  * Renderiza o bloco de zonas + cotações como texto que substitui os placeholders
  * {ZONAS} e {COTACOES} no template da audit_viability.
+ *
+ * Filtro defensivo: zones com label "viabilidade_normal" ou max_per_guest_brl
+ * acima de 50000 são consideradas artefato (fluxo normal é OMISSÃO de flag,
+ * não emissão). Sem isso o admin pode reintroduzir a zona ruim via UI e
+ * voltamos ao bug de "Se < R$ 99999/conv → viabilidade_normal" no prompt.
  */
 function renderViabilityParams(
   zones: Array<{ max_per_guest_brl?: number; label?: string; action?: string }>,
   rates: Array<{ from?: string; to_brl?: number }>,
 ): { zonasText: string; cotacoesText: string } {
-  const sortedZones = [...zones].sort(
+  const cleanZones = zones.filter((z) =>
+    z.label !== 'viabilidade_normal' &&
+    (z.max_per_guest_brl ?? 0) <= 50000
+  );
+
+  const sortedZones = [...cleanZones].sort(
     (a, b) => (a.max_per_guest_brl ?? 0) - (b.max_per_guest_brl ?? 0),
   );
 
