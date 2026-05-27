@@ -528,7 +528,7 @@ export function useWwQualidadeLead(filters: Ww2Filters, eventStageId?: string | 
   // throughput: leads que tiveram stage_changed para eventStageId no período (obrigatório).
   const isThroughput = filters.dateMode === 'throughput'
   return useQuery({
-    queryKey: ['ww', 'qualidade-lead', orgId, filters.dateStart, filters.dateEnd, filters.dateMode, eventStageId ?? null, filters.origins],
+    queryKey: ['ww', 'qualidade-lead', orgId, filters.dateStart, filters.dateEnd, filters.dateMode, eventStageId ?? null, filters.origins, filters.tipos],
     queryFn: () => callRpc<WwQualidadeLead>('ww_qualidade_lead', {
       p_date_start: filters.dateStart,
       p_date_end: filters.dateEnd,
@@ -536,6 +536,7 @@ export function useWwQualidadeLead(filters: Ww2Filters, eventStageId?: string | 
       p_origins: filters.origins?.length ? filters.origins : null,
       p_date_mode: filters.dateMode,
       p_event_stage_id: isThroughput ? eventStageId : null,
+      p_tipos: filters.tipos?.length ? filters.tipos : null,
     }),
     enabled: !!orgId && (!isThroughput || !!eventStageId),
     staleTime: 60_000,
@@ -556,6 +557,16 @@ export type WwDriftTicketPorEntrada = {
 }
 export type WwDriftDestinoMatriz = { dest_e: string; dest_v: string; qtd: number }
 export type WwDriftConvidadosMatriz = { conv_e: string; conv_r: string; qtd: number }
+export type WwDriftBreakdownTipo = { tipo: string; fechados: number; valor_medio: number | null; valor_total: number | null }
+export type WwDriftVendaItem = {
+  card_id: string
+  titulo: string | null
+  data_venda: string | null
+  valor_pacote: number | null
+  tipo_casamento: string | null
+  monde_venda: string | null
+  destino_vendido: string | null
+}
 
 export type WwDriftVenda = {
   date_start: string
@@ -564,6 +575,8 @@ export type WwDriftVenda = {
   total_leads: number
   total_fechados: number
   total_vendas: number  // alias legacy = total_fechados
+  breakdown_tipo: WwDriftBreakdownTipo[]
+  vendas_lista: WwDriftVendaItem[]
   investimento: {
     cobertura: { total_leads: number; total_fechados: number; com_entrada: number; com_valor_real: number; com_ambos: number }
     drift: { manteve: number; subiu: number; desceu: number; ticket_medio_geral: number | null }
@@ -587,13 +600,14 @@ export type WwDriftVenda = {
 export function useWwDriftVenda(filters: Ww2Filters) {
   const orgId = useOrgId()
   return useQuery({
-    queryKey: ['ww', 'drift-venda', orgId, filters.dateStart, filters.dateEnd, filters.dateMode, filters.origins],
+    queryKey: ['ww', 'drift-venda', orgId, filters.dateStart, filters.dateEnd, filters.dateMode, filters.origins, filters.tipos],
     queryFn: () => callRpc<WwDriftVenda>('ww_drift_venda', {
       p_date_start: filters.dateStart,
       p_date_end: filters.dateEnd,
       p_org_id: orgId,
       p_origins: filters.origins?.length ? filters.origins : null,
       p_date_mode: filters.dateMode,
+      p_tipos: filters.tipos?.length ? filters.tipos : null,
     }),
     enabled: !!orgId,
     staleTime: 60_000,

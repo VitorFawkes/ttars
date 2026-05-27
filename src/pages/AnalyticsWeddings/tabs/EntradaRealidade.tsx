@@ -1,7 +1,7 @@
 import { useFilterParams } from '../components/FilterBar'
 import { useWwDriftVenda, type WwDriftVenda } from '@/hooks/analyticsWeddings/useWw2'
 import { SectionCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
-import { formatNumber } from '../lib/format'
+import { formatNumber, formatCurrency } from '../lib/format'
 
 const FAIXA_ORDER = ['Até R$50 mil', 'R$50-80 mil', 'R$50-100 mil', 'R$80-100 mil', 'R$100-200 mil', 'R$200-500 mil', '+R$500 mil']
 const CONV_ORDER = ['Apenas o casal', 'Até 20', '20-50', '50-80', '80-100', '+100']
@@ -17,10 +17,84 @@ export function EntradaRealidade() {
   return (
     <div className="space-y-5">
       <UniversoHeader data={data} />
+      <BreakdownTipo data={data} />
       <InvestimentoDrift data={data} />
       <DestinoDrift data={data} />
       <ConvidadosDrift data={data} />
+      <VendasFechadasList data={data} />
     </div>
+  )
+}
+
+function BreakdownTipo({ data }: { data: WwDriftVenda }) {
+  if (!data.breakdown_tipo || data.breakdown_tipo.length === 0 || data.total_fechados === 0) return null
+  return (
+    <SectionCard title="👰 Vendas por tipo de casamento" subtitle="DW (Destination Wedding) × Elopment, com valor médio e total contratado em cada categoria.">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {data.breakdown_tipo.map(b => (
+          <div key={b.tipo} className="border border-slate-200 rounded-xl p-4 bg-white">
+            <div className="text-xs uppercase tracking-wide text-slate-500 font-medium">{b.tipo}</div>
+            <div className="mt-1 flex items-baseline gap-2">
+              <div className="text-2xl font-semibold text-slate-900 tabular-nums">{formatNumber(b.fechados)}</div>
+              <div className="text-xs text-slate-500">vendas</div>
+            </div>
+            <div className="mt-2 text-xs text-slate-600">
+              Médio: <strong className="tabular-nums">{b.valor_medio ? formatCurrency(b.valor_medio) : '—'}</strong>
+            </div>
+            <div className="text-xs text-slate-600">
+              Total: <strong className="tabular-nums">{b.valor_total ? formatCurrency(b.valor_total) : '—'}</strong>
+            </div>
+          </div>
+        ))}
+      </div>
+    </SectionCard>
+  )
+}
+
+function VendasFechadasList({ data }: { data: WwDriftVenda }) {
+  if (!data.vendas_lista || data.vendas_lista.length === 0) return null
+  return (
+    <SectionCard
+      title={`📋 Lista das ${formatNumber(data.total_fechados)} vendas fechadas`}
+      subtitle="Ordenado pela data da venda mais recente. Inclui o Número da Venda Monde para rastreabilidade."
+    >
+      <div className="border border-slate-200 rounded-lg overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="px-3 py-2 text-left font-medium">Data da venda</th>
+              <th className="px-3 py-2 text-left font-medium">Card</th>
+              <th className="px-3 py-2 text-left font-medium">Tipo</th>
+              <th className="px-3 py-2 text-left font-medium">Destino vendido</th>
+              <th className="px-3 py-2 text-right font-medium">Valor R$</th>
+              <th className="px-3 py-2 text-right font-medium">Monde</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.vendas_lista.map(v => (
+              <tr key={v.card_id} className="border-t border-slate-100 hover:bg-slate-50">
+                <td className="px-3 py-2 text-slate-700 tabular-nums whitespace-nowrap">
+                  {v.data_venda ? new Date(v.data_venda).toLocaleDateString('pt-BR') : '—'}
+                </td>
+                <td className="px-3 py-2 text-slate-900 font-medium truncate max-w-xs" title={v.titulo ?? ''}>
+                  {v.titulo ?? '—'}
+                </td>
+                <td className="px-3 py-2">
+                  {v.tipo_casamento ? (
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${v.tipo_casamento === 'Elopment' ? 'bg-violet-50 text-violet-700' : 'bg-indigo-50 text-indigo-700'}`}>
+                      {v.tipo_casamento}
+                    </span>
+                  ) : <span className="text-slate-400">—</span>}
+                </td>
+                <td className="px-3 py-2 text-slate-700">{v.destino_vendido ?? '—'}</td>
+                <td className="px-3 py-2 text-right tabular-nums font-medium text-slate-900">{v.valor_pacote ? formatCurrency(v.valor_pacote) : '—'}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-500">{v.monde_venda ?? '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </SectionCard>
   )
 }
 

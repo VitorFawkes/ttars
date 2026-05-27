@@ -57,12 +57,25 @@ BEGIN
         ELSE NULL END;
 END $$;
 
+-- Normaliza ww_tipo_casamento para 2 buckets: DW ou Elopment
+CREATE OR REPLACE FUNCTION public._ww_norm_tipo(p_raw TEXT) RETURNS TEXT
+LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE v TEXT;
+BEGIN
+    IF p_raw IS NULL THEN RETURN NULL; END IF;
+    v := LOWER(TRIM(p_raw));
+    IF v LIKE '%elop%' THEN RETURN 'Elopment'; END IF;
+    IF v LIKE '%dw%' OR v LIKE '%destination%' OR v LIKE '%convidados%' OR v LIKE '%praia%' THEN RETURN 'DW'; END IF;
+    RETURN NULL;
+END $$;
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- VISÃO A — Qualidade de lead (quem vira venda?)
 -- ════════════════════════════════════════════════════════════════════════════
 DROP FUNCTION IF EXISTS public.ww_qualidade_lead(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[]);
 DROP FUNCTION IF EXISTS public.ww_qualidade_lead(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[], TEXT);
 DROP FUNCTION IF EXISTS public.ww_qualidade_lead(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[], TEXT, UUID);
+DROP FUNCTION IF EXISTS public.ww_qualidade_lead(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[], TEXT, UUID, TEXT[]);
 
 CREATE OR REPLACE FUNCTION public.ww_qualidade_lead(
     p_date_start     TIMESTAMPTZ DEFAULT (NOW() - INTERVAL '180 days'),
@@ -70,7 +83,8 @@ CREATE OR REPLACE FUNCTION public.ww_qualidade_lead(
     p_org_id         UUID DEFAULT NULL,
     p_origins        TEXT[] DEFAULT NULL,
     p_date_mode      TEXT DEFAULT 'cohort',
-    p_event_stage_id UUID DEFAULT NULL
+    p_event_stage_id UUID DEFAULT NULL,
+    p_tipos          TEXT[] DEFAULT NULL
 )
 RETURNS JSON
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public'
@@ -101,7 +115,8 @@ BEGIN
            _ww2_norm_conv_strict(c.produto_data->>'ww_mkt_convidados_form') AS conv_e,
            _ww2_norm_dest_strict(c.produto_data->>'ww_mkt_destino_form') AS dest_e,
            NULLIF(REPLACE(REPLACE(c.produto_data->>'ww_closer_valor_pacote','.',''),',','.'),'')::NUMERIC AS valor_pac,
-           _ww2_norm_origem(c.marketing_data) AS origem
+           _ww2_norm_origem(c.marketing_data) AS origem,
+           _ww_norm_tipo(c.produto_data->>'ww_tipo_casamento') AS tipo_casamento
       FROM cards c
      WHERE c.deleted_at IS NULL AND c.archived_at IS NULL
        AND c.produto::TEXT='WEDDING' AND c.org_id=v_org_id
@@ -120,6 +135,7 @@ BEGIN
             ))
        );
     IF p_origins IS NOT NULL THEN DELETE FROM _ww_ql WHERE origem != ALL(p_origins); END IF;
+    IF p_tipos   IS NOT NULL THEN DELETE FROM _ww_ql WHERE tipo_casamento IS NULL OR tipo_casamento != ALL(p_tipos); END IF;
 
     SELECT COUNT(*), COUNT(*) FILTER (WHERE fechou) INTO v_total_entraram, v_total_fecharam FROM _ww_ql;
 
@@ -240,20 +256,22 @@ BEGIN
     );
 END $func$;
 
-GRANT EXECUTE ON FUNCTION public.ww_qualidade_lead(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[], TEXT, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.ww_qualidade_lead(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[], TEXT, UUID, TEXT[]) TO authenticated;
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- VISÃO B — Drift de venda (entrada × o que vendeu)
 -- ════════════════════════════════════════════════════════════════════════════
 DROP FUNCTION IF EXISTS public.ww_drift_venda(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[]);
 DROP FUNCTION IF EXISTS public.ww_drift_venda(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[], TEXT);
+DROP FUNCTION IF EXISTS public.ww_drift_venda(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[], TEXT, TEXT[]);
 
 CREATE OR REPLACE FUNCTION public.ww_drift_venda(
     p_date_start TIMESTAMPTZ DEFAULT (NOW() - INTERVAL '180 days'),
     p_date_end   TIMESTAMPTZ DEFAULT NOW(),
     p_org_id     UUID DEFAULT NULL,
     p_origins    TEXT[] DEFAULT NULL,
-    p_date_mode  TEXT DEFAULT 'cohort'
+    p_date_mode  TEXT DEFAULT 'cohort',
+    p_tipos      TEXT[] DEFAULT NULL
 )
 RETURNS JSON
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public'
@@ -264,20 +282,17 @@ DECLARE
     v_total INT;
     v_total_fechados INT;
     v_inv_json JSON; v_dest_json JSON; v_conv_json JSON;
+    v_breakdown_tipo JSON;
+    v_vendas_lista JSON;
 BEGIN
     SELECT id INTO v_pipeline_id FROM pipelines WHERE produto::TEXT='WEDDING' AND org_id=v_org_id LIMIT 1;
     IF v_pipeline_id IS NULL THEN RETURN json_build_object('error','pipeline WEDDING não encontrado'); END IF;
 
-    -- "Fechou" = card tem ww_closer_data_ganho preenchido (campo "Data/Hora do
-    -- Ganho" que o closer registra no fechamento do contrato). Esse é o sinal
-    -- canônico operacional, validado com o time. status_comercial='ganho' não
-    -- serve porque o trigger só dispara em stages com is_won=true e o time
-    -- pula essa stage.
-    -- "Data da venda" = ww_closer_data_ganho.
-    -- cohort:     universo = TODOS leads criados no período (fluxo de entrada).
+    -- "Fechou" = card tem ww_closer_data_ganho preenchido (sinal canônico operacional).
+    -- cohort:     universo = leads criados no período.
     -- throughput: universo = vendas que fecharam no período (data_ganho no período).
     CREATE TEMP TABLE _ww_dv ON COMMIT DROP AS
-    SELECT c.id,
+    SELECT c.id, c.titulo,
            NULLIF(c.produto_data->>'ww_closer_data_ganho','')::TIMESTAMPTZ AS data_venda,
            (NULLIF(c.produto_data->>'ww_closer_data_ganho','') IS NOT NULL) AS fechou,
            _ww2_norm_faixa_strict(c.produto_data->>'ww_mkt_orcamento_form') AS faixa_e,
@@ -289,7 +304,9 @@ BEGIN
            ) AS dest_v,
            _ww2_norm_conv_strict(c.produto_data->>'ww_mkt_convidados_form') AS conv_e,
            _ww2_norm_conv_strict(c.produto_data->>'ww_convidados_refinado') AS conv_r,
-           _ww2_norm_origem(c.marketing_data) AS origem
+           _ww2_norm_origem(c.marketing_data) AS origem,
+           _ww_norm_tipo(c.produto_data->>'ww_tipo_casamento') AS tipo_casamento,
+           NULLIF(c.produto_data->>'ww_closer_monde_venda','') AS monde_venda
       FROM cards c
      WHERE c.deleted_at IS NULL AND c.archived_at IS NULL
        AND c.produto::TEXT='WEDDING' AND c.org_id=v_org_id
@@ -302,6 +319,7 @@ BEGIN
             AND NULLIF(c.produto_data->>'ww_closer_data_ganho','')::TIMESTAMPTZ <= p_date_end)
        );
     IF p_origins IS NOT NULL THEN DELETE FROM _ww_dv WHERE origem != ALL(p_origins); END IF;
+    IF p_tipos   IS NOT NULL THEN DELETE FROM _ww_dv WHERE tipo_casamento IS NULL OR tipo_casamento != ALL(p_tipos); END IF;
     SELECT COUNT(*) INTO v_total FROM _ww_dv;
 
     -- ── INVESTIMENTO: entrada × VALOR REAL VENDIDO (R$ pacote → faixa)
@@ -434,6 +452,34 @@ BEGIN
     ) INTO v_conv_json;
 
     SELECT COUNT(*) INTO v_total_fechados FROM _ww_dv WHERE fechou;
+
+    -- Breakdown por tipo (DW vs Elopment)
+    SELECT json_agg(json_build_object(
+        'tipo', tipo, 'fechados', fechados,
+        'valor_medio', ROUND(valor_medio::NUMERIC, 0),
+        'valor_total', ROUND(valor_total::NUMERIC, 0)
+    ) ORDER BY fechados DESC) INTO v_breakdown_tipo
+    FROM (
+        SELECT COALESCE(tipo_casamento, 'Não classificado') AS tipo,
+               COUNT(*) FILTER (WHERE fechou) AS fechados,
+               AVG(valor_pac) FILTER (WHERE fechou AND valor_pac >= 5000) AS valor_medio,
+               SUM(valor_pac) FILTER (WHERE fechou AND valor_pac >= 5000) AS valor_total
+          FROM _ww_dv
+         WHERE fechou
+         GROUP BY tipo_casamento
+    ) x;
+
+    -- Lista de vendas fechadas no período (até 200) com Monde Venda para rastreabilidade
+    SELECT json_agg(json_build_object(
+        'card_id', id, 'titulo', titulo,
+        'data_venda', data_venda,
+        'valor_pacote', valor_pac,
+        'tipo_casamento', tipo_casamento,
+        'monde_venda', monde_venda,
+        'destino_vendido', dest_v
+    ) ORDER BY data_venda DESC NULLS LAST) INTO v_vendas_lista
+    FROM (SELECT * FROM _ww_dv WHERE fechou LIMIT 200) sub;
+
     DROP TABLE _ww_dv;
     RETURN json_build_object(
         'date_start', p_date_start, 'date_end', p_date_end,
@@ -441,11 +487,13 @@ BEGIN
         'date_mode', p_date_mode,
         'total_leads',    v_total,
         'total_fechados', v_total_fechados,
-        'total_vendas',   v_total_fechados,  -- alias legacy
+        'total_vendas',   v_total_fechados,
         'investimento', v_inv_json,
         'destino',      v_dest_json,
-        'convidados',   v_conv_json
+        'convidados',   v_conv_json,
+        'breakdown_tipo', COALESCE(v_breakdown_tipo, '[]'::JSON),
+        'vendas_lista',   COALESCE(v_vendas_lista, '[]'::JSON)
     );
 END $func$;
 
-GRANT EXECUTE ON FUNCTION public.ww_drift_venda(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[], TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.ww_drift_venda(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[], TEXT, TEXT[]) TO authenticated;
