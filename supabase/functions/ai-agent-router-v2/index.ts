@@ -1260,42 +1260,54 @@ Deno.serve(async (req) => {
               slotsConflictsExcluded = candidates.length - free.length;
 
               // Distribui slots: até `maxPerDay` por dia, até `maxDays` dias,
-              // total <= `totalSlots`. Ordem cronológica preservada (candidates
-              // já vem ordenado).
+              // total <= `totalSlots`. Ordem cronológica preservada.
+              //
+              // Rotação de horário entre dias: quando `maxPerDay=1`, sem rotação
+              // todos os dias pegariam slotsThisDate[0] (mesmo horário em todos
+              // os dias — ex: 3× 10:00). Rotacionar evita monotonia:
+              //   dia 1 → começa do índice 0 (10:00)
+              //   dia 2 → começa do índice 1 (14:00)
+              //   dia 3 → começa do índice 2 (16:00)
               const freeByDate = new Map<string, Slot[]>();
               for (const c of free) {
                 const arr = freeByDate.get(c.date);
                 if (arr) arr.push(c);
                 else freeByDate.set(c.date, [c]);
               }
-              const finalSlots: Slot[] = [];
-              let daysUsed = 0;
-              for (const [, slotsThisDate] of freeByDate) {
-                if (finalSlots.length >= totalSlots) break;
-                if (daysUsed >= maxDays) break;
-                let pickedThisDay = 0;
-                for (const slot of slotsThisDate) {
-                  if (pickedThisDay >= maxPerDay) break;
-                  if (finalSlots.length >= totalSlots) break;
-                  finalSlots.push(slot);
-                  pickedThisDay++;
-                }
-                if (pickedThisDay > 0) daysUsed++;
-              }
-              // Fallback: se filtrou tudo, usa candidatos brutos (nunca pior
-              // que antes).
-              if (finalSlots.length === 0 && candidates.length > 0) {
-                let pickedDays = 0;
-                const seenDates = new Set<string>();
-                for (const c of candidates) {
-                  if (finalSlots.length >= totalSlots) break;
-                  if (!seenDates.has(c.date)) {
-                    if (pickedDays >= maxDays) continue;
-                    seenDates.add(c.date);
-                    pickedDays++;
+              const pickWithRotation = (byDate: Map<string, Slot[]>): Slot[] => {
+                const picked: Slot[] = [];
+                let daysUsed = 0;
+                let hourRotation = 0;
+                for (const [, slotsThisDate] of byDate) {
+                  if (picked.length >= totalSlots) break;
+                  if (daysUsed >= maxDays) break;
+                  const offset = slotsThisDate.length > 0 ? hourRotation % slotsThisDate.length : 0;
+                  const rotated = [...slotsThisDate.slice(offset), ...slotsThisDate.slice(0, offset)];
+                  let pickedThisDay = 0;
+                  for (const slot of rotated) {
+                    if (pickedThisDay >= maxPerDay) break;
+                    if (picked.length >= totalSlots) break;
+                    picked.push(slot);
+                    pickedThisDay++;
                   }
-                  finalSlots.push(c);
+                  if (pickedThisDay > 0) {
+                    daysUsed++;
+                    hourRotation++;
+                  }
                 }
+                return picked;
+              };
+              const finalSlots: Slot[] = pickWithRotation(freeByDate);
+              // Fallback: se filtrou tudo, usa candidatos brutos (nunca pior
+              // que antes) — também com rotação pra evitar 3× mesmo horário.
+              if (finalSlots.length === 0 && candidates.length > 0) {
+                const candByDate = new Map<string, Slot[]>();
+                for (const c of candidates) {
+                  const arr = candByDate.get(c.date);
+                  if (arr) arr.push(c);
+                  else candByDate.set(c.date, [c]);
+                }
+                finalSlots.push(...pickWithRotation(candByDate));
               }
 
               proposedSlots = finalSlots.map((s) => ({

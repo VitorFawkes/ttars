@@ -72,10 +72,17 @@ export interface AgentRow {
 /**
  * Expande a configuração de horários disponíveis em uma lista discreta de
  * "HH:MM". Prioriza `available_windows` + `slot_duration_minutes` (modelo
- * padrão calendário). Cai pra `available_hours` (lista) se windows ausente.
- * Cai pro default seguro se nada.
+ * Prioridade: `available_hours` (lista explícita do admin) > `available_windows`
+ * (janelas amplas, expandidas pelo slot_duration_minutes). Quando admin lista
+ * horários específicos, é decisão intencional (ex: "só 10/14/16, não 9 nem 11"),
+ * então ganha sobre a janela.
  */
 export function expandAvailableHours(sc: AgentRow["scheduling_config"]): string[] {
+  // 1. Lista explícita ganha — é a escolha mais específica do admin
+  if (sc?.available_hours && sc.available_hours.length > 0) {
+    return sc.available_hours;
+  }
+  // 2. Janelas amplas — expande pelo slot_duration_minutes
   if (sc?.available_windows && sc.available_windows.length > 0) {
     const stepRaw = Number(sc.slot_duration_minutes ?? 60);
     const step = Math.max(15, stepRaw); // mínimo 15min pra evitar listas absurdas
@@ -98,9 +105,6 @@ export function expandAvailableHours(sc: AgentRow["scheduling_config"]): string[
       }
     }
     if (hours.length > 0) return hours;
-  }
-  if (sc?.available_hours && sc.available_hours.length > 0) {
-    return sc.available_hours;
   }
   return ["10:00", "14:00", "16:00"];
 }
