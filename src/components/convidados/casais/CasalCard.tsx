@@ -51,6 +51,9 @@ export function CasalCard({ casal, onEditar, onVincularCard, onDesvincular, onEx
         <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-ww-gold mb-1">♥ Casal</p>
           <h3 className="font-ww-serif italic text-xl text-ww-n700 leading-tight">{casal.nome_casal}</h3>
+          {casal.workspace_name && (
+            <span className="inline-block mt-1 text-[10px] font-semibold uppercase tracking-wider text-ww-n500 bg-ww-cream px-1.5 py-0.5 rounded">{casal.workspace_name}</span>
+          )}
         </div>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           {casal.total_envios > 0 && (

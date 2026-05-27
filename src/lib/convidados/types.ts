@@ -78,6 +78,8 @@ export interface CasalAdminRow {
   nome_casal: string
   whatsapp_digits: string
   card_id: string | null
+  org_id: string
+  workspace_name: string | null
   card_titulo: string | null
   criado_em: string
   ultima_edicao_casal_em: string | null
