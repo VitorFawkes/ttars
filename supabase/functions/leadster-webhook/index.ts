@@ -107,12 +107,15 @@ Deno.serve(async (req) => {
       null;
 
     // --- Verificação de assinatura (JWT HS256 assinado com o secret do Leadster) ---
-    // O Leadster manda o JWT no header Authorization (geralmente "Bearer <jwt>").
+    // O Leadster manda o JWT DENTRO do corpo, no campo "jwt" (não no header).
+    // Mantém o header Authorization como fallback por garantia.
     // Fase de inspeção: verificamos e logamos, mas NÃO rejeitamos ainda — quando
     // confirmarmos que os webhooks reais batem, trocar o `if (!valid)` por um 401.
     const secret = Deno.env.get("LEADSTER_WEBHOOK_SECRET") ?? "";
+    const bodyJwt = typeof p.jwt === "string" ? p.jwt : null;
     const authHeader = req.headers.get("authorization");
-    const token = authHeader?.replace(/^Bearer\s+/i, "").trim() || null;
+    const headerJwt = authHeader?.replace(/^Bearer\s+/i, "").trim() || null;
+    const token = bodyJwt ?? headerJwt;
     let signatureValid: boolean | null = null;
     if (secret) {
       const { valid } = await verifyJwtHs256(token, secret);
