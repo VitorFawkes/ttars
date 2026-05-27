@@ -129,15 +129,15 @@ export interface SchedulingWindow {
  * tool `check_calendar`. NULL no banco = defaults seguros.
  *
  * Modelos de horários (prioridade):
- *   1. `available_windows` + `slot_duration_minutes` (janelas com step)
- *   2. `available_hours` (lista discreta) — fallback legado
+ *   1. `available_hours` (lista discreta) — escolha explícita do admin
+ *   2. `available_windows` + `slot_duration_minutes` (janelas amplas) — fallback
  */
 export interface SchedulingConfig {
-  /** Janelas de atendimento (modelo padrão). Vazio = usa available_hours. */
+  /** Janelas de atendimento (fallback quando available_hours vazio). */
   available_windows: SchedulingWindow[]
-  /** Step entre slots em minutos. Default 60. */
+  /** Step entre slots em minutos (usado pra expandir janelas). Default 60. */
   slot_duration_minutes: number
-  /** Lista discreta de horários (legado). Ignorado quando windows preenchidas. */
+  /** Lista discreta de horários (prioritária). Quando preenchida, ignora windows. */
   available_hours: string[]
   /** Até quantos horários do MESMO dia oferecer ao casal. */
   max_slots_per_day: number
@@ -160,9 +160,9 @@ export const DEFAULT_SCHEDULING_CONFIG: SchedulingConfig = {
   ],
   slot_duration_minutes: 60,
   available_hours: [],
-  max_slots_per_day: 3,
-  max_days: 2,
-  total_slots: 6,
+  max_slots_per_day: 6,
+  max_days: 3,
+  total_slots: 18,
   skip_weekends: true,
   search_window_days: 14,
   date_format: 'short',

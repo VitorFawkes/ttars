@@ -183,7 +183,7 @@ export function SchedulingConfigEditor({ form, setForm }: Props) {
             <p className="text-[11px] text-slate-500 mt-0.5">
               {isCustom
                 ? 'Configurações ativas para esse agente.'
-                : 'Usando defaults seguros (3 dias úteis × 1 horário, formato "14/05"). Ative para customizar.'}
+                : 'Usando defaults seguros (3 dias úteis × até 6 horários por dia, formato "14/05"). Ative para customizar.'}
             </p>
           </div>
           <Switch checked={isCustom} onCheckedChange={enableCustom} />
