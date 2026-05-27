@@ -12,6 +12,7 @@ import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import { getRankTier, rankBadgeClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
+import SimpleFilterBar from './SimpleFilterBar'
 import { cn } from '@/lib/utils'
 
 const PHASES: { value: string; label: string }[] = [
@@ -115,6 +116,8 @@ export default function TeamView() {
           Performance do time consolidado, breakdown por fase (SDR, Planner, Pós-venda) e cumprimento de SLA.
         </p>
       </header>
+
+      <SimpleFilterBar showOrigins={false} myButtonLabel="Eu" />
 
       {/* Filtro de fase global — afeta leaderboard e tabela de performance */}
       <div className="flex items-center gap-1 bg-white rounded-lg border border-slate-200 p-1 w-fit">
