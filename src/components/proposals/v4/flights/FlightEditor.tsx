@@ -585,8 +585,19 @@ function FlightOptionPopover({
     onUpdate: (updates: Partial<FlightOption>) => void
     defaultOpen?: boolean
 }) {
+    const [open, setOpen] = useState(false)
+
+    // Abre no próximo tick após o mount pra evitar conflito com o evento de click
+    // do botão "+ Nova opção de voo" (que dispararia "click fora" no popover).
+    useEffect(() => {
+        if (!defaultOpen) return
+        const t = setTimeout(() => setOpen(true), 0)
+        return () => clearTimeout(t)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
     return (
-        <Popover defaultOpen={defaultOpen}>
+        <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
                 <button
                     className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"
