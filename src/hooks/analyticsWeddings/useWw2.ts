@@ -713,6 +713,50 @@ export function useWwDriftVenda(filters: Ww2Filters) {
   })
 }
 
+// ── Lead Ideal × Pipeline (refatorado Onda 4) ──────────────────────────────
+export type WwLeadIdealItem = {
+  categoria: string
+  historico_qtd: number
+  historico_pct: number | null
+  atual_qtd: number
+  atual_pct: number | null
+  lift: number | null
+  delta_pp: number | null
+}
+
+export type WwLeadIdealDim = {
+  dimensao: 'faixa' | 'destino' | 'convidados' | string
+  dados: WwLeadIdealItem[]
+}
+
+export type WwLeadIdealData = {
+  atual_start: string
+  atual_end: string
+  historico_start: string
+  historico_end: string
+  historico_meses: number
+  total_historico: number
+  total_atual: number
+  comparacoes: WwLeadIdealDim[]
+  error?: string
+}
+
+export function useWwLeadIdeal(filters: Ww2Filters, historicoMeses: number = 12, minAmostra: number = 2) {
+  const orgId = useOrgId()
+  return useQuery({
+    queryKey: ['ww', 'lead-ideal', orgId, filters.dateStart, filters.dateEnd, historicoMeses, minAmostra],
+    queryFn: () => callRpc<WwLeadIdealData>('ww_perfil_lead_ideal', {
+      p_atual_start: filters.dateStart,
+      p_atual_end: filters.dateEnd,
+      p_org_id: orgId,
+      p_historico_meses: historicoMeses,
+      p_min_amostra: minAmostra,
+    }),
+    enabled: !!orgId,
+    staleTime: 60_000,
+  })
+}
+
 // ── Marketing qualidade (Onda 5) ───────────────────────────────────────────
 export type WwMarketingOrigemRow = {
   origem: string
