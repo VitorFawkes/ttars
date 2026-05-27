@@ -1259,56 +1259,38 @@ Deno.serve(async (req) => {
               const free = candidates.filter((c) => !occupied.has(c.iso));
               slotsConflictsExcluded = candidates.length - free.length;
 
-              // Distribui slots: até `maxPerDay` por dia, até `maxDays` dias,
-              // total <= `totalSlots`. Ordem cronológica preservada.
+              // Distribui slots em ORDEM CRONOLÓGICA: primeiro horário do
+              // primeiro dia útil, depois sequência. Até `maxPerDay` por dia,
+              // até `maxDays` dias, total <= `totalSlots`.
               //
-              // Rotação de horário entre dias: quando `maxPerDay=1`, sem rotação
-              // todos os dias pegariam slotsThisDate[0] (mesmo horário em todos
-              // os dias — ex: 3× 10:00). Rotacionar evita monotonia:
-              //   dia 1 → começa do índice 0 (10:00)
-              //   dia 2 → começa do índice 1 (14:00)
-              //   dia 3 → começa do índice 2 (16:00)
+              // Se a agenda estiver cheia e não houver slots livres suficientes
+              // nos primeiros `maxDays` úteis, o loop natural avança pelos
+              // próximos dias (até search_window_days) — NÃO inventa horários.
+              // Lead que não receber slot suficiente fica sob responsabilidade
+              // do LLM (pede mais opções, esclarece, etc).
               const freeByDate = new Map<string, Slot[]>();
               for (const c of free) {
                 const arr = freeByDate.get(c.date);
                 if (arr) arr.push(c);
                 else freeByDate.set(c.date, [c]);
               }
-              const pickWithRotation = (byDate: Map<string, Slot[]>): Slot[] => {
-                const picked: Slot[] = [];
-                let daysUsed = 0;
-                let hourRotation = 0;
-                for (const [, slotsThisDate] of byDate) {
-                  if (picked.length >= totalSlots) break;
-                  if (daysUsed >= maxDays) break;
-                  const offset = slotsThisDate.length > 0 ? hourRotation % slotsThisDate.length : 0;
-                  const rotated = [...slotsThisDate.slice(offset), ...slotsThisDate.slice(0, offset)];
-                  let pickedThisDay = 0;
-                  for (const slot of rotated) {
-                    if (pickedThisDay >= maxPerDay) break;
-                    if (picked.length >= totalSlots) break;
-                    picked.push(slot);
-                    pickedThisDay++;
-                  }
-                  if (pickedThisDay > 0) {
-                    daysUsed++;
-                    hourRotation++;
-                  }
+              const finalSlots: Slot[] = [];
+              let daysUsed = 0;
+              for (const [, slotsThisDate] of freeByDate) {
+                if (finalSlots.length >= totalSlots) break;
+                if (daysUsed >= maxDays) break;
+                let pickedThisDay = 0;
+                for (const slot of slotsThisDate) {
+                  if (pickedThisDay >= maxPerDay) break;
+                  if (finalSlots.length >= totalSlots) break;
+                  finalSlots.push(slot);
+                  pickedThisDay++;
                 }
-                return picked;
-              };
-              const finalSlots: Slot[] = pickWithRotation(freeByDate);
-              // Fallback: se filtrou tudo, usa candidatos brutos (nunca pior
-              // que antes) — também com rotação pra evitar 3× mesmo horário.
-              if (finalSlots.length === 0 && candidates.length > 0) {
-                const candByDate = new Map<string, Slot[]>();
-                for (const c of candidates) {
-                  const arr = candByDate.get(c.date);
-                  if (arr) arr.push(c);
-                  else candByDate.set(c.date, [c]);
-                }
-                finalSlots.push(...pickWithRotation(candByDate));
+                if (pickedThisDay > 0) daysUsed++;
               }
+              // Sem fallback genérico. Se agenda real está vazia, finalSlots
+              // fica curto (ou vazio) — LLM trata na resposta. Nunca inventar
+              // horário fixo só pra preencher.
 
               proposedSlots = finalSlots.map((s) => ({
                 date: s.date,
