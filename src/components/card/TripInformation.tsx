@@ -264,21 +264,31 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
     // --- Mutation ---
     const updateCardMutation = useMutation({
         mutationFn: async ({ fieldKey, fieldValue }: { fieldKey: string, fieldValue: unknown }) => {
+            // Special handling: numero_venda_monde usa RPC set_card_monde_vendas pra
+            // garantir que apagar um numero arquiva os items correspondentes (mesmo
+            // os "orfaos" que nunca estiveram no historico). Vitor 2026-05-27.
+            if (fieldKey === 'numero_venda_monde' && typeof fieldValue === 'object' && fieldValue !== null && 'historico' in fieldValue) {
+                const mondeResult = fieldValue as { primary: string | null, historico: Array<{ numero?: string | null }> }
+                const desiredNumbers: string[] = Array.isArray(mondeResult.historico)
+                    ? mondeResult.historico
+                        .map(e => (e && typeof e.numero !== 'undefined' && e.numero !== null) ? String(e.numero).trim() : '')
+                        .filter(n => n.length > 0)
+                    : []
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data, error } = await (supabase as any).rpc('set_card_monde_vendas', {
+                    p_card_id: card.id,
+                    p_numbers: desiredNumbers
+                })
+                if (error) throw error
+                if (data && data.success === false) {
+                    throw new Error(data.error || 'Falha ao salvar vendas Monde')
+                }
+                return
+            }
+
             const target = viewMode === SystemPhase.SDR ? 'briefing_inicial' : 'produto_data'
             const baseData = target === 'briefing_inicial' ? briefingData : productData
-
-            // Special handling: numero_venda_monde returns { primary, historico }
-            let newData: Record<string, unknown>
-            if (fieldKey === 'numero_venda_monde' && typeof fieldValue === 'object' && fieldValue !== null && 'primary' in fieldValue && 'historico' in fieldValue) {
-                const mondeResult = fieldValue as { primary: string | null, historico: unknown[] }
-                newData = {
-                    ...baseData,
-                    numero_venda_monde: mondeResult.primary,
-                    numeros_venda_monde_historico: mondeResult.historico
-                }
-            } else {
-                newData = { ...baseData, [fieldKey]: fieldValue }
-            }
+            const newData: Record<string, unknown> = { ...baseData, [fieldKey]: fieldValue }
 
             const updates: Record<string, unknown> = { [target]: newData }
 
@@ -552,6 +562,7 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
                             value={editValue}
                             mode="edit"
                             onChange={(val) => setEditValue(val)}
+                            cardId={card.id}
                             extraData={editingFieldConfig.key === 'numero_venda_monde'
                                 ? (typeof editValue === 'object' && editValue !== null && 'historico' in (editValue as Record<string, unknown>)
                                     ? { ...activeData, numeros_venda_monde_historico: (editValue as { historico: unknown[] }).historico }

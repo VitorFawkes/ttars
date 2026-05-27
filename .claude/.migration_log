@@ -1049,3 +1049,8 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-27T19:46:42Z | supabase/migrations/20260527q_patricia_prompt_tuning.sql | applied_to_prod
 2026-05-27T19:47:06Z | supabase/migrations/20260527r_patricia_seed_few_shots.sql | applied_to_prod
 2026-05-27T19:47:17Z | supabase/migrations/20260527q_wedding_casal_admin_list_v3_fix.sql | applied_to_prod
+2026-05-27T21:25:20Z | supabase/migrations/20260527s_ww2_drill_down_enrich.sql | applied_to_prod
+2026-05-27T21:25:54Z | supabase/migrations/20260527t_get_ac_app_url_helper.sql | applied_to_prod
+2026-05-27T21:32:23Z | supabase/migrations/20260527u_ww_qualidade_lead_v2.sql | applied_to_prod
+2026-05-27T21:36:52Z | supabase/migrations/20260527s_set_card_monde_vendas.sql | applied_to_prod
+2026-05-27T21:38:49Z | supabase/migrations/20260527s_set_card_monde_vendas.sql | applied_to_prod

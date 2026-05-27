@@ -20,6 +20,7 @@ import { FieldLockButton } from '../card/FieldLockButton'
 import { FieldCopyButton } from '../card/FieldCopyButton'
 import { useFieldLock } from '../../hooks/useFieldLock'
 import { useOrg } from '../../contexts/OrgContext'
+import { useCardMondeVendas } from '../../hooks/useCardMondeVendas'
 
 type SystemField = Database['public']['Tables']['system_fields']['Row']
 
@@ -32,21 +33,55 @@ interface MondeHistoricoEntry {
 }
 
 function MondeNumbersChipInput({
+    cardId,
     primaryNumber,
     historico,
     onChange
 }: {
+    cardId: string | undefined
     primaryNumber: string | null | undefined
     historico: MondeHistoricoEntry[]
     onChange?: (val: { primary: string | null, historico: MondeHistoricoEntry[] }) => void
 }) {
     const [inputValue, setInputValue] = useState('')
 
-    // Internal state for the entries — initialized from props, then managed locally
-    const [entries, setEntries] = useState<MondeHistoricoEntry[]>(() => {
-        if (historico.length > 0) return historico
-        if (primaryNumber) {
-            return [{
+    // Fonte de verdade: useCardMondeVendas une items ativos + historico do produto_data.
+    // Eh o mesmo dado que o popover MondeNumbersBadge mostra — garante paridade.
+    const { data: vendas, isLoading: vendasLoading } = useCardMondeVendas(cardId)
+
+    const buildEntryFromVenda = (numero: string, primary: string | null | undefined): MondeHistoricoEntry => ({
+        numero,
+        origem: numero === (primary ? String(primary) : null) ? 'original' : 'manual',
+        sub_card_id: null,
+        sub_card_titulo: null,
+        adicionado_em: new Date().toISOString()
+    })
+
+    // entries comeca vazio e eh hidratado pelo useEffect abaixo quando vendas carrega
+    const [entries, setEntries] = useState<MondeHistoricoEntry[]>([])
+    const [hydrated, setHydrated] = useState(false)
+
+    React.useEffect(() => {
+        if (hydrated) return
+        if (cardId && vendasLoading) return // espera o fetch terminar
+
+        // Hidrata uma unica vez na montagem (ou quando vendas chega)
+        let initial: MondeHistoricoEntry[] = []
+        if (vendas && vendas.length > 0) {
+            // Ordena: primary primeiro (pra ficar como ultimo da lista no final),
+            // mas o componente trata "ultimo = primary". Entao colocamos primary por
+            // ultimo na ordem de exibicao.
+            const primaryStr = primaryNumber ? String(primaryNumber) : null
+            const sorted = [...vendas].sort((a, b) => {
+                if (a.numero === primaryStr) return 1
+                if (b.numero === primaryStr) return -1
+                return a.numero.localeCompare(b.numero)
+            })
+            initial = sorted.map(v => buildEntryFromVenda(v.numero, primaryStr))
+        } else if (historico.length > 0) {
+            initial = historico
+        } else if (primaryNumber) {
+            initial = [{
                 numero: String(primaryNumber),
                 origem: 'original' as const,
                 sub_card_id: null,
@@ -54,8 +89,14 @@ function MondeNumbersChipInput({
                 adicionado_em: new Date().toISOString()
             }]
         }
-        return []
-    })
+        setEntries(initial)
+        setHydrated(true)
+        if (initial.length > 0) {
+            const newPrimary = initial[initial.length - 1].numero
+            onChange?.({ primary: newPrimary, historico: initial })
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [vendasLoading, vendas, cardId])
 
     const addNumber = (raw: string) => {
         const val = raw.trim().replace(/[^0-9]/g, '')
@@ -81,6 +122,14 @@ function MondeNumbersChipInput({
         setEntries(updated)
         const newPrimary = updated.length > 0 ? updated[updated.length - 1].numero : null
         onChange?.({ primary: newPrimary, historico: updated })
+    }
+
+    if (cardId && vendasLoading && !hydrated) {
+        return (
+            <div className="p-3 border border-gray-200 rounded-lg bg-white min-h-[80px] flex items-center justify-center text-xs text-gray-400">
+                Carregando vendas...
+            </div>
+        )
     }
 
     return (
@@ -392,6 +441,7 @@ export default function UniversalFieldRenderer({
                 : (value != null ? String(value) : null)
             return (
                 <MondeNumbersChipInput
+                    cardId={cardId}
                     primaryNumber={initialPrimary}
                     historico={existingHistorico}
                     onChange={(result) => onChange?.(result)}
