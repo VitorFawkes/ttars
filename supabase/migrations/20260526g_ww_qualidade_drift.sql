@@ -298,21 +298,20 @@ BEGIN
            NULLIF(c.produto_data->>'ww_closer_data_ganho','')::TIMESTAMPTZ AS data_venda,
            (NULLIF(c.produto_data->>'ww_closer_data_ganho','') IS NOT NULL) AS fechou,
            _ww2_norm_faixa_strict(c.produto_data->>'ww_mkt_orcamento_form') AS faixa_e,
-           -- Orçamento real: campo do "Weddings | Questionário do casal" do contato
-           -- (DW Orçamento, range categórico tipo "80.000 - 100.000"). Fallback pro antigo
-           -- "WW - Investimento 2" (ww_investimento_refinado).
-           _ww2_norm_faixa_strict(
-             COALESCE(
-               NULLIF(c.produto_data->>'ww_questionario_orcamento',''),
-               NULLIF(c.produto_data->>'ww_investimento_refinado','')
-             )
-           ) AS faixa_v,
-           -- Convidados real: número EXATO do "DW - Previsão nº de convidados" (questionário do casal).
-           -- ww_closer_valor_pacote tb é número de convidados (campo deal AC 62 "Pacote WW - Nº de Convidados"),
-           -- usado como fallback. Por último, ww_convidados_refinado (categoria, formato "Entre X a Y").
+           -- Orçamento real: prioridade pro DW Questionário do Casal (texto livre,
+           -- parser robusto _ww_parse_orcamento_to_faixa lida com "R$ 25.000",
+           -- "60k", "80 a 100 mil", "Não sabemos", "15.000 euros", etc.).
+           -- Fallback pro antigo "WW - Investimento 2" (já categórico).
            COALESCE(
-             NULLIF(c.produto_data->>'ww_questionario_convidados','')::INT,
-             NULLIF(c.produto_data->>'ww_closer_valor_pacote','')::NUMERIC::INT
+             _ww_parse_orcamento_to_faixa(c.produto_data->>'ww_questionario_orcamento'),
+             _ww2_norm_faixa_strict(c.produto_data->>'ww_investimento_refinado')
+           ) AS faixa_v,
+           -- Convidados real: parser robusto do DW "Previsão nº de convidados"
+           -- (texto livre: "60", "100-120", "4 a 6", "~50"). Fallback pro
+           -- ww_closer_valor_pacote (AC field 62, formato "50.000" = 50).
+           COALESCE(
+             _ww_parse_convidados_to_int(c.produto_data->>'ww_questionario_convidados'),
+             _ww_parse_convidados_to_int(c.produto_data->>'ww_closer_valor_pacote')
            ) AS num_convidados_real,
            _ww2_norm_conv_strict(c.produto_data->>'ww_convidados_refinado') AS conv_r_categoria,
            _ww2_norm_dest_strict(c.produto_data->>'ww_mkt_destino_form') AS dest_e,

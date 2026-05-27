@@ -1042,3 +1042,6 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-27T17:55:26Z | supabase/migrations/20260527o_wedding_guests_relax_identity.sql | applied_to_prod
 2026-05-27T18:09:57Z | supabase/migrations/20260527n_planner_forecast_per_card.sql | applied_to_prod
 2026-05-27T18:23:44Z | supabase/migrations/20260527d_ww_stage_map_146_147.sql | applied_to_prod
+2026-05-27T19:08:53Z | supabase/migrations/20260527p_ww_parsers_dw_questionario.sql | applied_to_prod
+2026-05-27T19:10:19Z | supabase/migrations/20260527p_ww_parsers_dw_questionario.sql | applied_to_prod
+2026-05-27T19:11:14Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
