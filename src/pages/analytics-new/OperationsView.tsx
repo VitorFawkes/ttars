@@ -7,6 +7,7 @@ import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import { getRankTier, rankBadgeClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
+import SimpleFilterBar from './SimpleFilterBar'
 import { cn } from '@/lib/utils'
 
 function formatWeek(iso: string): string {
@@ -63,6 +64,8 @@ export default function OperationsView() {
           Viagens realizadas no período, retrabalho (sub-cards) e qualidade por consultor.
         </p>
       </header>
+
+      <SimpleFilterBar roleFilter="vendas" showOrigins={false} myButtonLabel="Minhas viagens" />
 
       {/* KPIs principais */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

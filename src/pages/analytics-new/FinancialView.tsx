@@ -3,6 +3,7 @@ import KpiCard from '@/components/analytics/KpiCard'
 import { useFinanceiroOverview } from '@/hooks/analytics/useFinanceiroOverview'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import WidgetCard from './WidgetCard'
+import SimpleFilterBar from './SimpleFilterBar'
 import { cn } from '@/lib/utils'
 
 const ORIGEM_LABELS: Record<string, string> = {
@@ -44,6 +45,8 @@ export default function FinancialView() {
           Faturamento, receita (margem), ticket médio — quebrado por origem, consultor e mês.
         </p>
       </header>
+
+      <SimpleFilterBar showOwner={false} showOrigins={false} />
 
       {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -7,6 +7,7 @@ import { useResumoOverview, useResumoOverviewPrevious } from '@/hooks/analytics/
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import { getRankTier, rankBadgeClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
+import SimpleFilterBar from './SimpleFilterBar'
 import { cn } from '@/lib/utils'
 
 const FASE_LABELS: Record<string, string> = {
@@ -69,6 +70,8 @@ export default function ResumoView() {
           <a href="#previsao" className="hover:text-indigo-600">E. Previsão</a>
         </nav>
       </header>
+
+      <SimpleFilterBar showOwner={false} showOrigins={false} />
 
       {/* BLOCO A: EMPRESA */}
       <section id="empresa" className="space-y-4 scroll-mt-6">

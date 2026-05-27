@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Repeat, Users, Trophy, Clock } from 'lucide-react'
 import KpiCard from '@/components/analytics/KpiCard'
 import { useRetencaoCohort } from '@/hooks/analytics/useRetencaoCohort'
@@ -7,13 +7,22 @@ import { getRankTier, rankBadgeClass, rankDotClass, rankTierLabel } from '@/util
 import WidgetCard from './WidgetCard'
 import { cn } from '@/lib/utils'
 
+const COHORT_RANGE_OPTIONS: { value: number; label: string }[] = [
+  { value: 3, label: 'Últimos 3 meses' },
+  { value: 6, label: 'Últimos 6 meses' },
+  { value: 12, label: 'Últimos 12 meses' },
+  { value: 24, label: 'Últimos 24 meses' },
+  { value: 36, label: 'Últimos 36 meses' },
+]
+
 function formatMes(iso: string): string {
   const d = new Date(iso)
   return d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('.', '')
 }
 
 export default function RetentionView() {
-  const { data, isLoading } = useRetencaoCohort(12)
+  const [monthsBack, setMonthsBack] = useState(12)
+  const { data, isLoading } = useRetencaoCohort(monthsBack)
 
   const kpis = data?.kpis
   const cohorts = data?.cohort_table ?? []
@@ -32,12 +41,23 @@ export default function RetentionView() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header>
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Retenção</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Clientes que voltaram — taxa de retorno, tempo até voltar e top recorrentes.
-          Cohort por mês da primeira viagem (últimos 12 meses).
-        </p>
+      <header className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Retenção</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Clientes que voltaram — taxa de retorno, tempo até voltar e top recorrentes.
+            Cliente que voltou = mesma pessoa com 2 ou mais viagens ganhas.
+          </p>
+        </div>
+        <select
+          value={monthsBack}
+          onChange={e => setMonthsBack(Number(e.target.value))}
+          className="text-sm border border-slate-200 rounded-md px-3 py-1.5 bg-white text-slate-700 focus:ring-1 focus:ring-indigo-300 focus:border-indigo-300 outline-none"
+        >
+          {COHORT_RANGE_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
       </header>
 
       {/* KPIs principais */}

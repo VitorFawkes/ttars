@@ -11,6 +11,7 @@ import KpiCard from '@/components/analytics/KpiCard'
 import { useConciergeOverview, useConciergePendentes } from '@/hooks/analytics/useConciergeOverview'
 import { getRankTier, rankBadgeClass, rankTextClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
+import SimpleFilterBar from './SimpleFilterBar'
 import { cn } from '@/lib/utils'
 
 function formatMes(iso: string): string {
@@ -71,6 +72,8 @@ export default function ConciergeView() {
           Atendimentos durante a viagem — volume, cobertura, tipo de problema e performance por concierge.
         </p>
       </header>
+
+      <SimpleFilterBar showOrigins={false} myButtonLabel="Meus atendimentos" />
 
       {/* KPIs principais */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

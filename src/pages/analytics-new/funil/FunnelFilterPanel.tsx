@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
-import { Calendar, Repeat, User as UserIcon, GitBranch, Tag, Trophy, Sparkles } from 'lucide-react'
+import { Repeat, User as UserIcon, Users as UsersIcon, GitBranch, Tag, Trophy, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { DatePreset } from '@/hooks/analytics/useAnalyticsFilters'
+import DateRangePicker from '@/components/analytics/DateRangePicker'
 import {
   GANHO_FASE_LABELS,
   STATUS_HINTS,
@@ -20,9 +21,9 @@ export interface StageOption {
 }
 
 interface Props {
-  /** Período */
-  datePreset: DatePreset
-  setDatePreset: (p: DatePreset) => void
+  /** Período — mantido por compat; UI usa DateRangePicker direto do store */
+  datePreset?: DatePreset
+  setDatePreset?: (p: DatePreset) => void
 
   /** Referência temporal (Na Etapa | Criação) */
   dateRef: DateRef
@@ -72,15 +73,6 @@ interface Props {
   setRootStageId: (id: string | null) => void
 }
 
-const DATE_OPTIONS: { value: DatePreset; label: string }[] = [
-  { value: 'this_month', label: 'Este mês' },
-  { value: 'last_month', label: 'Mês passado' },
-  { value: 'last_3_months', label: '3 meses' },
-  { value: 'last_6_months', label: '6 meses' },
-  { value: 'this_year', label: 'Este ano' },
-  { value: 'all_time', label: 'Tudo' },
-]
-
 const STATUS_OPTIONS: FunnelStatus[] = ['all', 'open', 'won', 'lost']
 const GANHO_FASE_OPTIONS: GanhoFase[] = ['any', 'sdr', 'planner', 'pos']
 
@@ -90,8 +82,6 @@ function formatShortDate(iso: string): string {
 }
 
 export default function FunnelFilterPanel({
-  datePreset,
-  setDatePreset,
   dateRef,
   setDateRef,
   metric,
@@ -136,29 +126,42 @@ export default function FunnelFilterPanel({
   return (
     <div className="space-y-2.5">
       <div className="flex items-center gap-3 flex-wrap bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm">
-        {/* Período */}
-        <div className="flex items-center gap-1.5">
-          <Calendar className="w-3.5 h-3.5 text-slate-400" />
-          <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
-            Período
-          </span>
-          <div className="flex bg-slate-100 rounded-lg p-0.5">
-            {DATE_OPTIONS.map(opt => (
-              <button
-                key={opt.value}
-                onClick={() => setDatePreset(opt.value)}
-                className={cn(
-                  'px-2.5 py-1 text-[10px] font-semibold rounded-md transition-colors',
-                  datePreset === opt.value
-                    ? 'bg-white text-slate-800 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-600'
-                )}
-              >
-                {opt.label}
-              </button>
-            ))}
+        {/* Visão: Time todo / Meu Funil */}
+        {profileId && (
+          <div className="flex items-center gap-0.5 bg-slate-50 rounded-md p-0.5">
+            <button
+              type="button"
+              onClick={() => { if (isMyFunnel) onToggleMyFunnel() }}
+              className={cn(
+                'inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded transition-colors',
+                !isMyFunnel
+                  ? 'bg-white text-indigo-700 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700',
+              )}
+              title="Ver o funil agregado do time"
+            >
+              <UsersIcon className="w-3.5 h-3.5" />
+              Time todo
+            </button>
+            <button
+              type="button"
+              onClick={() => { if (!isMyFunnel) onToggleMyFunnel() }}
+              className={cn(
+                'inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded transition-colors',
+                isMyFunnel
+                  ? 'bg-white text-indigo-700 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700',
+              )}
+              title="Filtrar pra ver só os seus cards no funil"
+            >
+              <UserIcon className="w-3.5 h-3.5" />
+              Meu Funil
+            </button>
           </div>
-        </div>
+        )}
+
+        {/* Período (DateRangePicker universal — presets + range livre) */}
+        <DateRangePicker compact />
 
         <div className="w-px h-6 bg-slate-200" />
 
@@ -344,32 +347,18 @@ export default function FunnelFilterPanel({
           />
         )}
 
-        {/* Picker de consultores (multi) — inclui times e pessoas em seções */}
-        <MultiPickerPopover
-          label="Consultores"
-          icon={<UserIcon className="w-3.5 h-3.5" />}
-          sections={visibleOwnerSections}
-          selectedIds={selectedOwnerIds.filter(id => id !== profileId || !isMyFunnel)}
-          onToggle={onToggleOwner}
-          onClear={onClearOwners}
-          singularNoun="consultor"
-          pluralNoun="consultores"
-        />
-
-        {/* Meu Funil */}
-        {profileId && (
-          <button
-            onClick={onToggleMyFunnel}
-            className={cn(
-              'inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap',
-              isMyFunnel
-                ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
-                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-            )}
-          >
-            <UserIcon className="w-3.5 h-3.5" />
-            Meu Funil
-          </button>
+        {/* Picker de consultores (multi) — só faz sentido quando está em Time todo (gestor focando em alguém) */}
+        {!isMyFunnel && (
+          <MultiPickerPopover
+            label="Consultores"
+            icon={<UserIcon className="w-3.5 h-3.5" />}
+            sections={visibleOwnerSections}
+            selectedIds={selectedOwnerIds.filter(id => id !== profileId || !isMyFunnel)}
+            onToggle={onToggleOwner}
+            onClear={onClearOwners}
+            singularNoun="consultor"
+            pluralNoun="consultores"
+          />
         )}
       </div>
 
