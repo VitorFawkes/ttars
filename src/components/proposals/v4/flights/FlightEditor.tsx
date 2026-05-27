@@ -23,6 +23,13 @@ function deriveAirlineCode(name: string): string {
     return letters.slice(0, 2) || 'XX'
 }
 
+// Gera ID único pra leg/option. Date.now() sozinho colide quando opções são criadas
+// no mesmo ms (ex: clicar "Nova opção" 3x rápido) — IDs duplicados quebram a comparação
+// "mais barato / mais rápido" porque o match `cheapestId === option.id` bate em todas.
+function uid(prefix: string): string {
+    return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+}
+
 // Opções fixas pra bagagem (em vez de texto livre que vira bagunça)
 const BAGGAGE_OPTIONS = [
     { value: '', label: 'Sem bagagem' },
@@ -127,7 +134,7 @@ export function FlightEditor({ data, onChange }: FlightEditorProps) {
     // Adicionar leg
     const addLeg = useCallback(() => {
         const newLeg: FlightLeg = {
-            id: `leg-${Date.now()}`,
+            id: uid('leg'),
             leg_type: 'connection',
             label: 'TRECHO',
             origin_code: '',
@@ -152,7 +159,7 @@ export function FlightEditor({ data, onChange }: FlightEditorProps) {
 
         const legOptions = leg.options || []
         const newOption: FlightOption = {
-            id: `opt-${Date.now()}`,
+            id: uid('opt'),
             airline_code: '',
             airline_name: '',
             flight_number: '',
@@ -373,17 +380,18 @@ function LegBlock({
                         Nenhuma opção de voo ainda
                     </p>
                 ) : (() => {
-                    const comparison = compareFlightOptions(leg.options || [])
-                    return (leg.options || []).map((option) => (
+                    const opts = leg.options || []
+                    const comparison = compareFlightOptions(opts)
+                    return opts.map((option, idx) => (
                         <FlightRow
-                            key={option.id}
+                            key={`${option.id}-${idx}`}
                             option={option}
                             autoOpenEditor={option.id === justAddedOptionId}
                             onUpdate={(updates) => onUpdateOption(option.id, updates)}
                             onRemove={() => onRemoveOption(option.id)}
                             onSetRecommended={() => onSetRecommended(option.id)}
-                            isCheapest={comparison.cheapestId === option.id}
-                            isFastest={comparison.fastestId === option.id}
+                            isCheapest={comparison.cheapestIdx === idx}
+                            isFastest={comparison.fastestIdx === idx}
                         />
                     ))
                 })()}
@@ -505,20 +513,20 @@ function FlightRow({ option, autoOpenEditor = false, onUpdate, onRemove, onSetRe
                         </span>
                         {isCheapest && (
                             <span
-                                className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-1 py-0 text-[9px] font-bold text-emerald-700 flex-shrink-0"
+                                className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0 text-[9px] font-bold text-emerald-700 flex-shrink-0"
                                 title="Menor preço entre as opções"
                             >
                                 <TrendingDown className="h-2.5 w-2.5" />
-                                <span className="hidden lg:inline">Mais barato</span>
+                                Mais barato
                             </span>
                         )}
                         {isFastest && (
                             <span
-                                className="inline-flex items-center gap-0.5 rounded-full bg-indigo-100 px-1 py-0 text-[9px] font-bold text-indigo-700 flex-shrink-0"
+                                className="inline-flex items-center gap-0.5 rounded-full bg-indigo-100 px-1.5 py-0 text-[9px] font-bold text-indigo-700 flex-shrink-0"
                                 title="Menor duração entre as opções"
                             >
                                 <Zap className="h-2.5 w-2.5" />
-                                <span className="hidden lg:inline">Mais rápido</span>
+                                Mais rápido
                             </span>
                         )}
                     </div>
