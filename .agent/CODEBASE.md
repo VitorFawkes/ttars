@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-27
 > **Trigger:** ALWAYS ON
-> **Stats:** 217 tabelas | 212 paginas | 349 hooks | 25 views | 808 components
+> **Stats:** 217 tabelas | 214 paginas | 349 hooks | 25 views | 818 components
 
 ---
 
@@ -597,7 +597,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **212 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **214 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -807,6 +807,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `PlatformLayout` | `src/pages/platform/PlatformLayout.tsx` |
 | `SettingsPage` | `src/pages/platform/SettingsPage.tsx` |
 | `UsersPage` | `src/pages/platform/UsersPage.tsx` |
+| `ListaConvidadosPublic` | `src/pages/public/ListaConvidadosPublic.tsx` |
+| `ListaConvidadosSplash` | `src/pages/public/ListaConvidadosSplash.tsx` |
 | `ProposalConfirmed` | `src/pages/public/ProposalConfirmed.tsx` |
 | `ProposalReview` | `src/pages/public/ProposalReview.tsx` |
 | `ProposalView` | `src/pages/public/ProposalView.tsx` |

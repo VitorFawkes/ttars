@@ -110,6 +110,37 @@ test_query "tarefas (deleted_at + reunião)" \
 test_query "card_gift_items.custom_image_path column" \
   "card_gift_items?select=id,custom_image_path&limit=1"
 
+# ── Assessoria VIP integration (20260526m) ──
+# Frontend e edge function leem essas tabelas; sem elas, /admin/integracoes/assessoria-vip
+# e a aba do card quebram.
+test_query "avip_connections_safe (view sanitizada)" \
+  "avip_connections_safe?select=id,org_id,email,status,last_synced_at&limit=1"
+
+test_query "avip_event_links" \
+  "avip_event_links?select=id,card_id,avip_event_id,match_method,match_confidence&limit=1"
+
+test_query "avip_unmatched_events" \
+  "avip_unmatched_events?select=id,avip_event_id,avip_event_name,dismissed&limit=1"
+
+test_query "avip_sync_log (últimos)" \
+  "avip_sync_log?select=id,started_at,finished_at,guests_inserted&limit=1"
+
+test_query "wedding_guests source column (20260526m)" \
+  "wedding_guests?select=id,source,avip_guest_id,avip_synced_at&limit=1"
+
+# ── Lista de Convidados (20260527m+j+k+l) ──
+test_query "wedding_casais (lista convidados)" \
+  "wedding_casais?select=id,codigo,nome_casal,whatsapp_digits,card_id&limit=1"
+
+test_query "wedding_convites (agrupamento)" \
+  "wedding_convites?select=id,casal_id,nome,posicao&limit=1"
+
+test_query "wedding_guests campos novos (convite_id, faixa, lado, tipo)" \
+  "wedding_guests?select=id,convite_id,casal_id,faixa,lado,tipo,nome_raw,telefone_raw&limit=1"
+
+test_query "v_wedding_guests_resolved (view)" \
+  "v_wedding_guests_resolved?select=id,nome_display,telefone_display,convite_nome&limit=1"
+
 # ── RPCs críticas (chamadas via rpc/) ──
 
 test_rpc() {
@@ -174,6 +205,10 @@ test_rpc_exists() {
 
 test_rpc_exists "marcar_ganho RPC exists" "marcar_ganho" \
   '{"p_card_id":"00000000-0000-0000-0000-000000000000"}'
+
+# AVip integration: função de match (20260526m)
+test_rpc_exists "find_avip_candidate_cards RPC exists" "find_avip_candidate_cards" \
+  '{"p_org_id":"00000000-0000-0000-0000-000000000000","p_avip_event_name":"x","p_avip_event_date":"2026-01-01"}'
 
 test_rpc_exists "marcar_perdido RPC exists" "marcar_perdido" \
   '{"p_card_id":"00000000-0000-0000-0000-000000000000"}'
