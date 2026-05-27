@@ -1,9 +1,8 @@
-import { useRef } from 'react'
-import { Search, Tag, Upload, Download, Plus, X, FileText } from 'lucide-react'
+import { useState } from 'react'
+import { Search, Tag, Upload, Download, Plus, X } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { LADOS, TIPOS, type LadoKey, type TipoKey } from '../../../lib/convidados/types'
-import { downloadCSV } from '../../../lib/convidados/csvConvites'
-import { modeloCSVContent } from '../../../lib/convidados/csvModelo'
+import { ImportarModal } from './ImportarModal'
 
 interface Props {
   search: string
@@ -21,11 +20,7 @@ export function PlanilhaToolbar({
   search, setSearch, filterLado, setFilterLado, filterTipo, setFilterTipo,
   onAddConvite, onImport, onExport,
 }: Props) {
-  const fileRef = useRef<HTMLInputElement>(null)
-
-  const handleBaixarModelo = () => {
-    downloadCSV('modelo-lista-convidados.csv', modeloCSVContent())
-  }
+  const [importOpen, setImportOpen] = useState(false)
 
   return (
     <div className="flex items-center justify-between gap-2 flex-wrap py-2">
@@ -61,18 +56,10 @@ export function PlanilhaToolbar({
       </div>
 
       <div className="flex items-center gap-1">
-        <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }}
-          onChange={async (e) => {
-            const f = e.target.files?.[0]; if (!f) return
-            const text = await f.text(); onImport(text); e.target.value = ''
-          }} />
-        <button type="button" onClick={handleBaixarModelo} className={btnGhost} title="Baixar planilha modelo">
-          <FileText className="w-3 h-3" /> Modelo
-        </button>
-        <button type="button" onClick={() => fileRef.current?.click()} className={btnGhost} title="Importar CSV">
+        <button type="button" onClick={() => setImportOpen(true)} className={btnGhost} title="Importar lista de uma planilha">
           <Upload className="w-3 h-3" /> Importar
         </button>
-        <button type="button" onClick={onExport} className={btnGhost} title="Exportar CSV">
+        <button type="button" onClick={onExport} className={btnGhost} title="Exportar lista atual em CSV">
           <Download className="w-3 h-3" /> Exportar
         </button>
         <button type="button" onClick={onAddConvite}
@@ -80,6 +67,8 @@ export function PlanilhaToolbar({
           <Plus className="w-3.5 h-3.5" /> Novo convite
         </button>
       </div>
+
+      <ImportarModal open={importOpen} onClose={() => setImportOpen(false)} onImport={onImport} />
     </div>
   )
 }
