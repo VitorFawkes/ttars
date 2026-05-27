@@ -8,7 +8,7 @@ import {
   Layers, GitBranch, Sparkles,
 } from 'lucide-react'
 import {
-  format, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO,
+  format, addDays, startOfWeek, endOfWeek, startOfMonth, parseISO,
 } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { usePlannerForecastByDono, type ForecastCard } from '@/hooks/analytics/usePlannerForecastByDono'
@@ -136,7 +136,7 @@ export default function PlannerForecastChart() {
   const stages = usePipelineStages(meta.pipelineId)
 
   const allPlanners = useMemo(() => (profiles.data ?? []).filter(p => p.role === 'vendas'), [profiles.data])
-  const allStages = useMemo(() => (stages.data ?? []).filter(s => s.ativo !== false), [stages.data])
+  const allStages = useMemo(() => (stages.data ?? []).filter((s) => (s as { ativo?: boolean }).ativo !== false), [stages.data])
 
   const [windowPreset, setWindowPreset] = useState<WindowPreset>('next_7d')
   const [customStart, setCustomStart] = useState(format(new Date(), 'yyyy-MM-dd'))
@@ -451,7 +451,7 @@ export default function PlannerForecastChart() {
             <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={formatCompact} />
             <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
             <Line type="monotone" dataKey="total" stroke="#6366f1" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }}>
-              <LabelList dataKey="total" position="top" formatter={formatCompact}
+              <LabelList dataKey="total" position="top" formatter={formatCompact as never}
                 style={{ fontSize: 10, fontWeight: 600, fill: '#334155' }} />
             </Line>
           </LineChart>
@@ -503,7 +503,7 @@ export default function PlannerForecastChart() {
                       <LabelList
                         dataKey="total"
                         position="top"
-                        formatter={formatCompact}
+                        formatter={formatCompact as never}
                         style={{ fontSize: 11, fontWeight: 700, fill: '#0f172a' }}
                       />
                     )}
@@ -522,7 +522,7 @@ export default function PlannerForecastChart() {
                     radius={[4, 4, 0, 0]}
                     onClick={(d: { payload?: ChartPoint }) => { if (d?.payload) openCards(c.id, c.nome, d.payload.bucketRaw) }}
                   >
-                    <LabelList dataKey={c.id} position="top" formatter={formatCompact}
+                    <LabelList dataKey={c.id} position="top" formatter={formatCompact as never}
                       style={{ fontSize: 10, fontWeight: 600, fill: '#334155' }} />
                   </Bar>
                 ))}
