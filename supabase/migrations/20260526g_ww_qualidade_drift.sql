@@ -296,14 +296,27 @@ BEGIN
            NULLIF(c.produto_data->>'ww_closer_data_ganho','')::TIMESTAMPTZ AS data_venda,
            (NULLIF(c.produto_data->>'ww_closer_data_ganho','') IS NOT NULL) AS fechou,
            _ww2_norm_faixa_strict(c.produto_data->>'ww_mkt_orcamento_form') AS faixa_e,
-           NULLIF(REPLACE(REPLACE(c.produto_data->>'ww_closer_valor_pacote','.',''),',','.'),'')::NUMERIC AS valor_pac,
-           _ww2_norm_dest_strict(c.produto_data->>'ww_mkt_destino_form') AS dest_e,
+           -- Orçamento real: campo do "Weddings | Questionário do casal" do contato
+           -- (DW Orçamento, range categórico tipo "80.000 - 100.000"). Fallback pro antigo
+           -- "WW - Investimento 2" (ww_investimento_refinado).
+           _ww2_norm_faixa_strict(
+             COALESCE(
+               NULLIF(c.produto_data->>'ww_questionario_orcamento',''),
+               NULLIF(c.produto_data->>'ww_investimento_refinado','')
+             )
+           ) AS faixa_v,
+           -- Convidados real: número EXATO do "DW - Previsão nº de convidados" (questionário do casal).
+           -- ww_closer_valor_pacote tb é número de convidados (campo deal AC 62 "Pacote WW - Nº de Convidados"),
+           -- usado como fallback. Por último, ww_convidados_refinado (categoria, formato "Entre X a Y").
            COALESCE(
-             _ww2_norm_dest_strict(c.produto_data->>'ww_onde_casar_refinado'),
-             _ww2_norm_dest_strict(c.produto_data->>'ww_destino')
-           ) AS dest_v,
+             NULLIF(c.produto_data->>'ww_questionario_convidados','')::INT,
+             NULLIF(REPLACE(REPLACE(c.produto_data->>'ww_closer_valor_pacote','.',''),',','.'),'')::NUMERIC::INT
+           ) AS num_convidados_real,
+           _ww2_norm_conv_strict(c.produto_data->>'ww_convidados_refinado') AS conv_r_categoria,
+           _ww2_norm_dest_strict(c.produto_data->>'ww_mkt_destino_form') AS dest_e,
+           -- Destino real: campo do DEAL preenchido pela closer (ww_destino).
+           _ww2_norm_dest_strict(c.produto_data->>'ww_destino') AS dest_v,
            _ww2_norm_conv_strict(c.produto_data->>'ww_mkt_convidados_form') AS conv_e,
-           _ww2_norm_conv_strict(c.produto_data->>'ww_convidados_refinado') AS conv_r,
            _ww2_norm_origem(c.marketing_data) AS origem,
            _ww_norm_tipo(c.produto_data->>'ww_tipo_casamento') AS tipo_casamento,
            NULLIF(c.produto_data->>'ww_closer_monde_venda','') AS monde_venda
@@ -322,13 +335,14 @@ BEGIN
     IF p_tipos   IS NOT NULL THEN DELETE FROM _ww_dv WHERE tipo_casamento IS NULL OR tipo_casamento != ALL(p_tipos); END IF;
     SELECT COUNT(*) INTO v_total FROM _ww_dv;
 
-    -- ── INVESTIMENTO: entrada × VALOR REAL VENDIDO (R$ pacote → faixa)
-    -- Valor real só existe quando lead fechou. Não-fechados não contribuem ao drift.
+    -- ── INVESTIMENTO: faixa declarada no site × faixa real vendida (do questionário do casal).
+    -- Realidade vem de ww_questionario_orcamento (DW field 376, range "80.000-100.000")
+    -- com fallback pro antigo ww_investimento_refinado.
+    -- Só conta drift para quem fechou.
     WITH dados AS (
         SELECT faixa_e,
                fechou,
-               CASE WHEN fechou THEN _ww_valor_to_faixa(valor_pac) END AS faixa_v,
-               CASE WHEN fechou THEN valor_pac END AS valor_pac
+               CASE WHEN fechou THEN faixa_v END AS faixa_v
           FROM _ww_dv
     ),
     cobertura AS (
@@ -336,45 +350,27 @@ BEGIN
             COUNT(*) AS total_leads,
             COUNT(*) FILTER (WHERE fechou) AS total_fechados,
             COUNT(*) FILTER (WHERE faixa_e IS NOT NULL) AS com_entrada,
-            COUNT(*) FILTER (WHERE valor_pac >= 5000) AS com_valor_real,
-            COUNT(*) FILTER (WHERE faixa_e IS NOT NULL AND valor_pac >= 5000) AS com_ambos
+            COUNT(*) FILTER (WHERE faixa_v IS NOT NULL) AS com_realidade,
+            COUNT(*) FILTER (WHERE faixa_e IS NOT NULL AND faixa_v IS NOT NULL) AS com_ambos
           FROM dados
     ),
     drift AS (
         SELECT
             COUNT(*) FILTER (WHERE faixa_e IS NOT NULL AND faixa_v IS NOT NULL AND _ww_faixa_ordem(faixa_e) = _ww_faixa_ordem(faixa_v)) AS manteve,
             COUNT(*) FILTER (WHERE faixa_e IS NOT NULL AND faixa_v IS NOT NULL AND _ww_faixa_ordem(faixa_v) > _ww_faixa_ordem(faixa_e)) AS subiu,
-            COUNT(*) FILTER (WHERE faixa_e IS NOT NULL AND faixa_v IS NOT NULL AND _ww_faixa_ordem(faixa_v) < _ww_faixa_ordem(faixa_e)) AS desceu,
-            AVG(valor_pac) FILTER (WHERE faixa_e IS NOT NULL AND valor_pac >= 5000) AS ticket_medio_geral
+            COUNT(*) FILTER (WHERE faixa_e IS NOT NULL AND faixa_v IS NOT NULL AND _ww_faixa_ordem(faixa_v) < _ww_faixa_ordem(faixa_e)) AS desceu
           FROM dados
     ),
     matriz AS (
-        SELECT faixa_e, faixa_v,
-               COUNT(*) AS qtd,
-               ROUND(AVG(valor_pac)::NUMERIC, 0) AS ticket_medio
+        SELECT faixa_e, faixa_v, COUNT(*) AS qtd
           FROM dados
-         WHERE faixa_e IS NOT NULL AND faixa_v IS NOT NULL AND valor_pac >= 5000
+         WHERE faixa_e IS NOT NULL AND faixa_v IS NOT NULL
          GROUP BY faixa_e, faixa_v
-    ),
-    -- Para cada faixa de entrada, qual o ticket médio dos que fecharam
-    ticket_por_entrada AS (
-        SELECT faixa_e,
-               COUNT(*) FILTER (WHERE valor_pac >= 5000) AS amostra,
-               ROUND(AVG(valor_pac) FILTER (WHERE valor_pac >= 5000)::NUMERIC, 0) AS ticket_medio,
-               ROUND(PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY valor_pac) FILTER (WHERE valor_pac >= 5000)::NUMERIC, 0) AS p25,
-               ROUND(PERCENTILE_CONT(0.5)  WITHIN GROUP (ORDER BY valor_pac) FILTER (WHERE valor_pac >= 5000)::NUMERIC, 0) AS mediana,
-               ROUND(PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY valor_pac) FILTER (WHERE valor_pac >= 5000)::NUMERIC, 0) AS p75,
-               MIN(valor_pac) FILTER (WHERE valor_pac >= 5000) AS minv,
-               MAX(valor_pac) FILTER (WHERE valor_pac >= 5000) AS maxv
-          FROM dados
-         WHERE faixa_e IS NOT NULL
-         GROUP BY faixa_e
     )
     SELECT json_build_object(
         'cobertura', (SELECT row_to_json(c) FROM cobertura c),
         'drift', (SELECT row_to_json(d) FROM drift d),
-        'matriz', COALESCE((SELECT json_agg(row_to_json(m)) FROM matriz m), '[]'::JSON),
-        'ticket_por_entrada', COALESCE((SELECT json_agg(row_to_json(t) ORDER BY _ww_faixa_ordem(t.faixa_e)) FROM ticket_por_entrada t WHERE t.amostra > 0), '[]'::JSON)
+        'matriz', COALESCE((SELECT json_agg(row_to_json(m)) FROM matriz m), '[]'::JSON)
     ) INTO v_inv_json;
 
     -- ── DESTINO: entrada × vendido (só para quem fechou)
@@ -418,19 +414,38 @@ BEGIN
         'top_migracoes', COALESCE((SELECT json_agg(row_to_json(t)) FROM top_migracoes t), '[]'::JSON)
     ) INTO v_dest_json;
 
-    -- ── CONVIDADOS: entrada × refinado pela closer (só para quem fechou)
+    -- ── CONVIDADOS: faixa declarada × faixa real (só para quem fechou)
+    -- Realidade tem 2 fontes possíveis (ordem de prioridade):
+    --   1. num_convidados_real (INT exato — do DW questionário do casal OU ww_closer_valor_pacote)
+    --      mapeado pra categoria via CASE
+    --   2. conv_r_categoria (ww_convidados_refinado, formato "Entre X a Y")
     WITH dados AS (
         SELECT conv_e,
-               CASE WHEN fechou THEN conv_r END AS conv_r,
-               fechou
+               fechou,
+               CASE WHEN fechou THEN
+                 COALESCE(
+                   CASE
+                     WHEN num_convidados_real IS NULL THEN NULL
+                     WHEN num_convidados_real <= 2   THEN 'Apenas o casal'
+                     WHEN num_convidados_real <= 20  THEN 'Até 20'
+                     WHEN num_convidados_real <= 50  THEN '20-50'
+                     WHEN num_convidados_real <= 80  THEN '50-80'
+                     WHEN num_convidados_real <= 100 THEN '80-100'
+                     ELSE '+100'
+                   END,
+                   conv_r_categoria
+                 )
+               END AS conv_r,
+               CASE WHEN fechou THEN num_convidados_real END AS num_convidados_real
           FROM _ww_dv
     ),
     cobertura AS (
         SELECT COUNT(*) AS total_leads,
                COUNT(*) FILTER (WHERE fechou) AS total_fechados,
                COUNT(*) FILTER (WHERE conv_e IS NOT NULL) AS com_entrada,
-               COUNT(*) FILTER (WHERE conv_r IS NOT NULL) AS com_refinado,
-               COUNT(*) FILTER (WHERE conv_e IS NOT NULL AND conv_r IS NOT NULL) AS com_ambos
+               COUNT(*) FILTER (WHERE conv_r IS NOT NULL) AS com_realidade,
+               COUNT(*) FILTER (WHERE conv_e IS NOT NULL AND conv_r IS NOT NULL) AS com_ambos,
+               COUNT(*) FILTER (WHERE num_convidados_real IS NOT NULL) AS com_numero_exato
           FROM dados
     ),
     drift AS (
@@ -453,17 +468,15 @@ BEGIN
 
     SELECT COUNT(*) INTO v_total_fechados FROM _ww_dv WHERE fechou;
 
-    -- Breakdown por tipo (DW vs Elopment)
+    -- Breakdown por tipo (DW vs Elopment) — nº médio de convidados por tipo
     SELECT json_agg(json_build_object(
         'tipo', tipo, 'fechados', fechados,
-        'valor_medio', ROUND(valor_medio::NUMERIC, 0),
-        'valor_total', ROUND(valor_total::NUMERIC, 0)
+        'convidados_medio', ROUND(convidados_medio::NUMERIC, 0)
     ) ORDER BY fechados DESC) INTO v_breakdown_tipo
     FROM (
         SELECT COALESCE(tipo_casamento, 'Não classificado') AS tipo,
                COUNT(*) FILTER (WHERE fechou) AS fechados,
-               AVG(valor_pac) FILTER (WHERE fechou AND valor_pac >= 5000) AS valor_medio,
-               SUM(valor_pac) FILTER (WHERE fechou AND valor_pac >= 5000) AS valor_total
+               AVG(num_convidados_real) FILTER (WHERE fechou AND num_convidados_real IS NOT NULL) AS convidados_medio
           FROM _ww_dv
          WHERE fechou
          GROUP BY tipo_casamento
@@ -473,7 +486,7 @@ BEGIN
     SELECT json_agg(json_build_object(
         'card_id', id, 'titulo', titulo,
         'data_venda', data_venda,
-        'valor_pacote', valor_pac,
+        'num_convidados', num_convidados_real,
         'tipo_casamento', tipo_casamento,
         'monde_venda', monde_venda,
         'destino_vendido', dest_v
