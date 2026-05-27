@@ -1007,3 +1007,6 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-27T15:16:16Z | supabase/migrations/20260527j_wedding_convites.sql | applied_to_prod
 2026-05-27T15:16:38Z | supabase/migrations/20260527k_wedding_guests_estende.sql | applied_to_prod
 2026-05-27T15:17:03Z | supabase/migrations/20260527l_wedding_casal_rpcs.sql | applied_to_prod
+2026-05-27T12:57:32Z | supabase/migrations/20260527b_leadster_webhook_events.sql | applied_to_prod
+2026-05-27T13:11:38Z | supabase/migrations/20260527c_leadster_webhook_signature.sql | applied_to_prod
+2026-05-27T14:42:14Z | supabase/migrations/20260527d_leadster_webhook_created_card.sql | applied_to_prod

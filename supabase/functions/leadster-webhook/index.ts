@@ -65,6 +65,182 @@ async function verifyJwtHs256(
   }
 }
 
+// ---- Constantes TRIPS (idênticas ao que o ActiveCampaign produz hoje) ----
+const TRIPS_PIPELINE_ID = "c8022522-4a1d-411c-9387-efe03ca725ee"; // Pipeline Welcome Trips
+const TRIPS_CARD_ORG_ID = "b0000000-0000-0000-0000-000000000001"; // workspace Welcome Trips (cards)
+const SHARED_CONTACT_ORG_ID = "a0000000-0000-0000-0000-000000000001"; // conta Welcome Group (contatos compartilhados)
+
+// deno-lint-ignore no-explicit-any
+type SupaClient = any;
+
+const str = (v: unknown): string | null => {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s.length ? s : null;
+};
+
+// Lê um campo do payload tolerando algumas variações de label.
+const pick = (p: Record<string, unknown>, ...keys: string[]): string | null => {
+  for (const k of keys) {
+    if (k in p) {
+      const v = str(p[k]);
+      if (v) return v;
+    }
+  }
+  return null;
+};
+
+// Interruptor (configurável pela tela de Configurações → Leadster).
+// Lê integration_settings(key='leadster_create_cards') da org Welcome Trips.
+// Ausente/erro/'false' = modo ensaio (não cria nada). 'true' = cria de verdade.
+async function isCreateEnabled(supabase: SupaClient): Promise<boolean> {
+  const { data } = await supabase
+    .from("integration_settings")
+    .select("value")
+    .eq("key", "leadster_create_cards")
+    .eq("org_id", TRIPS_CARD_ORG_ID)
+    .is("produto", null)
+    .maybeSingle();
+  return (str(data?.value) ?? "false").toLowerCase() === "true";
+}
+
+/**
+ * Processa um lead do Leadster: dedup de contato e card, e (só quando
+ * `createEnabled`) criação de verdade. Sem `createEnabled` é puro SELECT
+ * (modo ensaio) — nenhuma linha é criada.
+ *
+ * Reusa o mesmo critério de dedup que public-api (Echo) e integration-process:
+ *   contato por email → por telefone (find_contact_by_whatsapp);
+ *   card por pessoa_principal_id + produto TRIPS + status aberto.
+ */
+async function processLeadsterLead(
+  supabase: SupaClient,
+  p: Record<string, unknown>,
+  createEnabled: boolean,
+): Promise<{ plan: string; createdCardId: string | null }> {
+  const nome = pick(p, "Nome", "nome", "name");
+  const email = pick(p, "Email", "email");
+  const telefone = pick(p, "Telefone", "telefone", "phone");
+
+  if (!email && !telefone) {
+    return { plan: "ignorado: payload sem Email e sem Telefone (impossível dedup/criar)", createdCardId: null };
+  }
+
+  // --- 1. Dedup de contato (email → telefone) ---
+  let contactId: string | null = null;
+  let matchedBy: string | null = null;
+
+  if (email) {
+    const { data } = await supabase
+      .from("contatos").select("id").eq("email", email).limit(1).maybeSingle();
+    if (data?.id) { contactId = data.id; matchedBy = "email"; }
+  }
+  if (!contactId && telefone) {
+    const { data: foundId } = await supabase
+      .rpc("find_contact_by_whatsapp", { p_phone: telefone, p_convo_id: "" });
+    if (foundId) { contactId = foundId as string; matchedBy = "telefone"; }
+  }
+
+  // --- 2. Dedup de card (só faz sentido se já existe contato) ---
+  let existingCardId: string | null = null;
+  if (contactId) {
+    const { data: cards } = await supabase
+      .from("cards")
+      .select("id")
+      .eq("pessoa_principal_id", contactId)
+      .eq("produto", "TRIPS")
+      .not("status_comercial", "in", '("ganho","perdido")')
+      .is("deleted_at", null)
+      .limit(1);
+    existingCardId = cards?.[0]?.id ?? null;
+  }
+
+  // --- 3. Resolver primeira etapa do pipeline TRIPS (SELECT, ok em ensaio) ---
+  const { data: stages } = await supabase
+    .from("pipeline_stages")
+    .select("id, pipeline_phases!inner(order_index)")
+    .eq("pipeline_id", TRIPS_PIPELINE_ID)
+    .order("pipeline_phases(order_index)", { ascending: true })
+    .order("ordem", { ascending: true })
+    .limit(1);
+  const stageId: string | null = stages?.[0]?.id ?? null;
+
+  // --- Plano legível (vale tanto pro ensaio quanto pro log de produção) ---
+  const contatoPlan = contactId
+    ? `contato existente ${contactId} (via ${matchedBy})`
+    : "criaria contato novo (org Welcome Group)";
+  const cardPlan = existingCardId
+    ? `card TRIPS aberto já existe ${existingCardId} → DEDUP, não criaria`
+    : "criaria card TRIPS novo";
+  const planBase = `${contatoPlan}; ${cardPlan}`;
+
+  // --- Modo ensaio: para por aqui, nada é criado ---
+  if (!createEnabled) {
+    return { plan: `ENSAIO (LEADSTER_CREATE_CARDS off): ${planBase}`, createdCardId: null };
+  }
+
+  // --- 4. Criação real ---
+  // 4a. Card já existe → dedup, não cria nada.
+  if (existingCardId) {
+    return { plan: `DEDUP: card TRIPS aberto já existe ${existingCardId}`, createdCardId: existingCardId };
+  }
+
+  // 4b. Criar contato se necessário.
+  if (!contactId) {
+    const parts = (nome ?? "Lead Leadster").split(/\s+/);
+    const { data: novo, error: cErr } = await supabase
+      .from("contatos")
+      .insert({
+        org_id: SHARED_CONTACT_ORG_ID,
+        nome: parts[0],
+        sobrenome: parts.length > 1 ? parts.slice(1).join(" ") : null,
+        email,
+        telefone,
+        tipo_pessoa: "adulto",
+        origem: "leadster",
+        tags: ["leadster"],
+      })
+      .select("id").single();
+    if (cErr) return { plan: `ERRO ao criar contato: ${cErr.message}`, createdCardId: null };
+    contactId = novo.id;
+  }
+
+  // 4c. marketing_data = tudo do payload exceto core + jwt.
+  const marketing: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(p)) {
+    if (["Nome", "nome", "name", "Email", "email", "Telefone", "telefone", "phone", "jwt"].includes(k)) continue;
+    marketing[k] = v;
+  }
+
+  // 4d. Criar card TRIPS.
+  const { data: card, error: cardErr } = await supabase
+    .from("cards")
+    .insert({
+      titulo: nome ?? "Lead Leadster",
+      pessoa_principal_id: contactId,
+      org_id: TRIPS_CARD_ORG_ID,
+      pipeline_id: TRIPS_PIPELINE_ID,
+      pipeline_stage_id: stageId,
+      produto: "TRIPS",
+      origem: "leadster",
+      status_comercial: "aberto",
+      moeda: "BRL",
+      marketing_data: marketing,
+    })
+    .select("id").single();
+  if (cardErr) return { plan: `ERRO ao criar card: ${cardErr.message}`, createdCardId: null };
+
+  // 4e. Ligar contato ao card.
+  await supabase.from("cards_contatos").insert({
+    card_id: card.id,
+    contato_id: contactId,
+    tipo_viajante: "adulto",
+    ordem: 0,
+  });
+
+  return { plan: `CRIADO card TRIPS ${card.id} (contato ${contactId})`, createdCardId: card.id };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -134,16 +310,45 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    const { error } = await supabase.from("leadster_webhook_events").insert({
-      payload,
-      headers,
-      event_type: eventType,
-      source_ip: sourceIp,
-      signature_valid: signatureValid,
-    });
+    // Grava sempre o evento cru (auditoria), capturando o id pra anotar o resultado depois.
+    const { data: evt, error } = await supabase
+      .from("leadster_webhook_events")
+      .insert({
+        payload,
+        headers,
+        event_type: eventType,
+        source_ip: sourceIp,
+        signature_valid: signatureValid,
+      })
+      .select("id")
+      .single();
 
     if (error) {
       console.error("[leadster-webhook] insert failed", error);
+    }
+
+    // Processa o lead. Interruptor lido de integration_settings (tela de Configurações → Leadster).
+    // Default (off) = modo ensaio: só calcula e loga o que faria, sem criar nada.
+    // Garantia anti-duplicação: ligar este flag e desligar a criação pelo ActiveCampaign
+    // devem ser feitos juntos.
+    const createEnabled = await isCreateEnabled(supabase);
+    try {
+      const { plan, createdCardId } = await processLeadsterLead(supabase, p, createEnabled);
+      console.log(`[leadster-webhook] ${plan}`);
+      if (evt?.id) {
+        await supabase
+          .from("leadster_webhook_events")
+          .update({ processed_at: new Date().toISOString(), process_error: plan, created_card_id: createdCardId })
+          .eq("id", evt.id);
+      }
+    } catch (procErr) {
+      console.error("[leadster-webhook] processing error", procErr);
+      if (evt?.id) {
+        await supabase
+          .from("leadster_webhook_events")
+          .update({ process_error: `EXCEPTION: ${procErr instanceof Error ? procErr.message : String(procErr)}` })
+          .eq("id", evt.id);
+      }
     }
 
     return jsonResponse({ ok: true });
