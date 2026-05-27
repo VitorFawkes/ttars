@@ -20,7 +20,7 @@ const TABS: { id: Tab; label: string; icon: string; description: string }[] = [
   { id: 'entrada-realidade', label: 'Entrada × Realidade', icon: '🔄', description: 'O que disse no site × o que virou' },
   { id: 'equipe', label: 'Equipe', icon: '👥', description: 'Performance SDR, Closer, Planner' },
   { id: 'qualidade', label: 'Qualidade do lead', icon: '🎯', description: 'Faixa, convidados, local, cruzamentos' },
-  { id: 'perfil', label: 'Quem entra × quem fecha', icon: '📈', description: 'Lift por dimensão (perfil ideal)' },
+  { id: 'perfil', label: 'Lead ideal × Pipeline', icon: '📈', description: 'Perfil de quem fechou × leads novos' },
   { id: 'marketing', label: 'Marketing', icon: '📣', description: 'Origens, campanhas, atribuição' },
   { id: 'perdas', label: 'Motivos de perda', icon: '📉', description: 'Onde leads caem e por quê' },
 ]
