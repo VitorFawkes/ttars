@@ -203,6 +203,24 @@ async function handle(req: Request): Promise<Response> {
         return jsonResponse({ ok: data === true });
       }
 
+      case "marcar_pronto": {
+        const { data, error } = await admin.rpc(
+          "wedding_casal_marcar_pronto",
+          { p_codigo: codigo },
+        );
+        if (error) throw error;
+        return jsonResponse({ envio_id: data });
+      }
+
+      case "get_status_envio": {
+        const { data, error } = await admin.rpc(
+          "wedding_casal_get_status_envio",
+          { p_codigo: codigo },
+        );
+        if (error) throw error;
+        return jsonResponse(data);
+      }
+
       default:
         return jsonResponse({ error: "unknown_action", action }, 400);
     }
