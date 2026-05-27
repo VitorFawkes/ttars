@@ -62,13 +62,15 @@ END $$;
 -- ════════════════════════════════════════════════════════════════════════════
 DROP FUNCTION IF EXISTS public.ww_qualidade_lead(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[]);
 DROP FUNCTION IF EXISTS public.ww_qualidade_lead(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[], TEXT);
+DROP FUNCTION IF EXISTS public.ww_qualidade_lead(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[], TEXT, UUID);
 
 CREATE OR REPLACE FUNCTION public.ww_qualidade_lead(
-    p_date_start TIMESTAMPTZ DEFAULT (NOW() - INTERVAL '180 days'),
-    p_date_end   TIMESTAMPTZ DEFAULT NOW(),
-    p_org_id     UUID DEFAULT NULL,
-    p_origins    TEXT[] DEFAULT NULL,
-    p_date_mode  TEXT DEFAULT 'cohort'
+    p_date_start     TIMESTAMPTZ DEFAULT (NOW() - INTERVAL '180 days'),
+    p_date_end       TIMESTAMPTZ DEFAULT NOW(),
+    p_org_id         UUID DEFAULT NULL,
+    p_origins        TEXT[] DEFAULT NULL,
+    p_date_mode      TEXT DEFAULT 'cohort',
+    p_event_stage_id UUID DEFAULT NULL
 )
 RETURNS JSON
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public'
@@ -84,8 +86,14 @@ BEGIN
     SELECT id INTO v_pipeline_id FROM pipelines WHERE produto::TEXT='WEDDING' AND org_id=v_org_id LIMIT 1;
     IF v_pipeline_id IS NULL THEN RETURN json_build_object('error','pipeline WEDDING não encontrado'); END IF;
 
-    -- "Fechou" = card tem ww_closer_data_ganho preenchido (sinal canônico operacional).
-    -- Em throughput: filtra pela data do ganho.
+    -- cohort: filtra leads pelo created_at no período (data de entrada do lead).
+    -- throughput: filtra leads que tiveram stage_changed para p_event_stage_id no período.
+    --   p_event_stage_id é OBRIGATÓRIO em throughput (qual etapa de gatilho).
+    -- "Fechou" = card tem ww_closer_data_ganho preenchido (independente do modo).
+    IF p_date_mode = 'throughput' AND p_event_stage_id IS NULL THEN
+        RETURN json_build_object('error','Em modo throughput, é obrigatório informar a etapa de gatilho (p_event_stage_id).');
+    END IF;
+
     CREATE TEMP TABLE _ww_ql ON COMMIT DROP AS
     SELECT c.id,
            (NULLIF(c.produto_data->>'ww_closer_data_ganho','') IS NOT NULL) AS fechou,
@@ -102,8 +110,14 @@ BEGIN
             AND c.created_at >= p_date_start AND c.created_at <= p_date_end)
          OR
          (p_date_mode = 'throughput'
-            AND NULLIF(c.produto_data->>'ww_closer_data_ganho','')::TIMESTAMPTZ >= p_date_start
-            AND NULLIF(c.produto_data->>'ww_closer_data_ganho','')::TIMESTAMPTZ <= p_date_end)
+            AND EXISTS (
+              SELECT 1 FROM activities a
+               WHERE a.card_id = c.id
+                 AND a.tipo = 'stage_changed'
+                 AND (a.metadata->>'new_stage_id')::uuid = p_event_stage_id
+                 AND a.created_at >= p_date_start
+                 AND a.created_at <= p_date_end
+            ))
        );
     IF p_origins IS NOT NULL THEN DELETE FROM _ww_ql WHERE origem != ALL(p_origins); END IF;
 
@@ -226,7 +240,7 @@ BEGIN
     );
 END $func$;
 
-GRANT EXECUTE ON FUNCTION public.ww_qualidade_lead(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[], TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.ww_qualidade_lead(TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT[], TEXT, UUID) TO authenticated;
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- VISÃO B — Drift de venda (entrada × o que vendeu)

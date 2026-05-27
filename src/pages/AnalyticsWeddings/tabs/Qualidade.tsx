@@ -1,36 +1,77 @@
+import { useMemo, useState } from 'react'
 import { useFilterParams } from '../components/FilterBar'
 import { useWwQualidadeLead, type WwQualidadeLead, type WwQualidadeCategoria } from '@/hooks/analyticsWeddings/useWw2'
+import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
+import { usePipelineStages } from '@/hooks/usePipelineStages'
 import { SectionCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
 import { formatNumber } from '../lib/format'
 
 const FAIXA_ORDER = ['Até R$50 mil', 'R$50-80 mil', 'R$50-100 mil', 'R$80-100 mil', 'R$100-200 mil', 'R$200-500 mil', '+R$500 mil']
 
+// Stage default em throughput: "Reunião Agendada" (primeira etapa do funil Closer)
+const DEFAULT_EVENT_STAGE_ID = 'ade09bc3-fa3d-49b8-97f0-2f780d0ebbb1'
+
 export function Qualidade() {
   const filters = useFilterParams()
-  const { data, isLoading, error } = useWwQualidadeLead(filters)
+  const { pipelineId } = useCurrentProductMeta()
+  const { data: stages } = usePipelineStages(pipelineId ?? undefined)
+  const [eventStageId, setEventStageId] = useState<string>(DEFAULT_EVENT_STAGE_ID)
+  const isThroughput = filters.dateMode === 'throughput'
 
+  // Stages relevantes para "entrar no funil de vendas"
+  const stagesSelecionaveis = useMemo(() => {
+    if (!stages) return []
+    return stages.filter(s => {
+      // Exclui stages da fase SDR (entrada/qualificação) e Resolução (perdido/cancelado)
+      // Mantém Closer (Reunião → Contrato Assinado) e Pós-venda
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const phaseSlug = (s as any).pipeline_phases?.slug
+      if (phaseSlug === 'resolucao' || phaseSlug === 'sdr') return false
+      return true
+    })
+  }, [stages])
+
+  const { data, isLoading, error } = useWwQualidadeLead(filters, eventStageId)
+
+  if (isThroughput && !eventStageId) {
+    return (
+      <div className="space-y-5">
+        <StageSelector isThroughput={isThroughput} stages={stagesSelecionaveis} value={eventStageId} onChange={setEventStageId} />
+        <EmptyState message="Escolha uma etapa de gatilho acima" />
+      </div>
+    )
+  }
   if (isLoading) return <LoadingSkeleton rows={10} />
   if (error) return <ErrorBanner error={error as Error} />
   if (!data || data.error) return <EmptyState message={data?.error ?? 'Sem dados'} />
 
+  const stageNome = stagesSelecionaveis.find(s => s.id === eventStageId)?.nome ?? 'etapa'
+
   return (
     <div className="space-y-5">
-      <UniversoHeader data={data} />
+      <StageSelector isThroughput={isThroughput} stages={stagesSelecionaveis} value={eventStageId} onChange={setEventStageId} />
+      <UniversoHeader data={data} isThroughput={isThroughput} stageNome={stageNome} />
       <FunilPorCategoria
-        title="💰 Por faixa de investimento na entrada"
-        subtitle="Quanto cada perfil declarado no site converteu em venda — e qual ticket médio o casal acabou contratando."
+        title="💰 Por faixa de investimento declarada"
+        subtitle={isThroughput
+          ? `Dos leads que chegaram em ${stageNome} no período, quantos fecharam — agrupados pela faixa que declararam no site.`
+          : `Dos leads que entraram no período, quantos fecharam — agrupados pela faixa declarada no site.`}
         items={data.por_faixa}
         unidade="faixa"
       />
       <FunilPorCategoria
-        title="🏝️  Por destino na entrada"
-        subtitle="Conversão e ticket médio de venda por destino que o casal escolheu no formulário."
+        title="🏝️  Por destino declarado"
+        subtitle={isThroughput
+          ? `Dos leads que chegaram em ${stageNome} no período, quantos fecharam — por destino declarado.`
+          : `Dos leads que entraram no período, quantos fecharam — por destino declarado.`}
         items={data.por_destino}
         unidade="destino"
       />
       <FunilPorCategoria
-        title="👥 Por número de convidados na entrada"
-        subtitle="Conversão e ticket médio por tamanho de celebração declarado."
+        title="👥 Por número de convidados declarado"
+        subtitle={isThroughput
+          ? `Dos leads que chegaram em ${stageNome} no período, quantos fecharam — por tamanho de celebração.`
+          : `Dos leads que entraram no período, quantos fecharam — por tamanho de celebração.`}
         items={data.por_convidados}
         unidade="convidados"
       />
@@ -39,26 +80,73 @@ export function Qualidade() {
   )
 }
 
-function UniversoHeader({ data }: { data: WwQualidadeLead }) {
+function StageSelector({ isThroughput, stages, value, onChange }: {
+  isThroughput: boolean
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  stages: any[]
+  value: string
+  onChange: (v: string) => void
+}) {
+  if (!isThroughput) {
+    return (
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-600">
+        Modo <strong>Data de criação</strong> — universo são leads pelo dia em que foram criados.
+        Pra ver "leads que chegaram em uma etapa específica no período", troque pra <strong>Data de evento</strong> na barra de filtros.
+      </div>
+    )
+  }
+  return (
+    <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 flex items-center gap-3 flex-wrap">
+      <label className="text-xs font-medium text-indigo-900 whitespace-nowrap">
+        🎯 Universo = leads que entraram em:
+      </label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="px-3 py-1.5 text-xs font-medium bg-white border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-indigo-900"
+      >
+        {stages.map(s => (
+          <option key={s.id} value={s.id}>{s.nome}</option>
+        ))}
+      </select>
+      <span className="text-[11px] text-indigo-700">
+        dentro do período selecionado (independente de quando o lead foi criado).
+      </span>
+    </div>
+  )
+}
+
+function UniversoHeader({ data, isThroughput, stageNome }: { data: WwQualidadeLead; isThroughput: boolean; stageNome: string }) {
   return (
     <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 rounded-xl p-5">
       <div className="flex items-baseline justify-between flex-wrap gap-3">
         <div className="max-w-3xl">
           <h2 className="text-base font-semibold text-slate-900">🎯 Qualidade do lead</h2>
           <p className="text-sm text-slate-600 mt-1">
-            <strong>{formatNumber(data.total_entraram)} leads</strong> entraram no período,
-            <strong className="text-emerald-700"> {formatNumber(data.total_fecharam)} fecharam</strong>
-            <span className="text-slate-500"> · taxa de conversão </span>
-            <strong className="text-indigo-700">{data.taxa_conversao_geral_pct ?? 0}%</strong>
+            {isThroughput ? (
+              <>
+                <strong>{formatNumber(data.total_entraram)} leads</strong> chegaram em <strong>{stageNome}</strong> no período,
+                <strong className="text-emerald-700"> {formatNumber(data.total_fecharam)} já fecharam</strong> contrato
+                <span className="text-slate-500"> · taxa de conversão {stageNome} → venda: </span>
+                <strong className="text-indigo-700">{data.taxa_conversao_geral_pct ?? 0}%</strong>
+              </>
+            ) : (
+              <>
+                <strong>{formatNumber(data.total_entraram)} leads</strong> entraram no período,
+                <strong className="text-emerald-700"> {formatNumber(data.total_fecharam)} fecharam</strong>
+                <span className="text-slate-500"> · taxa de conversão geral </span>
+                <strong className="text-indigo-700">{data.taxa_conversao_geral_pct ?? 0}%</strong>
+              </>
+            )}
           </p>
           <p className="text-xs text-slate-500 mt-1">
-            Cobertura do formulário: <strong>{data.cobertura.com_faixa}</strong> com faixa,
+            Cobertura do formulário do site: <strong>{data.cobertura.com_faixa}</strong> com faixa,
             {' '}<strong>{data.cobertura.com_destino}</strong> com destino,
             {' '}<strong>{data.cobertura.com_convidados}</strong> com nº convidados.
           </p>
         </div>
         <div className="text-xs bg-white border border-indigo-200 rounded-lg px-3 py-1.5 text-indigo-700 whitespace-nowrap">
-          📅 Sempre por <strong>data de entrada do lead</strong>
+          📅 {isThroughput ? <>Data de evento (entrada em <strong>{stageNome}</strong>)</> : <strong>Data de criação do lead</strong>}
         </div>
       </div>
     </div>

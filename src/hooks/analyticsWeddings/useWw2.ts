@@ -522,21 +522,22 @@ export type WwQualidadeLead = {
   error?: string
 }
 
-export function useWwQualidadeLead(filters: Ww2Filters) {
+export function useWwQualidadeLead(filters: Ww2Filters, eventStageId?: string | null) {
   const orgId = useOrgId()
-  // Qualidade do Lead SEMPRE em modo cohort: a taxa de conversão por faixa só
-  // faz sentido sobre "leads que entraram no período". Em throughput o universo
-  // colapsaria pra só fechados (100% em tudo, inútil).
+  // cohort: leads criados no período.
+  // throughput: leads que tiveram stage_changed para eventStageId no período (obrigatório).
+  const isThroughput = filters.dateMode === 'throughput'
   return useQuery({
-    queryKey: ['ww', 'qualidade-lead', orgId, filters.dateStart, filters.dateEnd, filters.origins],
+    queryKey: ['ww', 'qualidade-lead', orgId, filters.dateStart, filters.dateEnd, filters.dateMode, eventStageId ?? null, filters.origins],
     queryFn: () => callRpc<WwQualidadeLead>('ww_qualidade_lead', {
       p_date_start: filters.dateStart,
       p_date_end: filters.dateEnd,
       p_org_id: orgId,
       p_origins: filters.origins?.length ? filters.origins : null,
-      p_date_mode: 'cohort',
+      p_date_mode: filters.dateMode,
+      p_event_stage_id: isThroughput ? eventStageId : null,
     }),
-    enabled: !!orgId,
+    enabled: !!orgId && (!isThroughput || !!eventStageId),
     staleTime: 60_000,
   })
 }

@@ -989,3 +989,6 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-26T21:05:15Z | supabase/migrations/20260526l_log_proposal_event_rpc.sql | applied_to_prod
 2026-05-26T21:06:31Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
 2026-05-26T21:17:02Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
+2026-05-27T01:01:49Z | supabase/migrations/20260526m_assessoria_vip_integration.sql | applied_to_prod
+2026-05-27T01:08:39Z | supabase/migrations/20260526n_avip_find_candidates_safe_date.sql | applied_to_prod
+2026-05-27T01:30:09Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
