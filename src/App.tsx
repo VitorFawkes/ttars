@@ -31,6 +31,7 @@ import AnalyticsWeddingsPage from './pages/AnalyticsWeddings/AnalyticsWeddingsPa
 import ProposalView from './pages/public/ProposalView'
 import TripPortalPublic from './pages/public/TripPortalPublic'
 import ListaConvidadosPublic from './pages/public/ListaConvidadosPublic'
+import CadastrarCasalPublico from './pages/public/CadastrarCasalPublico'
 import AnalyticsPage from './pages/analytics/AnalyticsPage'
 import LegacySaudeView from './pages/analytics/views/SaudeView'
 import LegacyResumoView from './pages/analytics/views/ResumoView'
@@ -247,6 +248,7 @@ function App() {
                 <Route path="/p/:token" element={<ProposalView />} />
                 <Route path="/v/:token" element={<TripPortalPublic />} />
                 <Route path="/lista-convidados/:codigo" element={<ListaConvidadosPublic />} />
+                <Route path="/cadastrar-casal" element={<CadastrarCasalPublico />} />
                 <Route path="/p/:token/review" element={<ProposalReview />} />
                 <Route path="/p/:token/confirmed" element={<ProposalConfirmed />} />
 

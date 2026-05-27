@@ -221,6 +221,39 @@ async function handle(req: Request): Promise<Response> {
         return jsonResponse(data);
       }
 
+      case "criar_casal_publico": {
+        // Cadastro público sem login — hardcoded para a org Welcome Weddings.
+        const WELCOME_WEDDINGS_ORG = "b0000000-0000-0000-0000-000000000002";
+        const { nome_casal, whatsapp_digits } = payload as {
+          nome_casal?: string;
+          whatsapp_digits?: string;
+        };
+        if (!nome_casal || !nome_casal.trim()) {
+          return jsonResponse({ error: "nome_casal obrigatório" }, 400);
+        }
+        if (!whatsapp_digits || !/^\d{10,15}$/.test(whatsapp_digits)) {
+          return jsonResponse({ error: "whatsapp inválido" }, 400);
+        }
+        const { data, error } = await admin
+          .from("wedding_casais")
+          .insert({
+            codigo,
+            nome_casal: nome_casal.trim(),
+            whatsapp_digits,
+            org_id: WELCOME_WEDDINGS_ORG,
+          })
+          .select("id, codigo")
+          .single();
+        if (error) {
+          const msg = error.message || "";
+          if (/duplicate|unique/i.test(msg)) {
+            return jsonResponse({ error: "codigo_duplicado" }, 409);
+          }
+          throw error;
+        }
+        return jsonResponse({ casal_id: data.id, codigo: data.codigo });
+      }
+
       default:
         return jsonResponse({ error: "unknown_action", action }, 400);
     }
