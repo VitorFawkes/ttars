@@ -30,6 +30,7 @@ import CatalogoPage from './pages/CatalogoPage'
 import AnalyticsWeddingsPage from './pages/AnalyticsWeddings/AnalyticsWeddingsPage'
 import ProposalView from './pages/public/ProposalView'
 import TripPortalPublic from './pages/public/TripPortalPublic'
+import ListaConvidadosPublic from './pages/public/ListaConvidadosPublic'
 import AnalyticsPage from './pages/analytics/AnalyticsPage'
 import LegacySaudeView from './pages/analytics/views/SaudeView'
 import LegacyResumoView from './pages/analytics/views/ResumoView'
@@ -244,6 +245,7 @@ function App() {
                 <Route path="/invite/:token" element={<InvitePage />} />
                 <Route path="/p/:token" element={<ProposalView />} />
                 <Route path="/v/:token" element={<TripPortalPublic />} />
+                <Route path="/lista-convidados/:codigo" element={<ListaConvidadosPublic />} />
                 <Route path="/p/:token/review" element={<ProposalReview />} />
                 <Route path="/p/:token/confirmed" element={<ProposalConfirmed />} />
 
