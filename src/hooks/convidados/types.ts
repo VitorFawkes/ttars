@@ -104,3 +104,43 @@ export interface WeddingWithGuests extends Wedding {
   guests: Guest[]
   counts: RsvpCounts
 }
+
+// ── Extras (venda adicional a convidados confirmados) ──────────────────────
+
+/** Estágio comercial do extra para um convidado. Eixo independente do RSVP. */
+export type ExtraStatus = 'oferecido' | 'interessado' | 'confirmado' | 'pago'
+
+export const EXTRA_STATUS_LABEL: Record<ExtraStatus, string> = {
+  oferecido: 'Oferecido',
+  interessado: 'Interessado',
+  confirmado: 'Confirmado',
+  pago: 'Pago',
+}
+
+/** Ordem das colunas do kanban: do início ao fim do funil. */
+export const EXTRA_STATUS_ORDER: ExtraStatus[] = ['oferecido', 'interessado', 'confirmado', 'pago']
+
+/** Um extra de texto livre oferecido (passeio, restaurante, experiência). */
+export interface ExtraItem {
+  id: string
+  descricao: string
+  /** Valor em reais. Opcional — nem todo extra tem preço fechado. */
+  valor?: number | null
+}
+
+/** Linha da view v_wedding_guest_extras: convidado confirmado + estado de extras. */
+export interface GuestExtra {
+  guest_id: string
+  card_id: string
+  org_id: string
+  nome: string
+  sobrenome: string | null
+  telefone: string | null
+  email: string | null
+  casamento_nome: string | null
+  extras_status: ExtraStatus
+  itens: ExtraItem[]
+  observacoes: string | null
+  /** id da linha em wedding_guest_extras; null quando ainda em 'oferecido' sem ação. */
+  extras_id: string | null
+}

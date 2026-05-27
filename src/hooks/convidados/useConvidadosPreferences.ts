@@ -8,6 +8,7 @@ export type ConvidadosModo =
   | 'envios_hoje'
   | 'envio_especifico'
   | 'casais'
+  | 'extras'
 
 export interface ConvidadosPreferences {
   modo: ConvidadosModo
@@ -55,6 +56,7 @@ function readPrefs(key: string | null): ConvidadosPreferences {
         : parsed.modo === 'envios_hoje' ? 'envios_hoje'
         : parsed.modo === 'envio_especifico' ? 'envio_especifico'
         : parsed.modo === 'casais' ? 'casais'
+        : parsed.modo === 'extras' ? 'extras'
         : 'casamentos',
       search: typeof parsed.search === 'string' ? parsed.search : '',
       casamentosSearch: typeof parsed.casamentosSearch === 'string' ? parsed.casamentosSearch : '',
