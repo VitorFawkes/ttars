@@ -1016,3 +1016,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-27T16:17:07Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
 2026-05-27T16:19:45Z | supabase/migrations/20260527j_analytics_planner_forecast_by_dono.sql | applied_to_prod
 2026-05-27T16:20:51Z | supabase/migrations/20260527k_planner_forecast_fix_ambiguous.sql | applied_to_prod
+2026-05-27T16:22:12Z | supabase/migrations/20260527l_analytics_planner_stage_x_owner.sql | applied_to_prod
+2026-05-27T16:23:18Z | supabase/migrations/20260527m_planner_stage_x_owner_round_cast.sql | applied_to_prod

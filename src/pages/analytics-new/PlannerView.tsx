@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Briefcase, Trophy, ListX, Clock, Loader2, Layers } from 'lucide-react'
 import PlannerProfileDrawer from '@/components/analytics/PlannerProfileDrawer'
+import PlannerForecastChart from '@/components/analytics/PlannerForecastChart'
+import PlannerStageTimeHeatmap from '@/components/analytics/PlannerStageTimeHeatmap'
 import KpiCard from '@/components/analytics/KpiCard'
 import { useFunnelConversion, useLossReasons } from '@/hooks/analytics/useFunnelConversion'
 import { useFunnelVelocity } from '@/hooks/analytics/useFunnelVelocity'
@@ -420,6 +422,12 @@ export default function PlannerView() {
           </div>
         )}
       </WidgetCard>
+
+      {/* Previsão de fechamento (interativo) — Sprint 5 */}
+      <PlannerForecastChart />
+
+      {/* Tempo em cada etapa por Planner (heatmap interativo) — Sprint 5 */}
+      <PlannerStageTimeHeatmap />
 
       {/* Tempo nas etapas */}
       <WidgetCard

@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-27
 > **Trigger:** ALWAYS ON
-> **Stats:** 217 tabelas | 214 paginas | 349 hooks | 25 views | 818 components
+> **Stats:** 218 tabelas | 220 paginas | 365 hooks | 25 views | 842 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **349 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **365 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -196,7 +196,11 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useBriefingImages()` | `useBriefingImages.ts` |
 | `useBriefingImages 2()` | `useBriefingImages 2.ts` |
 | `useBriefingImages 3()` | `useBriefingImages 3.ts` |
+| `useBriefingImages 4()` | `useBriefingImages 4.ts` |
+| `useBriefingImages 5()` | `useBriefingImages 5.ts` |
+| `useBriefingImages 6()` | `useBriefingImages 6.ts` |
 | `useCasais()` | `useCasais.ts` |
+| `useCasais 2()` | `useCasais 2.ts` |
 | `useChatIA()` | `useChatIA.ts` |
 | `useContactSearch()` | `useContactSearch.ts` |
 | `useDuffelFlightSearch()` | `useDuffelFlightSearch.ts` |
@@ -323,10 +327,13 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAutoSave()` | `useAutoSave.ts` |
 | `useAutomations()` | `useAutomations.ts` |
 | `useAvipConnection()` | `useAvipConnection.ts` |
+| `useAvipConnection 2()` | `useAvipConnection 2.ts` |
 | `useBulkGiftStatus()` | `useBulkGiftStatus.ts` |
 | `useBulkLeadActions()` | `useBulkLeadActions.ts` |
 | `useCancelamento()` | `useCancelamento.ts` |
+| `useCasalEnvios()` | `useCasalEnvios.ts` |
 | `useCasalMutations()` | `useCasalMutations.ts` |
+| `useCasalMutations 2()` | `useCasalMutations 2.ts` |
 | `useCatalog()` | `useCatalog.ts` |
 | `useChecklist()` | `useChecklist.ts` |
 | `useChecklistTarefa()` | `useChecklistTarefa.ts` |
@@ -369,6 +376,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useLeadsColumns()` | `useLeadsColumns.ts` |
 | `useLeadsQuery()` | `useLeadsQuery.ts` |
 | `useListaCasalPublica()` | `useListaCasalPublica.ts` |
+| `useListaCasalPublica 2()` | `useListaCasalPublica 2.ts` |
 | `useMensagemTemplates()` | `useMensagemTemplates.ts` |
 | `useMeusLeadsSdr()` | `useMeusLeadsSdr.ts` |
 | `useModelosConcierge()` | `useModelosConcierge.ts` |
@@ -395,6 +403,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `usePhaseSort()` | `usePhaseSort.ts` |
 | `usePhaseVisibilityRules()` | `usePhaseVisibilityRules.ts` |
 | `usePlannerActivities()` | `usePlannerActivities.ts` |
+| `usePlannerForecastByDono()` | `usePlannerForecastByDono.ts` |
 | `usePlatformAdmin()` | `usePlatformAdmin.ts` |
 | `usePlatformData()` | `usePlatformData.ts` |
 | `usePosRpcs()` | `usePosRpcs.ts` |
@@ -458,6 +467,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAssistedCardIds()` | `useAssistedCardIds.ts` |
 | `useAtendimentosCard()` | `useAtendimentosCard.ts` |
 | `useAvipCardLink()` | `useAvipCardLink.ts` |
+| `useAvipCardLink 2()` | `useAvipCardLink 2.ts` |
 | `useCalendarFilters()` | `useCalendarFilters.ts` |
 | `useCardAlertRules()` | `useCardAlertRules.ts` |
 | `useCardAlerts()` | `useCardAlerts.ts` |
@@ -467,6 +477,9 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useCardCreation()` | `useCardCreation.ts` |
 | `useCardCreation 2()` | `useCardCreation 2.ts` |
 | `useCardCreation 3()` | `useCardCreation 3.ts` |
+| `useCardCreation 4()` | `useCardCreation 4.ts` |
+| `useCardCreation 5()` | `useCardCreation 5.ts` |
+| `useCardCreation 7()` | `useCardCreation 7.ts` |
 | `useCardCreationRules()` | `useCardCreationRules.ts` |
 | `useCardFinancialSummary()` | `useCardFinancialSummary.ts` |
 | `useCardGifts()` | `useCardGifts.ts` |
@@ -479,6 +492,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useCardTeam()` | `useCardTeam.ts` |
 | `useCardTeamCounts()` | `useCardTeamCounts.ts` |
 | `useCardsDisponiveis()` | `useCardsDisponiveis.ts` |
+| `useCardsDisponiveis 2()` | `useCardsDisponiveis 2.ts` |
 | `useCardsTravados()` | `useCardsTravados.ts` |
 | `useContactAvailableCards()` | `useContactAvailableCards.ts` |
 | `useDeleteCard()` | `useDeleteCard.ts` |
@@ -492,6 +506,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useKanbanViagens()` | `useKanbanViagens.ts` |
 | `useKanbanViagens 2()` | `useKanbanViagens 2.ts` |
 | `useLeadsFilters()` | `useLeadsFilters.ts` |
+| `useLeadsterCreateCards()` | `useLeadsterCreateCards.ts` |
 | `useMyAssistCardIds()` | `useMyAssistCardIds.ts` |
 | `usePipelineCards()` | `usePipelineCards.ts` |
 | `usePipelineCurrent()` | `usePipelineCurrent.ts` |
@@ -501,6 +516,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `usePipelinePhases()` | `usePipelinePhases.ts` |
 | `usePipelineStages()` | `usePipelineStages.ts` |
 | `usePipelines()` | `usePipelines.ts` |
+| `usePlannerStageXOwner()` | `usePlannerStageXOwner.ts` |
 | `usePromoteSubCard()` | `usePromoteSubCard.ts` |
 | `useRecordCardOpen()` | `useRecordCardOpen.ts` |
 | `useSeenCards()` | `useSeenCards.ts` |
@@ -597,7 +613,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **214 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **220 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -715,6 +731,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `AutomacaoBuilderPage` | `src/pages/admin/cadence/AutomacaoBuilderPage.tsx` |
 | `CadenceBuilderPage` | `src/pages/admin/cadence/CadenceBuilderPage.tsx` |
 | `CadenceMonitorPage` | `src/pages/admin/cadence/CadenceMonitorPage.tsx` |
+| `AssessoriaVipPage 2` | `src/pages/admin/integracoes/AssessoriaVipPage 2.tsx` |
 | `AssessoriaVipPage` | `src/pages/admin/integracoes/AssessoriaVipPage.tsx` |
 | `Step1_BusinessIdentity` | `src/pages/admin/wizard/Step1_BusinessIdentity.tsx` |
 | `Step2_TemplateSelection` | `src/pages/admin/wizard/Step2_TemplateSelection.tsx` |
@@ -797,6 +814,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `MobileCardCreate` | `src/pages/mobile/MobileCardCreate.tsx` |
 | `MobileContactPicker` | `src/pages/mobile/MobileContactPicker.tsx` |
 | `MobileOrigemDetalhePanel 2` | `src/pages/mobile/MobileOrigemDetalhePanel 2.tsx` |
+| `MobileOrigemDetalhePanel 3` | `src/pages/mobile/MobileOrigemDetalhePanel 3.tsx` |
+| `MobileOrigemDetalhePanel 4` | `src/pages/mobile/MobileOrigemDetalhePanel 4.tsx` |
 | `MobileOrigemDetalhePanel` | `src/pages/mobile/MobileOrigemDetalhePanel.tsx` |
 | `AuditPage` | `src/pages/platform/AuditPage.tsx` |
 | `DashboardPage` | `src/pages/platform/DashboardPage.tsx` |
@@ -807,7 +826,9 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `PlatformLayout` | `src/pages/platform/PlatformLayout.tsx` |
 | `SettingsPage` | `src/pages/platform/SettingsPage.tsx` |
 | `UsersPage` | `src/pages/platform/UsersPage.tsx` |
+| `ListaConvidadosPublic 2` | `src/pages/public/ListaConvidadosPublic 2.tsx` |
 | `ListaConvidadosPublic` | `src/pages/public/ListaConvidadosPublic.tsx` |
+| `ListaConvidadosSplash 2` | `src/pages/public/ListaConvidadosSplash 2.tsx` |
 | `ListaConvidadosSplash` | `src/pages/public/ListaConvidadosSplash.tsx` |
 | `ProposalConfirmed` | `src/pages/public/ProposalConfirmed.tsx` |
 | `ProposalReview` | `src/pages/public/ProposalReview.tsx` |
@@ -815,6 +836,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `TripPlanView` | `src/pages/public/TripPlanView.tsx` |
 | `TripPortalPublic` | `src/pages/public/TripPortalPublic.tsx` |
 | `PontuacoesPage` | `src/pages/sdr/PontuacoesPage.tsx` |
+| `LeadsterSettingsPage` | `src/pages/settings/LeadsterSettingsPage.tsx` |
 
 ## 4. UI Component Library
 
