@@ -1,12 +1,14 @@
 import { useState, useMemo } from 'react'
-import { X, Copy, Check, Send, MessageCircle, Mail, Hand, Trash2, User, AlertCircle } from 'lucide-react'
+import { X, Copy, Check, Send, MessageCircle, Mail, Hand, Trash2, User, Search, UserPlus, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import { useCardPeople, type CardPerson } from '@/hooks/useCardPeople'
+import { useContactSearch, type ContactSearchResult } from '@/hooks/useContactSearch'
 import {
   useProposalRecipients,
   useAddProposalRecipient,
+  useCreateContactAndAddRecipient,
   useRemoveProposalRecipient,
   useMarkRecipientSent,
   type ProposalRecipient,
@@ -58,17 +60,34 @@ export function SendProposalDrawer({
   const removeRecipient = useRemoveProposalRecipient()
   const markSent = useMarkRecipientSent()
 
+  const recipientContatoIds = useMemo(
+    () => new Set(recipients.map((r) => r.contato_id)),
+    [recipients],
+  )
+
   // contatos do card que ainda não foram adicionados como recipient
-  const availablePeople = useMemo(() => {
-    const recipientIds = new Set(recipients.map((r) => r.contato_id))
-    return people.filter((p) => !recipientIds.has(p.id))
-  }, [people, recipients])
+  const availablePeople = useMemo(
+    () => people.filter((p) => !recipientContatoIds.has(p.id)),
+    [people, recipientContatoIds],
+  )
 
   if (!isOpen) return null
 
-  const handleAdd = (person: CardPerson) => {
+  const handleAddCardPerson = (person: CardPerson) => {
     const isPrimary = person.role === 'primary' && recipients.length === 0
     addRecipient.mutate({ proposalId, contatoId: person.id, isPrimary })
+  }
+
+  const handleAddExistingContact = (contato: ContactSearchResult) => {
+    if (recipientContatoIds.has(contato.id)) {
+      toast.info(`${contato.nome} já está na lista`)
+      return
+    }
+    addRecipient.mutate({
+      proposalId,
+      contatoId: contato.id,
+      isPrimary: recipients.length === 0,
+    })
   }
 
   return (
@@ -132,19 +151,17 @@ export function SendProposalDrawer({
             </div>
           )}
 
-          {/* Contatos disponíveis pra adicionar */}
+          {/* Sugestões: contatos do card já vinculado (atalho) */}
           {availablePeople.length > 0 && (
             <div className="space-y-2 pt-2">
               <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                {recipients.length === 0
-                  ? 'Contatos do card'
-                  : 'Adicionar outro contato'}
+                {cardId ? 'Pessoas vinculadas a esse card' : 'Sugestões'}
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {availablePeople.map((p) => (
                   <button
                     key={p.id}
-                    onClick={() => handleAdd(p)}
+                    onClick={() => handleAddCardPerson(p)}
                     className="flex items-center gap-3 px-3 py-2.5 border border-slate-200 rounded-xl hover:border-emerald-400 hover:bg-emerald-50/40 transition-all text-left"
                   >
                     <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
@@ -165,15 +182,13 @@ export function SendProposalDrawer({
             </div>
           )}
 
-          {people.length === 0 && (
-            <div className="flex items-start gap-2 px-3 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
-              <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-              <span>
-                Esse card ainda não tem contatos vinculados. Adicione contatos
-                ao card pra poder mandar uma proposta personalizada.
-              </span>
-            </div>
-          )}
+          {/* Busca / criação rápida — funciona com ou sem card */}
+          <ContactPicker
+            proposalId={proposalId}
+            existingContatoIds={recipientContatoIds}
+            isFirstRecipient={recipients.length === 0}
+            onPickedExisting={handleAddExistingContact}
+          />
         </div>
 
         {/* Footer */}
@@ -327,6 +342,213 @@ function RecipientCard({
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// ContactPicker — busca contato existente OU cria novo inline
+// Funciona mesmo quando a proposta não tem card vinculado.
+// ────────────────────────────────────────────────────────────────────────────
+interface ContactPickerProps {
+  proposalId: string
+  existingContatoIds: Set<string>
+  isFirstRecipient: boolean
+  onPickedExisting: (c: ContactSearchResult) => void
+}
+
+function ContactPicker({
+  proposalId,
+  existingContatoIds,
+  isFirstRecipient,
+  onPickedExisting,
+}: ContactPickerProps) {
+  const [term, setTerm] = useState('')
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [draftNome, setDraftNome] = useState('')
+  const [draftSobrenome, setDraftSobrenome] = useState('')
+  const [draftEmail, setDraftEmail] = useState('')
+  const [draftTelefone, setDraftTelefone] = useState('')
+
+  const createContact = useCreateContactAndAddRecipient()
+
+  const { data: results = [], isFetching } = useContactSearch(term, {
+    limit: 6,
+  })
+
+  const trimmed = term.trim()
+  const hasMinChars = trimmed.length >= 2
+  const filteredResults = results.filter((r) => !existingContatoIds.has(r.id))
+
+  const openCreateForm = () => {
+    // Splitar nome / sobrenome a partir do que o consultor digitou
+    const parts = trimmed.split(/\s+/)
+    setDraftNome(parts[0] ?? '')
+    setDraftSobrenome(parts.slice(1).join(' '))
+    setDraftEmail('')
+    setDraftTelefone('')
+    setShowCreateForm(true)
+  }
+
+  const handleCreate = () => {
+    if (!draftNome.trim()) {
+      toast.error('Nome é obrigatório')
+      return
+    }
+    createContact.mutate(
+      {
+        proposalId,
+        isPrimary: isFirstRecipient,
+        draft: {
+          nome: draftNome,
+          sobrenome: draftSobrenome,
+          email: draftEmail,
+          telefone: draftTelefone,
+        },
+      },
+      {
+        onSuccess: () => {
+          setShowCreateForm(false)
+          setTerm('')
+          toast.success(`${draftNome} adicionado como destinatário!`)
+        },
+      },
+    )
+  }
+
+  if (showCreateForm) {
+    return (
+      <div className="space-y-3 pt-2 border-t border-slate-100">
+        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
+          <UserPlus className="h-3.5 w-3.5" />
+          Novo contato
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <input
+            value={draftNome}
+            onChange={(e) => setDraftNome(e.target.value)}
+            placeholder="Nome*"
+            className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-emerald-400"
+            autoFocus
+          />
+          <input
+            value={draftSobrenome}
+            onChange={(e) => setDraftSobrenome(e.target.value)}
+            placeholder="Sobrenome"
+            className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-emerald-400"
+          />
+          <input
+            value={draftEmail}
+            onChange={(e) => setDraftEmail(e.target.value)}
+            placeholder="E-mail (opcional)"
+            type="email"
+            className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-emerald-400"
+          />
+          <input
+            value={draftTelefone}
+            onChange={(e) => setDraftTelefone(e.target.value)}
+            placeholder="Telefone (opcional)"
+            type="tel"
+            className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-emerald-400"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={handleCreate}
+            disabled={createContact.isPending || !draftNome.trim()}
+            className="gap-1.5 text-xs h-8"
+          >
+            {createContact.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Check className="h-3.5 w-3.5" />
+            )}
+            Criar e adicionar
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setShowCreateForm(false)}
+            className="text-xs h-8"
+          >
+            Cancelar
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-2 pt-2 border-t border-slate-100">
+      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+        Buscar ou criar destinatário
+      </h3>
+      <div className="relative">
+        <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        <input
+          value={term}
+          onChange={(e) => setTerm(e.target.value)}
+          placeholder="Digite o nome, e-mail ou telefone..."
+          className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-emerald-400"
+        />
+        {isFetching && hasMinChars && (
+          <Loader2 className="h-4 w-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 animate-spin" />
+        )}
+      </div>
+
+      {hasMinChars && filteredResults.length > 0 && (
+        <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 overflow-hidden">
+          {filteredResults.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => {
+                onPickedExisting(c)
+                setTerm('')
+              }}
+              className="w-full px-3 py-2 hover:bg-slate-50 flex items-center gap-3 text-left transition-colors"
+            >
+              <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+                <User className="h-4 w-4 text-slate-500" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-slate-900 truncate">
+                  {c.nome} {c.sobrenome ?? ''}
+                </p>
+                <p className="text-xs text-slate-500 truncate">
+                  {c.email ?? c.telefone ?? '—'}
+                </p>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {hasMinChars && filteredResults.length === 0 && !isFetching && (
+        <button
+          onClick={openCreateForm}
+          className="w-full px-3 py-2.5 border border-dashed border-emerald-300 rounded-lg text-sm text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 transition-colors"
+        >
+          <UserPlus className="h-4 w-4" />
+          Criar novo contato: <strong>"{trimmed}"</strong>
+        </button>
+      )}
+
+      {hasMinChars && filteredResults.length > 0 && (
+        <button
+          onClick={openCreateForm}
+          className="text-xs text-slate-500 hover:text-emerald-700 flex items-center gap-1.5 px-1"
+        >
+          <UserPlus className="h-3 w-3" />
+          Não é nenhum desses? Criar novo
+        </button>
+      )}
+
+      {!hasMinChars && (
+        <p className="text-xs text-slate-400 px-1">
+          Digite pelo menos 2 letras pra buscar contatos do CRM, ou crie um novo.
+        </p>
+      )}
     </div>
   )
 }

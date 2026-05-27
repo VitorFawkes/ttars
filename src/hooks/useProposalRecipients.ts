@@ -90,6 +90,78 @@ export function useProposalRecipients(proposalId: string | undefined) {
   })
 }
 
+export interface NewContactDraft {
+  nome: string
+  sobrenome?: string | null
+  email?: string | null
+  telefone?: string | null
+}
+
+/**
+ * Cria um contato novo na org e já adiciona como recipient da proposta.
+ * Usado quando o consultor digita um destinatário que ainda não existe no CRM.
+ */
+export function useCreateContactAndAddRecipient() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      proposalId,
+      draft,
+      isPrimary = false,
+    }: {
+      proposalId: string
+      draft: NewContactDraft
+      isPrimary?: boolean
+    }) => {
+      const trimmedNome = draft.nome.trim()
+      if (!trimmedNome) throw new Error('Nome é obrigatório')
+
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Usuário não autenticado')
+
+      // 1) Cria contato (org_id vem do DEFAULT requesting_org_id())
+      const { data: contato, error: contatoError } = await supabase
+        .from('contatos')
+        .insert({
+          nome: trimmedNome,
+          sobrenome: draft.sobrenome?.trim() || null,
+          email: draft.email?.trim() || null,
+          telefone: draft.telefone?.trim() || null,
+          created_by: user.id,
+        })
+        .select('id, nome, sobrenome, email, telefone')
+        .single()
+
+      if (contatoError) throw contatoError
+
+      // 2) Vincula como recipient (trigger gera token, força org_id consistente)
+      const { data: recipient, error: recipientError } = await (supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .from('proposal_recipients') as any)
+        .insert({
+          proposal_id: proposalId,
+          contato_id: contato.id,
+          is_primary: isPrimary,
+          created_by: user.id,
+        })
+        .select()
+        .single()
+
+      if (recipientError) throw recipientError
+      return recipient as ProposalRecipient
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: proposalRecipientKeys.byProposal(variables.proposalId),
+      })
+    },
+    onError: (err: Error) => {
+      toast.error(`Erro ao criar contato: ${err.message}`)
+    },
+  })
+}
+
 export function useAddProposalRecipient() {
   const queryClient = useQueryClient()
 
