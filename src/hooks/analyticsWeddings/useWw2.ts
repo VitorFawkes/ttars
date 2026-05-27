@@ -713,6 +713,45 @@ export function useWwDriftVenda(filters: Ww2Filters) {
   })
 }
 
+// ── Visão C: Perfil entrada vs fechamento (Onda 4) ────────────────────────
+export type WwPerfilCompareCobertura = {
+  total: number
+  com_faixa?: number
+  com_destino?: number
+  com_convidados?: number
+  com_origem?: number
+  com_tipo?: number
+  com_medium?: number
+  com_campaign?: number
+}
+
+export type WwPerfilCompareData = {
+  date_start: string
+  date_end: string
+  org_id: string
+  pipeline_id: string
+  min_amostra: number
+  entrada: WwPerfilCompareCobertura
+  fechamento: WwPerfilCompareCobertura
+  comparacoes: WwPerfilCompareDimensao[]
+  error?: string
+}
+
+export function useWwPerfilCompare(filters: Ww2Filters, minAmostra: number = 2) {
+  const orgId = useOrgId()
+  return useQuery({
+    queryKey: ['ww', 'perfil-compare', orgId, filters.dateStart, filters.dateEnd, minAmostra],
+    queryFn: () => callRpc<WwPerfilCompareData>('ww_perfil_compare', {
+      p_date_start: filters.dateStart,
+      p_date_end: filters.dateEnd,
+      p_org_id: orgId,
+      p_min_amostra: minAmostra,
+    }),
+    enabled: !!orgId,
+    staleTime: 60_000,
+  })
+}
+
 export function useWw2FilterOptions() {
   const orgId = useOrgId()
   return useQuery({

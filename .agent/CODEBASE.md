@@ -7,10 +7,10 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-27
 > **Trigger:** ALWAYS ON
-> **Stats:** 219 tabelas | 223 paginas | 375 hooks | 26 views | 851 components
+> **Stats:** 219 tabelas | 224 paginas | 375 hooks | 26 views | 851 components
 > **Last Updated:** 2026-05-27
 > **Trigger:** ALWAYS ON
-> **Stats:** 219 tabelas | 223 paginas | 375 hooks | 26 views | 851 components
+> **Stats:** 219 tabelas | 224 paginas | 375 hooks | 26 views | 851 components
 
 ---
 
@@ -626,7 +626,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **223 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **224 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -649,6 +649,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `Jornada` | `src/pages/AnalyticsWeddings/tabs/Jornada.tsx` |
 | `Marketing` | `src/pages/AnalyticsWeddings/tabs/Marketing.tsx` |
 | `Perdas` | `src/pages/AnalyticsWeddings/tabs/Perdas.tsx` |
+| `Perfil` | `src/pages/AnalyticsWeddings/tabs/Perfil.tsx` |
 | `Qualidade` | `src/pages/AnalyticsWeddings/tabs/Qualidade.tsx` |
 | `VisaoGeral` | `src/pages/AnalyticsWeddings/tabs/VisaoGeral.tsx` |
 | `CalendarPage` | `src/pages/CalendarPage.tsx` |
