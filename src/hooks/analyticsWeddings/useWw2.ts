@@ -524,14 +524,17 @@ export type WwQualidadeLead = {
 
 export function useWwQualidadeLead(filters: Ww2Filters) {
   const orgId = useOrgId()
+  // Qualidade do Lead SEMPRE em modo cohort: a taxa de conversão por faixa só
+  // faz sentido sobre "leads que entraram no período". Em throughput o universo
+  // colapsaria pra só fechados (100% em tudo, inútil).
   return useQuery({
-    queryKey: ['ww', 'qualidade-lead', orgId, filters.dateStart, filters.dateEnd, filters.dateMode, filters.origins],
+    queryKey: ['ww', 'qualidade-lead', orgId, filters.dateStart, filters.dateEnd, filters.origins],
     queryFn: () => callRpc<WwQualidadeLead>('ww_qualidade_lead', {
       p_date_start: filters.dateStart,
       p_date_end: filters.dateEnd,
       p_org_id: orgId,
       p_origins: filters.origins?.length ? filters.origins : null,
-      p_date_mode: filters.dateMode,
+      p_date_mode: 'cohort',
     }),
     enabled: !!orgId,
     staleTime: 60_000,

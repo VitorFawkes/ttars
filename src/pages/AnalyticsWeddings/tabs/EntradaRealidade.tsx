@@ -1,7 +1,7 @@
 import { useFilterParams } from '../components/FilterBar'
 import { useWwDriftVenda, type WwDriftVenda } from '@/hooks/analyticsWeddings/useWw2'
 import { SectionCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
-import { formatCurrency, formatNumber } from '../lib/format'
+import { formatNumber } from '../lib/format'
 
 const FAIXA_ORDER = ['Até R$50 mil', 'R$50-80 mil', 'R$50-100 mil', 'R$80-100 mil', 'R$100-200 mil', 'R$200-500 mil', '+R$500 mil']
 const CONV_ORDER = ['Apenas o casal', 'Até 20', '20-50', '50-80', '80-100', '+100']
@@ -65,7 +65,7 @@ function UniversoHeader({ data }: { data: WwDriftVenda }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function InvestimentoDrift({ data }: { data: WwDriftVenda }) {
   const inv = data.investimento
-  const { cobertura, drift, matriz, ticket_por_entrada } = inv
+  const { cobertura, drift, matriz } = inv
   const universo = cobertura.com_ambos
 
   if (data.total_leads === 0) {
@@ -103,55 +103,26 @@ function InvestimentoDrift({ data }: { data: WwDriftVenda }) {
       ) : (
         <>
           {/* Resumo do drift */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-5">
-            <DriftCard label="Manteve a faixa" value={drift.manteve} total={universo} color="emerald" hint="Vendeu na faixa que disse" />
-            <DriftCard label="Vendeu MAIS" value={drift.subiu} total={universo} color="indigo" hint="Subiu de faixa entre entrada e venda" />
-            <DriftCard label="Vendeu MENOS" value={drift.desceu} total={universo} color="amber" hint="Desceu de faixa entre entrada e venda" />
-            <div className="bg-white border border-slate-200 rounded-xl p-3">
-              <div className="text-xs uppercase tracking-wide text-slate-500 font-medium">Ticket médio geral</div>
-              <div className="mt-1 text-2xl font-semibold text-slate-900 tabular-nums">{formatCurrency(drift.ticket_medio_geral)}</div>
-              <div className="text-xs text-slate-500 mt-0.5">média do pacote contratado</div>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
+            <DriftCard label="Manteve a faixa" value={drift.manteve} total={universo} color="emerald" hint="Vendeu na mesma faixa de R$ que o casal disse" />
+            <DriftCard label="Vendeu acima" value={drift.subiu} total={universo} color="indigo" hint="Faixa real do pacote ficou acima do declarado" />
+            <DriftCard label="Vendeu abaixo" value={drift.desceu} total={universo} color="amber" hint="Faixa real do pacote ficou abaixo do declarado" />
           </div>
-
-          {/* Ticket médio por faixa de entrada */}
-          {ticket_por_entrada.length > 0 && (
-            <div className="mb-5">
-              <h4 className="text-xs font-semibold text-slate-700 mb-2 uppercase tracking-wide">Ticket vendido por faixa que o casal disse</h4>
-              <div className="border border-slate-200 rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="px-3 py-2 text-left font-medium">Faixa na entrada</th>
-                      <th className="px-3 py-2 text-right font-medium">Amostra</th>
-                      <th className="px-3 py-2 text-right font-medium">Mediana</th>
-                      <th className="px-3 py-2 text-right font-medium">Médio</th>
-                      <th className="px-3 py-2 text-right font-medium">P25 – P75</th>
-                      <th className="px-3 py-2 text-right font-medium">Mín – Máx</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ticket_por_entrada.map(t => (
-                      <tr key={t.faixa_e} className="border-t border-slate-100">
-                        <td className="px-3 py-2 text-slate-900">{t.faixa_e}</td>
-                        <td className="px-3 py-2 text-right text-slate-600">{t.amostra}</td>
-                        <td className="px-3 py-2 text-right text-slate-900 font-medium tabular-nums">{formatCurrency(t.mediana)}</td>
-                        <td className="px-3 py-2 text-right text-slate-700 tabular-nums">{formatCurrency(t.ticket_medio)}</td>
-                        <td className="px-3 py-2 text-right text-slate-500 text-xs tabular-nums">{formatCurrency(t.p25)} – {formatCurrency(t.p75)}</td>
-                        <td className="px-3 py-2 text-right text-slate-400 text-xs tabular-nums">{formatCurrency(t.minv)} – {formatCurrency(t.maxv)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
 
           {/* Matriz de transição */}
           {faixasEntrada.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold text-slate-700 mb-2 uppercase tracking-wide">Matriz: o que disse × faixa real do pacote vendido</h4>
-              <p className="text-xs text-slate-500 mb-2">Linha = entrada. Coluna = faixa em que o pacote efetivamente caiu (R$ pacote ÷ faixas canônicas). Verde = manteve. Azul = vendeu mais. Âmbar = vendeu menos.</p>
+              <h4 className="text-xs font-semibold text-slate-700 mb-2 uppercase tracking-wide">Matriz: faixa declarada na entrada × faixa real do pacote vendido</h4>
+              <p className="text-xs text-slate-500 mb-2">
+                Linha = faixa que o casal declarou no site. Coluna = faixa em que o pacote efetivamente caiu (a partir do valor R$ contratado).
+                Cada célula mostra <strong>quantidade de vendas</strong> e <strong>% sobre a linha</strong>.
+              </p>
+              <div className="mb-3 flex items-center gap-3 text-[11px] text-slate-500">
+                <span>Legenda:</span>
+                <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900">manteve faixa</span>
+                <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-900">vendeu acima</span>
+                <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-900">vendeu abaixo</span>
+              </div>
               <div className="overflow-x-auto border border-slate-200 rounded-lg">
                 <table className="w-full text-xs">
                   <thead className="bg-slate-50">
@@ -160,6 +131,7 @@ function InvestimentoDrift({ data }: { data: WwDriftVenda }) {
                       {faixasVendida.map(fv => (
                         <th key={fv} className="px-3 py-2 text-center font-medium text-slate-700">{fv}</th>
                       ))}
+                      <th className="px-3 py-2 text-center font-medium text-slate-500 border-l border-slate-200">Total linha</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -167,12 +139,13 @@ function InvestimentoDrift({ data }: { data: WwDriftVenda }) {
                       const rowTotal = faixasVendida.reduce((s, fv) => s + (matrizMap.get(`${fe}|${fv}`)?.qtd ?? 0), 0)
                       return (
                         <tr key={fe} className="border-t border-slate-100">
-                          <td className="px-3 py-2 text-slate-900 whitespace-nowrap">{fe}</td>
+                          <td className="px-3 py-2 text-slate-900 font-medium whitespace-nowrap">{fe}</td>
                           {faixasVendida.map(fv => {
                             const cell = matrizMap.get(`${fe}|${fv}`)
                             const qtd = cell?.qtd ?? 0
                             const eIdx = FAIXA_ORDER.indexOf(fe)
                             const vIdx = FAIXA_ORDER.indexOf(fv)
+                            const pctLinha = rowTotal > 0 ? Math.round(100 * qtd / rowTotal) : 0
                             let bg = 'bg-slate-50'
                             if (qtd > 0) {
                               if (vIdx === eIdx) bg = 'bg-emerald-100 text-emerald-900'
@@ -180,17 +153,18 @@ function InvestimentoDrift({ data }: { data: WwDriftVenda }) {
                               else bg = 'bg-amber-50 text-amber-900'
                             }
                             return (
-                              <td key={fv} className={`px-3 py-2 text-center ${bg} ${qtd === 0 ? 'text-slate-300' : ''}`}>
+                              <td key={fv} className={`px-3 py-2 text-center ${bg} ${qtd === 0 ? 'text-slate-300' : ''}`}
+                                  title={qtd > 0 ? `${qtd} venda(s) — ${pctLinha}% da linha` : 'Nenhuma venda nessa combinação'}>
                                 {qtd > 0 ? (
                                   <div>
-                                    <div className="font-semibold">{qtd}</div>
-                                    {cell?.ticket_medio && <div className="text-[10px] opacity-75">{formatCurrency(cell.ticket_medio)}</div>}
+                                    <div className="font-semibold text-sm">{qtd}</div>
+                                    <div className="text-[10px] opacity-75">{pctLinha}%</div>
                                   </div>
                                 ) : '0'}
                               </td>
                             )
                           })}
-                          <td className="px-3 py-2 text-center text-slate-500 font-medium border-l border-slate-100">{rowTotal}</td>
+                          <td className="px-3 py-2 text-center text-slate-700 font-semibold border-l border-slate-200">{rowTotal}</td>
                         </tr>
                       )
                     })}
@@ -262,27 +236,44 @@ function DestinoDrift({ data }: { data: WwDriftVenda }) {
 
           {destinosE.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold text-slate-700 mb-2 uppercase tracking-wide">Matriz completa</h4>
+              <h4 className="text-xs font-semibold text-slate-700 mb-2 uppercase tracking-wide">Matriz completa: destino declarado × destino vendido</h4>
+              <p className="text-xs text-slate-500 mb-2">Cada célula mostra <strong>quantidade de vendas</strong> e <strong>% sobre a linha</strong>. Verde = manteve, âmbar = migrou.</p>
               <div className="overflow-x-auto border border-slate-200 rounded-lg">
                 <table className="w-full text-xs">
                   <thead className="bg-slate-50">
                     <tr>
                       <th className="px-3 py-2 text-left font-medium text-slate-500">Entrada ↓ / Vendeu →</th>
                       {destinosV.map(d => <th key={d} className="px-3 py-2 text-center font-medium text-slate-700">{d}</th>)}
+                      <th className="px-3 py-2 text-center font-medium text-slate-500 border-l border-slate-200">Total linha</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {destinosE.map(de => (
-                      <tr key={de} className="border-t border-slate-100">
-                        <td className="px-3 py-2 text-slate-900 whitespace-nowrap">{de}</td>
-                        {destinosV.map(dv => {
-                          const qtd = matrizMap.get(`${de}|${dv}`) ?? 0
-                          const isDiag = de === dv
-                          const bg = qtd === 0 ? 'bg-slate-50 text-slate-300' : isDiag ? 'bg-emerald-100 text-emerald-900 font-semibold' : 'bg-amber-50 text-amber-900'
-                          return <td key={dv} className={`px-3 py-2 text-center ${bg}`}>{qtd}</td>
-                        })}
-                      </tr>
-                    ))}
+                    {destinosE.map(de => {
+                      const rowTotal = destinosV.reduce((s, dv) => s + (matrizMap.get(`${de}|${dv}`) ?? 0), 0)
+                      return (
+                        <tr key={de} className="border-t border-slate-100">
+                          <td className="px-3 py-2 text-slate-900 font-medium whitespace-nowrap">{de}</td>
+                          {destinosV.map(dv => {
+                            const qtd = matrizMap.get(`${de}|${dv}`) ?? 0
+                            const pctLinha = rowTotal > 0 ? Math.round(100 * qtd / rowTotal) : 0
+                            const isDiag = de === dv
+                            const bg = qtd === 0 ? 'bg-slate-50 text-slate-300' : isDiag ? 'bg-emerald-100 text-emerald-900' : 'bg-amber-50 text-amber-900'
+                            return (
+                              <td key={dv} className={`px-3 py-2 text-center ${bg}`}
+                                  title={qtd > 0 ? `${qtd} venda(s) — ${pctLinha}% da linha` : 'Nenhuma venda'}>
+                                {qtd > 0 ? (
+                                  <div>
+                                    <div className="font-semibold text-sm">{qtd}</div>
+                                    <div className="text-[10px] opacity-75">{pctLinha}%</div>
+                                  </div>
+                                ) : '0'}
+                              </td>
+                            )
+                          })}
+                          <td className="px-3 py-2 text-center text-slate-700 font-semibold border-l border-slate-200">{rowTotal}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -337,33 +328,50 @@ function ConvidadosDrift({ data }: { data: WwDriftVenda }) {
 
           {convE.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold text-slate-700 mb-2 uppercase tracking-wide">Matriz de transição</h4>
+              <h4 className="text-xs font-semibold text-slate-700 mb-2 uppercase tracking-wide">Matriz de transição: convidados declarado × refinado pela closer</h4>
+              <p className="text-xs text-slate-500 mb-2">Cada célula mostra <strong>quantidade de vendas</strong> e <strong>% sobre a linha</strong>. Verde = manteve, azul = aumentou, âmbar = diminuiu.</p>
               <div className="overflow-x-auto border border-slate-200 rounded-lg">
                 <table className="w-full text-xs">
                   <thead className="bg-slate-50">
                     <tr>
                       <th className="px-3 py-2 text-left font-medium text-slate-500">Entrada ↓ / Refinado →</th>
                       {convR.map(c => <th key={c} className="px-3 py-2 text-center font-medium text-slate-700">{c}</th>)}
+                      <th className="px-3 py-2 text-center font-medium text-slate-500 border-l border-slate-200">Total linha</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {convE.map(ce => (
-                      <tr key={ce} className="border-t border-slate-100">
-                        <td className="px-3 py-2 text-slate-900 whitespace-nowrap">{ce}</td>
-                        {convR.map(cr => {
-                          const qtd = matrizMap.get(`${ce}|${cr}`) ?? 0
-                          const eIdx = CONV_ORDER.indexOf(ce)
-                          const rIdx = CONV_ORDER.indexOf(cr)
-                          let bg = qtd === 0 ? 'bg-slate-50 text-slate-300' : ''
-                          if (qtd > 0) {
-                            if (eIdx === rIdx) bg = 'bg-emerald-100 text-emerald-900 font-semibold'
-                            else if (rIdx > eIdx) bg = 'bg-indigo-50 text-indigo-900'
-                            else bg = 'bg-amber-50 text-amber-900'
-                          }
-                          return <td key={cr} className={`px-3 py-2 text-center ${bg}`}>{qtd}</td>
-                        })}
-                      </tr>
-                    ))}
+                    {convE.map(ce => {
+                      const rowTotal = convR.reduce((s, cr) => s + (matrizMap.get(`${ce}|${cr}`) ?? 0), 0)
+                      return (
+                        <tr key={ce} className="border-t border-slate-100">
+                          <td className="px-3 py-2 text-slate-900 font-medium whitespace-nowrap">{ce}</td>
+                          {convR.map(cr => {
+                            const qtd = matrizMap.get(`${ce}|${cr}`) ?? 0
+                            const pctLinha = rowTotal > 0 ? Math.round(100 * qtd / rowTotal) : 0
+                            const eIdx = CONV_ORDER.indexOf(ce)
+                            const rIdx = CONV_ORDER.indexOf(cr)
+                            let bg = qtd === 0 ? 'bg-slate-50 text-slate-300' : ''
+                            if (qtd > 0) {
+                              if (eIdx === rIdx) bg = 'bg-emerald-100 text-emerald-900'
+                              else if (rIdx > eIdx) bg = 'bg-indigo-50 text-indigo-900'
+                              else bg = 'bg-amber-50 text-amber-900'
+                            }
+                            return (
+                              <td key={cr} className={`px-3 py-2 text-center ${bg}`}
+                                  title={qtd > 0 ? `${qtd} venda(s) — ${pctLinha}% da linha` : 'Nenhuma venda'}>
+                                {qtd > 0 ? (
+                                  <div>
+                                    <div className="font-semibold text-sm">{qtd}</div>
+                                    <div className="text-[10px] opacity-75">{pctLinha}%</div>
+                                  </div>
+                                ) : '0'}
+                              </td>
+                            )
+                          })}
+                          <td className="px-3 py-2 text-center text-slate-700 font-semibold border-l border-slate-200">{rowTotal}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
