@@ -141,6 +141,13 @@ test_query "wedding_guests campos novos (convite_id, faixa, lado, tipo)" \
 test_query "v_wedding_guests_resolved (view)" \
   "v_wedding_guests_resolved?select=id,nome_display,telefone_display,convite_nome&limit=1"
 
+# ── Extras de convidados (20260527o) — kanban de venda adicional ──
+test_query "wedding_guest_extras table" \
+  "wedding_guest_extras?select=id,guest_id,card_id,org_id,status,itens&limit=1"
+
+test_query "v_wedding_guest_extras (view do kanban de extras)" \
+  "v_wedding_guest_extras?select=guest_id,card_id,org_id,nome,casamento_nome,extras_status,itens,extras_id&limit=1"
+
 # ── RPCs críticas (chamadas via rpc/) ──
 
 test_rpc() {
@@ -285,6 +292,26 @@ if [ "$STAGING_MODE" = "false" ]; then
     FAILED=$((FAILED + 1))
   elif [ "$DUP_SLUGS" != "0" ]; then
     echo "  WARN: $DUP_SLUGS pipeline_phases com slug duplicado dentro da mesma família de account — rodar limpeza Balde (ii)" >&2
+  fi
+
+  # ── Extras de convidados: org_id/card_id divergente do guest pai (20260527o) ──
+  # Trigger trg_wge_set_org força org_id e card_id = do guest. Esperado: 0.
+  TOTAL=$((TOTAL + 1))
+  WGE_CROSS=$(curl -s \
+    -X POST \
+    "${URL}/rest/v1/rpc/wedding_guest_extras_cross_org_count" \
+    -H "apikey: ${ANON}" \
+    -H "Authorization: Bearer ${KEY}" \
+    -H "Content-Type: application/json" \
+    -d '{}' \
+    --max-time 10)
+
+  if [ -z "$WGE_CROSS" ] || ! echo "$WGE_CROSS" | grep -qE '^[0-9]+$'; then
+    echo "  FAIL: wedding_guest_extras_cross_org_count → resposta inesperada: $WGE_CROSS" >&2
+    FAILED=$((FAILED + 1))
+  elif [ "$WGE_CROSS" != "0" ]; then
+    echo "  FAIL: $WGE_CROSS wedding_guest_extras com org/card divergente do guest pai" >&2
+    FAILED=$((FAILED + 1))
   fi
 
   # ── Tarefas duplicadas de cadência ──
