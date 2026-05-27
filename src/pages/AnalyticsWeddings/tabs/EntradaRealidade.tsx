@@ -1,7 +1,7 @@
 import { useFilterParams } from '../components/FilterBar'
 import { useWwDriftVenda, type WwDriftVenda } from '@/hooks/analyticsWeddings/useWw2'
 import { SectionCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
-import { formatNumber, formatCurrency } from '../lib/format'
+import { formatNumber } from '../lib/format'
 
 const FAIXA_ORDER = ['Até R$50 mil', 'R$50-80 mil', 'R$50-100 mil', 'R$80-100 mil', 'R$100-200 mil', 'R$200-500 mil', '+R$500 mil']
 const CONV_ORDER = ['Apenas o casal', 'Até 20', '20-50', '50-80', '80-100', '+100']
@@ -39,10 +39,7 @@ function BreakdownTipo({ data }: { data: WwDriftVenda }) {
               <div className="text-xs text-slate-500">vendas</div>
             </div>
             <div className="mt-2 text-xs text-slate-600">
-              Médio: <strong className="tabular-nums">{b.valor_medio ? formatCurrency(b.valor_medio) : '—'}</strong>
-            </div>
-            <div className="text-xs text-slate-600">
-              Total: <strong className="tabular-nums">{b.valor_total ? formatCurrency(b.valor_total) : '—'}</strong>
+              Convidados (média): <strong className="tabular-nums">{b.convidados_medio ? formatNumber(b.convidados_medio) : '—'}</strong>
             </div>
           </div>
         ))}
@@ -66,7 +63,7 @@ function VendasFechadasList({ data }: { data: WwDriftVenda }) {
               <th className="px-3 py-2 text-left font-medium">Card</th>
               <th className="px-3 py-2 text-left font-medium">Tipo</th>
               <th className="px-3 py-2 text-left font-medium">Destino vendido</th>
-              <th className="px-3 py-2 text-right font-medium">Valor R$</th>
+              <th className="px-3 py-2 text-right font-medium">Nº Convidados</th>
               <th className="px-3 py-2 text-right font-medium">Monde</th>
             </tr>
           </thead>
@@ -87,7 +84,7 @@ function VendasFechadasList({ data }: { data: WwDriftVenda }) {
                   ) : <span className="text-slate-400">—</span>}
                 </td>
                 <td className="px-3 py-2 text-slate-700">{v.destino_vendido ?? '—'}</td>
-                <td className="px-3 py-2 text-right tabular-nums font-medium text-slate-900">{v.valor_pacote ? formatCurrency(v.valor_pacote) : '—'}</td>
+                <td className="px-3 py-2 text-right tabular-nums font-medium text-slate-900">{v.num_convidados ? `${formatNumber(v.num_convidados)} convidados` : '—'}</td>
                 <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-500">{v.monde_venda ?? '—'}</td>
               </tr>
             ))}
@@ -162,7 +159,7 @@ function InvestimentoDrift({ data }: { data: WwDriftVenda }) {
     >
       <CoberturaBanner
         com_entrada={cobertura.com_entrada}
-        com_realidade={cobertura.com_valor_real}
+        com_realidade={cobertura.com_realidade}
         com_ambos={cobertura.com_ambos}
         total_leads={data.total_leads}
         total_fechados={data.total_fechados}
@@ -380,7 +377,7 @@ function ConvidadosDrift({ data }: { data: WwDriftVenda }) {
     >
       <CoberturaBanner
         com_entrada={cobertura.com_entrada}
-        com_realidade={cobertura.com_refinado}
+        com_realidade={cobertura.com_realidade}
         com_ambos={cobertura.com_ambos}
         total_leads={data.total_leads}
         total_fechados={data.total_fechados}

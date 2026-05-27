@@ -557,12 +557,12 @@ export type WwDriftTicketPorEntrada = {
 }
 export type WwDriftDestinoMatriz = { dest_e: string; dest_v: string; qtd: number }
 export type WwDriftConvidadosMatriz = { conv_e: string; conv_r: string; qtd: number }
-export type WwDriftBreakdownTipo = { tipo: string; fechados: number; valor_medio: number | null; valor_total: number | null }
+export type WwDriftBreakdownTipo = { tipo: string; fechados: number; convidados_medio: number | null }
 export type WwDriftVendaItem = {
   card_id: string
   titulo: string | null
   data_venda: string | null
-  valor_pacote: number | null
+  num_convidados: number | null
   tipo_casamento: string | null
   monde_venda: string | null
   destino_vendido: string | null
@@ -578,10 +578,9 @@ export type WwDriftVenda = {
   breakdown_tipo: WwDriftBreakdownTipo[]
   vendas_lista: WwDriftVendaItem[]
   investimento: {
-    cobertura: { total_leads: number; total_fechados: number; com_entrada: number; com_valor_real: number; com_ambos: number }
-    drift: { manteve: number; subiu: number; desceu: number; ticket_medio_geral: number | null }
-    matriz: WwDriftInvestimentoMatriz[]
-    ticket_por_entrada: WwDriftTicketPorEntrada[]
+    cobertura: { total_leads: number; total_fechados: number; com_entrada: number; com_realidade: number; com_ambos: number }
+    drift: { manteve: number; subiu: number; desceu: number }
+    matriz: { faixa_e: string; faixa_v: string; qtd: number }[]
   }
   destino: {
     cobertura: { total_leads: number; total_fechados: number; com_entrada: number; com_vendido: number; com_ambos: number }
@@ -590,7 +589,7 @@ export type WwDriftVenda = {
     top_migracoes: { de: string; para: string; qtd: number }[]
   }
   convidados: {
-    cobertura: { total_leads: number; total_fechados: number; com_entrada: number; com_refinado: number; com_ambos: number }
+    cobertura: { total_leads: number; total_fechados: number; com_entrada: number; com_realidade: number; com_ambos: number; com_numero_exato: number }
     drift: { manteve: number; subiu: number; desceu: number }
     matriz: WwDriftConvidadosMatriz[]
   }

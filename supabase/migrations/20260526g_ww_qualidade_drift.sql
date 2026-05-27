@@ -114,7 +114,9 @@ BEGIN
            _ww2_norm_faixa_strict(c.produto_data->>'ww_mkt_orcamento_form') AS faixa_e,
            _ww2_norm_conv_strict(c.produto_data->>'ww_mkt_convidados_form') AS conv_e,
            _ww2_norm_dest_strict(c.produto_data->>'ww_mkt_destino_form') AS dest_e,
-           NULLIF(REPLACE(REPLACE(c.produto_data->>'ww_closer_valor_pacote','.',''),',','.'),'')::NUMERIC AS valor_pac,
+           -- ww_closer_valor_pacote (AC field 62 "Pacote WW - Nº de Convidados", number type)
+           -- vem formatado como "50.000" = 50, "100.000" = 100. Cast direto pra NUMERIC.
+           NULLIF(c.produto_data->>'ww_closer_valor_pacote','')::NUMERIC AS valor_pac,
            _ww2_norm_origem(c.marketing_data) AS origem,
            _ww_norm_tipo(c.produto_data->>'ww_tipo_casamento') AS tipo_casamento
       FROM cards c
@@ -310,7 +312,7 @@ BEGIN
            -- usado como fallback. Por último, ww_convidados_refinado (categoria, formato "Entre X a Y").
            COALESCE(
              NULLIF(c.produto_data->>'ww_questionario_convidados','')::INT,
-             NULLIF(REPLACE(REPLACE(c.produto_data->>'ww_closer_valor_pacote','.',''),',','.'),'')::NUMERIC::INT
+             NULLIF(c.produto_data->>'ww_closer_valor_pacote','')::NUMERIC::INT
            ) AS num_convidados_real,
            _ww2_norm_conv_strict(c.produto_data->>'ww_convidados_refinado') AS conv_r_categoria,
            _ww2_norm_dest_strict(c.produto_data->>'ww_mkt_destino_form') AS dest_e,

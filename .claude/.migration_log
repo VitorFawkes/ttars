@@ -1012,3 +1012,7 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-27T14:42:14Z | supabase/migrations/20260527d_leadster_webhook_created_card.sql | applied_to_prod
 2026-05-27T15:53:42Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
 2026-05-27T16:01:44Z | supabase/migrations/20260527n_wedding_casal_envios.sql | applied_to_prod
+2026-05-27T16:15:29Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
+2026-05-27T16:17:07Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
+2026-05-27T16:19:45Z | supabase/migrations/20260527j_analytics_planner_forecast_by_dono.sql | applied_to_prod
+2026-05-27T16:20:51Z | supabase/migrations/20260527k_planner_forecast_fix_ambiguous.sql | applied_to_prod
