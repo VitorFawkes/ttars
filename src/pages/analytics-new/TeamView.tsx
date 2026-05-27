@@ -13,6 +13,7 @@ import { formatCurrency } from '@/utils/whatsappFormatters'
 import { getRankTier, rankBadgeClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
+import PlannerProfileDrawer from '@/components/analytics/PlannerProfileDrawer'
 import { cn } from '@/lib/utils'
 
 const PHASES: { value: string; label: string }[] = [
@@ -67,6 +68,7 @@ function ComplianceBadge({ rate, sample }: { rate: number | null; sample: readon
 export default function TeamView() {
   const [phaseFilter, setPhaseFilter] = useState<string>('all')
   const [individualUser, setIndividualUser] = useState<{ id: string; nome: string } | null>(null)
+  const [profilePlanner, setProfilePlanner] = useState<{ id: string; nome: string } | null>(null)
   const leaderboard = useTeamLeaderboard()
   const phaseTab = phaseFilter === 'all' ? 'sdr' : phaseFilter
   const phasePerf = useTeamPerformance(phaseTab)
@@ -77,6 +79,14 @@ export default function TeamView() {
   const leaderboardRows = (leaderboard.data ?? []).filter(row =>
     phaseFilter === 'all' ? true : row.fases.includes(phaseFilter)
   )
+
+  // Decide qual drawer abrir: se a pessoa é Planner (vendas), abre o perfil rico.
+  // Senão, mantém o drawer genérico de evolução temporal.
+  const openMemberDrawer = (user: { id: string; nome: string }, fases?: string[]) => {
+    const isPlanner = fases?.includes('planner') ?? false
+    if (isPlanner) setProfilePlanner(user)
+    else setIndividualUser(user)
+  }
 
   // Samples para coloração relativa (top/meio/bottom 25% dentro do grupo visível)
   const leaderboardWinRateSample = useMemo(
@@ -216,7 +226,7 @@ export default function TeamView() {
                     <td className="py-2.5 text-slate-400 tabular-nums">{idx + 1}</td>
                     <td className="py-2.5 text-slate-900 font-medium">
                       <button
-                        onClick={() => setIndividualUser({ id: row.user_id, nome: row.user_nome })}
+                        onClick={() => openMemberDrawer({ id: row.user_id, nome: row.user_nome }, row.fases)}
                         className="hover:text-indigo-600 hover:underline text-left"
                         title="Ver evolução individual"
                       >
@@ -338,9 +348,9 @@ export default function TeamView() {
                   <tr key={row.user_id} className="border-b border-slate-50 hover:bg-slate-50">
                     <td className="py-2.5 text-slate-900 font-medium">
                       <button
-                        onClick={() => setIndividualUser({ id: row.user_id, nome: row.user_nome })}
+                        onClick={() => openMemberDrawer({ id: row.user_id, nome: row.user_nome }, phaseTab === 'planner' ? ['planner'] : [])}
                         className="hover:text-indigo-600 hover:underline text-left"
-                        title="Ver evolução individual"
+                        title={phaseTab === 'planner' ? 'Abrir perfil completo do Planner' : 'Ver evolução individual'}
                       >
                         {row.user_nome}
                       </button>
@@ -448,9 +458,9 @@ export default function TeamView() {
                     <tr key={row.user_id} className="border-b border-slate-50 hover:bg-slate-50">
                       <td className="py-2.5 text-slate-900 font-medium">
                         <button
-                          onClick={() => setIndividualUser({ id: row.user_id, nome: row.user_nome })}
+                          onClick={() => openMemberDrawer({ id: row.user_id, nome: row.user_nome }, ['planner'])}
                           className="hover:text-indigo-600 hover:underline text-left"
-                          title="Ver evolução individual"
+                          title="Abrir perfil completo do Planner"
                         >
                           {row.user_nome}
                         </button>
@@ -485,6 +495,11 @@ export default function TeamView() {
       <IndividualEvolutionDrawer
         user={individualUser}
         onClose={() => setIndividualUser(null)}
+      />
+
+      <PlannerProfileDrawer
+        planner={profilePlanner}
+        onClose={() => setProfilePlanner(null)}
       />
     </div>
   )

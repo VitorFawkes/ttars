@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-05-26
+> **Last Updated:** 2026-05-27
 > **Trigger:** ALWAYS ON
-> **Stats:** 214 tabelas | 211 paginas | 341 hooks | 24 views | 802 components
+> **Stats:** 217 tabelas | 212 paginas | 349 hooks | 25 views | 808 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **341 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **349 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -196,6 +196,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useBriefingImages()` | `useBriefingImages.ts` |
 | `useBriefingImages 2()` | `useBriefingImages 2.ts` |
 | `useBriefingImages 3()` | `useBriefingImages 3.ts` |
+| `useCasais()` | `useCasais.ts` |
 | `useChatIA()` | `useChatIA.ts` |
 | `useContactSearch()` | `useContactSearch.ts` |
 | `useDuffelFlightSearch()` | `useDuffelFlightSearch.ts` |
@@ -321,9 +322,11 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAutoMergePreflight()` | `useAutoMergePreflight.ts` |
 | `useAutoSave()` | `useAutoSave.ts` |
 | `useAutomations()` | `useAutomations.ts` |
+| `useAvipConnection()` | `useAvipConnection.ts` |
 | `useBulkGiftStatus()` | `useBulkGiftStatus.ts` |
 | `useBulkLeadActions()` | `useBulkLeadActions.ts` |
 | `useCancelamento()` | `useCancelamento.ts` |
+| `useCasalMutations()` | `useCasalMutations.ts` |
 | `useCatalog()` | `useCatalog.ts` |
 | `useChecklist()` | `useChecklist.ts` |
 | `useChecklistTarefa()` | `useChecklistTarefa.ts` |
@@ -365,6 +368,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useLeadSources()` | `useLeadSources.ts` |
 | `useLeadsColumns()` | `useLeadsColumns.ts` |
 | `useLeadsQuery()` | `useLeadsQuery.ts` |
+| `useListaCasalPublica()` | `useListaCasalPublica.ts` |
 | `useMensagemTemplates()` | `useMensagemTemplates.ts` |
 | `useMeusLeadsSdr()` | `useMeusLeadsSdr.ts` |
 | `useModelosConcierge()` | `useModelosConcierge.ts` |
@@ -390,6 +394,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `usePhaseCapabilities()` | `usePhaseCapabilities.ts` |
 | `usePhaseSort()` | `usePhaseSort.ts` |
 | `usePhaseVisibilityRules()` | `usePhaseVisibilityRules.ts` |
+| `usePlannerActivities()` | `usePlannerActivities.ts` |
 | `usePlatformAdmin()` | `usePlatformAdmin.ts` |
 | `usePlatformData()` | `usePlatformData.ts` |
 | `usePosRpcs()` | `usePosRpcs.ts` |
@@ -452,6 +457,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useArchiveCard()` | `useArchiveCard.ts` |
 | `useAssistedCardIds()` | `useAssistedCardIds.ts` |
 | `useAtendimentosCard()` | `useAtendimentosCard.ts` |
+| `useAvipCardLink()` | `useAvipCardLink.ts` |
 | `useCalendarFilters()` | `useCalendarFilters.ts` |
 | `useCardAlertRules()` | `useCardAlertRules.ts` |
 | `useCardAlerts()` | `useCardAlerts.ts` |
@@ -472,6 +478,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useCardTagsLookup()` | `useCardTagsLookup.ts` |
 | `useCardTeam()` | `useCardTeam.ts` |
 | `useCardTeamCounts()` | `useCardTeamCounts.ts` |
+| `useCardsDisponiveis()` | `useCardsDisponiveis.ts` |
 | `useCardsTravados()` | `useCardsTravados.ts` |
 | `useContactAvailableCards()` | `useContactAvailableCards.ts` |
 | `useDeleteCard()` | `useDeleteCard.ts` |
@@ -546,6 +553,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useConciergeUserIds()` | `useConciergeUserIds.ts` |
 | `useConciergeUsers()` | `useConciergeUsers.ts` |
 | `useDepartments()` | `useDepartments.ts` |
+| `usePlannerProfile()` | `usePlannerProfile.ts` |
 | `useRoles()` | `useRoles.ts` |
 | `useTeamAggregateKpis()` | `useTeamAggregateKpis.ts` |
 | `useTeamIndividualEvolution()` | `useTeamIndividualEvolution.ts` |
@@ -589,7 +597,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **211 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **212 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -707,6 +715,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `AutomacaoBuilderPage` | `src/pages/admin/cadence/AutomacaoBuilderPage.tsx` |
 | `CadenceBuilderPage` | `src/pages/admin/cadence/CadenceBuilderPage.tsx` |
 | `CadenceMonitorPage` | `src/pages/admin/cadence/CadenceMonitorPage.tsx` |
+| `AssessoriaVipPage` | `src/pages/admin/integracoes/AssessoriaVipPage.tsx` |
 | `Step1_BusinessIdentity` | `src/pages/admin/wizard/Step1_BusinessIdentity.tsx` |
 | `Step2_TemplateSelection` | `src/pages/admin/wizard/Step2_TemplateSelection.tsx` |
 | `Step3_FunnelConfiguration` | `src/pages/admin/wizard/Step3_FunnelConfiguration.tsx` |

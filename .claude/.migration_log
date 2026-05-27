@@ -996,3 +996,14 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-27T01:59:56Z | supabase/migrations/20260527a_ww2_drill_down_v2.sql | applied_to_prod
 2026-05-27T14:24:36Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
 2026-05-27T14:28:30Z | supabase/migrations/20260527a_ww_filter_options_norm_tipo.sql | applied_to_prod
+2026-05-27T14:51:17Z | supabase/migrations/20260527b_ww_questionario_casal_contact_mappings.sql | applied_to_prod
+2026-05-27T14:55:21Z | supabase/migrations/20260527d_analytics_planner_profile.sql | applied_to_prod
+2026-05-27T14:55:46Z | supabase/migrations/20260527e_analytics_planner_activities.sql | applied_to_prod
+2026-05-27T15:00:25Z | supabase/migrations/20260527f_planner_profile_safe_date_cast.sql | applied_to_prod
+2026-05-27T15:04:13Z | supabase/migrations/20260527g_planner_profile_string_date_compare.sql | applied_to_prod
+2026-05-27T15:08:59Z | supabase/migrations/20260527h_planner_profile_no_qmark.sql | applied_to_prod
+2026-05-27T15:13:08Z | supabase/migrations/20260527i_planner_profile_briefing_jsonb.sql | applied_to_prod
+2026-05-27T15:15:54Z | supabase/migrations/20260527i_wedding_casais.sql | applied_to_prod
+2026-05-27T15:16:16Z | supabase/migrations/20260527j_wedding_convites.sql | applied_to_prod
+2026-05-27T15:16:38Z | supabase/migrations/20260527k_wedding_guests_estende.sql | applied_to_prod
+2026-05-27T15:17:03Z | supabase/migrations/20260527l_wedding_casal_rpcs.sql | applied_to_prod

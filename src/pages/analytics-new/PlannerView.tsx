@@ -1,6 +1,7 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Briefcase, Trophy, ListX, Clock, Loader2, Layers } from 'lucide-react'
+import PlannerProfileDrawer from '@/components/analytics/PlannerProfileDrawer'
 import KpiCard from '@/components/analytics/KpiCard'
 import { useFunnelConversion, useLossReasons } from '@/hooks/analytics/useFunnelConversion'
 import { useFunnelVelocity } from '@/hooks/analytics/useFunnelVelocity'
@@ -180,6 +181,13 @@ export default function PlannerView() {
     })
   }
 
+  const [profilePlanner, setProfilePlanner] = useState<{ id: string; nome: string } | null>(null)
+
+  const openProfilePlanner = (ownerId: string, ownerName: string) => {
+    setProfilePlanner({ id: ownerId, nome: ownerName })
+  }
+
+  // Mantém função antiga (drill-down de cards puros) caso algum widget queira só lista
   const openCardsByOwner = (ownerId: string, ownerName: string) => {
     drillDown.open({
       label: `Cards de ${ownerName}`,
@@ -367,7 +375,8 @@ export default function PlannerView() {
                   <tr
                     key={row.user_id}
                     className="border-b border-slate-50 hover:bg-indigo-50 cursor-pointer"
-                    onClick={() => openCardsByOwner(row.user_id, row.user_nome)}
+                    onClick={() => openProfilePlanner(row.user_id, row.user_nome)}
+                    title="Abrir perfil completo do Planner"
                   >
                     <td className="py-2.5 text-slate-400 tabular-nums">{idx + 1}</td>
                     <td className="py-2.5 text-slate-900 font-medium">
@@ -702,6 +711,11 @@ export default function PlannerView() {
           </div>
         )}
       </WidgetCard>
+
+      <PlannerProfileDrawer
+        planner={profilePlanner}
+        onClose={() => setProfilePlanner(null)}
+      />
     </div>
   )
 }
