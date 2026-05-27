@@ -1,10 +1,26 @@
 import { useState } from 'react'
-import { Check, CheckCircle2, AlertCircle, Loader2, Sparkles } from 'lucide-react'
+import { Check, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
 import { cn } from '../../../lib/utils'
-import { useStatusEnvioPublic, useMarcarProntoPublic } from '../../../hooks/convidados/casais/useCasalEnvios'
+import {
+  useStatusEnvioPublic,
+  useMarcarProntoPublic,
+} from '../../../hooks/convidados/casais/useCasalEnvios'
 
-interface Props { codigo: string; totalPessoas: number }
+interface Props {
+  codigo: string
+  totalPessoas: number
+}
 
+/**
+ * Botão "Pronto" compacto pra usar dentro do footer fixo.
+ *
+ * Estados:
+ *  - Sem pessoas / loading           → apagado, disabled
+ *  - Nunca enviou                    → ATIVO  "Pronto"          (gold)
+ *  - Já enviou e nada mudou          → APAGADO "Lista enviada"  (cinza, disabled)
+ *  - Editou depois de enviar         → ATIVO destacado "Avisar mudanças" (gold + ring âmbar)
+ *  - Recém-clicou                    → SUCESSO "Obrigado!"      (verde)
+ */
 export function BotaoFinalizarLista({ codigo, totalPessoas }: Props) {
   const { data: status, isLoading } = useStatusEnvioPublic(codigo)
   const marcar = useMarcarProntoPublic(codigo)
@@ -16,72 +32,59 @@ export function BotaoFinalizarLista({ codigo, totalPessoas }: Props) {
       await marcar.mutateAsync()
       setJustSent(true)
       setTimeout(() => setJustSent(false), 3000)
-    } catch { /* error treatable via parent */ }
+    } catch { /* erro vai para toast no parent */ }
   }
 
-  if (isLoading || !status) return null
-  if (totalPessoas === 0) return null
-
-  const nuncaEnviou = status.nunca_enviou
-  const temPendente = status.tem_alteracoes_pendentes
-  const formatadoEnvio = status.enviado_em
+  const nuncaEnviou = status?.nunca_enviou ?? true
+  const temPendente = status?.tem_alteracoes_pendentes ?? false
+  const formatadoEnvio = status?.enviado_em
     ? new Date(status.enviado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
     : null
 
+  const semPessoas = totalPessoas === 0
+  const ativo = !semPessoas && !isLoading && (nuncaEnviou || temPendente)
+  const destaque = ativo && temPendente
+
+  let label = 'Pronto'
+  let icon: React.ReactNode = <Check className="w-4 h-4" />
+
+  if (justSent) {
+    label = 'Obrigado!'
+    icon = <CheckCircle2 className="w-4 h-4" />
+  } else if (marcar.isPending) {
+    label = 'Enviando…'
+    icon = <Loader2 className="w-4 h-4 animate-spin" />
+  } else if (semPessoas || nuncaEnviou) {
+    label = 'Pronto'
+  } else if (temPendente) {
+    label = 'Avisar mudanças'
+    icon = <AlertCircle className="w-4 h-4" />
+  } else if (formatadoEnvio) {
+    label = `Enviado em ${formatadoEnvio}`
+    icon = <CheckCircle2 className="w-4 h-4" />
+  }
+
   return (
-    <div className="bg-white border border-ww-sand rounded-xl shadow-ww-lift p-5 md:p-6 mt-6 mx-6 mb-2">
-      <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
-        <div className="flex-1 min-w-0">
-          {nuncaEnviou ? (
-            <>
-              <div className="inline-flex items-center gap-1.5 mb-1">
-                <Sparkles className="w-4 h-4 text-ww-gold" />
-                <h3 className="font-ww-serif italic text-lg text-ww-n700">Quando terminar, avise a equipe</h3>
-              </div>
-              <p className="text-sm text-ww-n500">
-                Suas alterações salvam sozinhas, mas a equipe só vai trabalhar na lista quando você
-                clicar abaixo. Você pode voltar e mexer depois sempre que quiser.
-              </p>
-            </>
-          ) : temPendente ? (
-            <>
-              <div className="inline-flex items-center gap-1.5 mb-1">
-                <AlertCircle className="w-4 h-4 text-amber-600" />
-                <h3 className="font-ww-serif italic text-lg text-ww-n700">Você editou depois de enviar</h3>
-              </div>
-              <p className="text-sm text-ww-n500">
-                Sua última versão foi enviada em <strong>{formatadoEnvio}</strong>. Você mexeu na
-                lista depois disso — clique abaixo para a equipe saber das mudanças.
-              </p>
-            </>
-          ) : (
-            <>
-              <div className="inline-flex items-center gap-1.5 mb-1">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <h3 className="font-ww-serif italic text-lg text-ww-n700">Lista enviada para a equipe</h3>
-              </div>
-              <p className="text-sm text-ww-n500">
-                Você enviou esta versão em <strong>{formatadoEnvio}</strong>. Se mexer em algo, é só
-                clicar de novo abaixo.
-              </p>
-            </>
-          )}
-        </div>
-        <button type="button" onClick={handleClick}
-          disabled={marcar.isPending || (!nuncaEnviou && !temPendente)}
-          className={cn('inline-flex items-center justify-center gap-2 px-5 h-12 rounded-full text-sm font-semibold transition-all ease-ww-soft duration-200 shrink-0',
-            justSent ? 'bg-emerald-600 text-white'
-              : nuncaEnviou || temPendente ? 'bg-ww-gold text-white hover:bg-ww-gold-ink shadow-md hover:shadow-ww-lift hover:-translate-y-0.5'
-              : 'bg-ww-cream text-ww-n500 cursor-default')}>
-          {marcar.isPending ? <Loader2 className="w-4 h-4 animate-spin" />
-            : justSent ? <CheckCircle2 className="w-4 h-4" />
-            : <Check className="w-4 h-4" />}
-          {justSent ? 'Obrigado! Avisamos a equipe'
-            : nuncaEnviou ? 'Pronto, podem usar a lista'
-            : temPendente ? 'Avisar a equipe sobre as mudanças'
-            : 'Lista enviada'}
-        </button>
-      </div>
-    </div>
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={!ativo || marcar.isPending}
+      className={cn(
+        'inline-flex items-center justify-center gap-2 px-4 h-10 rounded-full text-sm font-semibold transition-all ease-ww-soft duration-200 whitespace-nowrap',
+        justSent && 'bg-emerald-600 text-white shadow-md',
+        !justSent && destaque && 'bg-ww-gold text-white shadow-md ring-2 ring-amber-300 ring-offset-2 ring-offset-white hover:bg-ww-gold-ink',
+        !justSent && !destaque && ativo && 'bg-ww-gold text-white shadow-sm hover:bg-ww-gold-ink hover:shadow-md',
+        !justSent && !ativo && 'bg-ww-cream text-ww-n400 cursor-default opacity-70',
+      )}
+      title={
+        semPessoas ? 'Adicione pelo menos uma pessoa primeiro'
+        : nuncaEnviou ? 'Avise a equipe que sua lista está pronta'
+        : temPendente ? 'Você editou após enviar — avise a equipe sobre as mudanças'
+        : 'Lista enviada à equipe'
+      }
+    >
+      {icon}
+      {label}
+    </button>
   )
 }

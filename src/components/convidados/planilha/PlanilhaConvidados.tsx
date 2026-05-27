@@ -211,8 +211,8 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
         </div>
       </div>
 
-      {/* Body com scroll natural */}
-      <div className="px-6 pt-3 pb-40 flex flex-col gap-3">
+      {/* Body com scroll natural — pb maior pra footer fixo não cobrir conteúdo */}
+      <div className="px-6 pt-3 pb-28 flex flex-col gap-3">
         {visibleConvites.length === 0 && convites.length === 0 ? (
           <EmptyState onAddConvite={handleAddConvite} />
         ) : visibleConvites.length === 0 ? (
@@ -240,19 +240,19 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
             </button>
           </>
         )}
-
-        <BotaoFinalizarLista codigo={casal.codigo} totalPessoas={stats.totalPessoas} />
       </div>
 
-      {/* Footer fixo */}
-      <footer className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur border-t border-ww-sand px-6 py-2 flex items-center justify-between gap-4 text-[11px] text-ww-n500">
-        <div className="flex items-center gap-3 overflow-x-auto">
-          <Kbd label="Tab" desc="Próxima célula" />
-          <Kbd label="↵" desc="Linha de baixo" />
-          <Kbd label="⌘N" desc="Novo convite" />
-          <Kbd label="⌘F" desc="Buscar" />
+      {/* Footer fixo: salvo + atalhos à esquerda, botão Pronto à direita */}
+      <footer className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-ww-sand shadow-[0_-4px_12px_rgba(78,24,32,0.04)] px-6 py-3 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4 min-w-0">
+          <SavedIndicator at={savedAt} isSaving={upsertConvite.isPending || upsertPessoa.isPending} />
+          <div className="hidden lg:flex items-center gap-3 text-[11px] text-ww-n500 overflow-x-auto">
+            <Kbd label="Tab" desc="Próxima célula" />
+            <Kbd label="↵" desc="Linha de baixo" />
+            <Kbd label="⌘N" desc="Novo convite" />
+          </div>
         </div>
-        <SavedIndicator at={savedAt} isSaving={upsertConvite.isPending || upsertPessoa.isPending} />
+        <BotaoFinalizarLista codigo={casal.codigo} totalPessoas={stats.totalPessoas} />
       </footer>
 
       {toast && (
