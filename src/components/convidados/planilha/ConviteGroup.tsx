@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ChevronDown, ChevronRight, GripVertical, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, GripVertical, Plus, Trash2, Users } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { PessoaRow } from './PessoaRow'
 import type { Convite, Pessoa } from '../../../lib/convidados/types'
@@ -17,6 +17,8 @@ interface Props {
   onEnterCreate: () => void
 }
 
+const NOME_GENERICOS = new Set(['', 'Novo convite', 'Convite sem nome'])
+
 export function ConviteGroup({
   convite, isLast, collapsed,
   onToggleCollapse, onRenameConvite, onDeleteConvite,
@@ -26,10 +28,13 @@ export function ConviteGroup({
   useEffect(() => setNome(convite.nome), [convite.nome])
 
   const handleNomeBlur = () => {
-    const next = nome.trim() || 'Convite sem nome'
+    const next = nome.trim()
     if (next !== convite.nome) onRenameConvite(next)
     setNome(next)
   }
+
+  // Se o nome ainda é o default genérico (primeira vez), realça o input com hint visual
+  const nomeVazio = NOME_GENERICOS.has(nome.trim())
 
   return (
     <section className="bg-white border-y border-ww-sand">
@@ -42,16 +47,28 @@ export function ConviteGroup({
           {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
         <div className="flex flex-col">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-ww-gold font-medium leading-none mb-0.5">Convite</p>
+          <p
+            className="text-[10px] uppercase tracking-[0.18em] text-ww-gold font-medium leading-none mb-0.5"
+            title="Um convite agrupa pessoas que vão chegar juntas — tipo uma família, casal ou círculo de amigos."
+          >
+            Convite (grupo)
+          </p>
           <input
             value={nome}
             onChange={(e) => setNome(e.target.value)}
             onBlur={handleNomeBlur}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() } }}
-            className="font-ww-serif italic text-lg text-ww-n700 bg-transparent border-b border-transparent hover:border-ww-sand focus:border-ww-gold focus:outline-none px-0.5"
+            placeholder="Família Silva, Padrinhos, Amigos da faculdade…"
+            className={cn(
+              'font-ww-serif italic text-lg bg-transparent border-b border-transparent focus:outline-none px-0.5 transition-colors',
+              nomeVazio
+                ? 'text-ww-n400 border-amber-300 placeholder:text-ww-n400 hover:border-amber-400 focus:border-ww-gold'
+                : 'text-ww-n700 hover:border-ww-sand focus:border-ww-gold',
+            )}
           />
         </div>
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-ww-gold-soft text-ww-gold-ink">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-ww-gold-soft text-ww-gold-ink">
+          <Users className="w-3 h-3" />
           {convite.pessoas.length} {convite.pessoas.length === 1 ? 'pessoa' : 'pessoas'}
         </span>
         <button type="button" onClick={onAddPessoa}
@@ -60,7 +77,7 @@ export function ConviteGroup({
         </button>
         <button type="button" onClick={onDeleteConvite}
           className="p-1.5 rounded text-ww-n400 hover:text-ww-rosewood hover:bg-ww-rosewood-soft transition-colors"
-          aria-label="Excluir convite" title="Excluir convite">
+          aria-label="Excluir convite" title="Excluir este grupo inteiro">
           <Trash2 className="w-3.5 h-3.5" />
         </button>
       </header>
@@ -84,7 +101,7 @@ export function ConviteGroup({
           <div className="px-3 py-2">
             <button type="button" onClick={onAddPessoa}
               className={cn('w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded border border-dashed border-ww-sand-dk text-ww-n500 hover:text-ww-gold-ink hover:border-ww-gold hover:bg-ww-gold-soft/40 transition-colors')}>
-              <Plus className="w-3.5 h-3.5" /> Adicionar pessoa neste convite
+              <Plus className="w-3.5 h-3.5" /> Adicionar mais alguém ao mesmo convite
             </button>
           </div>
         </>
