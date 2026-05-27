@@ -1054,3 +1054,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-27T21:32:23Z | supabase/migrations/20260527u_ww_qualidade_lead_v2.sql | applied_to_prod
 2026-05-27T21:36:52Z | supabase/migrations/20260527s_set_card_monde_vendas.sql | applied_to_prod
 2026-05-27T21:38:49Z | supabase/migrations/20260527s_set_card_monde_vendas.sql | applied_to_prod
+2026-05-27T22:06:03Z | supabase/migrations/20260527t_patricia_nome_wedding_planner_generico.sql | applied_to_prod

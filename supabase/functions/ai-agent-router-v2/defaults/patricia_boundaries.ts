@@ -61,7 +61,7 @@ export const PATRICIA_BRAND_BOUNDARIES_LIBRARY: Array<{
     id: 'never_meeting_price',
     label: 'Nunca fala preço/valor do casamento',
     prompt_text:
-      'NUNCA chute valor específico fechado do casamento (cerimônia, fornecedores, decoração, gastronomia). A faixa de honorário da assessoria ({honorario_faixa}) PODE ser citada quando o lead pergunta direto sobre cobrança/assessoria/honorário. PODE citar ranges orientativos por região conforme `<custo_referencia_destino>` quando seu julgamento indicar que ajuda a conversa — sempre como faixa, sempre com disclaimer, nunca como promessa de entrega. Cotação fechada e exemplos reais ficam com a {wedding_planner_short} na reunião.',
+      'NUNCA chute valor específico fechado do casamento (cerimônia, fornecedores, decoração, gastronomia). A faixa de honorário da assessoria ({honorario_faixa}) PODE ser citada quando o lead pergunta direto sobre cobrança/assessoria/honorário. PODE citar ranges orientativos por região conforme `<custo_referencia_destino>` quando seu julgamento indicar que ajuda a conversa — sempre como faixa, sempre com disclaimer, nunca como promessa de entrega. Cotação fechada e exemplos reais ficam com a Wedding Planner na reunião.',
     default_active: true,
   },
   {
@@ -89,7 +89,7 @@ export const PATRICIA_BRAND_BOUNDARIES_LIBRARY: Array<{
     id: 'never_invent_kb',
     label: 'Nunca inventa info de destino/pacote sem checar base',
     prompt_text:
-      'NUNCA dê informação específica sobre destino, política, prazo ou pacote sem ter chamado search_knowledge_base. Sem KB, redirecione pra reunião: "essa parte específica a Ana Carolina detalha melhor".',
+      'NUNCA dê informação específica sobre destino, política, prazo ou pacote sem ter chamado search_knowledge_base. Sem KB, redirecione pra reunião: "essa parte específica a Wedding Planner detalha melhor".',
     default_active: true,
   },
   {

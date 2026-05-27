@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, Plus, Check, X } from 'lucide-react'
+import { Loader2, Plus, Check, X, HelpCircle } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import {
   useUpsertConvitePublic,
@@ -213,11 +213,12 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
 
       {/* Body com scroll natural — pb maior pra footer fixo não cobrir conteúdo */}
       <div className="px-6 pt-3 pb-28 flex flex-col gap-3">
-        {/* Banner de boas-vindas: mostra enquanto NENHUMA pessoa foi nomeada
-            OU até o casal clicar "Já entendi" (persiste em localStorage). */}
-        {convites.every((c) => c.pessoas.every((p) => !p.nome_raw?.trim())) && (
-          <PrimeiraVezBanner codigo={casal.codigo} />
-        )}
+        {/* Banner de boas-vindas / chip "Como funciona?" — componente decide
+            internamente o que mostrar (banner cheio, chip discreto ou nada). */}
+        <PrimeiraVezBanner
+          codigo={casal.codigo}
+          listaVazia={convites.every((c) => c.pessoas.every((p) => !p.nome_raw?.trim()))}
+        />
 
         {visibleConvites.length === 0 && convites.length === 0 ? (
           <EmptyState onAddConvite={handleAddConvite} />
@@ -291,9 +292,10 @@ function SavedIndicator({ at, isSaving }: { at: Date | null; isSaving: boolean }
 /**
  * Banner explicativo quando a lista é nova. Some sozinho quando o casal
  * preenche a primeira pessoa, OU quando clica em "Já entendi" (persiste
- * em localStorage por código do casal).
+ * em localStorage por código do casal). Dispensado, vira um chip discreto
+ * "Como funciona?" que reabre o banner ao clicar.
  */
-function PrimeiraVezBanner({ codigo }: { codigo: string }) {
+function PrimeiraVezBanner({ codigo, listaVazia }: { codigo: string; listaVazia: boolean }) {
   const storageKey = `welcomecrm:lista-convidados:onboarding-dispensado:${codigo}`
   const [dispensado, setDispensado] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false
@@ -304,20 +306,45 @@ function PrimeiraVezBanner({ codigo }: { codigo: string }) {
     }
   })
 
-  const handleDispensar = () => {
+  const dispensar = () => {
     setDispensado(true)
     try {
       window.localStorage.setItem(storageKey, '1')
     } catch { /* ignore */ }
   }
 
-  if (dispensado) return null
+  const reabrir = () => {
+    setDispensado(false)
+    try {
+      window.localStorage.removeItem(storageKey)
+    } catch { /* ignore */ }
+  }
+
+  // Regra:
+  // - Nunca dispensou + lista vazia → banner cheio
+  // - Nunca dispensou + lista cheia → nada (não interrompe)
+  // - Dispensado → chip "Como funciona?" sempre visível (ajuda contextual)
+  if (dispensado) {
+    return (
+      <button
+        type="button"
+        onClick={reabrir}
+        className="inline-flex items-center gap-1.5 self-start px-3 h-7 text-[11.5px] font-medium rounded-full border border-ww-gold/40 bg-ww-gold-soft/50 text-ww-gold-ink hover:bg-ww-gold-soft hover:border-ww-gold transition-colors mb-1"
+        title="Mostrar de novo o passo a passo"
+      >
+        <HelpCircle className="w-3.5 h-3.5" />
+        Como funciona?
+      </button>
+    )
+  }
+
+  if (!listaVazia) return null
 
   return (
     <div className="relative bg-gradient-to-br from-ww-gold-soft to-ww-paper border border-ww-gold/30 rounded-xl p-5 md:p-6 mb-2">
       <button
         type="button"
-        onClick={handleDispensar}
+        onClick={dispensar}
         className="absolute top-3 right-3 p-1 rounded-full text-ww-n500 hover:text-ww-n700 hover:bg-white/60 transition-colors"
         aria-label="Fechar este aviso"
         title="Fechar este aviso"
@@ -356,7 +383,7 @@ function PrimeiraVezBanner({ codigo }: { codigo: string }) {
       <div className="flex justify-end mt-4">
         <button
           type="button"
-          onClick={handleDispensar}
+          onClick={dispensar}
           className="inline-flex items-center gap-1.5 px-3 h-8 text-xs font-medium rounded-md bg-white/70 border border-ww-gold/40 text-ww-gold-ink hover:bg-white transition-colors"
         >
           <Check className="w-3.5 h-3.5" /> Já entendi
