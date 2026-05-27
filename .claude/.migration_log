@@ -1045,3 +1045,7 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-27T19:08:53Z | supabase/migrations/20260527p_ww_parsers_dw_questionario.sql | applied_to_prod
 2026-05-27T19:10:19Z | supabase/migrations/20260527p_ww_parsers_dw_questionario.sql | applied_to_prod
 2026-05-27T19:11:14Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
+2026-05-27T19:39:02Z | supabase/migrations/20260527p_wedding_casal_admin_list_v3.sql | applied_to_prod
+2026-05-27T19:46:42Z | supabase/migrations/20260527q_patricia_prompt_tuning.sql | applied_to_prod
+2026-05-27T19:47:06Z | supabase/migrations/20260527r_patricia_seed_few_shots.sql | applied_to_prod
+2026-05-27T19:47:17Z | supabase/migrations/20260527q_wedding_casal_admin_list_v3_fix.sql | applied_to_prod
