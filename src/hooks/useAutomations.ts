@@ -272,11 +272,76 @@ export function useAutomations() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['automations-hub'] }),
   })
 
+  // Duplica uma automação inteira. Cobre os 3 formatos:
+  //  - trigger simples (create_task/send_message/change_stage): copia a linha
+  //  - trigger start_cadence: copia o template + steps e reaponta o trigger
+  //  - cadence_template standalone: copia template + steps
+  // A cópia nasce pausada (is_active=false) pra revisão antes de ligar.
+  const duplicate = useMutation({
+    mutationFn: async (item: AutomationItem) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any
+
+      // Duplica um template + seus steps; retorna o id do novo template.
+      const duplicateTemplate = async (templateId: string): Promise<string> => {
+        const { data: tpl, error: tplErr } = await sb
+          .from('cadence_templates').select('*').eq('id', templateId).single()
+        if (tplErr || !tpl) throw tplErr || new Error('Template não encontrado')
+
+        const { id: _tid, created_at: _tc, updated_at: _tu, ...tplRest } = tpl
+        const { data: newTpl, error: insTplErr } = await sb
+          .from('cadence_templates')
+          .insert({ ...tplRest, name: `${tpl.name} (cópia)`, is_active: false })
+          .select('id').single()
+        if (insTplErr || !newTpl) throw insTplErr || new Error('Falha ao copiar template')
+
+        const { data: steps, error: stepsErr } = await sb
+          .from('cadence_steps').select('*').eq('template_id', templateId)
+        if (stepsErr) throw stepsErr
+        if (steps && steps.length > 0) {
+          const newSteps = steps.map((s: Record<string, unknown>) => {
+            const { id: _sid, created_at: _sc, updated_at: _su, ...sRest } = s
+            return { ...sRest, template_id: newTpl.id }
+          })
+          const { error: insStepsErr } = await sb.from('cadence_steps').insert(newSteps)
+          if (insStepsErr) throw insStepsErr
+        }
+        return newTpl.id
+      }
+
+      if (item.source === 'cadence_template') {
+        await duplicateTemplate(item.id)
+        return
+      }
+
+      // source = trigger
+      const { data: orig, error: origErr } = await sb
+        .from('cadence_event_triggers').select('*').eq('id', item.id).single()
+      if (origErr || !orig) throw origErr || new Error('Gatilho não encontrado')
+
+      let newTemplateId = orig.target_template_id
+      if (orig.action_type === 'start_cadence' && orig.target_template_id) {
+        newTemplateId = await duplicateTemplate(orig.target_template_id)
+      }
+
+      const { id: _id, created_at: _c, updated_at: _u, ...rest } = orig
+      const { error: insErr } = await sb.from('cadence_event_triggers').insert({
+        ...rest,
+        name: `${orig.name || 'Automação'} (cópia)`,
+        target_template_id: newTemplateId,
+        is_active: false,
+      })
+      if (insErr) throw insErr
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['automations-hub'] }),
+  })
+
   return {
     items: query.data || [],
     isLoading: query.isLoading,
     error: query.error,
     toggleActive,
     remove,
+    duplicate,
   }
 }
