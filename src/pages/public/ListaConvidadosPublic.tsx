@@ -1,10 +1,52 @@
+import { useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { useListaCasalPublica } from '../../hooks/convidados/casais/useListaCasalPublica'
 import { PlanilhaConvidados } from '../../components/convidados/planilha/PlanilhaConvidados'
 import { ListaConvidadosSplash } from './ListaConvidadosSplash'
 
+/**
+ * O CSS global do app (src/index.css) trava html/body/#root em
+ * `overflow: hidden; height: 100%` pra app autenticado com layout fixo.
+ * Esta página pública precisa de scroll natural — restauramos ao montar
+ * e revertemos ao desmontar pra não afetar outras rotas.
+ */
+function useEnableNativeScroll() {
+  useEffect(() => {
+    const html = document.documentElement
+    const body = document.body
+    const root = document.getElementById('root')
+    const prev = {
+      htmlOverflow: html.style.overflow,
+      htmlHeight: html.style.height,
+      bodyOverflow: body.style.overflow,
+      bodyHeight: body.style.height,
+      rootOverflow: root?.style.overflow,
+      rootHeight: root?.style.height,
+    }
+    html.style.overflow = 'auto'
+    html.style.height = 'auto'
+    body.style.overflow = 'auto'
+    body.style.height = 'auto'
+    if (root) {
+      root.style.overflow = 'visible'
+      root.style.height = 'auto'
+    }
+    return () => {
+      html.style.overflow = prev.htmlOverflow
+      html.style.height = prev.htmlHeight
+      body.style.overflow = prev.bodyOverflow
+      body.style.height = prev.bodyHeight
+      if (root) {
+        root.style.overflow = prev.rootOverflow || ''
+        root.style.height = prev.rootHeight || ''
+      }
+    }
+  }, [])
+}
+
 export default function ListaConvidadosPublic() {
+  useEnableNativeScroll()
   const { codigo } = useParams<{ codigo: string }>()
   const normalized = (codigo || '').toUpperCase().trim()
   const { data, isLoading, isError, error } = useListaCasalPublica(normalized)
