@@ -7,7 +7,7 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet'
 import {
-  Briefcase, Trophy, ListX, Clock, AlertTriangle, FileQuestion, PhoneOff,
+  Briefcase, ListX, Clock, AlertTriangle,
   Activity, TrendingUp, Calendar, ExternalLink, Loader2, ArrowRight, X,
 } from 'lucide-react'
 import { usePlannerProfile, type PlannerProfile } from '@/hooks/analytics/usePlannerProfile'
