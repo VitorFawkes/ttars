@@ -86,7 +86,7 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
 
   const handleAddConvite = useCallback(async () => {
     try {
-      const id = await upsertConvite.mutateAsync({ nome: 'Novo convite', posicao: convites.length })
+      const id = await upsertConvite.mutateAsync({ nome: '', posicao: convites.length })
       await upsertPessoa.mutateAsync({ convite_id: id, nome: '', faixa: 'adulto', posicao: 0 })
     } catch (e) { setToast((e as Error).message) }
   }, [convites.length, upsertConvite, upsertPessoa])
@@ -213,6 +213,11 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
 
       {/* Body com scroll natural — pb maior pra footer fixo não cobrir conteúdo */}
       <div className="px-6 pt-3 pb-28 flex flex-col gap-3">
+        {/* Banner de boas-vindas quando a lista está praticamente vazia */}
+        {stats.totalPessoas === 0 && convites.length <= 1 && (
+          <PrimeiraVezBanner />
+        )}
+
         {visibleConvites.length === 0 && convites.length === 0 ? (
           <EmptyState onAddConvite={handleAddConvite} />
         ) : visibleConvites.length === 0 ? (
@@ -280,6 +285,46 @@ function SavedIndicator({ at, isSaving }: { at: Date | null; isSaving: boolean }
   if (isSaving) return <span className="inline-flex items-center gap-1 text-ww-n500"><Loader2 className="w-3 h-3 animate-spin" />salvando…</span>
   if (at) return <span className="inline-flex items-center gap-1 text-emerald-700"><Check className="w-3 h-3" />salvo</span>
   return null
+}
+
+/**
+ * Banner explicativo quando a lista é nova. Some assim que o casal preenche
+ * a primeira pessoa real (totalPessoas > 0).
+ */
+function PrimeiraVezBanner() {
+  return (
+    <div className="bg-gradient-to-br from-ww-gold-soft to-ww-paper border border-ww-gold/30 rounded-xl p-5 md:p-6 mb-2">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-ww-gold mb-1.5">
+        Como funciona
+      </p>
+      <h2 className="font-ww-serif italic text-xl text-ww-n700 mb-3">
+        Sua lista é organizada em grupos.
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-ww-n600 leading-relaxed">
+        <div>
+          <p className="font-semibold text-ww-n700 mb-1">1. Crie um convite (grupo)</p>
+          <p className="text-[13px]">
+            Um convite agrupa pessoas que vão chegar juntas — uma família, casal ou círculo de amigos.
+          </p>
+          <p className="text-[11px] italic text-ww-n400 mt-1">
+            Ex: <strong className="text-ww-n600">Família Silva</strong>, <strong className="text-ww-n600">Padrinhos</strong>, <strong className="text-ww-n600">Amigos da faculdade</strong>
+          </p>
+        </div>
+        <div>
+          <p className="font-semibold text-ww-n700 mb-1">2. Coloque as pessoas dentro</p>
+          <p className="text-[13px]">
+            Cada pessoa do grupo vira uma linha — com nome, idade e telefone (se for adulto).
+          </p>
+        </div>
+        <div>
+          <p className="font-semibold text-ww-n700 mb-1">3. Quando terminar, clique em <span className="text-ww-gold-ink">Pronto</span></p>
+          <p className="text-[13px]">
+            A equipe Welcome Weddings recebe a lista. Você pode voltar e mexer sempre que quiser.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function EmptyState({ onAddConvite }: { onAddConvite: () => void }) {

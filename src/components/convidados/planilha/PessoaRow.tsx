@@ -54,7 +54,7 @@ export function PessoaRow({ index, pessoa, isLastOfLastGroup, canDelete, onChang
           value={nome}
           onChange={(e) => { setNome(e.target.value); onChange({ nome_raw: e.target.value }) }}
           onKeyDown={handleKeyDown}
-          placeholder="Nome da pessoa"
+          placeholder={index === 1 ? 'Quem é? Ex: Maria Silva' : 'Nome'}
           className="w-full px-1.5 py-1 text-[13px] border border-transparent rounded focus:border-ww-gold focus:ring-2 focus:ring-ww-gold/30 focus:outline-none hover:border-ww-sand bg-transparent text-ww-n700"
         />
       </div>
