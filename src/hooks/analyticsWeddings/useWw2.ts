@@ -713,6 +713,73 @@ export function useWwDriftVenda(filters: Ww2Filters) {
   })
 }
 
+// ── Marketing qualidade (Onda 5) ───────────────────────────────────────────
+export type WwMarketingOrigemRow = {
+  origem: string
+  leads_total: number
+  qualificados: number
+  fechados: number
+  taxa_qualif_pct: number | null
+  taxa_fechamento_pct: number | null
+  lift_vs_geral: number | null
+  ticket_medio: number | null
+  pct_email_valido: number | null
+  pct_tel_valido: number | null
+}
+
+export type WwMarketingCampanhaRow = {
+  origem: string
+  campaign: string
+  medium: string
+  leads: number
+  qualif: number
+  fechou: number
+  taxa_qualif_pct: number | null
+  taxa_fech_pct: number | null
+  lift_vs_geral: number | null
+  ticket_medio: number | null
+}
+
+export type WwMarketingDropOffRow = {
+  origem: string
+  entrada: number
+  sdr: number
+  closer: number
+  pos_venda: number
+  fechado: number
+  drop_entrada_sdr: number | null
+  drop_sdr_closer: number | null
+  drop_closer_fechado: number | null
+}
+
+export type WwMarketingQualidade = {
+  date_start: string
+  date_end: string
+  total_leads: number
+  total_fechados: number
+  taxa_geral_pct: number | null
+  por_origem: WwMarketingOrigemRow[]
+  por_campaign: WwMarketingCampanhaRow[]
+  dropoff_por_origem: WwMarketingDropOffRow[]
+  error?: string
+}
+
+export function useWwMarketingQualidade(filters: Ww2Filters, minAmostra: number = 2) {
+  const orgId = useOrgId()
+  return useQuery({
+    queryKey: ['ww', 'marketing-qualidade', orgId, filters.dateStart, filters.dateEnd, filters.origins, minAmostra],
+    queryFn: () => callRpc<WwMarketingQualidade>('ww_marketing_qualidade', {
+      p_date_start: filters.dateStart,
+      p_date_end: filters.dateEnd,
+      p_org_id: orgId,
+      p_origins: filters.origins?.length ? filters.origins : null,
+      p_min_amostra: minAmostra,
+    }),
+    enabled: !!orgId,
+    staleTime: 60_000,
+  })
+}
+
 // ── Visão C: Perfil entrada vs fechamento (Onda 4) ────────────────────────
 export type WwPerfilCompareCobertura = {
   total: number

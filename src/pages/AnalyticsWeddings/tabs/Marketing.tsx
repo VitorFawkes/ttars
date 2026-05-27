@@ -1,14 +1,17 @@
 import { useState } from 'react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { useWw2Marketing } from '@/hooks/analyticsWeddings/useWw2'
+import { useWw2Marketing, useWwMarketingQualidade, type WwMarketingQualidade } from '@/hooks/analyticsWeddings/useWw2'
 import { useFilterParams } from '../components/FilterBar'
 import { SectionCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
 import { DrillDrawer, type DrillContext } from '../components/DrillDrawer'
+import { LiftBadge } from '../components/LiftBadge'
+import { ClickableRow } from '../components/ClickableRow'
 import { formatCurrency, formatNumber } from '../lib/format'
 
 export function Marketing() {
   const filters = useFilterParams()
   const { data, isLoading, error } = useWw2Marketing(filters)
+  const { data: qualidade } = useWwMarketingQualidade(filters, 2)
   const [drill, setDrill] = useState<DrillContext | null>(null)
 
   if (isLoading) return <LoadingSkeleton rows={5} />
@@ -19,6 +22,9 @@ export function Marketing() {
 
   return (
     <div className="space-y-5">
+      {qualidade && !qualidade.error && <QualidadeFonte data={qualidade} onOrigemClick={(origem) => setDrill({ ...baseCtx, origem, title: `Casais — origem ${origem}` })} onCampanhaClick={(campaign) => setDrill({ ...baseCtx, campaign, title: `Casais — campanha ${campaign}` })} />}
+      {qualidade && !qualidade.error && <DropOffPorFase data={qualidade} onOrigemClick={(origem) => setDrill({ ...baseCtx, origem, title: `Casais — origem ${origem}` })} />}
+
       <SectionCard title="Performance por origem" subtitle="UTM source consolidado. Clique numa linha pra ver os leads.">
         {data.por_origem.length === 0 ? <EmptyState message="Sem dados" /> : (
           <table className="w-full text-xs">
@@ -124,4 +130,162 @@ function FunilRow({ label, value, max, color }: { label: string; value: number; 
       <div className="w-14 text-right text-slate-700 font-medium tabular-nums">{formatNumber(value)}</div>
     </div>
   )
+}
+
+// ─── NOVO Onda 5: Qualidade da fonte ───────────────────────────────────────
+function QualidadeFonte({ data, onOrigemClick, onCampanhaClick }: { data: WwMarketingQualidade; onOrigemClick?: (origem: string) => void; onCampanhaClick?: (campaign: string) => void }) {
+  const topLiftCampanhas = [...(data.por_campaign ?? [])]
+    .filter(c => c.lift_vs_geral !== null && c.lift_vs_geral >= 1.5 && c.leads >= 3)
+    .sort((a, b) => (b.lift_vs_geral ?? 0) - (a.lift_vs_geral ?? 0))
+    .slice(0, 8)
+
+  return (
+    <>
+      <SectionCard
+        title="🔬 Qualidade da fonte"
+        subtitle="Pra cada origem: % qualif (chegou em closer), % fech (virou venda), ticket, e qualidade do dado (email/telefone). Clique pra ver os casais."
+      >
+        {data.por_origem.length === 0 ? <EmptyState message="Sem dados de origem com amostra suficiente" /> : (
+          <div className="border border-slate-200 rounded-lg overflow-hidden">
+            <table className="w-full text-xs">
+              <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">Origem</th>
+                  <th className="px-3 py-2 text-right font-medium">Leads</th>
+                  <th className="px-3 py-2 text-right font-medium">Qualif.</th>
+                  <th className="px-3 py-2 text-right font-medium">Taxa qualif.</th>
+                  <th className="px-3 py-2 text-right font-medium">Fechou</th>
+                  <th className="px-3 py-2 text-right font-medium">Taxa fech.</th>
+                  <th className="px-3 py-2 text-center font-medium">Lift</th>
+                  <th className="px-3 py-2 text-right font-medium">Ticket médio</th>
+                  <th className="px-3 py-2 text-right font-medium">% email</th>
+                  <th className="px-3 py-2 text-right font-medium">% tel</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.por_origem.map(r => {
+                  const cells = (
+                    <>
+                      <td className="px-3 py-2 text-slate-900 font-medium">{r.origem}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatNumber(r.leads_total)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatNumber(r.qualificados)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-slate-600">{r.taxa_qualif_pct ?? 0}%</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-emerald-700 font-medium">{formatNumber(r.fechados)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-emerald-600">{r.taxa_fechamento_pct ?? 0}%</td>
+                      <td className="px-3 py-2 text-center"><LiftBadge lift={r.lift_vs_geral} size="sm" showDelta={false} /></td>
+                      <td className="px-3 py-2 text-right tabular-nums">{r.ticket_medio ? formatCurrency(r.ticket_medio) : '—'}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        <span className={(r.pct_email_valido ?? 0) >= 80 ? 'text-emerald-700' : (r.pct_email_valido ?? 0) >= 50 ? 'text-amber-700' : 'text-rose-700'}>
+                          {r.pct_email_valido ?? 0}%
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        <span className={(r.pct_tel_valido ?? 0) >= 80 ? 'text-emerald-700' : (r.pct_tel_valido ?? 0) >= 50 ? 'text-amber-700' : 'text-rose-700'}>
+                          {r.pct_tel_valido ?? 0}%
+                        </span>
+                      </td>
+                    </>
+                  )
+                  return onOrigemClick ? (
+                    <ClickableRow key={r.origem} onClick={() => onOrigemClick(r.origem)} className="border-t border-slate-100" title={`Ver casais — ${r.origem}`}>
+                      {cells}
+                    </ClickableRow>
+                  ) : <tr key={r.origem} className="border-t border-slate-100">{cells}</tr>
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </SectionCard>
+
+      {topLiftCampanhas.length > 0 && (
+        <SectionCard
+          title="🚀 Campanhas que fecham MAIS que a média"
+          subtitle="Lift > 1.5x e pelo menos 3 leads. Clique pra abrir os casais."
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {topLiftCampanhas.map((c, i) => (
+              <button
+                key={`${c.origem}-${c.campaign}-${i}`}
+                onClick={onCampanhaClick ? () => onCampanhaClick(c.campaign) : undefined}
+                className="p-3 border border-emerald-200 bg-emerald-50/40 rounded-lg hover:bg-emerald-50 cursor-pointer text-left transition"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs uppercase tracking-wide text-slate-500 truncate">{c.origem} · {c.medium}</div>
+                    <div className="text-sm font-medium text-slate-900 truncate" title={c.campaign}>{c.campaign}</div>
+                  </div>
+                  <LiftBadge lift={c.lift_vs_geral} size="md" showDelta={true} />
+                </div>
+                <div className="mt-2 text-[11px] text-slate-600 tabular-nums">
+                  {c.leads} leads · {c.qualif} qualif · <strong className="text-emerald-700">{c.fechou} fechou ({c.taxa_fech_pct ?? 0}%)</strong>
+                  {c.ticket_medio && <span className="ml-1 text-slate-400">· ticket {formatCurrency(c.ticket_medio)}</span>}
+                </div>
+              </button>
+            ))}
+          </div>
+        </SectionCard>
+      )}
+    </>
+  )
+}
+
+function DropOffPorFase({ data, onOrigemClick }: { data: WwMarketingQualidade; onOrigemClick?: (origem: string) => void }) {
+  if (!data.dropoff_por_origem || data.dropoff_por_origem.length === 0) return null
+  return (
+    <SectionCard
+      title="📊 Drop-off por fase (em cada origem)"
+      subtitle="Em qual fase do funil cada origem mais perde leads. Ajuda a saber qual fonte traz lead que abandona rápido vs vai longe."
+    >
+      <div className="border border-slate-200 rounded-lg overflow-hidden">
+        <table className="w-full text-xs">
+          <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="px-3 py-2 text-left font-medium">Origem</th>
+              <th className="px-3 py-2 text-right font-medium">Entrou</th>
+              <th className="px-3 py-2 text-right font-medium">Passou SDR</th>
+              <th className="px-3 py-2 text-right font-medium">Drop SDR</th>
+              <th className="px-3 py-2 text-right font-medium">Chegou Closer</th>
+              <th className="px-3 py-2 text-right font-medium">Drop Closer</th>
+              <th className="px-3 py-2 text-right font-medium">Fechou</th>
+              <th className="px-3 py-2 text-right font-medium">Drop fech.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.dropoff_por_origem.map(d => {
+              const cells = (
+                <>
+                  <td className="px-3 py-2 text-slate-900 font-medium">{d.origem}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{formatNumber(d.entrada)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{formatNumber(d.sdr)}</td>
+                  <td className="px-3 py-2 text-right">
+                    <DropBadge pct={d.drop_entrada_sdr} />
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">{formatNumber(d.closer)}</td>
+                  <td className="px-3 py-2 text-right">
+                    <DropBadge pct={d.drop_sdr_closer} />
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums text-emerald-700 font-medium">{formatNumber(d.fechado)}</td>
+                  <td className="px-3 py-2 text-right">
+                    <DropBadge pct={d.drop_closer_fechado} />
+                  </td>
+                </>
+              )
+              return onOrigemClick ? (
+                <ClickableRow key={d.origem} onClick={() => onOrigemClick(d.origem)} className="border-t border-slate-100" title={`Ver casais — ${d.origem}`}>
+                  {cells}
+                </ClickableRow>
+              ) : <tr key={d.origem} className="border-t border-slate-100">{cells}</tr>
+            })}
+          </tbody>
+        </table>
+      </div>
+    </SectionCard>
+  )
+}
+
+function DropBadge({ pct }: { pct: number | null }) {
+  if (pct === null || pct === undefined) return <span className="text-slate-300">—</span>
+  const cor = pct >= 80 ? 'bg-rose-100 text-rose-800' : pct >= 50 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'
+  return <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium tabular-nums ${cor}`}>-{pct}%</span>
 }
