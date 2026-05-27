@@ -76,7 +76,7 @@ export function Perdas() {
             <table className="text-xs">
               <thead>
                 <tr>
-                  <th className="px-2 py-1 text-left font-medium text-slate-500">Motivo ↓ / Faixa →</th>
+                  <th className="px-2 py-1 text-center font-medium text-slate-500">Motivo ↓ / Faixa →</th>
                   {faixasTop.map(f => <th key={f} className="px-2 py-1 text-center font-medium text-slate-500 whitespace-nowrap">{f}</th>)}
                 </tr>
               </thead>

@@ -68,8 +68,8 @@ export function DrillDrawer({ ctx, onClose }: { ctx: DrillContext | null; onClos
                   <th className="px-4 py-2 font-medium">Casal · Card</th>
                   <th className="px-2 py-2 font-medium">Etapa</th>
                   <th className="px-2 py-2 font-medium">Dono</th>
-                  <th className="px-2 py-2 font-medium text-right">Valor</th>
-                  <th className="px-2 py-2 font-medium text-right">Parado</th>
+                  <th className="px-2 py-2 font-medium text-center">Valor</th>
+                  <th className="px-2 py-2 font-medium text-center">Parado</th>
                   <th className="px-2 py-2 font-medium text-center">Active</th>
                 </tr>
               </thead>
@@ -110,7 +110,7 @@ export function DrillDrawer({ ctx, onClose }: { ctx: DrillContext | null; onClos
                       </span>
                     </td>
                     <td className="px-2 py-2.5 text-center">
-                      <OpenInACButton externalId={r.contato_external_id} contactName={r.contato_nome} />
+                      <OpenInACButton dealId={r.ac_deal_id} externalId={r.contato_external_id} contactName={r.contato_nome} />
                     </td>
                   </tr>
                 ))}

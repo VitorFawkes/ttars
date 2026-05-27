@@ -21,10 +21,10 @@ function Table<T extends { user_id: string }>({ rows, cols, onRowClick }: { rows
 
   return (
     <table className="w-full text-xs">
-      <thead className="text-left text-slate-500 border-b border-slate-200">
+      <thead className="text-center text-slate-500 border-b border-slate-200">
         <tr>
           {cols.map(c => (
-            <th key={c.key} className={`py-2 font-medium ${c.align === 'right' ? 'text-right' : ''}`}>
+            <th key={c.key} className={`py-2 font-medium ${c.align === 'right' ? 'text-center' : ''}`}>
               {c.sort ? (
                 <button onClick={() => { setSortKey(c.key); setSortDir(sortKey === c.key && sortDir === 'desc' ? 'asc' : 'desc') }}
                   className="hover:text-slate-700">

@@ -346,10 +346,10 @@ function FunilPorCategoria({ title, subtitle, items, unidade, outros, onRowClick
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-3 py-2 text-left font-medium">Categoria que o lead declarou</th>
-              <th className="px-3 py-2 text-left font-medium" style={{ minWidth: 220 }}>Entraram no período</th>
-              <th className="px-3 py-2 text-right font-medium">Fecharam contrato</th>
-              <th className="px-3 py-2 text-left font-medium" style={{ minWidth: 160 }}>Taxa de conversão</th>
+              <th className="px-3 py-2 text-center font-medium">Categoria que o lead declarou</th>
+              <th className="px-3 py-2 text-center font-medium" style={{ minWidth: 220 }}>Entraram no período</th>
+              <th className="px-3 py-2 text-center font-medium">Fecharam contrato</th>
+              <th className="px-3 py-2 text-center font-medium" style={{ minWidth: 160 }}>Taxa de conversão</th>
             </tr>
           </thead>
           <tbody>

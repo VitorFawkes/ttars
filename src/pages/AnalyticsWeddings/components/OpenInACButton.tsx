@@ -1,26 +1,32 @@
-import { useACBaseUrl, buildACContactUrl } from '@/hooks/useACBaseUrl'
+import { useACBaseUrl, buildACContactUrl, buildACDealUrl } from '@/hooks/useACBaseUrl'
 
 type Props = {
-  externalId: string | null | undefined
+  /** ID do deal do casal no Active (preferido — abre a card de venda) */
+  dealId?: string | null | undefined
+  /** ID do contato no Active (fallback — usado só se dealId não estiver disponível) */
+  externalId?: string | null | undefined
   contactName?: string | null
   size?: 'sm' | 'md'
   variant?: 'icon' | 'pill'
 }
 
 /**
- * Abre o contato no ActiveCampaign em nova aba. Se o contato não tem
- * external_id (não sincronizado com AC) o botão fica desabilitado com tooltip.
+ * Abre o DEAL do casal no ActiveCampaign em nova aba. Se não tiver dealId,
+ * cai pra contato. Se nada disponível, fica desabilitado com tooltip.
  */
-export function OpenInACButton({ externalId, contactName, size = 'sm', variant = 'icon' }: Props) {
+export function OpenInACButton({ dealId, externalId, contactName, size = 'sm', variant = 'icon' }: Props) {
   const { data: baseUrl } = useACBaseUrl()
-  const url = buildACContactUrl(baseUrl, externalId)
+  const dealUrl = buildACDealUrl(baseUrl, dealId)
+  const contactUrl = buildACContactUrl(baseUrl, externalId)
+  const url = dealUrl || contactUrl
   const disabled = !url
+  const isDeal = !!dealUrl
 
   const title = disabled
-    ? (externalId ? 'Active não configurado neste workspace' : 'Casal ainda não sincronizado com Active')
-    : contactName
-      ? `Abrir ${contactName} no Active`
-      : 'Abrir no Active'
+    ? ((dealId || externalId) ? 'Active não configurado neste workspace' : 'Casal ainda não sincronizado com Active')
+    : isDeal
+      ? (contactName ? `Abrir venda de ${contactName} no Active` : 'Abrir venda no Active')
+      : (contactName ? `Abrir contato ${contactName} no Active` : 'Abrir contato no Active')
 
   const sizeClass = size === 'sm' ? 'h-6 px-1.5 text-[11px]' : 'h-7 px-2 text-xs'
 

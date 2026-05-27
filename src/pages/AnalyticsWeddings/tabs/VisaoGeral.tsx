@@ -120,13 +120,13 @@ export function VisaoGeral() {
           <EmptyState message="Nenhum lead parado. Tudo fluindo." />
         ) : (
           <table className="w-full text-xs">
-            <thead className="text-left text-slate-500">
+            <thead className="text-center text-slate-500">
               <tr>
                 <th className="py-2 font-medium">Card</th>
                 <th className="py-2 font-medium">Etapa</th>
                 <th className="py-2 font-medium">Fase</th>
-                <th className="py-2 font-medium text-right">Valor</th>
-                <th className="py-2 font-medium text-right">Parado há</th>
+                <th className="py-2 font-medium text-center">Valor</th>
+                <th className="py-2 font-medium text-center">Parado há</th>
               </tr>
             </thead>
             <tbody>
