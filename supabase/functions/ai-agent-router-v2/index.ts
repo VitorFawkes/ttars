@@ -1188,26 +1188,32 @@ Deno.serve(async (req) => {
               const windowDays = Number(sc.search_window_days ?? 14);
               const dateFormat = (sc.date_format === "full") ? "full" : "short"; // default short
 
-              const today = new Date();
+              // Trabalha em fuso BRT (America/Sao_Paulo, UTC-3 fixo desde 2019).
+              // Servidor Deno do edge runtime roda em UTC — se usássemos
+              // getHours() direto, candidate "10:00" não bate com reunião
+              // salva como "13:00 UTC" (=10h BRT).
+              const BRT_OFFSET_MIN = -180;
+              const toBrt = (d: Date): Date => new Date(d.getTime() + BRT_OFFSET_MIN * 60 * 1000);
+              const todayBrt = toBrt(new Date());
               const weekdays = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
               type Slot = { date: string; time: string; weekday: string; iso: string };
               const candidates: Slot[] = [];
               const formatDate = (d: Date): string => {
-                const dd = String(d.getDate()).padStart(2, "0");
-                const mm = String(d.getMonth() + 1).padStart(2, "0");
+                const dd = String(d.getUTCDate()).padStart(2, "0");
+                const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
                 if (dateFormat === "full") {
-                  return `${dd}/${mm}/${d.getFullYear()}`;
+                  return `${dd}/${mm}/${d.getUTCFullYear()}`;
                 }
                 return `${dd}/${mm}`;
               };
               for (let i = 1; i < windowDays; i++) {
-                const d = new Date(today);
-                d.setDate(today.getDate() + i);
-                const wd = d.getDay();
+                const d = new Date(todayBrt);
+                d.setUTCDate(todayBrt.getUTCDate() + i);
+                const wd = d.getUTCDay();
                 if (skipWeekends && (wd === 0 || wd === 6)) continue;
-                const yyyy = d.getFullYear();
-                const mm = String(d.getMonth() + 1).padStart(2, "0");
-                const dd = String(d.getDate()).padStart(2, "0");
+                const yyyy = d.getUTCFullYear();
+                const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+                const dd = String(d.getUTCDate()).padStart(2, "0");
                 const dStr = formatDate(d);
                 for (const h of availableHours) {
                   candidates.push({
@@ -1219,41 +1225,47 @@ Deno.serve(async (req) => {
                 }
               }
 
-              // Coleta horários ocupados de reuniões no mesmo org nas próximas N semanas.
-              // Quando há Wedding Planner configurada, filtra apenas as reuniões dela.
+              // Coleta horários ocupados de reuniões no mesmo org nas próximas
+              // N semanas. Lê da tabela `tarefas` (filtrando `tipo='reuniao'`),
+              // que é a fonte viva da operação. Tabela `reunioes` é legado e
+              // estava vazia — Patrícia oferecia horários já ocupados pela WP.
               const occupied = new Set<string>();
               try {
-                const horizonStart = new Date(today);
-                const horizonEnd = new Date(today);
-                horizonEnd.setDate(today.getDate() + windowDays);
+                // Horizonte em UTC absoluto (timestamps reais do banco). Usa
+                // hora atual real (sem shift BRT) — o filtro >= now é absoluto.
+                const nowReal = new Date();
+                const horizonStart = nowReal;
+                const horizonEnd = new Date(nowReal.getTime() + windowDays * 24 * 60 * 60 * 1000);
                 let meetingsQuery = supabase
-                  .from("reunioes")
-                  .select("data_inicio,status")
+                  .from("tarefas")
+                  .select("data_vencimento,status")
                   .eq("org_id", agent.org_id)
-                  .gte("data_inicio", horizonStart.toISOString())
-                  .lt("data_inicio", horizonEnd.toISOString())
-                  .in("status", ["agendada", "confirmada", "agendado", "confirmado"]);
+                  .eq("tipo", "reuniao")
+                  .gte("data_vencimento", horizonStart.toISOString())
+                  .lt("data_vencimento", horizonEnd.toISOString())
+                  .in("status", ["aberta", "pendente", "agendada", "reagendada"]);
                 if (agent.wedding_planner_profile_id) {
                   meetingsQuery = meetingsQuery.eq("responsavel_id", agent.wedding_planner_profile_id);
                 }
                 const { data: meetings, error: meetErr } = await meetingsQuery;
                 if (meetErr) {
-                  console.warn("[v2] trigger: erro lendo reunioes:", meetErr.message);
+                  console.warn("[v2] trigger: erro lendo tarefas:", meetErr.message);
                 } else if (Array.isArray(meetings)) {
                   for (const m of meetings) {
-                    const di = m.data_inicio as string | null;
+                    const di = m.data_vencimento as string | null;
                     if (!di) continue;
-                    const md = new Date(di);
-                    const yyyy = md.getFullYear();
-                    const mm = String(md.getMonth() + 1).padStart(2, "0");
-                    const dd = String(md.getDate()).padStart(2, "0");
-                    const hh = String(md.getHours()).padStart(2, "0");
-                    const mi = String(md.getMinutes()).padStart(2, "0");
+                    // Converte UTC do banco pra BRT pra bater com candidates
+                    const mdBrt = toBrt(new Date(di));
+                    const yyyy = mdBrt.getUTCFullYear();
+                    const mm = String(mdBrt.getUTCMonth() + 1).padStart(2, "0");
+                    const dd = String(mdBrt.getUTCDate()).padStart(2, "0");
+                    const hh = String(mdBrt.getUTCHours()).padStart(2, "0");
+                    const mi = String(mdBrt.getUTCMinutes()).padStart(2, "0");
                     occupied.add(`${yyyy}-${mm}-${dd}T${hh}:${mi}:00`);
                   }
                 }
               } catch (e) {
-                console.warn("[v2] trigger: exception lendo reunioes:", (e as Error).message);
+                console.warn("[v2] trigger: exception lendo tarefas:", (e as Error).message);
               }
 
               const free = candidates.filter((c) => !occupied.has(c.iso));
