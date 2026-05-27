@@ -24,9 +24,13 @@ function useEnableNativeScroll() {
       rootOverflow: root?.style.overflow,
       rootHeight: root?.style.height,
     }
+    // IMPORTANTE: só html.overflow = auto. body precisa ficar 'visible' senão
+    // body vira scrolling container próprio e elementos `position: sticky`
+    // dentro dele ficam presos ao body (que está sendo rolado), em vez de
+    // ficarem fixos relativos à viewport. Visivelmente o sticky "some" ao rolar.
     html.style.overflow = 'auto'
     html.style.height = 'auto'
-    body.style.overflow = 'auto'
+    body.style.overflow = 'visible'
     body.style.height = 'auto'
     if (root) {
       root.style.overflow = 'visible'
