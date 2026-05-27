@@ -634,6 +634,35 @@ export type WwDriftVendaItem = {
   tipo_casamento: string | null
   monde_venda: string | null
   destino_vendido: string | null
+  // Enriquecimentos da Onda 3 (migration 20260527v_ww_drift_venda_v2)
+  origem?: string | null
+  valor_final?: number | null
+  consultor_nome?: string | null
+  contato_nome?: string | null
+  contato_external_id?: string | null
+}
+
+export type WwDriftPorOrigem = {
+  origem: string
+  vendas: number
+  manteve: number; subiu: number; desceu: number
+  manteve_pct: number | null; subiu_pct: number | null; desceu_pct: number | null
+  ticket_medio_vendido: number | null
+}
+
+export type WwDriftPorConsultor = {
+  consultor_id: string
+  consultor_nome: string | null
+  vendas: number
+  manteve: number; subiu: number; desceu: number
+  manteve_pct: number | null; subiu_pct: number | null; desceu_pct: number | null
+  ticket_medio: number | null
+}
+
+export type WwDriftPorMes = {
+  mes: string
+  vendas: number
+  manteve_pct: number | null; subiu_pct: number | null; desceu_pct: number | null
 }
 
 export type WwDriftVenda = {
@@ -661,6 +690,9 @@ export type WwDriftVenda = {
     drift: { manteve: number; subiu: number; desceu: number }
     matriz: WwDriftConvidadosMatriz[]
   }
+  drift_por_origem?: WwDriftPorOrigem[]
+  drift_por_consultor?: WwDriftPorConsultor[]
+  drift_por_mes?: WwDriftPorMes[]
   error?: string
 }
 
