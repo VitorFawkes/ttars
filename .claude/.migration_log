@@ -992,3 +992,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-27T01:01:49Z | supabase/migrations/20260526m_assessoria_vip_integration.sql | applied_to_prod
 2026-05-27T01:08:39Z | supabase/migrations/20260526n_avip_find_candidates_safe_date.sql | applied_to_prod
 2026-05-27T01:30:09Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
+2026-05-27T12:57:32Z | supabase/migrations/20260527b_leadster_webhook_events.sql | applied_to_prod
