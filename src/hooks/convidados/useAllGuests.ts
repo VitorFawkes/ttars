@@ -9,23 +9,29 @@ export interface AllGuestsFilters {
   weddingFilter: string[]
 }
 
-interface Row {
+/**
+ * Lê todos os convidados da org (sem fixar wedding). Pós Lista de Convidados
+ * pública, contato_id pode ser NULL — usa view v_wedding_guests_resolved
+ * que faz COALESCE entre nome_raw (preenchido pelo casal) e contatos.nome.
+ *
+ * Guests órfãos (sem card_id ainda — pertencem a casal não vinculado) são
+ * filtrados; só listamos os já atrelados a algum casamento.
+ */
+interface ResolvedRow {
   id: string
-  card_id: string
-  contato_id: string
+  card_id: string | null
+  contato_id: string | null
   org_id: string
   status_rsvp: StatusRSVP
   observacoes: string | null
   created_at: string
   updated_at: string
   created_by: string | null
-  contatos: {
-    nome: string
-    sobrenome: string | null
-    telefone: string | null
-    email: string | null
-  } | null
-  cards: { id: string; titulo: string } | null
+  nome_display: string | null
+  sobrenome_display: string | null
+  telefone_display: string | null
+  email_display: string | null
+  cards?: { id: string; titulo: string } | null
 }
 
 export function useAllGuests(filters: AllGuestsFilters) {
@@ -40,9 +46,12 @@ export function useAllGuests(filters: AllGuestsFilters) {
 
       const buildBaseQuery = () => {
         let q = sbAny
-          .from('wedding_guests')
-          .select('id, card_id, contato_id, org_id, status_rsvp, observacoes, created_at, updated_at, created_by, contatos!inner(nome, sobrenome, telefone, email), cards!inner(id, titulo)')
+          .from('v_wedding_guests_resolved')
+          .select(
+            'id, card_id, contato_id, org_id, status_rsvp, observacoes, created_at, updated_at, created_by, nome_display, sobrenome_display, telefone_display, email_display, cards!inner(id, titulo)',
+          )
           .eq('org_id', orgId)
+          .not('card_id', 'is', null)
         if (filters.statusFilter.length > 0) q = q.in('status_rsvp', filters.statusFilter)
         if (filters.weddingFilter.length > 0) q = q.in('card_id', filters.weddingFilter)
         return q
@@ -50,39 +59,34 @@ export function useAllGuests(filters: AllGuestsFilters) {
 
       // PostgREST cap em 1000 → paginação.
       const PAGE = 1000
-      const rows: Row[] = []
+      const rows: ResolvedRow[] = []
       for (let start = 0; ; start += PAGE) {
         const { data, error } = await buildBaseQuery().range(start, start + PAGE - 1)
         if (error) throw error
-        const page = (data ?? []) as Row[]
+        const page = (data ?? []) as ResolvedRow[]
         rows.push(...page)
         if (page.length < PAGE) break
       }
 
       const term = filters.search.trim().toLowerCase()
       const mapped: GuestWithWedding[] = rows
-        .map(row => {
-          const nome = row.contatos?.nome ?? '(sem nome)'
-          const telefone = row.contatos?.telefone ?? null
-          const email = row.contatos?.email ?? null
-          return {
-            id: row.id,
-            card_id: row.card_id,
-            contato_id: row.contato_id,
-            org_id: row.org_id,
-            nome,
-            sobrenome: row.contatos?.sobrenome ?? null,
-            telefone,
-            email,
-            status_rsvp: row.status_rsvp,
-            observacoes: row.observacoes,
-            created_at: row.created_at,
-            updated_at: row.updated_at,
-            created_by: row.created_by,
-            card_titulo: row.cards?.titulo ?? '(sem casamento)',
-          }
-        })
-        .filter(g => {
+        .map((row) => ({
+          id: row.id,
+          card_id: row.card_id || '',
+          contato_id: row.contato_id || '',
+          org_id: row.org_id,
+          nome: row.nome_display ?? '(sem nome)',
+          sobrenome: row.sobrenome_display ?? null,
+          telefone: row.telefone_display ?? null,
+          email: row.email_display ?? null,
+          status_rsvp: row.status_rsvp,
+          observacoes: row.observacoes,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+          created_by: row.created_by,
+          card_titulo: row.cards?.titulo ?? '(sem casamento)',
+        }))
+        .filter((g) => {
           if (!term) return true
           return (
             g.nome.toLowerCase().includes(term) ||

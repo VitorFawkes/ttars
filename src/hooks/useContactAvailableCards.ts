@@ -21,6 +21,8 @@ export interface AvailableCard {
     role: 'primary' | 'traveler'
     /** True se já existe presente do contato selecionado neste card */
     hasGift: boolean
+    /** True se a viagem já terminou (dataFim < hoje). Mostra-se com aviso na UI. */
+    isPast: boolean
     /** Outras pessoas no card (exclui o contato que fez a busca) */
     travelers: AvailableCardTraveler[]
 }
@@ -152,6 +154,7 @@ export function useContactAvailableCards(contatoIds: string[]) {
             }
 
             // 8. Constrói o resultado por contato
+            const today = new Date().toISOString().split('T')[0]
             const result: Record<string, AvailableCard[]> = {}
             for (const id of ids) result[id] = []
 
@@ -159,6 +162,7 @@ export function useContactAvailableCards(contatoIds: string[]) {
                 const cardTravelers = travelersByCard.get(card.id) || []
                 // Determinar quais dos contatos selecionados estão nesse card
                 const contactsOnCard = cardTravelers.filter(t => ids.includes(t.id))
+                const isPast = !!card.data_viagem_fim && card.data_viagem_fim < today
                 for (const contactOnCard of contactsOnCard) {
                     result[contactOnCard.id].push({
                         id: card.id,
@@ -168,9 +172,21 @@ export function useContactAvailableCards(contatoIds: string[]) {
                         dataFim: card.data_viagem_fim,
                         role: contactOnCard.role,
                         hasGift: giftSet.has(giftKey(card.id, contactOnCard.id)),
+                        isPast,
                         travelers: cardTravelers.filter(t => t.id !== contactOnCard.id),
                     })
                 }
+            }
+
+            // 9. Ordena: viagens ativas primeiro, encerradas depois
+            for (const id of ids) {
+                result[id].sort((a, b) => {
+                    if (a.isPast !== b.isPast) return a.isPast ? 1 : -1
+                    // Dentro de cada grupo, mais recentes primeiro
+                    const aDate = a.dataInicio || ''
+                    const bDate = b.dataInicio || ''
+                    return bDate.localeCompare(aDate)
+                })
             }
 
             return result

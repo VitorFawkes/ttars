@@ -1283,7 +1283,7 @@ function renderProposedSlots(
 
 ${lines}
 
-Apresente os horários ao casal EXATAMENTE no formato agrupado acima — quando há vários horários no mesmo dia (ex: "*qui 14/05* às *10:00*, *14:00* ou *16:00*"), NÃO repita o dia da semana e a data várias vezes. NÃO invente outras opções. NÃO mude o formato dos dias/horários. Os asteriscos simples (\`*texto*\`) são a sintaxe de bold do WhatsApp — preserve EXATAMENTE assim, sem dobrar pra \`**\` e sem remover. Se o casal pedir alternativa, chame \`check_calendar\` em vez de repetir os mesmos horários.
+Apresente os horários ao casal EXATAMENTE no formato agrupado acima — quando há vários horários no mesmo dia (ex: "*qui 14/05* às *10:00*, *14:00* ou *16:00*"), NÃO repita o dia da semana e a data várias vezes. NÃO invente outras opções. NÃO mude o formato dos dias/horários — mesmo pra lead premium, **mantenha "qua 27/05 às 09:00", NÃO escreva "quarta-feira, dia 27 de maio, às 09h00"**. O formato compacto é decisão de marca, não cabe reformatar. Os asteriscos simples (\`*texto*\`) são a sintaxe de bold do WhatsApp — preserve EXATAMENTE assim, sem dobrar pra \`**\` e sem remover. Se o casal pedir alternativa, chame \`check_calendar\` em vez de repetir os mesmos horários.
 </proposed_slots>`;
 }
 

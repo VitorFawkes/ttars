@@ -38,7 +38,7 @@ export function MobileFooter({
     >
       <div className="px-4 py-3 flex items-center justify-between gap-3">
         {/* Total */}
-        <div className="min-w-0">
+        <div className="min-w-0" data-tour="footer-total">
           <p className="text-xs text-slate-500">Total da viagem</p>
           <div className="flex items-baseline gap-2">
             <p className="text-2xl font-bold text-slate-900">
@@ -65,6 +65,7 @@ export function MobileFooter({
           <button
             onClick={onAccept}
             disabled={total <= 0}
+            data-tour="accept-btn"
             className={cn(
               'px-5 py-3.5 rounded-xl font-semibold text-sm transition-all min-h-[52px]',
               'bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800',
@@ -73,7 +74,7 @@ export function MobileFooter({
             )}
             style={{ touchAction: 'manipulation' }}
           >
-            Aceitar Proposta
+            {total > 0 ? 'Aceitar Proposta' : 'Selecione itens'}
           </button>
         </div>
       </div>

@@ -45,3 +45,34 @@ export function useResumoOverview() {
         retry: 1,
     })
 }
+
+/**
+ * Mesma RPC chamada com o período imediatamente ANTERIOR ao atual (mesma duração,
+ * deslocado pra trás). Útil pra calcular delta semana-vs-semana, mês-vs-mês etc.
+ */
+export function useResumoOverviewPrevious() {
+    const { dateRange, product } = useAnalyticsFilters()
+
+    const startMs = new Date(dateRange.start).getTime()
+    const endMs = new Date(dateRange.end).getTime()
+    const durationMs = endMs - startMs
+    const previousEnd = new Date(startMs).toISOString()
+    const previousStart = new Date(startMs - durationMs).toISOString()
+
+    return useQuery({
+        queryKey: ['analytics', 'resumo-overview-previous', previousStart, previousEnd, product],
+        queryFn: async () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data, error } = await (supabase.rpc as any)('analytics_resumo_overview', {
+                p_date_start: previousStart,
+                p_date_end: previousEnd,
+                p_product: product,
+            })
+            if (error) throw error
+            return (data as unknown as ResumoOverview) || null
+        },
+        staleTime: 60 * 1000,
+        retry: 1,
+        enabled: durationMs > 0,
+    })
+}

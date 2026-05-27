@@ -13,6 +13,7 @@ import { useProposalSelections } from '../shared/hooks/useProposalSelections'
 import { useProposalTotals, getSelectedItemsSummary } from '../shared/hooks/useProposalTotals'
 import { useProposalAccept, trackProposalView } from '../shared/hooks/useProposalAccept'
 import type { Currency } from '../shared/utils/priceUtils'
+import { resolveSelectionMode } from '../shared/sectionMode'
 import { MobileProposalHero } from './MobileProposalHero'
 import { MobileSectionNav } from './MobileSectionNav'
 import { MobileSection } from './MobileSection'
@@ -58,7 +59,7 @@ export function MobileProposalViewer({ proposal }: MobileProposalViewerProps) {
   } = useProposalSelections(contentSections)
 
   // Totais
-  const { totalPrimary, selectedItemsCount } = useProposalTotals(
+  const { totalPrimary } = useProposalTotals(
     contentSections,
     selections,
     primaryCurrency
@@ -147,6 +148,17 @@ export function MobileProposalViewer({ proposal }: MobileProposalViewerProps) {
   // Número de viajantes
   const travelers = parseInt(String(metadata.travelers || '1').replace(/\D/g, '')) || 1
 
+  // Ancoras do tour do cliente
+  const firstRequiredId = contentSections.find(s => {
+    const m = resolveSelectionMode(s)
+    return m === 'pick_one_required' || m === 'pick_one_or_more'
+  })?.id
+  const firstOptionalId = contentSections.find(s => {
+    const m = resolveSelectionMode(s)
+    return m === 'pick_any_optional'
+  })?.id
+  const commentTourId = firstRequiredId ?? firstOptionalId ?? contentSections[0]?.id
+
   return (
     <div
       ref={scrollContainerRef}
@@ -168,38 +180,51 @@ export function MobileProposalViewer({ proposal }: MobileProposalViewerProps) {
 
         {/* Seções de conteúdo */}
         <main className="pt-4">
-          {contentSections.map(section => (
-            <div
-              key={section.id}
-              ref={(el) => {
-                if (el) sectionRefs.current.set(section.id, el)
-              }}
-            >
-              <MobileSection
-                section={section}
-                selections={selections}
-                onToggleItem={toggleItem}
-                onSelectItem={selectItem}
-                onSelectOption={selectOption}
-                onChangeQuantity={changeQuantity}
-                commentMode={
-                  proposal.public_token
-                    ? { kind: 'public', proposalToken: proposal.public_token }
-                    : undefined
-                }
-              />
-            </div>
-          ))}
+          {contentSections.map(section => {
+            const dataTourSection =
+              section.id === firstRequiredId
+                ? 'section-required'
+                : section.id === firstOptionalId
+                  ? 'section-optional'
+                  : undefined
+            return (
+              <div
+                key={section.id}
+                ref={(el) => {
+                  if (el) sectionRefs.current.set(section.id, el)
+                }}
+              >
+                <MobileSection
+                  section={section}
+                  selections={selections}
+                  onToggleItem={toggleItem}
+                  onSelectItem={selectItem}
+                  onSelectOption={selectOption}
+                  onChangeQuantity={changeQuantity}
+                  commentMode={
+                    proposal.public_token
+                      ? { kind: 'public', proposalToken: proposal.public_token }
+                      : undefined
+                  }
+                  dataTourSection={dataTourSection}
+                  dataTourCommentBtn={section.id === commentTourId}
+                />
+              </div>
+            )
+          })}
         </main>
       </div>
 
-      {/* Footer sticky - fora do container scrollável para ficar fixo */}
+      {/* Footer sticky - fora do container scrollável para ficar fixo.
+          Sempre visível: o botão Aceitar fica desabilitado sem seleções,
+          e o total mostra R$ 0 — assim o cliente entende a UI desde o início
+          (e o tour clicável consegue ancorar nos elementos do footer). */}
       <MobileFooter
         total={totalPrimary}
         currency={primaryCurrency}
         travelers={travelers}
         onAccept={() => setShowAcceptModal(true)}
-        isVisible={selectedItemsCount > 0}
+        isVisible
         proposalToken={proposal.public_token}
       />
 

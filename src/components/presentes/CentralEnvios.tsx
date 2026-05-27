@@ -125,7 +125,7 @@ export default function CentralEnvios() {
                             onChange={e => setFilters(f => ({ ...f, hidePastTrips: e.target.checked ? false : undefined }))}
                             className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600"
                         />
-                        Incluir viagens encerradas
+                        Mostrar também presentes já entregues de viagens antigas
                     </label>
                 </div>
             </div>

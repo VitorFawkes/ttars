@@ -9,13 +9,26 @@
  * - Visual limpo e escaneável
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Star, Trash2, Sparkles, Pencil, ArrowRight, TrendingDown, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { type FlightsData, type FlightLeg, type FlightOption, AIRLINES, createInitialFlightData } from './types'
 import { compareFlightOptions } from './comparison'
 import { FlightImageExtractor } from './FlightImageExtractor'
+
+// Deriva um código curto (2 letras) quando o usuário digita uma companhia fora da lista
+function deriveAirlineCode(name: string): string {
+    const letters = name.replace(/[^A-Za-zÀ-ú]/g, '').toUpperCase()
+    return letters.slice(0, 2) || 'XX'
+}
+
+// Gera ID único pra leg/option. Date.now() sozinho colide quando opções são criadas
+// no mesmo ms (ex: clicar "Nova opção" 3x rápido) — IDs duplicados quebram a comparação
+// "mais barato / mais rápido" porque o match `cheapestId === option.id` bate em todas.
+function uid(prefix: string): string {
+    return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+}
 
 // Opções fixas pra bagagem (em vez de texto livre que vira bagunça)
 const BAGGAGE_OPTIONS = [
@@ -60,6 +73,8 @@ export function FlightEditor({ data, onChange }: FlightEditorProps) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []) // Run only on mount - intentionally ignoring deps to avoid infinite loops
     const [showAIExtractor, setShowAIExtractor] = useState(false)
+    // ID da opção recém-criada via clique manual — usado pra abrir o popover de edição automaticamente
+    const [justAddedOptionId, setJustAddedOptionId] = useState<string | null>(null)
 
     // Callback quando IA extrai trechos
     const handleExtractedLegs = useCallback((extractedLegs: FlightLeg[]) => {
@@ -119,7 +134,7 @@ export function FlightEditor({ data, onChange }: FlightEditorProps) {
     // Adicionar leg
     const addLeg = useCallback(() => {
         const newLeg: FlightLeg = {
-            id: `leg-${Date.now()}`,
+            id: uid('leg'),
             leg_type: 'connection',
             label: 'TRECHO',
             origin_code: '',
@@ -144,9 +159,9 @@ export function FlightEditor({ data, onChange }: FlightEditorProps) {
 
         const legOptions = leg.options || []
         const newOption: FlightOption = {
-            id: `opt-${Date.now()}`,
-            airline_code: 'G3',
-            airline_name: 'GOL',
+            id: uid('opt'),
+            airline_code: '',
+            airline_name: '',
             flight_number: '',
             departure_time: '',
             arrival_time: '',
@@ -162,6 +177,7 @@ export function FlightEditor({ data, onChange }: FlightEditorProps) {
             ordem: legOptions.length
         }
 
+        setJustAddedOptionId(newOption.id)
         updateLeg(legId, { options: [...legOptions, newOption] })
     }, [flightsData.legs, updateLeg])
 
@@ -208,6 +224,7 @@ export function FlightEditor({ data, onChange }: FlightEditorProps) {
                     key={leg.id}
                     leg={leg}
                     isFirst={index === 0}
+                    justAddedOptionId={justAddedOptionId}
                     onUpdate={(updates) => updateLeg(leg.id, updates)}
                     onRemove={() => removeLeg(leg.id)}
                     onAddOption={() => addOption(leg.id)}
@@ -256,6 +273,7 @@ export function FlightEditor({ data, onChange }: FlightEditorProps) {
 interface LegBlockProps {
     leg: FlightLeg
     isFirst: boolean
+    justAddedOptionId: string | null
     onUpdate: (updates: Partial<FlightLeg>) => void
     onRemove: () => void
     onAddOption: () => void
@@ -267,6 +285,7 @@ interface LegBlockProps {
 function LegBlock({
     leg,
     isFirst,
+    justAddedOptionId,
     onUpdate,
     onRemove,
     onAddOption,
@@ -361,16 +380,18 @@ function LegBlock({
                         Nenhuma opção de voo ainda
                     </p>
                 ) : (() => {
-                    const comparison = compareFlightOptions(leg.options || [])
-                    return (leg.options || []).map((option) => (
+                    const opts = leg.options || []
+                    const comparison = compareFlightOptions(opts)
+                    return opts.map((option, idx) => (
                         <FlightRow
-                            key={option.id}
+                            key={`${option.id}-${idx}`}
                             option={option}
+                            autoOpenEditor={option.id === justAddedOptionId}
                             onUpdate={(updates) => onUpdateOption(option.id, updates)}
                             onRemove={() => onRemoveOption(option.id)}
                             onSetRecommended={() => onSetRecommended(option.id)}
-                            isCheapest={comparison.cheapestId === option.id}
-                            isFastest={comparison.fastestId === option.id}
+                            isCheapest={comparison.cheapestIdx === idx}
+                            isFastest={comparison.fastestIdx === idx}
                         />
                     ))
                 })()}
@@ -398,6 +419,7 @@ function LegBlock({
 
 interface FlightRowProps {
     option: FlightOption
+    autoOpenEditor?: boolean
     onUpdate: (updates: Partial<FlightOption>) => void
     onRemove: () => void
     onSetRecommended: () => void
@@ -405,7 +427,7 @@ interface FlightRowProps {
     isFastest?: boolean
 }
 
-function FlightRow({ option, onUpdate, onRemove, onSetRecommended, isCheapest = false, isFastest = false }: FlightRowProps) {
+function FlightRow({ option, autoOpenEditor = false, onUpdate, onRemove, onSetRecommended, isCheapest = false, isFastest = false }: FlightRowProps) {
     // Duração tolerante a lixo tipo "23:40 (+1)"
     const duration = useMemo(() => {
         const parse = (raw?: string | null): { h: number; m: number; extraDays: number } | null => {
@@ -481,14 +503,17 @@ function FlightRow({ option, onUpdate, onRemove, onSetRecommended, isCheapest = 
                 )}>
                     {option.airline_code || '--'}
                 </span>
-                <div className="flex flex-col min-w-0">
-                    <div className="flex items-center gap-1 min-w-0">
-                        <span className="text-sm font-medium text-slate-900 truncate">
-                            {option.airline_name || airline?.name || option.airline_code || 'Companhia'}
+                <div className="flex flex-col min-w-0 flex-1">
+                    <span className="text-sm font-medium text-slate-900 truncate">
+                        {option.airline_name || airline?.name || option.airline_code || 'Companhia'}
+                    </span>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-mono text-xs text-slate-500 truncate">
+                            {option.flight_number || '----'}
                         </span>
                         {isCheapest && (
                             <span
-                                className="inline-flex items-center gap-0.5 px-1.5 py-0 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-700 flex-shrink-0"
+                                className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0 text-[9px] font-bold text-emerald-700 flex-shrink-0"
                                 title="Menor preço entre as opções"
                             >
                                 <TrendingDown className="h-2.5 w-2.5" />
@@ -497,7 +522,7 @@ function FlightRow({ option, onUpdate, onRemove, onSetRecommended, isCheapest = 
                         )}
                         {isFastest && (
                             <span
-                                className="inline-flex items-center gap-0.5 px-1.5 py-0 rounded-full text-[9px] font-bold bg-indigo-100 text-indigo-700 flex-shrink-0"
+                                className="inline-flex items-center gap-0.5 rounded-full bg-indigo-100 px-1.5 py-0 text-[9px] font-bold text-indigo-700 flex-shrink-0"
                                 title="Menor duração entre as opções"
                             >
                                 <Zap className="h-2.5 w-2.5" />
@@ -505,9 +530,6 @@ function FlightRow({ option, onUpdate, onRemove, onSetRecommended, isCheapest = 
                             </span>
                         )}
                     </div>
-                    <span className="font-mono text-xs text-slate-500 truncate">
-                        {option.flight_number || '----'}
-                    </span>
                 </div>
             </div>
 
@@ -545,7 +567,7 @@ function FlightRow({ option, onUpdate, onRemove, onSetRecommended, isCheapest = 
 
             {/* Ações: editar + remover */}
             <div className="flex items-center gap-1">
-                <FlightOptionPopover option={option} onUpdate={onUpdate} />
+                <FlightOptionPopover option={option} onUpdate={onUpdate} defaultOpen={autoOpenEditor} />
                 <button
                     onClick={onRemove}
                     className="p-1 text-slate-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
@@ -565,12 +587,25 @@ function FlightRow({ option, onUpdate, onRemove, onSetRecommended, isCheapest = 
 function FlightOptionPopover({
     option,
     onUpdate,
+    defaultOpen = false,
 }: {
     option: FlightOption
     onUpdate: (updates: Partial<FlightOption>) => void
+    defaultOpen?: boolean
 }) {
+    const [open, setOpen] = useState(false)
+
+    // Abre no próximo tick após o mount pra evitar conflito com o evento de click
+    // do botão "+ Nova opção de voo" (que dispararia "click fora" no popover).
+    useEffect(() => {
+        if (!defaultOpen) return
+        const t = setTimeout(() => setOpen(true), 0)
+        return () => clearTimeout(t)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
     return (
-        <Popover>
+        <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
                 <button
                     className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"
@@ -593,24 +628,15 @@ function FlightOptionPopover({
                 <div className="px-4 py-3 space-y-3">
                     {/* Companhia + número */}
                     <div className="grid grid-cols-3 gap-2">
-                        <label className="col-span-2 block">
+                        <div className="col-span-2">
                             <span className="mb-1 block text-[11px] font-medium text-slate-600">Companhia</span>
-                            <select
-                                value={option.airline_code}
-                                onChange={(e) => {
-                                    const a = AIRLINES.find(x => x.code === e.target.value)
-                                    onUpdate({
-                                        airline_code: e.target.value,
-                                        airline_name: a?.name || e.target.value,
-                                    })
-                                }}
-                                className="h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm"
-                            >
-                                {AIRLINES.map(a => (
-                                    <option key={a.code} value={a.code}>{a.name}</option>
-                                ))}
-                            </select>
-                        </label>
+                            <AirlineCombobox
+                                airlineCode={option.airline_code}
+                                airlineName={option.airline_name}
+                                autoFocus={defaultOpen}
+                                onChange={(next) => onUpdate(next)}
+                            />
+                        </div>
                         <label className="block">
                             <span className="mb-1 block text-[11px] font-medium text-slate-600">Nº voo</span>
                             <input
@@ -736,6 +762,170 @@ function FlightOptionPopover({
                 </div>
             </PopoverContent>
         </Popover>
+    )
+}
+
+// ============================================
+// Combobox de Companhia Aérea (typeahead + valor livre)
+// ============================================
+
+interface AirlineComboboxProps {
+    airlineCode: string
+    airlineName: string
+    autoFocus?: boolean
+    onChange: (update: { airline_code: string; airline_name: string }) => void
+}
+
+function AirlineCombobox({ airlineCode, airlineName, autoFocus = false, onChange }: AirlineComboboxProps) {
+    const [open, setOpen] = useState(false)
+    const [highlight, setHighlight] = useState(0)
+    const inputRef = useRef<HTMLInputElement>(null)
+    const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    // Texto atual = valor externo (controlado). Sem state local pra evitar dessincronia.
+    const query = airlineName || ''
+
+    // Foca o input se o popover abriu por causa de "nova opção"
+    useEffect(() => {
+        if (autoFocus) {
+            const t = setTimeout(() => {
+                inputRef.current?.focus()
+                inputRef.current?.select()
+                setOpen(true)
+            }, 50)
+            return () => clearTimeout(t)
+        }
+    }, [autoFocus])
+
+    useEffect(() => () => {
+        if (closeTimer.current) clearTimeout(closeTimer.current)
+    }, [])
+
+    const filtered = useMemo(() => {
+        const q = query.trim().toLowerCase()
+        if (!q) return AIRLINES.filter(a => a.code !== 'OTHER')
+        return AIRLINES.filter(a =>
+            a.code !== 'OTHER' && (
+                a.name.toLowerCase().includes(q) ||
+                a.code.toLowerCase().includes(q)
+            )
+        )
+    }, [query])
+
+    const pick = useCallback((a: typeof AIRLINES[number]) => {
+        onChange({ airline_code: a.code, airline_name: a.name })
+        setOpen(false)
+    }, [onChange])
+
+    const handleType = useCallback((text: string) => {
+        const trimmed = text.trim()
+        if (!trimmed) {
+            onChange({ airline_code: '', airline_name: text })
+            return
+        }
+        const match = AIRLINES.find(a =>
+            a.code !== 'OTHER' && (
+                a.name.toLowerCase() === trimmed.toLowerCase() ||
+                a.code.toLowerCase() === trimmed.toLowerCase()
+            )
+        )
+        if (match) {
+            onChange({ airline_code: match.code, airline_name: match.name })
+            return
+        }
+        // Texto livre — guarda o nome digitado e deriva código de 2 letras
+        onChange({ airline_code: deriveAirlineCode(trimmed), airline_name: text })
+    }, [onChange])
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault()
+            setOpen(true)
+            setHighlight(h => Math.min(h + 1, Math.max(0, filtered.length - 1)))
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault()
+            setHighlight(h => Math.max(h - 1, 0))
+        } else if (e.key === 'Enter') {
+            e.preventDefault()
+            if (open && filtered[highlight]) {
+                pick(filtered[highlight])
+            } else {
+                setOpen(false)
+            }
+        } else if (e.key === 'Escape') {
+            setOpen(false)
+        }
+    }
+
+    const knownAirline = AIRLINES.find(a => a.code === airlineCode && a.code !== 'OTHER')
+
+    return (
+        <div className="relative">
+            <div className="relative">
+                <input
+                    ref={inputRef}
+                    type="text"
+                    value={query}
+                    onChange={(e) => {
+                        handleType(e.target.value)
+                        setOpen(true)
+                        setHighlight(0)
+                    }}
+                    onFocus={() => setOpen(true)}
+                    onBlur={() => {
+                        // delay pra não engolir o click nas opções
+                        closeTimer.current = setTimeout(() => setOpen(false), 150)
+                    }}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Digite a companhia"
+                    className={cn(
+                        "h-9 w-full rounded-md border border-slate-200 bg-white pr-2 text-sm",
+                        knownAirline ? "pl-10" : "pl-2"
+                    )}
+                />
+                {knownAirline && (
+                    <span
+                        className={cn(
+                            "absolute left-1.5 top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[10px] font-bold pointer-events-none",
+                            knownAirline.color
+                        )}
+                    >
+                        {knownAirline.code}
+                    </span>
+                )}
+            </div>
+            {open && filtered.length > 0 && (
+                <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-auto rounded-md border border-slate-200 bg-white shadow-lg">
+                    {filtered.map((a, i) => (
+                        <button
+                            key={a.code}
+                            type="button"
+                            onMouseDown={(e) => {
+                                // evita o blur do input fechar o dropdown antes do click registrar
+                                e.preventDefault()
+                                if (closeTimer.current) clearTimeout(closeTimer.current)
+                                pick(a)
+                            }}
+                            onMouseEnter={() => setHighlight(i)}
+                            className={cn(
+                                "flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm",
+                                i === highlight ? "bg-slate-100" : "hover:bg-slate-50"
+                            )}
+                        >
+                            <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-bold flex-shrink-0", a.color)}>
+                                {a.code}
+                            </span>
+                            <span className="truncate">{a.name}</span>
+                        </button>
+                    ))}
+                </div>
+            )}
+            {open && filtered.length === 0 && query.trim() && (
+                <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-md border border-slate-200 bg-white shadow-lg px-2 py-1.5 text-xs text-slate-500">
+                    Usando “{query.trim()}” como companhia
+                </div>
+            )}
+        </div>
     )
 }
 

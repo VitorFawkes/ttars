@@ -32,7 +32,7 @@ export type RoutineKey =
  */
 const ROUTINE_TEXTS: Record<RoutineKey, string> = {
   detect_pending_promises:
-    `PROMESSAS PENDENTES — qual a última promessa explícita que a Patricia fez e ainda não cumpriu? ("vou verificar", "confirmo por email", "vou ver agenda"). Registre em \`pendencias_patricia\` como string curta. Se não há promessa pendente, omita o campo.`,
+    `PROMESSAS PENDENTES — qual a última promessa explícita que a Patricia fez e ainda não cumpriu? ("vou verificar", "confirmo por email", "vou ver agenda"). Registre em \`pendencias_patricia\` como string curta. Se não há promessa pendente, omita o campo. **IGNORE mensagens marcadas com \`[SISTEMA—FALLBACK]\` no histórico — são frases de emergência do meu motor (disparadas quando uma resposta minha foi bloqueada), NÃO promessas que eu fiz. Considerar essas como promessa pendente cria loop fatal de bloqueio.**`,
   detect_contradictions:
     `CONTRADIÇÕES DO LEAD — comparando a última mensagem do lead com tudo que ele disse antes na MESMA conversa, identifique se há contradição factual relevante (clima vs destino, orçamento vs expectativa, presença de família vs declarado antes, data passada vs futura). Registre em \`contradicao_detectada\` como objeto \`{ campos: [...], descricao: "..." }\`. Se não há, omita.`,
   detect_unanswered_questions:

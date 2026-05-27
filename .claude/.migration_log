@@ -937,12 +937,9 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-21T20:45:44Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260521a_patricia_prompt_cleanup.sql | applied_to_prod
 2026-05-21T20:47:57Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260521a_patricia_prompt_cleanup.sql | applied_to_prod
 2026-05-21T22:24:41Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260521b_patricia_business_fields.sql | applied_to_prod
-<<<<<<< HEAD
 2026-05-22T12:54:34Z | supabase/migrations/20260522_wedme_rsvp_outbox_dual_target.sql | applied_to_prod
 2026-05-22T13:47:54Z | supabase/migrations/20260522b_process_whatsapp_raw_event_skip_131026.sql | applied_to_prod
-=======
 2026-05-22T17:34:24Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260522a_patricia_clear_legacy_system_prompt.sql | applied_to_prod
->>>>>>> b6434f6c (chore(patricia): limpa system_prompt legacy (3.631 chars dead weight))
 2026-05-23T00:03:08Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260522b_reset_clears_produto_data_pause.sql | applied_to_prod
 2026-05-23T16:02:40Z | supabase/migrations/20260523a_weddings_analytics_v12_frt_bucket_filter.sql | applied_to_prod
 2026-05-23T17:21:42Z | supabase/migrations/20260523a_patricia_fallback_message.sql | applied_to_prod
@@ -967,6 +964,7 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-24T02:57:54Z | supabase/migrations/20260524c_patricia_nunca_preco_revert.sql | applied_to_prod
 2026-05-24T15:45:02Z | supabase/migrations/20260524a_analytics_pipeline_current_exclude_subcards.sql | applied_to_prod
 2026-05-24T15:45:51Z | supabase/migrations/20260524b_analytics_team_aggregate_kpis.sql | applied_to_prod
+2026-05-25T13:26:12Z | supabase/migrations/20260525a_sdr_qual_anchor_allow_descartado.sql | applied_to_prod
 2026-05-25T14:00:54Z | supabase/migrations/20260525a_card_gift_items_custom_image.sql | applied_to_prod
 2026-05-25T19:59:23Z | /home/pandassauro/ttars/supabase/migrations/20260525b_calendly_webhook_events.sql | applied_to_prod
 2026-05-25T20:00:54Z | /home/pandassauro/ttars/supabase/migrations/20260525b_calendly_webhook_events.sql | applied_to_prod
@@ -987,3 +985,55 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-26T20:07:12Z | /home/pandassauro/ttars/supabase/migrations/20260526o_temporal_source_data_reuniao.sql | applied_to_prod
 2026-05-26T20:12:38Z | /home/pandassauro/ttars/supabase/migrations/20260526p_calendly_meeting_exact_time.sql | applied_to_prod
 2026-05-27T14:04:37Z | /home/pandassauro/ttars/supabase/migrations/20260527a_datetime_offset_all_sources.sql | applied_to_prod
+2026-05-25T14:59:02Z | supabase/migrations/20260525a_wedding_ac_field_mappings.sql | applied_to_prod
+2026-05-25T17:17:27Z | supabase/migrations/20260525a_patricia_recovery_t1.sql | applied_to_prod
+2026-05-25T17:17:44Z | supabase/migrations/20260525b_patricia_recovery_t6_dead_config.sql | applied_to_prod
+2026-05-25T17:20:53Z | supabase/migrations/20260525c_patricia_recovery_t3_scoring_fix.sql | applied_to_prod
+2026-05-25T17:30:30Z | supabase/migrations/20260525d_patricia_recovery_t3_kb_seed.sql | applied_to_prod
+20260525d_analytics_weddings_rpc_v3.sql
+2026-05-26T12:48:17Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260526a_analytics_planner_by_origem.sql | applied_to_prod
+2026-05-26T12:58:08Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260526b_fix_analytics_sdr_follow_through.sql | applied_to_prod
+2026-05-26T12:59:07Z | /Users/vitorgambetti/Documents/WelcomeCRM/supabase/migrations/20260526b_fix_analytics_sdr_follow_through.sql | applied_to_prod
+2026-05-26T17:50:14Z | supabase/migrations/20260526f_ww2_entrada_realidade_v3.sql | applied_to_prod
+2026-05-26T18:54:33Z | supabase/migrations/20260526g_log_product_ready_activity.sql | applied_to_prod
+2026-05-26T19:08:01Z | supabase/migrations/20260526h_clean_backfill_and_guard_trigger.sql | applied_to_prod
+2026-05-26T19:14:19Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
+2026-05-26T19:16:00Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
+2026-05-26T19:47:39Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
+2026-05-26T20:12:41Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
+2026-05-26T20:49:50Z | supabase/migrations/20260526i_proposal_recipients.sql | applied_to_prod
+2026-05-26T20:51:26Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
+2026-05-26T21:01:22Z | supabase/migrations/20260526j_grant_anon_recipient_id_on_proposal_events.sql | applied_to_prod
+2026-05-26T21:03:25Z | supabase/migrations/20260526k_log_link_opened_rpc.sql | applied_to_prod
+2026-05-26T21:05:15Z | supabase/migrations/20260526l_log_proposal_event_rpc.sql | applied_to_prod
+2026-05-26T21:06:31Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
+2026-05-26T21:17:02Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
+2026-05-27T01:01:49Z | supabase/migrations/20260526m_assessoria_vip_integration.sql | applied_to_prod
+2026-05-27T01:08:39Z | supabase/migrations/20260526n_avip_find_candidates_safe_date.sql | applied_to_prod
+2026-05-27T01:30:09Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
+2026-05-27T01:41:41Z | supabase/migrations/20260526o_avip_cron_schedule.sql | applied_to_prod
+2026-05-27T01:59:56Z | supabase/migrations/20260527a_ww2_drill_down_v2.sql | applied_to_prod
+2026-05-27T14:24:36Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
+2026-05-27T14:28:30Z | supabase/migrations/20260527a_ww_filter_options_norm_tipo.sql | applied_to_prod
+2026-05-27T14:51:17Z | supabase/migrations/20260527b_ww_questionario_casal_contact_mappings.sql | applied_to_prod
+2026-05-27T14:55:21Z | supabase/migrations/20260527d_analytics_planner_profile.sql | applied_to_prod
+2026-05-27T14:55:46Z | supabase/migrations/20260527e_analytics_planner_activities.sql | applied_to_prod
+2026-05-27T15:00:25Z | supabase/migrations/20260527f_planner_profile_safe_date_cast.sql | applied_to_prod
+2026-05-27T15:04:13Z | supabase/migrations/20260527g_planner_profile_string_date_compare.sql | applied_to_prod
+2026-05-27T15:08:59Z | supabase/migrations/20260527h_planner_profile_no_qmark.sql | applied_to_prod
+2026-05-27T15:13:08Z | supabase/migrations/20260527i_planner_profile_briefing_jsonb.sql | applied_to_prod
+2026-05-27T15:15:54Z | supabase/migrations/20260527i_wedding_casais.sql | applied_to_prod
+2026-05-27T15:16:16Z | supabase/migrations/20260527j_wedding_convites.sql | applied_to_prod
+2026-05-27T15:16:38Z | supabase/migrations/20260527k_wedding_guests_estende.sql | applied_to_prod
+2026-05-27T15:17:03Z | supabase/migrations/20260527l_wedding_casal_rpcs.sql | applied_to_prod
+2026-05-27T12:57:32Z | supabase/migrations/20260527b_leadster_webhook_events.sql | applied_to_prod
+2026-05-27T13:11:38Z | supabase/migrations/20260527c_leadster_webhook_signature.sql | applied_to_prod
+2026-05-27T14:42:14Z | supabase/migrations/20260527d_leadster_webhook_created_card.sql | applied_to_prod
+2026-05-27T15:53:42Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
+2026-05-27T16:01:44Z | supabase/migrations/20260527n_wedding_casal_envios.sql | applied_to_prod
+2026-05-27T16:15:29Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
+2026-05-27T16:17:07Z | supabase/migrations/20260526g_ww_qualidade_drift.sql | applied_to_prod
+2026-05-27T16:19:45Z | supabase/migrations/20260527j_analytics_planner_forecast_by_dono.sql | applied_to_prod
+2026-05-27T16:20:51Z | supabase/migrations/20260527k_planner_forecast_fix_ambiguous.sql | applied_to_prod
+2026-05-27T16:22:12Z | supabase/migrations/20260527l_analytics_planner_stage_x_owner.sql | applied_to_prod
+2026-05-27T16:23:18Z | supabase/migrations/20260527m_planner_stage_x_owner_round_cast.sql | applied_to_prod

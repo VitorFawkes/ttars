@@ -20,6 +20,7 @@ import {
 import { toast } from 'sonner'
 import type { ProposalFull } from '@/types/proposals'
 import { CommentButton } from '@/components/proposals/comments/CommentButton'
+import { SendProposalDrawer } from './SendProposalDrawer'
 
 interface BuilderHeaderProps {
     proposal: ProposalFull
@@ -31,6 +32,7 @@ export function BuilderHeader({ proposal }: BuilderHeaderProps) {
     const [showPreviewMenu, setShowPreviewMenu] = useState(false)
     const [showMoreMenu, setShowMoreMenu] = useState(false)
     const [isPublishing, setIsPublishing] = useState(false)
+    const [showSendDrawer, setShowSendDrawer] = useState(false)
     const previewRef = useRef<HTMLDivElement>(null)
     const moreRef = useRef<HTMLDivElement>(null)
 
@@ -49,12 +51,11 @@ export function BuilderHeader({ proposal }: BuilderHeaderProps) {
     const handlePublish = async () => {
         setIsPublishing(true)
         try {
-            const token = await publish()
-            if (token) {
-                const url = `${window.location.origin}/p/${token}`
-                await navigator.clipboard.writeText(url)
-                toast.success('Proposta publicada! Link copiado.')
+            // Garante que a proposta tem public_token + status=sent antes de abrir o drawer.
+            if (!proposal.public_token || proposal.status === 'draft') {
+                await publish()
             }
+            setShowSendDrawer(true)
         } catch {
             toast.error('Erro ao publicar proposta')
         } finally {
@@ -166,6 +167,14 @@ export function BuilderHeader({ proposal }: BuilderHeaderProps) {
                     {isPublishing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                     Enviar
                 </Button>
+
+                {/* Drawer de envio (destinatários + links individuais) */}
+                <SendProposalDrawer
+                    isOpen={showSendDrawer}
+                    onClose={() => setShowSendDrawer(false)}
+                    proposalId={proposal.id}
+                    cardId={proposal.card_id}
+                />
 
                 {/* More */}
                 <div className="relative" ref={moreRef}>

@@ -104,8 +104,10 @@ export const FlightLegSelector = memo(function FlightLegSelector({
         })
     }, [leg.options])
 
-    // Comparação automática entre opções (mais barato / mais rápido)
-    const comparison = useMemo(() => compareFlightOptions(leg.options), [leg.options])
+    // Comparação automática entre opções (mais barato / mais rápido).
+    // Calcula sobre sortedOptions pra casar índices com o map abaixo (evita match por id,
+    // que falha quando opções antigas têm ids duplicados).
+    const comparison = useMemo(() => compareFlightOptions(sortedOptions), [sortedOptions])
 
     // Opção selecionada (para mostrar quando colapsado)
     const selectedOption = useMemo(() => {
@@ -186,15 +188,15 @@ export const FlightLegSelector = memo(function FlightLegSelector({
                             <p>Nenhuma opção disponível</p>
                         </div>
                     ) : (
-                        sortedOptions.map((option) => (
+                        sortedOptions.map((option, idx) => (
                             <FlightOptionCard
-                                key={option.id}
+                                key={`${option.id}-${idx}`}
                                 option={option}
                                 isSelected={selectedOptionId === option.id}
                                 onSelect={() => onSelectOption(option.id)}
                                 showPrice={showPrices}
-                                isCheapest={comparison.cheapestId === option.id}
-                                isFastest={comparison.fastestId === option.id}
+                                isCheapest={comparison.cheapestIdx === idx}
+                                isFastest={comparison.fastestIdx === idx}
                             />
                         ))
                     )}

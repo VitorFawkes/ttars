@@ -1,9 +1,19 @@
+import { useMemo, useState } from 'react'
 import { Repeat, Users, Trophy, Clock } from 'lucide-react'
 import KpiCard from '@/components/analytics/KpiCard'
 import { useRetencaoCohort } from '@/hooks/analytics/useRetencaoCohort'
 import { formatCurrency } from '@/utils/whatsappFormatters'
+import { getRankTier, rankBadgeClass, rankDotClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
 import { cn } from '@/lib/utils'
+
+const COHORT_RANGE_OPTIONS: { value: number; label: string }[] = [
+  { value: 3, label: 'Últimos 3 meses' },
+  { value: 6, label: 'Últimos 6 meses' },
+  { value: 12, label: 'Últimos 12 meses' },
+  { value: 24, label: 'Últimos 24 meses' },
+  { value: 36, label: 'Últimos 36 meses' },
+]
 
 function formatMes(iso: string): string {
   const d = new Date(iso)
@@ -11,7 +21,8 @@ function formatMes(iso: string): string {
 }
 
 export default function RetentionView() {
-  const { data, isLoading } = useRetencaoCohort(12)
+  const [monthsBack, setMonthsBack] = useState(12)
+  const { data, isLoading } = useRetencaoCohort(monthsBack)
 
   const kpis = data?.kpis
   const cohorts = data?.cohort_table ?? []
@@ -25,14 +36,28 @@ export default function RetentionView() {
 
   const maxBucket = Math.max(...buckets.map(b => b.qtd), 1)
 
+  // Sample para comparar cohorts entre si — top 25% verde, bottom 25% vermelho
+  const cohortRetornoSample = useMemo(() => cohorts.map(c => c.taxa_retorno), [cohorts])
+
   return (
     <div className="flex flex-col gap-6">
-      <header>
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Retenção</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Clientes que voltaram — taxa de retorno, tempo até voltar e top recorrentes.
-          Cohort por mês da primeira viagem (últimos 12 meses).
-        </p>
+      <header className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Retenção</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Clientes que voltaram — taxa de retorno, tempo até voltar e top recorrentes.
+            Cliente que voltou = mesma pessoa com 2 ou mais viagens ganhas.
+          </p>
+        </div>
+        <select
+          value={monthsBack}
+          onChange={e => setMonthsBack(Number(e.target.value))}
+          className="text-sm border border-slate-200 rounded-md px-3 py-1.5 bg-white text-slate-700 focus:ring-1 focus:ring-indigo-300 focus:border-indigo-300 outline-none"
+        >
+          {COHORT_RANGE_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
       </header>
 
       {/* KPIs principais */}
@@ -98,37 +123,35 @@ export default function RetentionView() {
                 </tr>
               </thead>
               <tbody>
-                {cohorts.map(row => (
-                  <tr key={row.cohort_mes} className="border-b border-slate-50">
-                    <td className="py-2.5 text-slate-900 font-medium">{formatMes(row.cohort_mes)}</td>
-                    <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.tamanho}</td>
-                    <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.retornaram}</td>
-                    <td className="py-2.5 text-right tabular-nums">
-                      <span
-                        className={cn(
-                          'inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold',
-                          row.taxa_retorno >= 30 ? 'bg-emerald-50 text-emerald-700' :
-                            row.taxa_retorno >= 15 ? 'bg-amber-50 text-amber-700' :
-                              'text-slate-600'
-                        )}
-                      >
-                        {row.taxa_retorno}%
-                      </span>
-                    </td>
-                    <td className="py-2.5">
-                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden max-w-[200px]">
-                        <div
+                {cohorts.map(row => {
+                  const tier = getRankTier(row.taxa_retorno, cohortRetornoSample, 'higher_is_better')
+                  return (
+                    <tr key={row.cohort_mes} className="border-b border-slate-50">
+                      <td className="py-2.5 text-slate-900 font-medium">{formatMes(row.cohort_mes)}</td>
+                      <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.tamanho}</td>
+                      <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.retornaram}</td>
+                      <td className="py-2.5 text-right tabular-nums">
+                        <span
                           className={cn(
-                            'h-full',
-                            row.taxa_retorno >= 30 ? 'bg-emerald-500' :
-                              row.taxa_retorno >= 15 ? 'bg-amber-500' : 'bg-slate-400'
+                            'inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold',
+                            rankBadgeClass(tier),
                           )}
-                          style={{ width: `${Math.min(row.taxa_retorno * 2, 100)}%` }}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          title={rankTierLabel(tier)}
+                        >
+                          {row.taxa_retorno}%
+                        </span>
+                      </td>
+                      <td className="py-2.5">
+                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden max-w-[200px]">
+                          <div
+                            className={cn('h-full', rankDotClass(tier))}
+                            style={{ width: `${Math.min(row.taxa_retorno * 2, 100)}%` }}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

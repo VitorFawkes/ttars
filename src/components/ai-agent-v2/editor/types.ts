@@ -47,21 +47,6 @@ export interface BookMeetingConfig {
   titulo_template: string
   /** Mensagem que a agente envia pro lead após agendar. Mesmas variáveis + {data} {hora}. */
   mensagem_confirmacao_template: string
-  /**
-   * Janela de slots oferecidos ao lead. Quando ausente, usa defaults seguros
-   * (skip_today=true, business_days_ahead=6, slots_per_day=2, min_hours_between_slots=2).
-   * Adicionado 07/05/2026 — admin pode ajustar pela UI sem precisar de deploy.
-   */
-  scheduling?: {
-    /** true = não oferece reunião pra hoje (começa do próximo dia útil). */
-    skip_today?: boolean
-    /** Quantos dias úteis à frente oferecer slots. Default 6. */
-    business_days_ahead?: number
-    /** Quantos horários por dia oferecer no máximo. Default 2. */
-    slots_per_day?: number
-    /** Espaçamento mínimo (em horas) entre os horários do mesmo dia. Default 2. */
-    min_hours_between_slots?: number
-  } | null
 }
 
 export interface AutoHandoffInvisibleConfig {
@@ -144,15 +129,15 @@ export interface SchedulingWindow {
  * tool `check_calendar`. NULL no banco = defaults seguros.
  *
  * Modelos de horários (prioridade):
- *   1. `available_windows` + `slot_duration_minutes` (janelas com step)
- *   2. `available_hours` (lista discreta) — fallback legado
+ *   1. `available_hours` (lista discreta) — escolha explícita do admin
+ *   2. `available_windows` + `slot_duration_minutes` (janelas amplas) — fallback
  */
 export interface SchedulingConfig {
-  /** Janelas de atendimento (modelo padrão). Vazio = usa available_hours. */
+  /** Janelas de atendimento (fallback quando available_hours vazio). */
   available_windows: SchedulingWindow[]
-  /** Step entre slots em minutos. Default 60. */
+  /** Step entre slots em minutos (usado pra expandir janelas). Default 60. */
   slot_duration_minutes: number
-  /** Lista discreta de horários (legado). Ignorado quando windows preenchidas. */
+  /** Lista discreta de horários (prioritária). Quando preenchida, ignora windows. */
   available_hours: string[]
   /** Até quantos horários do MESMO dia oferecer ao casal. */
   max_slots_per_day: number
@@ -175,9 +160,9 @@ export const DEFAULT_SCHEDULING_CONFIG: SchedulingConfig = {
   ],
   slot_duration_minutes: 60,
   available_hours: [],
-  max_slots_per_day: 3,
-  max_days: 2,
-  total_slots: 6,
+  max_slots_per_day: 6,
+  max_days: 3,
+  total_slots: 18,
   skip_weekends: true,
   search_window_days: 14,
   date_format: 'short',

@@ -1188,26 +1188,32 @@ Deno.serve(async (req) => {
               const windowDays = Number(sc.search_window_days ?? 14);
               const dateFormat = (sc.date_format === "full") ? "full" : "short"; // default short
 
-              const today = new Date();
+              // Trabalha em fuso BRT (America/Sao_Paulo, UTC-3 fixo desde 2019).
+              // Servidor Deno do edge runtime roda em UTC — se usássemos
+              // getHours() direto, candidate "10:00" não bate com reunião
+              // salva como "13:00 UTC" (=10h BRT).
+              const BRT_OFFSET_MIN = -180;
+              const toBrt = (d: Date): Date => new Date(d.getTime() + BRT_OFFSET_MIN * 60 * 1000);
+              const todayBrt = toBrt(new Date());
               const weekdays = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
               type Slot = { date: string; time: string; weekday: string; iso: string };
               const candidates: Slot[] = [];
               const formatDate = (d: Date): string => {
-                const dd = String(d.getDate()).padStart(2, "0");
-                const mm = String(d.getMonth() + 1).padStart(2, "0");
+                const dd = String(d.getUTCDate()).padStart(2, "0");
+                const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
                 if (dateFormat === "full") {
-                  return `${dd}/${mm}/${d.getFullYear()}`;
+                  return `${dd}/${mm}/${d.getUTCFullYear()}`;
                 }
                 return `${dd}/${mm}`;
               };
               for (let i = 1; i < windowDays; i++) {
-                const d = new Date(today);
-                d.setDate(today.getDate() + i);
-                const wd = d.getDay();
+                const d = new Date(todayBrt);
+                d.setUTCDate(todayBrt.getUTCDate() + i);
+                const wd = d.getUTCDay();
                 if (skipWeekends && (wd === 0 || wd === 6)) continue;
-                const yyyy = d.getFullYear();
-                const mm = String(d.getMonth() + 1).padStart(2, "0");
-                const dd = String(d.getDate()).padStart(2, "0");
+                const yyyy = d.getUTCFullYear();
+                const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+                const dd = String(d.getUTCDate()).padStart(2, "0");
                 const dStr = formatDate(d);
                 for (const h of availableHours) {
                   candidates.push({
@@ -1219,49 +1225,61 @@ Deno.serve(async (req) => {
                 }
               }
 
-              // Coleta horários ocupados de reuniões no mesmo org nas próximas N semanas.
-              // Quando há Wedding Planner configurada, filtra apenas as reuniões dela.
+              // Coleta horários ocupados de reuniões no mesmo org nas próximas
+              // N semanas. Lê da tabela `tarefas` (filtrando `tipo='reuniao'`),
+              // que é a fonte viva da operação. Tabela `reunioes` é legado e
+              // estava vazia — Patrícia oferecia horários já ocupados pela WP.
               const occupied = new Set<string>();
               try {
-                const horizonStart = new Date(today);
-                const horizonEnd = new Date(today);
-                horizonEnd.setDate(today.getDate() + windowDays);
+                // Horizonte em UTC absoluto (timestamps reais do banco). Usa
+                // hora atual real (sem shift BRT) — o filtro >= now é absoluto.
+                const nowReal = new Date();
+                const horizonStart = nowReal;
+                const horizonEnd = new Date(nowReal.getTime() + windowDays * 24 * 60 * 60 * 1000);
                 let meetingsQuery = supabase
-                  .from("reunioes")
-                  .select("data_inicio,status")
+                  .from("tarefas")
+                  .select("data_vencimento,status")
                   .eq("org_id", agent.org_id)
-                  .gte("data_inicio", horizonStart.toISOString())
-                  .lt("data_inicio", horizonEnd.toISOString())
-                  .in("status", ["agendada", "confirmada", "agendado", "confirmado"]);
+                  .eq("tipo", "reuniao")
+                  .gte("data_vencimento", horizonStart.toISOString())
+                  .lt("data_vencimento", horizonEnd.toISOString())
+                  .in("status", ["aberta", "pendente", "agendada", "reagendada"]);
                 if (agent.wedding_planner_profile_id) {
                   meetingsQuery = meetingsQuery.eq("responsavel_id", agent.wedding_planner_profile_id);
                 }
                 const { data: meetings, error: meetErr } = await meetingsQuery;
                 if (meetErr) {
-                  console.warn("[v2] trigger: erro lendo reunioes:", meetErr.message);
+                  console.warn("[v2] trigger: erro lendo tarefas:", meetErr.message);
                 } else if (Array.isArray(meetings)) {
                   for (const m of meetings) {
-                    const di = m.data_inicio as string | null;
+                    const di = m.data_vencimento as string | null;
                     if (!di) continue;
-                    const md = new Date(di);
-                    const yyyy = md.getFullYear();
-                    const mm = String(md.getMonth() + 1).padStart(2, "0");
-                    const dd = String(md.getDate()).padStart(2, "0");
-                    const hh = String(md.getHours()).padStart(2, "0");
-                    const mi = String(md.getMinutes()).padStart(2, "0");
+                    // Converte UTC do banco pra BRT pra bater com candidates
+                    const mdBrt = toBrt(new Date(di));
+                    const yyyy = mdBrt.getUTCFullYear();
+                    const mm = String(mdBrt.getUTCMonth() + 1).padStart(2, "0");
+                    const dd = String(mdBrt.getUTCDate()).padStart(2, "0");
+                    const hh = String(mdBrt.getUTCHours()).padStart(2, "0");
+                    const mi = String(mdBrt.getUTCMinutes()).padStart(2, "0");
                     occupied.add(`${yyyy}-${mm}-${dd}T${hh}:${mi}:00`);
                   }
                 }
               } catch (e) {
-                console.warn("[v2] trigger: exception lendo reunioes:", (e as Error).message);
+                console.warn("[v2] trigger: exception lendo tarefas:", (e as Error).message);
               }
 
               const free = candidates.filter((c) => !occupied.has(c.iso));
               slotsConflictsExcluded = candidates.length - free.length;
 
-              // Distribui slots: até `maxPerDay` por dia, até `maxDays` dias,
-              // total <= `totalSlots`. Ordem cronológica preservada (candidates
-              // já vem ordenado).
+              // Distribui slots em ORDEM CRONOLÓGICA: primeiro horário do
+              // primeiro dia útil, depois sequência. Até `maxPerDay` por dia,
+              // até `maxDays` dias, total <= `totalSlots`.
+              //
+              // Se a agenda estiver cheia e não houver slots livres suficientes
+              // nos primeiros `maxDays` úteis, o loop natural avança pelos
+              // próximos dias (até search_window_days) — NÃO inventa horários.
+              // Lead que não receber slot suficiente fica sob responsabilidade
+              // do LLM (pede mais opções, esclarece, etc).
               const freeByDate = new Map<string, Slot[]>();
               for (const c of free) {
                 const arr = freeByDate.get(c.date);
@@ -1282,21 +1300,9 @@ Deno.serve(async (req) => {
                 }
                 if (pickedThisDay > 0) daysUsed++;
               }
-              // Fallback: se filtrou tudo, usa candidatos brutos (nunca pior
-              // que antes).
-              if (finalSlots.length === 0 && candidates.length > 0) {
-                let pickedDays = 0;
-                const seenDates = new Set<string>();
-                for (const c of candidates) {
-                  if (finalSlots.length >= totalSlots) break;
-                  if (!seenDates.has(c.date)) {
-                    if (pickedDays >= maxDays) continue;
-                    seenDates.add(c.date);
-                    pickedDays++;
-                  }
-                  finalSlots.push(c);
-                }
-              }
+              // Sem fallback genérico. Se agenda real está vazia, finalSlots
+              // fica curto (ou vazio) — LLM trata na resposta. Nunca inventar
+              // horário fixo só pra preencher.
 
               proposedSlots = finalSlots.map((s) => ({
                 date: s.date,
@@ -1861,6 +1867,38 @@ Deno.serve(async (req) => {
       finalMessages = singleAgentResult.output.messages.map((m) => m.content);
     }
 
+    // Fix Vitor 25/05 — handoff_actions.transition_message é injetada pela UI
+    // SEMPRE que houver handoff invisível. Detecção tripla:
+    //   1. forcedMomentKey = handoff_humano_invisivel (router forçou)
+    //   2. LLM classificou current_moment_key = handoff_humano_invisivel
+    //   3. LLM chamou tool request_handoff (caso onde marca moment=null mas
+    //      pede handoff — observado em Carla 26/05 T6)
+    // Qualquer um dos 3 → frase da UI sobrescreve mensagem gerada pelo LLM.
+    // Também desbloqueia se validator havia barrado por nao_prometer_voltar
+    // (a frase da UI é determinística e válida — handoff foi disparado de fato).
+    const llmCalledHandoffTool = (singleAgentResult.output.tool_calls || []).some(
+      (tc) => tc.tool_name === "request_handoff",
+    );
+    const handoffDetected =
+      forcedMomentKey === "handoff_humano_invisivel" ||
+      singleAgentResult.output.current_moment_key === "handoff_humano_invisivel" ||
+      llmCalledHandoffTool;
+    if (handoffDetected) {
+      const ha = (agent.handoff_actions || {}) as Record<string, unknown>;
+      const handoffText = (ha.transition_message as string | null | undefined) || (ha.message as string | null | undefined);
+      if (handoffText && handoffText.trim().length > 0) {
+        console.log(`[v2] handoff: usando frase da UI (handoff_actions.transition_message). Detectado por: forced=${forcedMomentKey === "handoff_humano_invisivel"}, llm_moment=${singleAgentResult.output.current_moment_key === "handoff_humano_invisivel"}, tool=${llmCalledHandoffTool}`);
+        finalMessages = [handoffText.trim()];
+        // Se o validator bloqueou por suspeita de promessa vazia, a frase da
+        // UI restaura o turno: handoff aconteceu de fato (tool foi chamada),
+        // a frase é responsabilidade do admin.
+        if (blocked) {
+          console.log(`[v2] handoff: destravando turno bloqueado pelo validator (handoff de fato disparado via tool)`);
+          blocked = false;
+        }
+      }
+    }
+
     // Enforcement: quando o moment ativo é wait_for_reply sequenciado, o
     // contrato é "1 mensagem por turno". Se o LLM gerou múltiplas mensagens
     // dentro do mesmo bloco (ex: separou eco social de "Tudo bem, X" da
@@ -1991,13 +2029,19 @@ Deno.serve(async (req) => {
         role: "assistant",
         content: blocks.join("\n\n"),
         agent_id: agent.id,
+        // T5.1 — tokens reais pra rastrear custo
+        input_tokens: singleAgentResult.input_tokens,
+        output_tokens: singleAgentResult.output_tokens,
         reasoning: singleAgentResult.output.internal_reasoning,
         skills_used: toolResults,
         context_used: {
           model: singleAgentResult.model_used,
           duration_ms: singleAgentResult.duration_ms,
           prompt_chars: singleAgentResult.prompt_system_chars + singleAgentResult.prompt_user_chars,
+          input_tokens: singleAgentResult.input_tokens,
+          output_tokens: singleAgentResult.output_tokens,
           validator: verdict,
+          raw_messages: singleAgentResult.output.messages,
           send_results: sendResults,
           forced_moment_key: forcedMomentKey,
           qualification_result: qualificationResult,
@@ -2016,6 +2060,32 @@ Deno.serve(async (req) => {
       });
       if (turnInsertErr) {
         console.error(`[v2] FALHA AO PERSISTIR ASSISTANT TURN: ${turnInsertErr.message}`, turnInsertErr);
+      }
+
+      // Denormalizar pontuação no card (cards.sdr_qualification_score_latest)
+      // pra UI ler — mesmo shape que o trigger de SDR humano (migration
+      // 20260512d_sdr_qualifications.sql). Inclui source/agent_id pra distinguir
+      // IA de humano. Se humano qualificar depois, o trigger existente
+      // sobrescreve com a versão humana (comportamento esperado).
+      if (cardId && qualificationResult && typeof qualificationResult.score === "number") {
+        const { error: cardScoreErr } = await supabase
+          .from("cards")
+          .update({
+            sdr_qualification_score_latest: {
+              qualification_id: null,
+              score: qualificationResult.score,
+              qualificado: qualificationResult.qualificado ?? false,
+              disqualified: (qualificationResult as { disqualified?: boolean }).disqualified ?? false,
+              finalized_at: new Date().toISOString(),
+              sdr_user_id: null,
+              source: "ai_agent",
+              agent_id: agent.id,
+            },
+          })
+          .eq("id", cardId);
+        if (cardScoreErr) {
+          console.error(`[v2] FALHA AO DENORMALIZAR SCORE NO CARD: ${cardScoreErr.message}`, cardScoreErr);
+        }
       }
     }
 
@@ -2071,12 +2141,18 @@ Deno.serve(async (req) => {
         role: "assistant",
         content: fallbackText,
         agent_id: agent.id,
+        // T5.1 — tokens do turno bloqueado (LLM gastou tokens gerando antes do validator vetar)
+        input_tokens: singleAgentResult.input_tokens,
+        output_tokens: singleAgentResult.output_tokens,
         reasoning: "Validator bloqueou a resposta original — enviando fallback_message do agente.",
         skills_used: toolResults,
         context_used: {
           validator: verdict,
+          raw_messages: singleAgentResult.output.messages,
           send_results: sendResults,
           fallback_triggered: true,
+          input_tokens: singleAgentResult.input_tokens,
+          output_tokens: singleAgentResult.output_tokens,
         },
         detected_intent: singleAgentResult.output.current_moment_key,
         current_moment_key: singleAgentResult.output.current_moment_key ?? null,

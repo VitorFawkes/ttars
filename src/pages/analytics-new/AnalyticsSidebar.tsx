@@ -14,6 +14,8 @@ import {
   LineChart,
   Sparkles,
   Archive,
+  UserCheck,
+  Briefcase,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -39,6 +41,13 @@ const SECTIONS: Array<{ title: string; items: NavItem[] }> = [
       { to: '/analytics/equipe', label: 'Equipe', icon: Users },
       { to: '/analytics/financeiro', label: 'Financeiro', icon: Wallet },
       { to: '/analytics/retencao', label: 'Retenção', icon: Repeat },
+    ],
+  },
+  {
+    title: 'Por papel',
+    items: [
+      { to: '/analytics/sdr', label: 'SDR', icon: UserCheck },
+      { to: '/analytics/planner', label: 'Planner', icon: Briefcase },
     ],
   },
   {

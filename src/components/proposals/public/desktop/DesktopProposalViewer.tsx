@@ -10,6 +10,7 @@ import { useProposalSelections } from '../shared/hooks/useProposalSelections'
 import { useProposalTotals, getSelectedItemsSummary } from '../shared/hooks/useProposalTotals'
 import { useProposalAccept, trackProposalView } from '../shared/hooks/useProposalAccept'
 import type { Currency } from '../shared/utils/priceUtils'
+import { resolveSelectionMode } from '../shared/sectionMode'
 import { DesktopProposalHero } from './DesktopProposalHero'
 import { DesktopSection } from './DesktopSection'
 import { DesktopSidebar } from './DesktopSidebar'
@@ -102,6 +103,18 @@ export function DesktopProposalViewer({ proposal }: DesktopProposalViewerProps) 
   // Número de viajantes
   const travelers = parseInt(String(metadata.travelers || '1').replace(/\D/g, '')) || 1
 
+  // Ancoras do tour do cliente: marca a 1ª seção obrigatória e a 1ª opcional,
+  // e fixa o botão de comentário na 1ª seção (prioriza obrigatória).
+  const firstRequiredId = contentSections.find(s => {
+    const m = resolveSelectionMode(s)
+    return m === 'pick_one_required' || m === 'pick_one_or_more'
+  })?.id
+  const firstOptionalId = contentSections.find(s => {
+    const m = resolveSelectionMode(s)
+    return m === 'pick_any_optional'
+  })?.id
+  const commentTourId = firstRequiredId ?? firstOptionalId ?? contentSections[0]?.id
+
   return (
     <div className="fixed inset-0 overflow-y-auto bg-slate-50">
       <div className="min-h-full">
@@ -113,22 +126,32 @@ export function DesktopProposalViewer({ proposal }: DesktopProposalViewerProps) 
             {/* Coluna principal - Hero + Seções */}
             <main className="flex-1 min-w-0">
               <DesktopProposalHero proposal={proposal} />
-              {contentSections.map(section => (
-                <DesktopSection
-                  key={section.id}
-                  section={section}
-                  selections={selections}
-                  onToggleItem={toggleItem}
-                  onSelectItem={selectItem}
-                  onSelectOption={selectOption}
-                  onChangeQuantity={changeQuantity}
-                  commentMode={
-                    proposal.public_token
-                      ? { kind: 'public', proposalToken: proposal.public_token }
+              {contentSections.map(section => {
+                const dataTourSection =
+                  section.id === firstRequiredId
+                    ? 'section-required'
+                    : section.id === firstOptionalId
+                      ? 'section-optional'
                       : undefined
-                  }
-                />
-              ))}
+                return (
+                  <DesktopSection
+                    key={section.id}
+                    section={section}
+                    selections={selections}
+                    onToggleItem={toggleItem}
+                    onSelectItem={selectItem}
+                    onSelectOption={selectOption}
+                    onChangeQuantity={changeQuantity}
+                    commentMode={
+                      proposal.public_token
+                        ? { kind: 'public', proposalToken: proposal.public_token }
+                        : undefined
+                    }
+                    dataTourSection={dataTourSection}
+                    dataTourCommentBtn={section.id === commentTourId}
+                  />
+                )
+              })}
             </main>
 
             {/* Sidebar sticky */}

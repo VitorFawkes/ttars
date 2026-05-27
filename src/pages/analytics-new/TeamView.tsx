@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Trophy, Target, Clock, Loader2, ListTodo, DollarSign, TrendingUp } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import KpiCard from '@/components/analytics/KpiCard'
@@ -10,7 +10,10 @@ import { useTeamIndividualEvolution } from '@/hooks/analytics/useTeamIndividualE
 import { useTeamTicketVariation } from '@/hooks/analytics/useTeamTicketVariation'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { formatCurrency } from '@/utils/whatsappFormatters'
+import { getRankTier, rankBadgeClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
+import SimpleFilterBar from './SimpleFilterBar'
+import PlannerProfileDrawer from '@/components/analytics/PlannerProfileDrawer'
 import { cn } from '@/lib/utils'
 
 const PHASES: { value: string; label: string }[] = [
@@ -19,50 +22,85 @@ const PHASES: { value: string; label: string }[] = [
   { value: 'pos_venda', label: 'Pós-venda' },
 ]
 
+const PHASE_FILTERS: { value: string; label: string }[] = [
+  { value: 'all', label: 'Todos' },
+  ...PHASES,
+]
+
 // RPCs analytics_team_* retornam taxas já como 0-100 (não 0-1), apenas formata.
 function pct(v: number): string {
   return `${v.toFixed(0)}%`
 }
 
-function WinRateBadge({ rate }: { rate: number }) {
-  const tone =
-    rate >= 50
-      ? 'bg-emerald-50 text-emerald-700'
-      : rate >= 30
-        ? 'bg-amber-50 text-amber-700'
-        : 'bg-rose-50 text-rose-700'
+function WinRateBadge({ rate, sample }: { rate: number; sample: readonly number[] }) {
+  const tier = getRankTier(rate, sample, 'higher_is_better')
   return (
-    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold tabular-nums', tone)}>
+    <span
+      className={cn(
+        'inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold tabular-nums',
+        rankBadgeClass(tier),
+      )}
+      title={rankTierLabel(tier)}
+    >
       {pct(rate)}
     </span>
   )
 }
 
-function ComplianceBadge({ rate }: { rate: number | null }) {
+function ComplianceBadge({ rate, sample }: { rate: number | null; sample: readonly (number | null)[] }) {
   if (rate === null) {
     return <span className="text-xs text-slate-400">—</span>
   }
-  const tone =
-    rate >= 90
-      ? 'bg-emerald-50 text-emerald-700'
-      : rate >= 70
-        ? 'bg-amber-50 text-amber-700'
-        : 'bg-rose-50 text-rose-700'
+  const tier = getRankTier(rate, sample, 'higher_is_better')
   return (
-    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold tabular-nums', tone)}>
+    <span
+      className={cn(
+        'inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold tabular-nums',
+        rankBadgeClass(tier),
+      )}
+      title={rankTierLabel(tier)}
+    >
       {pct(rate)}
     </span>
   )
 }
 
 export default function TeamView() {
-  const [phaseTab, setPhaseTab] = useState<string>('sdr')
+  const [phaseFilter, setPhaseFilter] = useState<string>('all')
   const [individualUser, setIndividualUser] = useState<{ id: string; nome: string } | null>(null)
+  const [profilePlanner, setProfilePlanner] = useState<{ id: string; nome: string } | null>(null)
   const leaderboard = useTeamLeaderboard()
+  const phaseTab = phaseFilter === 'all' ? 'sdr' : phaseFilter
   const phasePerf = useTeamPerformance(phaseTab)
   const sla = useTeamSlaCompliance()
   const ticketVar = useTeamTicketVariation()
   const drillDown = useDrillDownStore()
+
+  const leaderboardRows = (leaderboard.data ?? []).filter(row =>
+    phaseFilter === 'all' ? true : row.fases.includes(phaseFilter)
+  )
+
+  // Decide qual drawer abrir: se a pessoa é Planner (vendas), abre o perfil rico.
+  // Senão, mantém o drawer genérico de evolução temporal.
+  const openMemberDrawer = (user: { id: string; nome: string }, fases?: string[]) => {
+    const isPlanner = fases?.includes('planner') ?? false
+    if (isPlanner) setProfilePlanner(user)
+    else setIndividualUser(user)
+  }
+
+  // Samples para coloração relativa (top/meio/bottom 25% dentro do grupo visível)
+  const leaderboardWinRateSample = useMemo(
+    () => leaderboardRows.map(r => r.win_rate),
+    [leaderboardRows],
+  )
+  const phasePerfConvSample = useMemo(
+    () => (phasePerf.data ?? []).map(r => r.conversion_rate),
+    [phasePerf.data],
+  )
+  const slaComplianceSample = useMemo(
+    () => (sla.data ?? []).map(r => r.compliance_rate),
+    [sla.data],
+  )
 
   const openOpenByOwner = (ownerId: string, ownerName: string) => {
     drillDown.open({
@@ -88,6 +126,26 @@ export default function TeamView() {
           Performance do time consolidado, breakdown por fase (SDR, Planner, Pós-venda) e cumprimento de SLA.
         </p>
       </header>
+
+      <SimpleFilterBar showOrigins={false} myButtonLabel="Eu" />
+
+      {/* Filtro de fase global — afeta leaderboard e tabela de performance */}
+      <div className="flex items-center gap-1 bg-white rounded-lg border border-slate-200 p-1 w-fit">
+        {PHASE_FILTERS.map(p => (
+          <button
+            key={p.value}
+            onClick={() => setPhaseFilter(p.value)}
+            className={cn(
+              'px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
+              phaseFilter === p.value
+                ? 'bg-indigo-50 text-indigo-700'
+                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+            )}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
 
       {/* KPIs do time */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -138,9 +196,11 @@ export default function TeamView() {
           <div className="h-32 flex items-center justify-center text-sm text-rose-600">
             Erro ao carregar leaderboard
           </div>
-        ) : !leaderboard.data || leaderboard.data.length === 0 ? (
+        ) : leaderboardRows.length === 0 ? (
           <div className="h-32 flex items-center justify-center text-sm text-slate-400">
-            Sem dados de equipe para esse período
+            {phaseFilter === 'all'
+              ? 'Sem dados de equipe para esse período'
+              : `Ninguém atuou na fase ${PHASES.find(p => p.value === phaseFilter)?.label} no período`}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -152,6 +212,7 @@ export default function TeamView() {
                   <th className="text-left py-2 font-medium">Fases</th>
                   <th className="text-right py-2 font-medium">Envolvidos</th>
                   <th className="text-right py-2 font-medium">Ganhos</th>
+                  <th className="text-right py-2 font-medium">Perdidos</th>
                   <th className="text-right py-2 font-medium">Win rate</th>
                   <th className="text-right py-2 font-medium">Receita</th>
                   <th className="text-right py-2 font-medium">Ticket médio</th>
@@ -160,12 +221,12 @@ export default function TeamView() {
                 </tr>
               </thead>
               <tbody>
-                {leaderboard.data.map((row, idx) => (
+                {leaderboardRows.map((row, idx) => (
                   <tr key={row.user_id} className="border-b border-slate-50 hover:bg-slate-50">
                     <td className="py-2.5 text-slate-400 tabular-nums">{idx + 1}</td>
                     <td className="py-2.5 text-slate-900 font-medium">
                       <button
-                        onClick={() => setIndividualUser({ id: row.user_id, nome: row.user_nome })}
+                        onClick={() => openMemberDrawer({ id: row.user_id, nome: row.user_nome }, row.fases)}
                         className="hover:text-indigo-600 hover:underline text-left"
                         title="Ver evolução individual"
                       >
@@ -186,8 +247,13 @@ export default function TeamView() {
                     </td>
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.cards_envolvidos}</td>
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.cards_ganhos}</td>
+                    <td className="py-2.5 text-right tabular-nums">
+                      <span className={cn(row.cards_perdidos > 0 ? 'text-rose-700' : 'text-slate-400')}>
+                        {row.cards_perdidos}
+                      </span>
+                    </td>
                     <td className="py-2.5 text-right">
-                      <WinRateBadge rate={row.win_rate} />
+                      <WinRateBadge rate={row.win_rate} sample={leaderboardWinRateSample} />
                     </td>
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">
                       {formatCurrency(row.receita_total)}
@@ -235,22 +301,24 @@ export default function TeamView() {
         title="Performance por fase"
         subtitle="Métricas específicas de cada fase — conversão, ticket médio e ciclo médio por consultor"
       >
-        <div className="flex gap-1 mb-4 border-b border-slate-100">
-          {PHASES.map(p => (
-            <button
-              key={p.value}
-              onClick={() => setPhaseTab(p.value)}
-              className={cn(
-                'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
-                phaseTab === p.value
-                  ? 'border-indigo-600 text-indigo-700'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-              )}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
+        {phaseFilter === 'all' && (
+          <div className="flex gap-1 mb-4 border-b border-slate-100">
+            {PHASES.map(p => (
+              <button
+                key={p.value}
+                onClick={() => setPhaseFilter(p.value)}
+                className={cn(
+                  'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
+                  phaseTab === p.value
+                    ? 'border-indigo-600 text-indigo-700'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {phasePerf.isLoading ? (
           <div className="h-40 flex items-center justify-center text-slate-400">
@@ -280,9 +348,9 @@ export default function TeamView() {
                   <tr key={row.user_id} className="border-b border-slate-50 hover:bg-slate-50">
                     <td className="py-2.5 text-slate-900 font-medium">
                       <button
-                        onClick={() => setIndividualUser({ id: row.user_id, nome: row.user_nome })}
+                        onClick={() => openMemberDrawer({ id: row.user_id, nome: row.user_nome }, phaseTab === 'planner' ? ['planner'] : [])}
                         className="hover:text-indigo-600 hover:underline text-left"
-                        title="Ver evolução individual"
+                        title={phaseTab === 'planner' ? 'Abrir perfil completo do Planner' : 'Ver evolução individual'}
                       >
                         {row.user_nome}
                       </button>
@@ -292,7 +360,7 @@ export default function TeamView() {
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.lost_cards}</td>
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.open_cards}</td>
                     <td className="py-2.5 text-right">
-                      <WinRateBadge rate={row.conversion_rate} />
+                      <WinRateBadge rate={row.conversion_rate} sample={phasePerfConvSample} />
                     </td>
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">
                       {formatCurrency(row.ticket_medio)}
@@ -343,7 +411,7 @@ export default function TeamView() {
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.sla_cumpridas}</td>
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.sla_violadas}</td>
                     <td className="py-2.5 text-right">
-                      <ComplianceBadge rate={row.compliance_rate} />
+                      <ComplianceBadge rate={row.compliance_rate} sample={slaComplianceSample} />
                     </td>
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">
                       {row.tempo_medio_horas > 0 ? `${row.tempo_medio_horas.toFixed(1)}h` : '—'}
@@ -390,9 +458,9 @@ export default function TeamView() {
                     <tr key={row.user_id} className="border-b border-slate-50 hover:bg-slate-50">
                       <td className="py-2.5 text-slate-900 font-medium">
                         <button
-                          onClick={() => setIndividualUser({ id: row.user_id, nome: row.user_nome })}
+                          onClick={() => openMemberDrawer({ id: row.user_id, nome: row.user_nome }, ['planner'])}
                           className="hover:text-indigo-600 hover:underline text-left"
-                          title="Ver evolução individual"
+                          title="Abrir perfil completo do Planner"
                         >
                           {row.user_nome}
                         </button>
@@ -427,6 +495,11 @@ export default function TeamView() {
       <IndividualEvolutionDrawer
         user={individualUser}
         onClose={() => setIndividualUser(null)}
+      />
+
+      <PlannerProfileDrawer
+        planner={profilePlanner}
+        onClose={() => setProfilePlanner(null)}
       />
     </div>
   )

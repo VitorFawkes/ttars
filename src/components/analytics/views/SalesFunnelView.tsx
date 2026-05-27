@@ -273,8 +273,8 @@ export default function SalesFunnelView() {
                                     <th className="text-left py-2 px-3 font-medium">Etapa</th>
                                     <th className="text-right py-2 px-3 font-medium">Cards atuais</th>
                                     <th className="text-right py-2 px-3 font-medium">Passaram</th>
-                                    <th className="text-right py-2 px-3 font-medium">Mediana</th>
-                                    <th className="text-right py-2 px-3 font-medium">p90</th>
+                                    <th className="text-right py-2 px-3 font-medium" title="Em quanto tempo metade dos cards passa por essa etapa">Tempo típico</th>
+                                    <th className="text-right py-2 px-3 font-medium" title="9 em cada 10 cards passam por essa etapa em até X dias">Quem mais demora</th>
                                     <th className="text-right py-2 px-3 font-medium">Média</th>
                                 </tr>
                             </thead>

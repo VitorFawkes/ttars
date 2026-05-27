@@ -75,14 +75,18 @@ export function useAllGiftAssignments(filters: GiftFilters = {}) {
 
             let results = (data || []) as GiftAssignmentFull[]
 
-            // Esconde presentes de viagens já encerradas (default ligado).
-            // Premium gifts (sem viagem) e cards sem data_viagem_fim seguem visíveis.
+            // Esconde presentes de viagens já encerradas APENAS quando o presente
+            // também já está fechado (entregue/cancelado). Trabalho em aberto
+            // (pendente/preparando/a_enviar/enviado) fica visível mesmo se a
+            // viagem terminou — caso típico: presente de retratação pós-viagem.
             if (filters.hidePastTrips !== false) {
                 const today = new Date().toISOString().split('T')[0]
+                const FINISHED = new Set(['entregue', 'cancelado'])
                 results = results.filter(a => {
                     if (a.gift_type === 'premium') return true
                     if (!a.card?.data_viagem_fim) return true
-                    return a.card.data_viagem_fim >= today
+                    if (a.card.data_viagem_fim >= today) return true
+                    return !FINISHED.has(a.status)
                 })
             }
 

@@ -41,6 +41,7 @@ import { EditarCasamentoModal } from '../../components/convidados/EditarCasament
 import { GuestKanbanBoard } from '../../components/convidados/guests/GuestKanbanBoard'
 import { Button } from '../../components/ui/Button'
 import { BaixarPdfButton } from '../../components/convidados/pdf/BaixarPdfButton'
+import { LinkCasalSection } from '../../components/convidados/casais/LinkCasalSection'
 
 const MONTH_FULL = [
   'janeiro','fevereiro','março','abril','maio','junho',
@@ -286,6 +287,9 @@ export default function CasamentoDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Link do casal (lista pública) */}
+      {cardId && <LinkCasalSection cardId={cardId} cardTitulo={wedding.titulo} />}
 
       {/* Hotel — placeholder mockup (sem dados reais) */}
       <HotelSection wedding={wedding} />

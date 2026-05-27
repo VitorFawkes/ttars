@@ -23,6 +23,8 @@ interface ComparableOption {
 export interface ComparisonResult {
     cheapestId: string | null
     fastestId: string | null
+    cheapestIdx: number | null
+    fastestIdx: number | null
 }
 
 /** Extrai HH e MM de "23:40 (+1)" ou "22:30"; aceita "+N" como dias extras. */
@@ -49,29 +51,39 @@ function durationMinutes(dep?: string | null, arr?: string | null): number | nul
 }
 
 export function compareFlightOptions(options: ComparableOption[]): ComparisonResult {
-    if (!options || options.length < 2) {
-        return { cheapestId: null, fastestId: null }
-    }
+    const empty: ComparisonResult = { cheapestId: null, fastestId: null, cheapestIdx: null, fastestIdx: null }
+    if (!options || options.length < 2) return empty
 
     // Mais barato: menor price > 0 (ignora 0 ou ausente)
-    const priced = options.filter(o => typeof o.price === 'number' && o.price > 0)
+    const priced = options
+        .map((o, idx) => ({ idx, id: o.id, price: o.price }))
+        .filter((x): x is { idx: number; id: string; price: number } =>
+            typeof x.price === 'number' && x.price > 0)
     let cheapestId: string | null = null
+    let cheapestIdx: number | null = null
     if (priced.length >= 2) {
-        const min = Math.min(...priced.map(o => o.price as number))
+        const min = Math.min(...priced.map(o => o.price))
         const winners = priced.filter(o => o.price === min)
-        if (winners.length === 1) cheapestId = winners[0].id
+        if (winners.length === 1) {
+            cheapestId = winners[0].id
+            cheapestIdx = winners[0].idx
+        }
     }
 
     // Mais rápido: menor duração calculada > 0
     const timed = options
-        .map(o => ({ id: o.id, dur: durationMinutes(o.departure_time, o.arrival_time) }))
-        .filter((x): x is { id: string; dur: number } => x.dur != null && x.dur > 0)
+        .map((o, idx) => ({ idx, id: o.id, dur: durationMinutes(o.departure_time, o.arrival_time) }))
+        .filter((x): x is { idx: number; id: string; dur: number } => x.dur != null && x.dur > 0)
     let fastestId: string | null = null
+    let fastestIdx: number | null = null
     if (timed.length >= 2) {
         const min = Math.min(...timed.map(o => o.dur))
         const winners = timed.filter(o => o.dur === min)
-        if (winners.length === 1) fastestId = winners[0].id
+        if (winners.length === 1) {
+            fastestId = winners[0].id
+            fastestIdx = winners[0].idx
+        }
     }
 
-    return { cheapestId, fastestId }
+    return { cheapestId, fastestId, cheapestIdx, fastestIdx }
 }

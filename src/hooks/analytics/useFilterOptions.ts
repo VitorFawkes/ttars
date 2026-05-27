@@ -7,6 +7,49 @@ export interface FilterProfile {
   nome: string | null
 }
 
+export interface FilterProfileWithRole {
+  id: string
+  nome: string
+  role: string | null
+}
+
+/**
+ * Lista profiles ativos do workspace com `role`. Usado pelas abas SDR/Planner
+ * pra filtrar leaderboard pela função real da pessoa (não pela atividade em cards).
+ *
+ * Multi-tenant: profiles "moram" na account pai, mas org_members liga ao workspace.
+ */
+export function useFilterProfilesWithRole() {
+  const { org } = useOrg()
+  const activeOrgId = org?.id
+
+  return useQuery({
+    queryKey: ['analytics_filter_profiles_with_role', activeOrgId],
+    queryFn: async (): Promise<FilterProfileWithRole[]> => {
+      if (!activeOrgId) return []
+      const { data, error } = await supabase
+        .from('org_members')
+        .select('user_id, profiles!inner(id, nome, active, role)')
+        .eq('org_id', activeOrgId)
+      if (error) throw error
+      type Row = {
+        user_id: string
+        profiles: { id: string; nome: string | null; active: boolean | null; role: string | null } | null
+      }
+      return ((data as unknown as Row[]) || [])
+        .filter(r => r.profiles && r.profiles.active !== false)
+        .map(r => ({
+          id: r.profiles!.id,
+          nome: r.profiles!.nome || '',
+          role: r.profiles!.role,
+        }))
+        .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: !!activeOrgId,
+  })
+}
+
 export interface FilterDestination {
   id: string
   nome: string

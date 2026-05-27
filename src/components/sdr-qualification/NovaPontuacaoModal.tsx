@@ -19,8 +19,11 @@ export function NovaPontuacaoModal({ open, onClose, onStart }: Props) {
     const [nomeCasal, setNomeCasal] = useState('')
     const [telefone, setTelefone] = useState('')
 
+    const podeComecar = nomeContato.trim().length > 0 && telefone.trim().length > 0
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault()
+        if (!podeComecar) return
         onStart({
             nomeContato: nomeContato.trim(),
             nomeCasal: nomeCasal.trim(),
@@ -37,7 +40,7 @@ export function NovaPontuacaoModal({ open, onClose, onStart }: Props) {
                 <DialogHeader>
                     <DialogTitle>Nova pontuação</DialogTitle>
                     <DialogDescription>
-                        Pra lead que ainda não tem card. Tudo opcional — você atrele a um card depois,
+                        Pra lead que ainda não tem card. Nome e telefone obrigatórios — você atrele a um card depois,
                         manual ou quando ele for criado pelo Echo com o mesmo telefone.
                     </DialogDescription>
                 </DialogHeader>
@@ -46,9 +49,11 @@ export function NovaPontuacaoModal({ open, onClose, onStart }: Props) {
                     <div>
                         <label className="text-xs font-medium text-slate-600 flex items-center gap-1.5 mb-1">
                             <User className="w-3.5 h-3.5 text-slate-400" /> Nome da pessoa que está falando
+                            <span className="text-rose-500">*</span>
                         </label>
                         <Input
                             autoFocus
+                            required
                             value={nomeContato}
                             onChange={(e) => setNomeContato(e.target.value)}
                             placeholder="João"
@@ -56,10 +61,12 @@ export function NovaPontuacaoModal({ open, onClose, onStart }: Props) {
                     </div>
                     <div>
                         <label className="text-xs font-medium text-slate-600 flex items-center gap-1.5 mb-1">
-                            <Phone className="w-3.5 h-3.5 text-slate-400" /> Telefone (opcional)
+                            <Phone className="w-3.5 h-3.5 text-slate-400" /> Telefone
+                            <span className="text-rose-500">*</span>
                         </label>
                         <Input
                             type="tel"
+                            required
                             value={telefone}
                             onChange={(e) => setTelefone(e.target.value)}
                             placeholder="(11) 99999-9999"
@@ -83,7 +90,7 @@ export function NovaPontuacaoModal({ open, onClose, onStart }: Props) {
                         <Button type="button" variant="outline" onClick={onClose}>
                             Cancelar
                         </Button>
-                        <Button type="submit">Começar</Button>
+                        <Button type="submit" disabled={!podeComecar}>Começar</Button>
                     </DialogFooter>
                 </form>
             </DialogContent>

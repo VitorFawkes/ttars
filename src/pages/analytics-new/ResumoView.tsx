@@ -1,10 +1,13 @@
+import { useMemo } from 'react'
 import {
   TrendingUp, DollarSign, Trophy, Target, Users, ReceiptText, Calendar, Sparkles,
 } from 'lucide-react'
 import KpiCard from '@/components/analytics/KpiCard'
-import { useResumoOverview } from '@/hooks/analytics/useResumoOverview'
+import { useResumoOverview, useResumoOverviewPrevious } from '@/hooks/analytics/useResumoOverview'
 import { formatCurrency } from '@/utils/whatsappFormatters'
+import { getRankTier, rankBadgeClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
+import SimpleFilterBar from './SimpleFilterBar'
 import { cn } from '@/lib/utils'
 
 const FASE_LABELS: Record<string, string> = {
@@ -12,6 +15,8 @@ const FASE_LABELS: Record<string, string> = {
   planner: 'Planner',
   pos_venda: 'Pós-venda',
 }
+
+const FASES_VALIDAS = new Set(['sdr', 'planner', 'pos_venda'])
 
 const ORIGEM_LABELS: Record<string, string> = {
   manual: 'Planner direto',
@@ -33,10 +38,21 @@ function formatMes(iso: string): string {
 
 export default function ResumoView() {
   const { data, isLoading } = useResumoOverview()
+  const previous = useResumoOverviewPrevious()
 
   const kpis = data?.empresa.kpis
+  const prevKpis = previous.data?.empresa.kpis
   const sparkline = data?.empresa.sparkline ?? []
   const maxSpark = Math.max(...sparkline.map(s => s.faturamento), 1)
+
+  // Amostra de conversões no período para rank relativo (top/meio/bottom 25%)
+  const convSample = useMemo(
+    () =>
+      (data?.por_origem ?? [])
+        .filter(r => r.leads > 0)
+        .map(r => Math.round((r.ganhos / r.leads) * 100)),
+    [data?.por_origem],
+  )
 
   return (
     <div className="flex flex-col gap-6">
@@ -55,6 +71,8 @@ export default function ResumoView() {
         </nav>
       </header>
 
+      <SimpleFilterBar showOwner={false} showOrigins={false} />
+
       {/* BLOCO A: EMPRESA */}
       <section id="empresa" className="space-y-4 scroll-mt-6">
         <h2 className="text-lg font-semibold text-slate-900">A. Visão Empresa</h2>
@@ -67,6 +85,7 @@ export default function ResumoView() {
             bgColor="bg-emerald-50"
             isLoading={isLoading}
             subtitle={`${kpis?.ganhos ?? 0} ganhos no período`}
+            delta={kpis && prevKpis ? { current: kpis.faturamento, previous: prevKpis.faturamento } : undefined}
           />
           <KpiCard
             title="Receita (margem)"
@@ -75,6 +94,7 @@ export default function ResumoView() {
             color="text-emerald-600"
             bgColor="bg-emerald-50"
             isLoading={isLoading}
+            delta={kpis && prevKpis ? { current: kpis.receita, previous: prevKpis.receita } : undefined}
           />
           <KpiCard
             title="Ticket médio"
@@ -83,6 +103,7 @@ export default function ResumoView() {
             color="text-indigo-600"
             bgColor="bg-indigo-50"
             isLoading={isLoading}
+            delta={kpis && prevKpis ? { current: kpis.ticket_medio, previous: prevKpis.ticket_medio } : undefined}
           />
           <KpiCard
             title="Conversão geral"
@@ -92,6 +113,7 @@ export default function ResumoView() {
             bgColor="bg-indigo-50"
             isLoading={isLoading}
             subtitle={`${kpis?.leads_entrada ?? 0} leads no período`}
+            delta={kpis && prevKpis ? { current: kpis.conversao_geral, previous: prevKpis.conversao_geral } : undefined}
           />
         </div>
 
@@ -127,7 +149,7 @@ export default function ResumoView() {
       <section id="por-time" className="space-y-4 scroll-mt-6">
         <h2 className="text-lg font-semibold text-slate-900">B. Por Time</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {(data?.por_time ?? []).map(row => {
+          {(data?.por_time ?? []).filter(row => FASES_VALIDAS.has(row.fase)).map(row => {
             const tarefas = data?.tarefas_time.find(t => t.fase === row.fase)
             return (
               <div key={row.fase} className="bg-white border border-slate-200 shadow-sm rounded-xl p-5">
@@ -203,6 +225,7 @@ export default function ResumoView() {
                 <tbody>
                   {data.por_origem.map(row => {
                     const conv = row.leads > 0 ? Math.round((row.ganhos / row.leads) * 100) : 0
+                    const tier = getRankTier(conv, convSample, 'higher_is_better')
                     return (
                       <tr key={row.origem} className="border-b border-slate-50 hover:bg-slate-50">
                         <td className="py-2.5 text-slate-900 font-medium">
@@ -214,10 +237,9 @@ export default function ResumoView() {
                           <span
                             className={cn(
                               'inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold',
-                              conv >= 30 ? 'bg-emerald-50 text-emerald-700' :
-                                conv >= 15 ? 'bg-amber-50 text-amber-700' :
-                                  'text-slate-500'
+                              rankBadgeClass(tier),
                             )}
+                            title={rankTierLabel(tier)}
                           >
                             {conv}%
                           </span>
@@ -244,14 +266,15 @@ export default function ResumoView() {
         >
           {isLoading ? (
             <div className="h-24 bg-slate-50 rounded-lg animate-pulse" />
-          ) : !data || data.snapshot_fases.length === 0 ? (
+          ) : !data || data.snapshot_fases.filter(r => FASES_VALIDAS.has(r.fase)).length === 0 ? (
             <div className="h-24 flex items-center justify-center text-sm text-slate-400">
               Sem cards abertos
             </div>
           ) : (
             <div className="flex items-stretch gap-2">
-              {data.snapshot_fases.map(row => {
-                const total = data.snapshot_fases.reduce((a, r) => a + r.qtd, 0)
+              {data.snapshot_fases.filter(r => FASES_VALIDAS.has(r.fase)).map(row => {
+                const fasesValidas = data.snapshot_fases.filter(r => FASES_VALIDAS.has(r.fase))
+                const total = fasesValidas.reduce((a, r) => a + r.qtd, 0)
                 const pct = total > 0 ? Math.round((row.qtd / total) * 100) : 0
                 return (
                   <div key={row.fase} className="flex-1 bg-indigo-50 rounded-xl p-4">

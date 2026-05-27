@@ -27,8 +27,10 @@ import BuilderPageV5 from './components/proposals/v5/BuilderPage'
 import PortalEditor from './pages/PortalEditor'
 import ProposalsPage from './pages/ProposalsPage'
 import CatalogoPage from './pages/CatalogoPage'
+import AnalyticsWeddingsPage from './pages/AnalyticsWeddings/AnalyticsWeddingsPage'
 import ProposalView from './pages/public/ProposalView'
 import TripPortalPublic from './pages/public/TripPortalPublic'
+import ListaConvidadosPublic from './pages/public/ListaConvidadosPublic'
 import AnalyticsPage from './pages/analytics/AnalyticsPage'
 import LegacySaudeView from './pages/analytics/views/SaudeView'
 import LegacyResumoView from './pages/analytics/views/ResumoView'
@@ -45,6 +47,8 @@ import ResumoView from './pages/analytics-new/ResumoView'
 import SaudeView from './pages/analytics-new/SaudeView'
 import WhatsAppView from './pages/analytics-new/WhatsAppView'
 import TeamView from './pages/analytics-new/TeamView'
+import SdrView from './pages/analytics-new/SdrView'
+import PlannerView from './pages/analytics-new/PlannerView'
 import FinancialView from './pages/analytics-new/FinancialView'
 import RetentionView from './pages/analytics-new/RetentionView'
 import OperationsView from './pages/analytics-new/OperationsView'
@@ -107,6 +111,7 @@ import VendasMondePage from './pages/admin/VendasMondePage'
 import ImportacaoPosVendaPage from './pages/admin/ImportacaoPosVendaPage'
 import PresentesHubPage from './pages/PresentesHubPage'
 import { IntegrationsPage } from './components/admin/integrations/IntegrationsPage'
+import LeadsterSettingsPage from './pages/settings/LeadsterSettingsPage'
 import DeveloperHub from './pages/developer/DeveloperHub'
 import { WhatsAppPage } from './components/admin/whatsapp/WhatsAppPage'
 import KanbanCardSettings from './components/admin/KanbanCardSettings'
@@ -150,12 +155,11 @@ import { reportSupabaseNetworkError } from './lib/supabaseHealth'
 function isNetworkError(error: Error): boolean {
     const msg = error.message?.toLowerCase() ?? ''
     return (
-        !navigator.onLine ||
         msg.includes('failed to fetch') ||
         msg.includes('networkerror') ||
         msg.includes('load failed') ||
         msg.includes('network request failed') ||
-        error.name === 'TypeError' && msg.includes('fetch')
+        (error.name === 'TypeError' && msg.includes('fetch'))
     )
 }
 
@@ -242,6 +246,7 @@ function App() {
                 <Route path="/invite/:token" element={<InvitePage />} />
                 <Route path="/p/:token" element={<ProposalView />} />
                 <Route path="/v/:token" element={<TripPortalPublic />} />
+                <Route path="/lista-convidados/:codigo" element={<ListaConvidadosPublic />} />
                 <Route path="/p/:token/review" element={<ProposalReview />} />
                 <Route path="/p/:token/confirmed" element={<ProposalConfirmed />} />
 
@@ -302,6 +307,8 @@ function App() {
                     <Route path="saude" element={<SaudeView />} />
                     <Route path="whatsapp" element={<WhatsAppView />} />
                     <Route path="equipe" element={<TeamView />} />
+                    <Route path="sdr" element={<SdrView />} />
+                    <Route path="planner" element={<PlannerView />} />
                     <Route path="financeiro" element={<FinancialView />} />
                     <Route path="retencao" element={<RetentionView />} />
                     <Route path="operacoes" element={<OperationsView />} />
@@ -324,10 +331,11 @@ function App() {
                   {/* Redirects de rotas persona V2 para a raiz nova */}
                   <Route path="/analytics/dono" element={<Navigate to="/analytics" replace />} />
                   <Route path="/analytics/comercial" element={<Navigate to="/analytics" replace />} />
-                  <Route path="/analytics/vendas" element={<Navigate to="/analytics/equipe" replace />} />
+                  <Route path="/analytics/vendas" element={<Navigate to="/analytics/planner" replace />} />
                   <Route path="/analytics/pos-venda" element={<Navigate to="/analytics/operacoes" replace />} />
                   <Route path="/analytics/sdr" element={<Navigate to="/analytics/whatsapp" replace />} />
                   <Route path="/analytics/v2/*" element={<Navigate to="/analytics" replace />} />
+                  <Route path="/analytics-weddings" element={<AnalyticsWeddingsPage />} />
                   <Route path="/proposals/:id/edit" element={<BuilderPageV5 />} />
                   <Route path="/portal-editor/:proposalId" element={<PortalEditor />} />
                   <Route path="/portal-editor/card/:cardId" element={<PortalEditor />} />
@@ -433,6 +441,7 @@ function App() {
                         INTEGRATIONS: External Connections
                     ═══════════════════════════════════════════════════════════ */}
                     <Route path="integrations" element={<IntegrationsPage />} />
+                    <Route path="leadster" element={<LeadsterSettingsPage />} />
                     <Route path="developer-platform" element={<DeveloperHub />} />
 
                     {/* ═══════════════════════════════════════════════════════════

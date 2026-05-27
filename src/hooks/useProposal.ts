@@ -133,24 +133,66 @@ export function useProposalVersions(proposalId: string) {
 // ============================================
 // Fetch Public Proposal (for client view)
 // ============================================
+export interface ProposalRecipientInfo {
+    recipient_id: string
+    contato_id: string
+    nome: string | null
+    sobrenome: string | null
+}
+
+export type PublicProposalResult = ProposalFull & {
+    recipient?: ProposalRecipientInfo
+}
+
 export function usePublicProposal(token: string) {
-    return useQuery({
+    return useQuery<PublicProposalResult>({
         queryKey: proposalKeys.public(token),
         queryFn: async () => {
-            // Fetch proposal by public token
+            // 1) Resolve token via RPC (aceita recipient_token novo ou public_token legacy)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC nova
+            const { data: resolved, error: resolveError } = await (supabase.rpc as any)('resolve_proposal_token', { p_token: token })
+            if (resolveError) throw resolveError
+
+            const r = resolved as {
+                proposal_id?: string
+                recipient_id?: string
+                contato_id?: string
+                nome?: string | null
+                sobrenome?: string | null
+                via?: 'recipient_token' | 'public_token'
+            } | null
+
+            if (!r?.proposal_id) {
+                throw new Error('Proposta não encontrada')
+            }
+
+            // 2) Carrega a proposta + version pelo id
             const { data: proposal, error: proposalError } = await supabase
                 .from('proposals')
                 .select(`
           *,
           active_version:proposal_versions!fk_proposals_active_version(*)
         `)
-                .eq('public_token', token)
+                .eq('id', r.proposal_id)
                 .single()
 
             if (proposalError) throw proposalError
-            if (!proposal.active_version) return proposal as ProposalFull
 
-            // Fetch sections with items and options
+            const recipient: ProposalRecipientInfo | undefined =
+                r.via === 'recipient_token' && r.recipient_id && r.contato_id
+                    ? {
+                          recipient_id: r.recipient_id,
+                          contato_id: r.contato_id,
+                          nome: r.nome ?? null,
+                          sobrenome: r.sobrenome ?? null,
+                      }
+                    : undefined
+
+            if (!proposal.active_version) {
+                return { ...proposal, recipient } as PublicProposalResult
+            }
+
+            // 3) Carrega seções com items e opções
             const { data: sections, error: sectionsError } = await supabase
                 .from('proposal_sections')
                 .select(`
@@ -178,9 +220,10 @@ export function usePublicProposal(token: string) {
                 ...proposal,
                 active_version: {
                     ...proposal.active_version,
-                    sections: sortedSections
-                }
-            } as ProposalFull
+                    sections: sortedSections,
+                },
+                recipient,
+            } as PublicProposalResult
         },
         enabled: !!token,
     })

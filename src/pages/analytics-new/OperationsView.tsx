@@ -1,10 +1,13 @@
+import { useMemo } from 'react'
 import { Plane, DollarSign, ReceiptText, TrendingUp, RefreshCw, Loader2, AlertTriangle, ExternalLink } from 'lucide-react'
 import KpiCard from '@/components/analytics/KpiCard'
 import { useOperationsData } from '@/hooks/analytics/useOperationsData'
 import { useOperationsHealth, type OperationsHealthMotivo } from '@/hooks/analytics/useOperationsHealth'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { formatCurrency } from '@/utils/whatsappFormatters'
+import { getRankTier, rankBadgeClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
+import SimpleFilterBar from './SimpleFilterBar'
 import { cn } from '@/lib/utils'
 
 function formatWeek(iso: string): string {
@@ -45,9 +48,13 @@ export default function OperationsView() {
   // Eixo do gráfico: máximo de viagens em uma semana
   const maxCount = timeline.length > 0 ? Math.max(...timeline.map(t => t.count), 1) : 1
 
-  // Encontrar planners outliers (mudanças por viagem acima da média)
-  const avgMudPorViagem = sub?.changes_per_trip ?? 0
   const plannersOrdenados = [...planners].sort((a, b) => b.viagens - a.viagens)
+
+  // Sample para coloração relativa de mudanças por viagem (menos é melhor)
+  const mudPorViagemSample = useMemo(
+    () => plannersOrdenados.map(p => p.mudancas_por_viagem),
+    [plannersOrdenados],
+  )
 
   return (
     <div className="flex flex-col gap-6">
@@ -57,6 +64,8 @@ export default function OperationsView() {
           Viagens realizadas no período, retrabalho (sub-cards) e qualidade por consultor.
         </p>
       </header>
+
+      <SimpleFilterBar roleFilter="vendas" showOrigins={false} myButtonLabel="Minhas viagens" />
 
       {/* KPIs principais */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -263,7 +272,7 @@ export default function OperationsView() {
               </thead>
               <tbody>
                 {plannersOrdenados.map(p => {
-                  const acimaDaMedia = avgMudPorViagem > 0 && p.mudancas_por_viagem > avgMudPorViagem * 1.5
+                  const tier = getRankTier(p.mudancas_por_viagem, mudPorViagemSample, 'lower_is_better')
                   return (
                     <tr key={p.planner_id} className="border-b border-slate-50 hover:bg-slate-50">
                       <td className="py-2.5 text-slate-900 font-medium">
@@ -281,15 +290,9 @@ export default function OperationsView() {
                         <span
                           className={cn(
                             'inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium',
-                            acimaDaMedia
-                              ? 'bg-rose-50 text-rose-700'
-                              : 'text-slate-600'
+                            rankBadgeClass(tier),
                           )}
-                          title={
-                            acimaDaMedia
-                              ? `Acima de 1,5× da média do time (${avgMudPorViagem.toFixed(2)})`
-                              : undefined
-                          }
+                          title={rankTierLabel(tier)}
                         >
                           {p.mudancas_por_viagem.toFixed(2)}
                         </span>

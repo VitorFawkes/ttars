@@ -80,20 +80,67 @@ async function fetchDeals(
         const fieldValues = data.fieldValues || [];
         const dealCustomFieldData = data.dealCustomFieldData || [];
 
+        // Helper: busca contatos SECUNDÁRIOS do deal (além do primary) e mescla
+        // os fieldValues deles em fieldsMap. Necessário porque cada casamento tem
+        // 2 contatos (noivo + noiva); o questionário pode ter sido preenchido por
+        // qualquer um deles. Endpoint AC: /api/3/contactDeals?filters[deal]=X.
+        async function mergeSecondaryContactsFields(
+            dealIdLocal: string,
+            primaryContactId: string,
+            fieldsMap: Record<string, any>
+        ): Promise<{ secondaryContactIds: string[] }> {
+            const secondaryIds: string[] = [];
+            try {
+                const rDC = await fetch(`${baseUrl}/api/3/contactDeals?filters[deal]=${dealIdLocal}`, { headers: { 'Api-Token': apiKey } });
+                if (!rDC.ok) return { secondaryContactIds: [] };
+                const jDC = await rDC.json();
+                const links: Array<{ contact: string; deal: string }> = jDC.contactDeals || [];
+                for (const link of links) {
+                    if (!link.contact || String(link.contact) === String(primaryContactId)) continue;
+                    secondaryIds.push(String(link.contact));
+                    // Busca fieldValues do contato secundário
+                    const rC = await fetch(`${baseUrl}/api/3/contacts/${link.contact}?include=fieldValues`, { headers: { 'Api-Token': apiKey } });
+                    if (!rC.ok) continue;
+                    const jC = await rC.json();
+                    const fvs = (jC.fieldValues || []) as Array<{ field: string; value: string | null }>;
+                    for (const fv of fvs) {
+                        if (fv.value === null || fv.value === '' || fv.value === undefined) continue;
+                        // Merge sem sobrescrever: se o primary já preencheu o field, manter o dele
+                        if (!fieldsMap[fv.field]) {
+                            fieldsMap[fv.field] = fv.value;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error(`mergeSecondaryContactsFields error for deal ${dealIdLocal}:`, e);
+            }
+            return { secondaryContactIds: secondaryIds };
+        }
+
         // Merge contact data and deal custom fields into deals if side-loaded
-        const enrichedDeals = deals.map((deal: any) => {
+        const enrichedDeals = await Promise.all(deals.map(async (deal: any) => {
             // Merge contact data
             if (deal.contact) {
-                const contactId = deal.contact; // often just an ID string
-                const contactObj = contacts.find((c: any) => c.id === contactId);
+                const primaryContactId = deal.contact; // often just an ID string
+                const contactObj = contacts.find((c: any) => c.id === primaryContactId);
                 if (contactObj) {
-                    // Merge fieldValues into contactObj
-                    const myFields = fieldValues.filter((fv: any) => fv.contact === contactId);
+                    // Merge fieldValues do primary into contactObj
+                    const myFields = fieldValues.filter((fv: any) => fv.contact === primaryContactId);
                     const fieldsMap: Record<string, any> = {};
                     myFields.forEach((fv: any) => {
-                        fieldsMap[fv.field] = fv.value;
+                        if (fv.value !== null && fv.value !== '') {
+                            fieldsMap[fv.field] = fv.value;
+                        }
                     });
+
+                    // Merge fieldValues dos contatos SECUNDÁRIOS (noiva/noivo do mesmo deal)
+                    const { secondaryContactIds } = await mergeSecondaryContactsFields(
+                        String(deal.id),
+                        String(primaryContactId),
+                        fieldsMap
+                    );
                     contactObj.fields = fieldsMap;
+                    contactObj.secondaryContactIds = secondaryContactIds;
 
                     deal.contact = contactObj; // Replace ID with full object
                 }
@@ -110,7 +157,7 @@ async function fetchDeals(
             }
 
             return deal;
-        });
+        }));
 
         allDeals.push(...enrichedDeals);
 
@@ -376,7 +423,11 @@ Deno.serve(async (req) => {
                     'deal[create_date]': deal.cdate,
                     import_mode: 'sync',
                     force_update: forceUpdate,
-                    synced_at: new Date().toISOString()
+                    synced_at: new Date().toISOString(),
+                    // DEBUG: confirma que o code v2 (com merge de contatos secundários) rodou
+                    _sync_code_version: 'v2-multi-contact',
+                    _secondary_contact_ids: deal.contact?.secondaryContactIds || [],
+                    _total_contact_fields: deal.contact?.fields ? Object.keys(deal.contact.fields).length : 0
                 },
                 processing_log: `Synced from AC API (Pipeline ${pipelineId}) - Force: ${forceUpdate}`,
                 idempotency_key: `sync_${deal.id}_${pipelineId}${timestamp}`

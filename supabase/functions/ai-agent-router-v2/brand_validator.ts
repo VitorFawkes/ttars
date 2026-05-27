@@ -94,13 +94,31 @@ const MOMENT_EXCEPTIONS: Record<string, { ignored_rules: string[]; reason: strin
   },
 };
 
+/**
+ * Detecção determinística de travessão real (em-dash U+2014, en-dash U+2013).
+ * Substitui a regra `zero_travessoes` do validator LLM, que estava dando falso
+ * positivo em palavras compostas (quarta-feira, wedding-planner).
+ *
+ * O LLM-juiz tinha dificuldade de distinguir hífen-de-composição de travessão
+ * separador-de-frase, mesmo com a regra de ouro escrita no prompt. Regex resolve
+ * sem ambiguidade: só dispara em em-dash ou en-dash, NUNCA em hífen comum (-).
+ *
+ * Retorna `true` se mensagem contém travessão real.
+ */
+function detectTravessao(content: string): boolean {
+  // U+2014 (em-dash, —) e U+2013 (en-dash, –) — caracteres distintos do hífen comum
+  return /[—–]/.test(content);
+}
+
 export async function validateBrandCompliance(
   input: BrandValidatorInput,
   apiKey: string,
 ): Promise<BrandValidatorVerdict> {
-  const enabledRules = input.rules.filter((r) => r.enabled);
+  // Filtra zero_travessoes pra ser tratada deterministicamente (regex), não pelo LLM
+  const rulesForLlm = input.rules.filter((r) => r.enabled && r.id !== "zero_travessoes");
+  const travessoesRule = input.rules.find((r) => r.id === "zero_travessoes" && r.enabled);
 
-  if (enabledRules.length === 0 || input.messages.length === 0) {
+  if (rulesForLlm.length === 0 && !travessoesRule || input.messages.length === 0) {
     return {
       ok: true,
       violations: [],
@@ -108,6 +126,38 @@ export async function validateBrandCompliance(
       corrected_messages: [],
     };
   }
+
+  // Detecção determinística de travessão (antes de invocar LLM)
+  const travessoesViolations: Array<{ rule_id: string; reason: string }> = [];
+  if (travessoesRule) {
+    for (let i = 0; i < input.messages.length; i++) {
+      if (detectTravessao(input.messages[i].content)) {
+        travessoesViolations.push({
+          rule_id: "zero_travessoes",
+          reason: `Mensagem ${i + 1} contém travessão (em-dash — ou en-dash –). Substitua por vírgula, ponto ou dois-pontos.`,
+        });
+      }
+    }
+  }
+
+  // Se só tem violação de travessão e nenhuma outra regra pro LLM, retorna direto
+  if (rulesForLlm.length === 0) {
+    if (travessoesViolations.length === 0) {
+      return { ok: true, violations: [], action: "pass", corrected_messages: [] };
+    }
+    const corrected = input.messages.map((m) => ({
+      type: "text" as const,
+      content: m.content.replace(/[—–]/g, ","),
+    }));
+    return {
+      ok: false,
+      violations: travessoesViolations,
+      action: "rewrite",
+      corrected_messages: corrected,
+    };
+  }
+
+  const enabledRules = rulesForLlm;
 
   // Resolver placeholders nas conditions (admin pode escrever {agent_name}
   // em "Estela fala preço..." → vira "Patricia fala preço..." em runtime).
@@ -184,7 +234,6 @@ ${input.active_moment_mode === "literal"
 - Se ação=rewrite, preserva a essência. Ajuste pontual, não reescreva tudo.
 - Não invente regras novas. Use só as ${enabledRules.length} condições listadas.
 - A primeira mensagem do agente PODE ter as DUAS perguntas de abertura juntas (regra perguntas_desconexas tem exceção — ver red_lines do momento abertura).
-- **\`zero_travessoes\` é APENAS sobre travessão real**: caractere "—" (em-dash) ou "-" (hífen) usado como SEPARADOR DE FRASES. Vírgula, ponto, ponto-e-vírgula, dois-pontos e reticências SÃO pontuação normal — nunca trate como travessão. Hífen dentro de palavra composta ("guarda-roupa", "wedding-planner") também não conta.
 ${input.extra_validator_instruction ? `\n## INSTRUÇÃO ADICIONAL DO ADMIN\n\n${input.extra_validator_instruction.trim()}\n` : ""}
 Retorne JSON conforme schema. Se nenhuma condição é verdadeira, retorne \`violations: []\` e \`action: "pass"\`.`;
 
@@ -262,6 +311,24 @@ Retorne JSON conforme schema. Se nenhuma condição é verdadeira, retorne \`vio
       );
       verdict.action = "pass";
       verdict.corrected_messages = [];
+    }
+
+    // Merge detecção determinística de travessão com veredicto do LLM
+    if (travessoesViolations.length > 0) {
+      verdict.violations = [...verdict.violations, ...travessoesViolations];
+      verdict.ok = false;
+      // Aplica substituição em corrected_messages (ou cria a partir do original)
+      const baseMessages = verdict.corrected_messages.length > 0
+        ? verdict.corrected_messages
+        : input.messages;
+      verdict.corrected_messages = baseMessages.map((m) => ({
+        type: "text" as const,
+        content: m.content.replace(/[—–]/g, ","),
+      }));
+      // Se LLM tinha decidido pass, sobe pra rewrite (a menos que outro já tenha decidido block)
+      if (verdict.action === "pass") {
+        verdict.action = "rewrite";
+      }
     }
 
     return verdict;
