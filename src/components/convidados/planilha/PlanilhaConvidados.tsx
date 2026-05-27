@@ -20,8 +20,8 @@ interface Props {
   convites: Convite[]
 }
 
-// Grid template compartilhado entre header e linhas — exporta para ConviteGroup/PessoaRow usarem o mesmo
-export const PLANILHA_GRID = '36px minmax(180px, 1.6fr) 110px minmax(160px, 1.1fr) 200px 150px minmax(160px, 1.3fr) 36px'
+// Grid template compartilhado entre header e linhas
+export const PLANILHA_GRID = '40px minmax(180px, 1.6fr) 110px minmax(160px, 1.1fr) 200px 150px minmax(160px, 1.3fr) 40px'
 
 export function PlanilhaConvidados({ casal, convites }: Props) {
   const [search, setSearch] = useState('')
@@ -41,6 +41,12 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
       setSavedAt(new Date())
     }
   }, [upsertConvite.isSuccess, deleteConvite.isSuccess, upsertPessoa.isSuccess, deletePessoa.isSuccess])
+
+  // Surface erro de mutação via toast (pessoa nova com erro de constraint, etc)
+  useEffect(() => {
+    const err = upsertConvite.error || upsertPessoa.error || deleteConvite.error || deletePessoa.error
+    if (err) setToast(err.message)
+  }, [upsertConvite.error, upsertPessoa.error, deleteConvite.error, deletePessoa.error])
 
   const visibleConvites = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -164,42 +170,44 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
 
   return (
     <div className="flex flex-col">
-      {/* Header sticky com nome do casal + stats */}
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-ww-sand px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-4">
-          <img src="/brand/ww/welcome-weddings-horizontal.png" alt="Welcome Weddings" className="h-8 w-auto object-contain" />
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-ww-gold">Lista de Convidados</p>
-            <h1 className="font-ww-serif italic text-[22px] text-ww-n700 leading-tight">{casal.nome_casal}</h1>
+      {/* Bloco sticky unificado: header + toolbar + cabeçalho de colunas
+          ficam grudados visualmente em um único container sólido */}
+      <div className="sticky top-0 z-30 bg-white shadow-sm">
+        {/* Linha 1: Welcome Weddings + nome casal + stats */}
+        <header className="border-b border-ww-sand px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-4">
+            <img src="/brand/ww/welcome-weddings-horizontal.png" alt="Welcome Weddings" className="h-8 w-auto object-contain" />
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-ww-gold">Lista de Convidados</p>
+              <h1 className="font-ww-serif italic text-[22px] text-ww-n700 leading-tight">{casal.nome_casal}</h1>
+            </div>
           </div>
+          <StatsStrip stats={stats} />
+        </header>
+
+        {/* Linha 2: Toolbar */}
+        <div className="bg-ww-paper border-b border-ww-sand px-6">
+          <PlanilhaToolbar
+            search={search} setSearch={setSearch}
+            filterLado={filterLado} setFilterLado={setFilterLado}
+            filterTipo={filterTipo} setFilterTipo={setFilterTipo}
+            onAddConvite={handleAddConvite} onImport={handleImport} onExport={handleExport}
+          />
         </div>
-        <StatsStrip stats={stats} />
-      </header>
 
-      {/* Toolbar + Cabeçalho de colunas (ambos sticky em alturas progressivas) */}
-      <div className="sticky top-[72px] z-20 bg-ww-paper/95 backdrop-blur border-b border-ww-sand px-6">
-        <PlanilhaToolbar
-          search={search} setSearch={setSearch}
-          filterLado={filterLado} setFilterLado={setFilterLado}
-          filterTipo={filterTipo} setFilterTipo={setFilterTipo}
-          onAddConvite={handleAddConvite} onImport={handleImport} onExport={handleExport}
-        />
-      </div>
-
-      {/* Cabeçalho das colunas (sticky abaixo da toolbar) */}
-      <div className="sticky top-[136px] z-10 bg-ww-cream/90 backdrop-blur border-y-2 border-ww-sand-dk px-6">
+        {/* Linha 3: Cabeçalho de colunas — todos centralizados */}
         <div
-          className="hidden md:grid items-center px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-ww-n600"
+          className="hidden md:grid items-center bg-ww-cream border-b-2 border-ww-sand-dk text-[11px] font-semibold uppercase tracking-[0.14em] text-ww-n700"
           style={{ gridTemplateColumns: PLANILHA_GRID }}
         >
-          <span className="text-center">#</span>
-          <span className="pl-1.5 border-l border-ww-sand-dk/60">Pessoa</span>
-          <span className="pl-1.5 text-center border-l border-ww-sand-dk/60">Idade</span>
-          <span className="pl-1.5 border-l border-ww-sand-dk/60">Telefone</span>
-          <span className="pl-1.5 text-center border-l border-ww-sand-dk/60">Lado</span>
-          <span className="pl-1.5 text-center border-l border-ww-sand-dk/60">Tipo</span>
-          <span className="pl-1.5 border-l border-ww-sand-dk/60">Observação</span>
-          <span></span>
+          <span className="py-2.5 px-2 text-center">#</span>
+          <span className="py-2.5 px-2 text-center border-l border-ww-sand-dk/60">Pessoa</span>
+          <span className="py-2.5 px-2 text-center border-l border-ww-sand-dk/60">Idade</span>
+          <span className="py-2.5 px-2 text-center border-l border-ww-sand-dk/60">Telefone</span>
+          <span className="py-2.5 px-2 text-center border-l border-ww-sand-dk/60">Lado</span>
+          <span className="py-2.5 px-2 text-center border-l border-ww-sand-dk/60">Tipo</span>
+          <span className="py-2.5 px-2 text-center border-l border-ww-sand-dk/60">Observação</span>
+          <span className="py-2.5 px-2 border-l border-ww-sand-dk/60"></span>
         </div>
       </div>
 
@@ -233,11 +241,10 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
           </>
         )}
 
-        {/* Botão "Pronto, podem usar" fica abaixo da lista */}
         <BotaoFinalizarLista codigo={casal.codigo} totalPessoas={stats.totalPessoas} />
       </div>
 
-      {/* Footer fixo (atalhos) */}
+      {/* Footer fixo */}
       <footer className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur border-t border-ww-sand px-6 py-2 flex items-center justify-between gap-4 text-[11px] text-ww-n500">
         <div className="flex items-center gap-3 overflow-x-auto">
           <Kbd label="Tab" desc="Próxima célula" />

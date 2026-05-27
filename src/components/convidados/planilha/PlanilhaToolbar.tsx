@@ -1,7 +1,9 @@
 import { useRef } from 'react'
-import { Search, Tag, Upload, Download, Plus, X } from 'lucide-react'
+import { Search, Tag, Upload, Download, Plus, X, FileText } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { LADOS, TIPOS, type LadoKey, type TipoKey } from '../../../lib/convidados/types'
+import { downloadCSV } from '../../../lib/convidados/csvConvites'
+import { modeloCSVContent } from '../../../lib/convidados/csvModelo'
 
 interface Props {
   search: string
@@ -20,6 +22,10 @@ export function PlanilhaToolbar({
   onAddConvite, onImport, onExport,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
+
+  const handleBaixarModelo = () => {
+    downloadCSV('modelo-lista-convidados.csv', modeloCSVContent())
+  }
 
   return (
     <div className="flex items-center justify-between gap-2 flex-wrap py-2">
@@ -60,6 +66,9 @@ export function PlanilhaToolbar({
             const f = e.target.files?.[0]; if (!f) return
             const text = await f.text(); onImport(text); e.target.value = ''
           }} />
+        <button type="button" onClick={handleBaixarModelo} className={btnGhost} title="Baixar planilha modelo">
+          <FileText className="w-3 h-3" /> Modelo
+        </button>
         <button type="button" onClick={() => fileRef.current?.click()} className={btnGhost} title="Importar CSV">
           <Upload className="w-3 h-3" /> Importar
         </button>
