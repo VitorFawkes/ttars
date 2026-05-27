@@ -63,6 +63,8 @@ export interface CasalPublic {
   card_id: string | null
   criado_em: string
   ultima_edicao_casal_em: string | null
+  enviado_em?: string | null
+  tem_alteracoes_pendentes?: boolean
 }
 
 export interface ListaCasalResponse {
@@ -79,8 +81,12 @@ export interface CasalAdminRow {
   card_titulo: string | null
   criado_em: string
   ultima_edicao_casal_em: string | null
+  enviado_em: string | null
+  visto_em: string | null
   encerrado_em: string | null
   total_convites: number
   total_pessoas: number
   pessoas_sem_telefone: number
+  total_envios: number
+  alterado_depois_do_envio: boolean
 }

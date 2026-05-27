@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Phone, Link2, ExternalLink, Copy, Send, Pencil, Trash2, CheckCircle2, AlertCircle, Calendar, Unlink } from 'lucide-react'
+import { Phone, Link2, ExternalLink, Copy, Send, Pencil, Trash2, CheckCircle2, AlertCircle, Calendar, Unlink, History, Bell } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { formatPhoneBR } from '../../../lib/convidados/formatPhoneBR'
 import { buildLinkCasal, buildWhatsappLink } from '../../../lib/convidados/buildLink'
+import { HistoricoEnviosModal } from './HistoricoEnviosModal'
 import type { CasalAdminRow } from '../../../lib/convidados/types'
 
 interface Props {
@@ -15,6 +16,7 @@ interface Props {
 
 export function CasalCard({ casal, onEditar, onVincularCard, onDesvincular, onExcluir }: Props) {
   const [copied, setCopied] = useState(false)
+  const [showHistorico, setShowHistorico] = useState(false)
   const link = buildLinkCasal(casal.codigo)
   const wa = buildWhatsappLink(casal.whatsapp_digits, casal.codigo)
 
@@ -28,14 +30,20 @@ export function CasalCard({ casal, onEditar, onVincularCard, onDesvincular, onEx
   const isOrfao = !casal.card_id
   const isEncerrado = !!casal.encerrado_em
   const semTel = casal.pessoas_sem_telefone > 0
+  const nuncaEnviou = !casal.enviado_em
+  const alteradoDepois = casal.alterado_depois_do_envio
 
   const status = isEncerrado
-    ? { label: 'Encerrado', cls: 'bg-slate-100 text-slate-600 border-slate-200' }
-    : casal.total_pessoas === 0
-      ? { label: 'Não iniciado', cls: 'bg-slate-50 text-ww-n500 border-ww-sand' }
-      : semTel
-        ? { label: `${casal.pessoas_sem_telefone} sem telefone`, cls: 'bg-rose-50 text-rose-700 border-rose-200' }
-        : { label: 'Completo', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
+    ? { label: 'Encerrado', cls: 'bg-slate-100 text-slate-600 border-slate-200', alert: false }
+    : alteradoDepois
+      ? { label: 'Atualizou depois', cls: 'bg-amber-100 text-amber-900 border-amber-300', alert: true }
+      : nuncaEnviou && casal.total_pessoas === 0
+        ? { label: 'Não iniciado', cls: 'bg-slate-50 text-ww-n500 border-ww-sand', alert: false }
+        : nuncaEnviou
+          ? { label: 'Em preenchimento', cls: 'bg-sky-50 text-sky-700 border-sky-200', alert: false }
+          : semTel
+            ? { label: `${casal.pessoas_sem_telefone} sem telefone`, cls: 'bg-rose-50 text-rose-700 border-rose-200', alert: false }
+            : { label: 'Lista enviada', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', alert: false }
 
   return (
     <article className="group bg-white border border-ww-sand rounded-xl p-5 shadow-sm hover:shadow-ww-lift hover:-translate-y-0.5 transition-all duration-200 ease-ww-soft flex flex-col gap-3">
@@ -45,6 +53,12 @@ export function CasalCard({ casal, onEditar, onVincularCard, onDesvincular, onEx
           <h3 className="font-ww-serif italic text-xl text-ww-n700 leading-tight">{casal.nome_casal}</h3>
         </div>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {casal.total_envios > 0 && (
+            <button type="button" onClick={() => setShowHistorico(true)}
+              className="p-1.5 rounded hover:bg-ww-cream text-ww-n500 hover:text-ww-gold-ink" aria-label="Histórico" title="Histórico de envios">
+              <History className="w-3.5 h-3.5" />
+            </button>
+          )}
           <button type="button" onClick={() => onEditar(casal)}
             className="p-1.5 rounded hover:bg-ww-cream text-ww-n500 hover:text-ww-n700" aria-label="Editar" title="Editar">
             <Pencil className="w-3.5 h-3.5" />
@@ -55,6 +69,16 @@ export function CasalCard({ casal, onEditar, onVincularCard, onDesvincular, onEx
           </button>
         </div>
       </header>
+
+      {alteradoDepois && (
+        <button type="button" onClick={() => setShowHistorico(true)}
+          className="-mx-1 -mt-1 px-2.5 py-1.5 bg-amber-100/80 border border-amber-300 rounded-md text-left hover:bg-amber-100 transition-colors flex items-center gap-1.5">
+          <Bell className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+          <span className="text-[11px] text-amber-900 font-medium leading-tight">
+            O casal editou depois do último envio. Clique para ver o que mudou.
+          </span>
+        </button>
+      )}
 
       <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
         <div className="col-span-2">
@@ -94,8 +118,8 @@ export function CasalCard({ casal, onEditar, onVincularCard, onDesvincular, onEx
       <div className="flex items-center justify-between gap-2 py-2 border-y border-dashed border-ww-sand text-xs">
         <Stat n={casal.total_convites} label="convites" />
         <Stat n={casal.total_pessoas} label="convidados" accent />
-        <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border uppercase tracking-wide', status.cls)}>
-          {status.label}
+        <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border uppercase tracking-wide', status.cls)}>
+          {status.alert && <Bell className="w-2.5 h-2.5" />}{status.label}
         </span>
       </div>
 
@@ -122,6 +146,8 @@ export function CasalCard({ casal, onEditar, onVincularCard, onDesvincular, onEx
           <ExternalLink className="w-3.5 h-3.5" /> Abrir lista
         </a>
       </footer>
+
+      <HistoricoEnviosModal open={showHistorico} onClose={() => setShowHistorico(false)} casal={casal} />
     </article>
   )
 }

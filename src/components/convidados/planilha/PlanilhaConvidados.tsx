@@ -12,6 +12,7 @@ import { exportConvitesCSV, importConvitesCSV, downloadCSV } from '../../../lib/
 import { StatsStrip } from './StatsStrip'
 import { PlanilhaToolbar } from './PlanilhaToolbar'
 import { ConviteGroup } from './ConviteGroup'
+import { BotaoFinalizarLista } from './BotaoFinalizarLista'
 import type { Pessoa, Convite, LadoKey, TipoKey, CasalPublic } from '../../../lib/convidados/types'
 
 interface Props {
@@ -214,6 +215,8 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
           </>
         )}
       </div>
+
+      <BotaoFinalizarLista codigo={casal.codigo} totalPessoas={stats.totalPessoas} />
 
       <footer className="fixed bottom-0 left-0 right-0 z-10 bg-white/95 backdrop-blur border-t border-ww-sand px-6 py-2 flex items-center justify-between gap-4 text-[11px] text-ww-n500">
         <div className="flex items-center gap-3">
