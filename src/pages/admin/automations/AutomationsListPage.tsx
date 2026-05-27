@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   Zap, Plus, MoreHorizontal, MessageSquare, CheckSquare, ArrowRightLeft,
-  Layers, Search, Activity, Trash2, Pencil, BarChart3, LayoutList, Timer,
+  Layers, Search, Activity, Trash2, Pencil, BarChart3, LayoutList, Timer, Copy,
 } from 'lucide-react'
 
 import { useAutomations, type AutomationItem } from '@/hooks/useAutomations'
@@ -64,12 +64,14 @@ function AutomationCard({
   onToggle,
   onEdit,
   onMonitor,
+  onDuplicate,
   onDelete,
 }: {
   item: AutomationItem
   onToggle: (next: boolean) => void
   onEdit: () => void
   onMonitor: () => void
+  onDuplicate: () => void
   onDelete: () => void
 }) {
   const stats = item.stats
@@ -123,6 +125,10 @@ function AutomationCard({
                 <BarChart3 className="w-3 h-3 mr-2" />
                 Ver execuções
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={onDuplicate}>
+                <Copy className="w-3 h-3 mr-2" />
+                Duplicar
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={onDelete} className="text-red-600">
                 <Trash2 className="w-3 h-3 mr-2" />
                 Excluir
@@ -138,7 +144,7 @@ function AutomationCard({
 export default function AutomationsListPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { items, isLoading, toggleActive, remove } = useAutomations()
+  const { items, isLoading, toggleActive, remove, duplicate } = useAutomations()
   const [search, setSearch] = useState('')
   const [actionFilter, setActionFilter] = useState<ActionFilter>('all')
 
@@ -183,6 +189,15 @@ export default function AutomationsListPage() {
       toast.success('Automação excluída')
     } catch {
       toast.error('Erro ao excluir automação')
+    }
+  }
+
+  const handleDuplicate = async (item: AutomationItem) => {
+    try {
+      await duplicate.mutateAsync(item)
+      toast.success('Automação duplicada (criada pausada). Ajuste e ative quando quiser.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao duplicar automação')
     }
   }
 
@@ -342,6 +357,7 @@ export default function AutomationsListPage() {
                   onToggle={(next) => handleToggle(item, next)}
                   onEdit={() => handleEdit(item)}
                   onMonitor={() => handleMonitor(item)}
+                  onDuplicate={() => handleDuplicate(item)}
                   onDelete={() => handleDelete(item)}
                 />
               ))}

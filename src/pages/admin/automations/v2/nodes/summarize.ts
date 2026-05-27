@@ -90,10 +90,19 @@ export function summarizeConfig(
         }
         case 'trigger.time_offset_from_date': {
             const src = config.source as string | undefined
-            const offset = (config.days_offset as number) ?? 0
             if (!src) return null
+            const srcLabel = src.replace(/^.*\./, '')
+            // Reunião usa minutes_offset (hora exata); outros usam days_offset
+            if (src === 'card.data_reuniao') {
+                const mins = (config.minutes_offset as number) ?? 0
+                if (mins === 0) return `Na hora de ${srcLabel}`
+                const abs = Math.abs(mins)
+                const unit = abs % 60 === 0 ? `${abs / 60}h` : `${abs}min`
+                return `${unit} ${mins < 0 ? 'antes' : 'depois'} de ${srcLabel}`
+            }
+            const offset = (config.days_offset as number) ?? 0
             const sign = offset === 0 ? 'No dia' : offset > 0 ? `${offset}d depois` : `${Math.abs(offset)}d antes`
-            return `${sign} de ${src.replace(/^.*\./, '')}`
+            return `${sign} de ${srcLabel}`
         }
         case 'trigger.time_in_stage':
             if (!config.stage_id) return null
