@@ -182,6 +182,7 @@ export default function SettingsSidebar() {
                         ═══════════════════════════════════════════════════════════ */}
                         <NavSection title="Conexões" icon={Webhook}>
                             <NavItem to="/settings/integrations" icon={Webhook} label="Integrações" badge={blockedCount} />
+                            <NavItem to="/settings/leadster" icon={Bot} label="Leadster" />
                             <NavItem to="/settings/workspace/whatsapp" icon={MessageSquare} label="WhatsApp" />
                             <NavItem to="/settings/developer-platform" icon={Code} label="Developer Platform" />
                         </NavSection>

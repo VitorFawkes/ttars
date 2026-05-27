@@ -110,6 +110,7 @@ import VendasMondePage from './pages/admin/VendasMondePage'
 import ImportacaoPosVendaPage from './pages/admin/ImportacaoPosVendaPage'
 import PresentesHubPage from './pages/PresentesHubPage'
 import { IntegrationsPage } from './components/admin/integrations/IntegrationsPage'
+import LeadsterSettingsPage from './pages/settings/LeadsterSettingsPage'
 import DeveloperHub from './pages/developer/DeveloperHub'
 import { WhatsAppPage } from './components/admin/whatsapp/WhatsAppPage'
 import KanbanCardSettings from './components/admin/KanbanCardSettings'
@@ -436,6 +437,7 @@ function App() {
                         INTEGRATIONS: External Connections
                     ═══════════════════════════════════════════════════════════ */}
                     <Route path="integrations" element={<IntegrationsPage />} />
+                    <Route path="leadster" element={<LeadsterSettingsPage />} />
                     <Route path="developer-platform" element={<DeveloperHub />} />
 
                     {/* ═══════════════════════════════════════════════════════════
