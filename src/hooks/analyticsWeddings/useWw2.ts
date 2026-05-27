@@ -524,10 +524,47 @@ export type WwQualidadeHeatmap = {
   ticket_medio: number | null
 }
 
+export type WwQualidadeOutrosBucket = {
+  entraram: number | null
+  fecharam: number | null
+  categorias_agrupadas: string[] | null
+}
+
+export type WwQualidadeCruzamentoCelula = {
+  linha: string
+  coluna: string
+  entraram: number
+  fecharam: number
+  taxa_pct: number | null
+}
+
+export type WwQualidadeEvolucaoMes = {
+  mes: string
+  categoria: string
+  entraram: number
+  fecharam: number
+  taxa_pct: number | null
+}
+
+export type WwPerfilCompareItem = {
+  categoria: string
+  entrada_qtd: number
+  entrada_pct: number | null
+  fechou_qtd: number
+  fechou_pct: number | null
+  lift: number | null
+}
+
+export type WwPerfilCompareDimensao = {
+  dimensao: 'faixa' | 'destino' | 'convidados' | 'origem' | 'tipo' | string
+  dados: WwPerfilCompareItem[]
+}
+
 export type WwQualidadeLead = {
   date_start: string
   date_end: string
   date_mode: 'cohort' | 'throughput'
+  min_amostra?: number
   total_entraram: number
   total_fecharam: number
   taxa_conversao_geral_pct: number | null
@@ -535,17 +572,30 @@ export type WwQualidadeLead = {
   por_faixa: WwQualidadeCategoria[]
   por_destino: WwQualidadeCategoria[]
   por_convidados: WwQualidadeCategoria[]
+  outros_amostra_pequena?: {
+    faixa?: WwQualidadeOutrosBucket
+    destino?: WwQualidadeOutrosBucket
+    convidados?: WwQualidadeOutrosBucket
+  }
   heatmap_faixa_destino: WwQualidadeHeatmap[]
+  cruzamentos?: {
+    faixa_x_origem?: WwQualidadeCruzamentoCelula[]
+    destino_x_origem?: WwQualidadeCruzamentoCelula[]
+    faixa_x_tipo?: WwQualidadeCruzamentoCelula[]
+    convidados_x_origem?: WwQualidadeCruzamentoCelula[]
+  }
+  evolucao_mensal_por_faixa?: WwQualidadeEvolucaoMes[]
+  comparacao_entrada_vs_fechamento?: WwPerfilCompareDimensao[]
   error?: string
 }
 
-export function useWwQualidadeLead(filters: Ww2Filters, eventStageId?: string | null) {
+export function useWwQualidadeLead(filters: Ww2Filters, eventStageId?: string | null, minAmostra: number = 3) {
   const orgId = useOrgId()
   // cohort: leads criados no período.
   // throughput: leads que tiveram stage_changed para eventStageId no período (obrigatório).
   const isThroughput = filters.dateMode === 'throughput'
   return useQuery({
-    queryKey: ['ww', 'qualidade-lead', orgId, filters.dateStart, filters.dateEnd, filters.dateMode, eventStageId ?? null, filters.origins, filters.tipos],
+    queryKey: ['ww', 'qualidade-lead', orgId, filters.dateStart, filters.dateEnd, filters.dateMode, eventStageId ?? null, filters.origins, filters.tipos, minAmostra],
     queryFn: () => callRpc<WwQualidadeLead>('ww_qualidade_lead', {
       p_date_start: filters.dateStart,
       p_date_end: filters.dateEnd,
@@ -554,6 +604,7 @@ export function useWwQualidadeLead(filters: Ww2Filters, eventStageId?: string | 
       p_date_mode: filters.dateMode,
       p_event_stage_id: isThroughput ? eventStageId : null,
       p_tipos: filters.tipos?.length ? filters.tipos : null,
+      p_min_amostra: minAmostra,
     }),
     enabled: !!orgId && (!isThroughput || !!eventStageId),
     staleTime: 60_000,

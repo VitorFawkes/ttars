@@ -1201,6 +1201,23 @@ pipeline_stages → pipeline_phases (target_phase_id) — handoff entre fases
 | `SectionRenderer` | CardDetail | Todas as secoes dinamicas |
 | `CreateCardModal` | Pipeline, Dashboard | Criacao de novos cards |
 
+## 17. Analytics-Weddings — Componentes da página
+
+> Atualizado 2026-05-27 (Ondas 1+2 do drill universal + perfil compare).
+
+| Component | Path | Função |
+|-----------|------|--------|
+| `OpenInACButton` | `src/pages/AnalyticsWeddings/components/OpenInACButton.tsx` | Botão "Abrir contato no ActiveCampaign" |
+| `ClickableRow` | `src/pages/AnalyticsWeddings/components/ClickableRow.tsx` | `<tr>` clicável com suporte a teclado |
+| `LiftBadge` | `src/pages/AnalyticsWeddings/components/LiftBadge.tsx` | Pílula colorida para lift de conversão |
+| `MatrixHeatmap` | `src/pages/AnalyticsWeddings/components/MatrixHeatmap.tsx` | Heatmap genérico linha×coluna com drill |
+| `PerfilCompareChart` | `src/pages/AnalyticsWeddings/components/PerfilCompareChart.tsx` | Barras espelhadas entrada×fechamento + lift |
+| `DrillDrawer` | `src/pages/AnalyticsWeddings/components/DrillDrawer.tsx` | Painel lateral com casais + AC button |
+
+| Hook | Path | Função |
+|------|------|--------|
+| `useACBaseUrl` | `src/hooks/useACBaseUrl.ts` | Base URL do ActiveCampaign (derivada de integration_settings) |
+
 
 
 
