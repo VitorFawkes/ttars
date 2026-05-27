@@ -1,7 +1,13 @@
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { useFilterParams } from '../components/FilterBar'
 import { useWwDriftVenda, type WwDriftVenda } from '@/hooks/analyticsWeddings/useWw2'
 import { SectionCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
-import { formatNumber } from '../lib/format'
+import { DrillDrawer, type DrillContext } from '../components/DrillDrawer'
+import { OpenInACButton } from '../components/OpenInACButton'
+import { ClickableRow } from '../components/ClickableRow'
+import { formatCurrency, formatNumber } from '../lib/format'
 
 const FAIXA_ORDER = ['Até R$50 mil', 'R$50-80 mil', 'R$50-100 mil', 'R$80-100 mil', 'R$100-200 mil', 'R$200-500 mil', '+R$500 mil']
 const CONV_ORDER = ['Apenas o casal', 'Até 20', '20-50', '50-80', '80-100', '+100']
@@ -9,6 +15,8 @@ const CONV_ORDER = ['Apenas o casal', 'Até 20', '20-50', '50-80', '80-100', '+1
 export function EntradaRealidade() {
   const filters = useFilterParams()
   const { data, isLoading, error } = useWwDriftVenda(filters)
+  const [drill, setDrill] = useState<DrillContext | null>(null)
+  const baseCtx = { dateStart: filters.dateStart, dateEnd: filters.dateEnd }
 
   if (isLoading) return <LoadingSkeleton rows={10} />
   if (error) return <ErrorBanner error={error as Error} />
@@ -17,32 +25,43 @@ export function EntradaRealidade() {
   return (
     <div className="space-y-5">
       <UniversoHeader data={data} />
-      <BreakdownTipo data={data} />
-      <InvestimentoDrift data={data} />
-      <DestinoDrift data={data} />
+      <BreakdownTipo data={data} onTipoClick={(tipo) => setDrill({ ...baseCtx, tipo, status: 'ganho', title: `Casais — ${tipo} fechados` })} />
+      <InvestimentoDrift data={data} onCellClick={(fe, fv) => setDrill({ ...baseCtx, faixa: fe, status: 'ganho', title: `Casais — entrou em ${fe}, vendeu em ${fv}` })} />
+      <DestinoDrift data={data} onCellClick={(de, dv) => setDrill({ ...baseCtx, destino: de, status: 'ganho', title: `Casais — declarou ${de}, vendeu ${dv}` })} />
       <ConvidadosDrift data={data} />
+      <DriftPorOrigem data={data} onOrigemClick={(origem) => setDrill({ ...baseCtx, origem, status: 'ganho', title: `Vendas — origem ${origem}` })} />
+      <DriftPorConsultor data={data} onConsultorClick={(consultor_id, consultor_nome) => setDrill({ ...baseCtx, consultorId: consultor_id, status: 'ganho', title: `Vendas — ${consultor_nome ?? 'consultor'}` })} />
+      <DriftPorMes data={data} />
       <VendasFechadasList data={data} />
+      <DrillDrawer ctx={drill} onClose={() => setDrill(null)} />
     </div>
   )
 }
 
-function BreakdownTipo({ data }: { data: WwDriftVenda }) {
+function BreakdownTipo({ data, onTipoClick }: { data: WwDriftVenda; onTipoClick?: (tipo: string) => void }) {
   if (!data.breakdown_tipo || data.breakdown_tipo.length === 0 || data.total_fechados === 0) return null
   return (
-    <SectionCard title="👰 Vendas por tipo de casamento" subtitle="DW (Destination Wedding) × Elopment, com valor médio e total contratado em cada categoria.">
+    <SectionCard title="👰 Vendas por tipo de casamento" subtitle="DW (Destination Wedding) × Elopment, com valor médio e total contratado em cada categoria. Clique pra ver os casais.">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {data.breakdown_tipo.map(b => (
-          <div key={b.tipo} className="border border-slate-200 rounded-xl p-4 bg-white">
-            <div className="text-xs uppercase tracking-wide text-slate-500 font-medium">{b.tipo}</div>
-            <div className="mt-1 flex items-baseline gap-2">
-              <div className="text-2xl font-semibold text-slate-900 tabular-nums">{formatNumber(b.fechados)}</div>
-              <div className="text-xs text-slate-500">vendas</div>
-            </div>
-            <div className="mt-2 text-xs text-slate-600">
-              Convidados (média): <strong className="tabular-nums">{b.convidados_medio ? formatNumber(b.convidados_medio) : '—'}</strong>
-            </div>
-          </div>
-        ))}
+        {data.breakdown_tipo.map(b => {
+          const Wrap = onTipoClick ? ('button' as const) : ('div' as const)
+          return (
+            <Wrap
+              key={b.tipo}
+              onClick={onTipoClick ? () => onTipoClick(b.tipo) : undefined}
+              className={`border border-slate-200 rounded-xl p-4 bg-white text-left w-full ${onTipoClick ? 'hover:border-indigo-300 hover:bg-indigo-50/30 cursor-pointer transition' : ''}`}
+            >
+              <div className="text-xs uppercase tracking-wide text-slate-500 font-medium">{b.tipo}</div>
+              <div className="mt-1 flex items-baseline gap-2">
+                <div className="text-2xl font-semibold text-slate-900 tabular-nums">{formatNumber(b.fechados)}</div>
+                <div className="text-xs text-slate-500">vendas</div>
+              </div>
+              <div className="mt-2 text-xs text-slate-600">
+                Convidados (média): <strong className="tabular-nums">{b.convidados_medio ? formatNumber(b.convidados_medio) : '—'}</strong>
+              </div>
+            </Wrap>
+          )
+        })}
       </div>
     </SectionCard>
   )
@@ -53,28 +72,34 @@ function VendasFechadasList({ data }: { data: WwDriftVenda }) {
   return (
     <SectionCard
       title={`📋 Lista das ${formatNumber(data.total_fechados)} vendas fechadas`}
-      subtitle="Ordenado pela data da venda mais recente. Inclui o Número da Venda Monde para rastreabilidade."
+      subtitle="Ordenado pela data da venda mais recente. Clique no card pra abrir, ou no botão pra abrir o casal no Active."
     >
       <div className="border border-slate-200 rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-3 py-2 text-left font-medium">Data da venda</th>
-              <th className="px-3 py-2 text-left font-medium">Card</th>
+              <th className="px-3 py-2 text-left font-medium">Casal · Card</th>
               <th className="px-3 py-2 text-left font-medium">Tipo</th>
               <th className="px-3 py-2 text-left font-medium">Destino vendido</th>
-              <th className="px-3 py-2 text-right font-medium">Nº Convidados</th>
+              <th className="px-3 py-2 text-right font-medium">Convidados</th>
+              <th className="px-3 py-2 text-right font-medium">Valor</th>
+              <th className="px-3 py-2 text-left font-medium">Closer</th>
               <th className="px-3 py-2 text-right font-medium">Monde</th>
+              <th className="px-3 py-2 text-center font-medium">Active</th>
             </tr>
           </thead>
           <tbody>
             {data.vendas_lista.map(v => (
-              <tr key={v.card_id} className="border-t border-slate-100 hover:bg-slate-50">
+              <tr key={v.card_id} className="border-t border-slate-100 hover:bg-slate-50/60">
                 <td className="px-3 py-2 text-slate-700 tabular-nums whitespace-nowrap">
                   {v.data_venda ? new Date(v.data_venda).toLocaleDateString('pt-BR') : '—'}
                 </td>
-                <td className="px-3 py-2 text-slate-900 font-medium truncate max-w-xs" title={v.titulo ?? ''}>
-                  {v.titulo ?? '—'}
+                <td className="px-3 py-2">
+                  <Link to={`/cards/${v.card_id}`} className="text-indigo-700 hover:underline font-medium block truncate max-w-xs" title={v.titulo ?? ''}>
+                    {v.titulo ?? '—'}
+                  </Link>
+                  {v.contato_nome && <div className="text-[11px] text-slate-500 mt-0.5">{v.contato_nome}</div>}
                 </td>
                 <td className="px-3 py-2">
                   {v.tipo_casamento ? (
@@ -84,13 +109,154 @@ function VendasFechadasList({ data }: { data: WwDriftVenda }) {
                   ) : <span className="text-slate-400">—</span>}
                 </td>
                 <td className="px-3 py-2 text-slate-700">{v.destino_vendido ?? '—'}</td>
-                <td className="px-3 py-2 text-right tabular-nums font-medium text-slate-900">{v.num_convidados ? `${formatNumber(v.num_convidados)} convidados` : '—'}</td>
+                <td className="px-3 py-2 text-right tabular-nums font-medium text-slate-900">{v.num_convidados ? formatNumber(v.num_convidados) : '—'}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-slate-900">{v.valor_final ? formatCurrency(v.valor_final) : <span className="text-slate-300">—</span>}</td>
+                <td className="px-3 py-2 text-slate-600 text-xs">{v.consultor_nome ?? <span className="text-slate-400">—</span>}</td>
                 <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-500">{v.monde_venda ?? '—'}</td>
+                <td className="px-3 py-2 text-center">
+                  <OpenInACButton externalId={v.contato_external_id} contactName={v.contato_nome} />
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+    </SectionCard>
+  )
+}
+
+// ─── NOVO Onda 3: Drift por subgrupo ────────────────────────────────────────
+function DriftPorOrigem({ data, onOrigemClick }: { data: WwDriftVenda; onOrigemClick?: (origem: string) => void }) {
+  if (!data.drift_por_origem || data.drift_por_origem.length === 0) return null
+  return (
+    <SectionCard
+      title="🎯 Drift por origem"
+      subtitle="Quais fontes trazem lead que casa com a realidade (manteve), faz upsell (subiu) ou pagou menos (desceu). Linha clicável pra ver casais."
+    >
+      <div className="border border-slate-200 rounded-lg overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="px-3 py-2 text-left font-medium">Origem</th>
+              <th className="px-3 py-2 text-right font-medium">Vendas</th>
+              <th className="px-3 py-2 text-right font-medium">Manteve</th>
+              <th className="px-3 py-2 text-right font-medium">Vendeu acima</th>
+              <th className="px-3 py-2 text-right font-medium">Vendeu abaixo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.drift_por_origem.map(o => {
+              const cells = (
+                <>
+                  <td className="px-3 py-2 text-slate-900 font-medium">{o.origem}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{formatNumber(o.vendas)}</td>
+                  <td className="px-3 py-2 text-right">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700">
+                      {o.manteve} · {o.manteve_pct ?? 0}%
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700">
+                      {o.subiu} · {o.subiu_pct ?? 0}%
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700">
+                      {o.desceu} · {o.desceu_pct ?? 0}%
+                    </span>
+                  </td>
+                </>
+              )
+              return onOrigemClick ? (
+                <ClickableRow key={o.origem} onClick={() => onOrigemClick(o.origem)} className="border-t border-slate-100" title={`Ver casais — ${o.origem}`}>
+                  {cells}
+                </ClickableRow>
+              ) : (
+                <tr key={o.origem} className="border-t border-slate-100">{cells}</tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </SectionCard>
+  )
+}
+
+function DriftPorConsultor({ data, onConsultorClick }: { data: WwDriftVenda; onConsultorClick?: (consultorId: string, consultorNome: string | null) => void }) {
+  if (!data.drift_por_consultor || data.drift_por_consultor.length === 0) return null
+  return (
+    <SectionCard
+      title="👤 Drift por closer (quem faz upsell?)"
+      subtitle="Pra cada closer, quantas vendas mantiveram a faixa declarada, subiram (upsell) ou desceram. Linha clicável."
+    >
+      <div className="border border-slate-200 rounded-lg overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="px-3 py-2 text-left font-medium">Closer</th>
+              <th className="px-3 py-2 text-right font-medium">Vendas</th>
+              <th className="px-3 py-2 text-right font-medium">Manteve</th>
+              <th className="px-3 py-2 text-right font-medium">Subiu (upsell)</th>
+              <th className="px-3 py-2 text-right font-medium">Desceu</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.drift_por_consultor.map(c => {
+              const cells = (
+                <>
+                  <td className="px-3 py-2 text-slate-900 font-medium">{c.consultor_nome ?? <span className="text-slate-400">Sem dono</span>}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{formatNumber(c.vendas)}</td>
+                  <td className="px-3 py-2 text-right">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700">
+                      {c.manteve} · {c.manteve_pct ?? 0}%
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700">
+                      {c.subiu} · {c.subiu_pct ?? 0}%
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700">
+                      {c.desceu} · {c.desceu_pct ?? 0}%
+                    </span>
+                  </td>
+                </>
+              )
+              return onConsultorClick ? (
+                <ClickableRow key={c.consultor_id} onClick={() => onConsultorClick(c.consultor_id, c.consultor_nome)} className="border-t border-slate-100" title={`Ver vendas de ${c.consultor_nome ?? 'consultor'}`}>
+                  {cells}
+                </ClickableRow>
+              ) : (
+                <tr key={c.consultor_id} className="border-t border-slate-100">{cells}</tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </SectionCard>
+  )
+}
+
+function DriftPorMes({ data }: { data: WwDriftVenda }) {
+  if (!data.drift_por_mes || data.drift_por_mes.length === 0) return null
+  return (
+    <SectionCard
+      title="📅 Evolução da aderência mês a mês"
+      subtitle="A % de vendas que MANTIVERAM a faixa declarada ao longo dos meses. Se cair, é sinal de drift crescente."
+    >
+      <ResponsiveContainer width="100%" height={280}>
+        <LineChart data={data.drift_por_mes}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+          <XAxis dataKey="mes" stroke="#64748b" fontSize={11} />
+          <YAxis stroke="#64748b" fontSize={11} unit="%" />
+          <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          <Line type="monotone" dataKey="manteve_pct" name="Manteve" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
+          <Line type="monotone" dataKey="subiu_pct" name="Subiu (upsell)" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} />
+          <Line type="monotone" dataKey="desceu_pct" name="Desceu" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} />
+        </LineChart>
+      </ResponsiveContainer>
     </SectionCard>
   )
 }
@@ -134,7 +300,7 @@ function UniversoHeader({ data }: { data: WwDriftVenda }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // INVESTIMENTO — entrada × valor R$ vendido
 // ─────────────────────────────────────────────────────────────────────────────
-function InvestimentoDrift({ data }: { data: WwDriftVenda }) {
+function InvestimentoDrift({ data, onCellClick }: { data: WwDriftVenda; onCellClick?: (faixaEntrada: string, faixaVendida: string) => void }) {
   const inv = data.investimento
   const { cobertura, drift, matriz } = inv
   const universo = cobertura.com_ambos
@@ -223,15 +389,21 @@ function InvestimentoDrift({ data }: { data: WwDriftVenda }) {
                               else if (vIdx > eIdx) bg = 'bg-indigo-50 text-indigo-900'
                               else bg = 'bg-amber-50 text-amber-900'
                             }
+                            const isClick = qtd > 0 && !!onCellClick
                             return (
-                              <td key={fv} className={`px-3 py-2 text-center ${bg} ${qtd === 0 ? 'text-slate-300' : ''}`}
+                              <td key={fv} className={`p-0 ${bg} ${qtd === 0 ? 'text-slate-300' : ''}`}
                                   title={qtd > 0 ? `${qtd} venda(s) — ${pctLinha}% da linha` : 'Nenhuma venda nessa combinação'}>
-                                {qtd > 0 ? (
-                                  <div>
+                                {isClick ? (
+                                  <button onClick={() => onCellClick(fe, fv)} className="w-full h-full px-3 py-2 text-center cursor-pointer hover:ring-2 hover:ring-indigo-400 focus:ring-2 focus:ring-indigo-400 focus:outline-none">
+                                    <div className="font-semibold text-sm">{qtd}</div>
+                                    <div className="text-[10px] opacity-75">{pctLinha}%</div>
+                                  </button>
+                                ) : qtd > 0 ? (
+                                  <div className="px-3 py-2 text-center">
                                     <div className="font-semibold text-sm">{qtd}</div>
                                     <div className="text-[10px] opacity-75">{pctLinha}%</div>
                                   </div>
-                                ) : '0'}
+                                ) : <div className="px-3 py-2 text-center">0</div>}
                               </td>
                             )
                           })}
@@ -253,7 +425,7 @@ function InvestimentoDrift({ data }: { data: WwDriftVenda }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // DESTINO — entrada × destino vendido
 // ─────────────────────────────────────────────────────────────────────────────
-function DestinoDrift({ data }: { data: WwDriftVenda }) {
+function DestinoDrift({ data, onCellClick }: { data: WwDriftVenda; onCellClick?: (destinoEntrada: string, destinoVendido: string) => void }) {
   const dest = data.destino
   const { cobertura, drift, matriz, top_migracoes } = dest
   const universo = cobertura.com_ambos
@@ -329,15 +501,21 @@ function DestinoDrift({ data }: { data: WwDriftVenda }) {
                             const pctLinha = rowTotal > 0 ? Math.round(100 * qtd / rowTotal) : 0
                             const isDiag = de === dv
                             const bg = qtd === 0 ? 'bg-slate-50 text-slate-300' : isDiag ? 'bg-emerald-100 text-emerald-900' : 'bg-amber-50 text-amber-900'
+                            const isClick = qtd > 0 && !!onCellClick
                             return (
-                              <td key={dv} className={`px-3 py-2 text-center ${bg}`}
+                              <td key={dv} className={`p-0 ${bg}`}
                                   title={qtd > 0 ? `${qtd} venda(s) — ${pctLinha}% da linha` : 'Nenhuma venda'}>
-                                {qtd > 0 ? (
-                                  <div>
+                                {isClick ? (
+                                  <button onClick={() => onCellClick(de, dv)} className="w-full h-full px-3 py-2 text-center cursor-pointer hover:ring-2 hover:ring-indigo-400 focus:ring-2 focus:ring-indigo-400 focus:outline-none">
+                                    <div className="font-semibold text-sm">{qtd}</div>
+                                    <div className="text-[10px] opacity-75">{pctLinha}%</div>
+                                  </button>
+                                ) : qtd > 0 ? (
+                                  <div className="px-3 py-2 text-center">
                                     <div className="font-semibold text-sm">{qtd}</div>
                                     <div className="text-[10px] opacity-75">{pctLinha}%</div>
                                   </div>
-                                ) : '0'}
+                                ) : <div className="px-3 py-2 text-center">0</div>}
                               </td>
                             )
                           })}

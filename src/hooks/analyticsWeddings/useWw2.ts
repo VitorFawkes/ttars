@@ -186,6 +186,18 @@ export type Ww2DrillRow = {
   origem: string
   dias_parado: number
   motivo_perda: string | null
+  // Enriquecimentos da Onda 1 (migration 20260527s_ww2_drill_down_enrich)
+  contato_id: string | null
+  contato_nome: string | null
+  contato_email: string | null
+  contato_telefone: string | null
+  contato_external_id: string | null
+  data_venda: string | null
+  monde_venda: string | null
+  tipo_casamento: string | null
+  campaign: string | null
+  medium: string | null
+  content: string | null
 }
 
 export type Ww2DrillDown = {
@@ -278,6 +290,11 @@ export type DrillFilters = {
   origem?: string
   consultorId?: string
   motivoPerda?: string
+  // Filtros para drill em cruzamentos das próximas ondas (filtragem client-side
+  // após o fetch — a RPC ww2_drill_down não conhece esses campos ainda):
+  tipo?: string
+  campaign?: string
+  medium?: string
   limit?: number
   offset?: number
 }
@@ -507,10 +524,47 @@ export type WwQualidadeHeatmap = {
   ticket_medio: number | null
 }
 
+export type WwQualidadeOutrosBucket = {
+  entraram: number | null
+  fecharam: number | null
+  categorias_agrupadas: string[] | null
+}
+
+export type WwQualidadeCruzamentoCelula = {
+  linha: string
+  coluna: string
+  entraram: number
+  fecharam: number
+  taxa_pct: number | null
+}
+
+export type WwQualidadeEvolucaoMes = {
+  mes: string
+  categoria: string
+  entraram: number
+  fecharam: number
+  taxa_pct: number | null
+}
+
+export type WwPerfilCompareItem = {
+  categoria: string
+  entrada_qtd: number
+  entrada_pct: number | null
+  fechou_qtd: number
+  fechou_pct: number | null
+  lift: number | null
+}
+
+export type WwPerfilCompareDimensao = {
+  dimensao: 'faixa' | 'destino' | 'convidados' | 'origem' | 'tipo' | string
+  dados: WwPerfilCompareItem[]
+}
+
 export type WwQualidadeLead = {
   date_start: string
   date_end: string
   date_mode: 'cohort' | 'throughput'
+  min_amostra?: number
   total_entraram: number
   total_fecharam: number
   taxa_conversao_geral_pct: number | null
@@ -518,17 +572,30 @@ export type WwQualidadeLead = {
   por_faixa: WwQualidadeCategoria[]
   por_destino: WwQualidadeCategoria[]
   por_convidados: WwQualidadeCategoria[]
+  outros_amostra_pequena?: {
+    faixa?: WwQualidadeOutrosBucket
+    destino?: WwQualidadeOutrosBucket
+    convidados?: WwQualidadeOutrosBucket
+  }
   heatmap_faixa_destino: WwQualidadeHeatmap[]
+  cruzamentos?: {
+    faixa_x_origem?: WwQualidadeCruzamentoCelula[]
+    destino_x_origem?: WwQualidadeCruzamentoCelula[]
+    faixa_x_tipo?: WwQualidadeCruzamentoCelula[]
+    convidados_x_origem?: WwQualidadeCruzamentoCelula[]
+  }
+  evolucao_mensal_por_faixa?: WwQualidadeEvolucaoMes[]
+  comparacao_entrada_vs_fechamento?: WwPerfilCompareDimensao[]
   error?: string
 }
 
-export function useWwQualidadeLead(filters: Ww2Filters, eventStageId?: string | null) {
+export function useWwQualidadeLead(filters: Ww2Filters, eventStageId?: string | null, minAmostra: number = 3) {
   const orgId = useOrgId()
   // cohort: leads criados no período.
   // throughput: leads que tiveram stage_changed para eventStageId no período (obrigatório).
   const isThroughput = filters.dateMode === 'throughput'
   return useQuery({
-    queryKey: ['ww', 'qualidade-lead', orgId, filters.dateStart, filters.dateEnd, filters.dateMode, eventStageId ?? null, filters.origins, filters.tipos],
+    queryKey: ['ww', 'qualidade-lead', orgId, filters.dateStart, filters.dateEnd, filters.dateMode, eventStageId ?? null, filters.origins, filters.tipos, minAmostra],
     queryFn: () => callRpc<WwQualidadeLead>('ww_qualidade_lead', {
       p_date_start: filters.dateStart,
       p_date_end: filters.dateEnd,
@@ -537,6 +604,7 @@ export function useWwQualidadeLead(filters: Ww2Filters, eventStageId?: string | 
       p_date_mode: filters.dateMode,
       p_event_stage_id: isThroughput ? eventStageId : null,
       p_tipos: filters.tipos?.length ? filters.tipos : null,
+      p_min_amostra: minAmostra,
     }),
     enabled: !!orgId && (!isThroughput || !!eventStageId),
     staleTime: 60_000,
@@ -566,6 +634,35 @@ export type WwDriftVendaItem = {
   tipo_casamento: string | null
   monde_venda: string | null
   destino_vendido: string | null
+  // Enriquecimentos da Onda 3 (migration 20260527v_ww_drift_venda_v2)
+  origem?: string | null
+  valor_final?: number | null
+  consultor_nome?: string | null
+  contato_nome?: string | null
+  contato_external_id?: string | null
+}
+
+export type WwDriftPorOrigem = {
+  origem: string
+  vendas: number
+  manteve: number; subiu: number; desceu: number
+  manteve_pct: number | null; subiu_pct: number | null; desceu_pct: number | null
+  ticket_medio_vendido: number | null
+}
+
+export type WwDriftPorConsultor = {
+  consultor_id: string
+  consultor_nome: string | null
+  vendas: number
+  manteve: number; subiu: number; desceu: number
+  manteve_pct: number | null; subiu_pct: number | null; desceu_pct: number | null
+  ticket_medio: number | null
+}
+
+export type WwDriftPorMes = {
+  mes: string
+  vendas: number
+  manteve_pct: number | null; subiu_pct: number | null; desceu_pct: number | null
 }
 
 export type WwDriftVenda = {
@@ -593,6 +690,9 @@ export type WwDriftVenda = {
     drift: { manteve: number; subiu: number; desceu: number }
     matriz: WwDriftConvidadosMatriz[]
   }
+  drift_por_origem?: WwDriftPorOrigem[]
+  drift_por_consultor?: WwDriftPorConsultor[]
+  drift_por_mes?: WwDriftPorMes[]
   error?: string
 }
 
@@ -607,6 +707,112 @@ export function useWwDriftVenda(filters: Ww2Filters) {
       p_origins: filters.origins?.length ? filters.origins : null,
       p_date_mode: filters.dateMode,
       p_tipos: filters.tipos?.length ? filters.tipos : null,
+    }),
+    enabled: !!orgId,
+    staleTime: 60_000,
+  })
+}
+
+// ── Marketing qualidade (Onda 5) ───────────────────────────────────────────
+export type WwMarketingOrigemRow = {
+  origem: string
+  leads_total: number
+  qualificados: number
+  fechados: number
+  taxa_qualif_pct: number | null
+  taxa_fechamento_pct: number | null
+  lift_vs_geral: number | null
+  ticket_medio: number | null
+  pct_email_valido: number | null
+  pct_tel_valido: number | null
+}
+
+export type WwMarketingCampanhaRow = {
+  origem: string
+  campaign: string
+  medium: string
+  leads: number
+  qualif: number
+  fechou: number
+  taxa_qualif_pct: number | null
+  taxa_fech_pct: number | null
+  lift_vs_geral: number | null
+  ticket_medio: number | null
+}
+
+export type WwMarketingDropOffRow = {
+  origem: string
+  entrada: number
+  sdr: number
+  closer: number
+  pos_venda: number
+  fechado: number
+  drop_entrada_sdr: number | null
+  drop_sdr_closer: number | null
+  drop_closer_fechado: number | null
+}
+
+export type WwMarketingQualidade = {
+  date_start: string
+  date_end: string
+  total_leads: number
+  total_fechados: number
+  taxa_geral_pct: number | null
+  por_origem: WwMarketingOrigemRow[]
+  por_campaign: WwMarketingCampanhaRow[]
+  dropoff_por_origem: WwMarketingDropOffRow[]
+  error?: string
+}
+
+export function useWwMarketingQualidade(filters: Ww2Filters, minAmostra: number = 2) {
+  const orgId = useOrgId()
+  return useQuery({
+    queryKey: ['ww', 'marketing-qualidade', orgId, filters.dateStart, filters.dateEnd, filters.origins, minAmostra],
+    queryFn: () => callRpc<WwMarketingQualidade>('ww_marketing_qualidade', {
+      p_date_start: filters.dateStart,
+      p_date_end: filters.dateEnd,
+      p_org_id: orgId,
+      p_origins: filters.origins?.length ? filters.origins : null,
+      p_min_amostra: minAmostra,
+    }),
+    enabled: !!orgId,
+    staleTime: 60_000,
+  })
+}
+
+// ── Visão C: Perfil entrada vs fechamento (Onda 4) ────────────────────────
+export type WwPerfilCompareCobertura = {
+  total: number
+  com_faixa?: number
+  com_destino?: number
+  com_convidados?: number
+  com_origem?: number
+  com_tipo?: number
+  com_medium?: number
+  com_campaign?: number
+}
+
+export type WwPerfilCompareData = {
+  date_start: string
+  date_end: string
+  org_id: string
+  pipeline_id: string
+  min_amostra: number
+  entrada: WwPerfilCompareCobertura
+  fechamento: WwPerfilCompareCobertura
+  comparacoes: WwPerfilCompareDimensao[]
+  error?: string
+}
+
+export function useWwPerfilCompare(filters: Ww2Filters, minAmostra: number = 2) {
+  const orgId = useOrgId()
+  return useQuery({
+    queryKey: ['ww', 'perfil-compare', orgId, filters.dateStart, filters.dateEnd, minAmostra],
+    queryFn: () => callRpc<WwPerfilCompareData>('ww_perfil_compare', {
+      p_date_start: filters.dateStart,
+      p_date_end: filters.dateEnd,
+      p_org_id: orgId,
+      p_min_amostra: minAmostra,
     }),
     enabled: !!orgId,
     staleTime: 60_000,

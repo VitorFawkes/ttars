@@ -17,6 +17,9 @@ import {
 import {
   buildBoundariesText,
 } from './patricia_boundaries.ts';
+import {
+  PATRICIA_CUSTO_REFERENCIA_TEXT,
+} from './patricia_custo_referencia.ts';
 
 export const PATRICIA_AGENT_ID = '4d96d9b4-e909-4441-bd85-d3f807cccfa7';
 
@@ -25,6 +28,10 @@ export interface AgentDefaults {
   buildDiffCognitivo: typeof buildDiffCognitivoText;
   data_update_rules_text: string;
   buildBoundaries: typeof buildBoundariesText;
+  /** Tabela de ranges de custo por convidado por região. Quando presente,
+   * o assembler renderiza um bloco <custo_referencia_destino> com a regra
+   * de uso. Valores reais editáveis no arquivo do default. */
+  custo_referencia_text: string | null;
   /**
    * Valores fallback dos campos editáveis do business_config. Usados pelo
    * router quando o admin não preencheu o campo no banco — garante que o
@@ -60,11 +67,18 @@ const PATRICIA_BUSINESS_FALLBACKS: AgentDefaults['businessFallbacks'] = {
  */
 export function getDefaultsForAgent(agentId: string): AgentDefaults | null {
   if (agentId === PATRICIA_AGENT_ID) {
+    // Bloco custo_referencia_destino só entra no prompt se os placeholders
+    // foram preenchidos com valores reais. Enquanto tiver "PLACEHOLDER_",
+    // o assembler omite o bloco — evita mandar "R$ [PLACEHOLDER_MIN]" pra
+    // produção por engano.
+    const custoTextRaw = PATRICIA_CUSTO_REFERENCIA_TEXT;
+    const custoText = custoTextRaw.includes('[PLACEHOLDER_') ? null : custoTextRaw;
     return {
       principles_text: PATRICIA_PRINCIPLES_TEXT,
       buildDiffCognitivo: buildDiffCognitivoText,
       data_update_rules_text: PATRICIA_DATA_UPDATE_RULES_TEXT,
       buildBoundaries: buildBoundariesText,
+      custo_referencia_text: custoText,
       businessFallbacks: PATRICIA_BUSINESS_FALLBACKS,
     };
   }

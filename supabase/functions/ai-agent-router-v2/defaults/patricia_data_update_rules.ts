@@ -46,10 +46,7 @@ Campos e orientação de captura:
 - ww_tipo_casamento: tipo declarado (praia, fazenda, salão, etc).
 - ww_sdr_visao_casamento: sentimento/estilo/atmosfera que o casal expressou desejar (texto curto).
 
-Sinais indiretos (registrar silenciosamente, sem comentar na conversa):
-- ww_sdr_perfil_viagem_internacional: quando o casal menciona viagens internacionais recentes.
-- ww_sdr_referencia_casamento_premium: quando cita casamento admirado de outra pessoa.
-- ww_sdr_ajuda_familia: quando menciona que a família (pais, parentes) vai ajudar a bancar parte do casamento.
+Sinais indiretos (ww_sdr_perfil_viagem_internacional, ww_sdr_referencia_casamento_premium, ww_sdr_ajuda_familia): detecção e gravação descritas em \`<silent_signals>\` — siga aquele bloco.
 
 CONVERSÃO DE MOEDA ESTRANGEIRA (antes de gravar ww_orcamento_faixa):
 Se o casal declara orçamento em euros, dólares ou outra moeda:

@@ -7,11 +7,12 @@ import { Jornada } from './tabs/Jornada'
 import { EntradaRealidade } from './tabs/EntradaRealidade'
 import { Equipe } from './tabs/Equipe'
 import { Qualidade } from './tabs/Qualidade'
+import { Perfil } from './tabs/Perfil'
 import { Marketing } from './tabs/Marketing'
 import { Perdas } from './tabs/Perdas'
 import { formatRange } from './lib/dates'
 
-type Tab = 'visao' | 'jornada' | 'entrada-realidade' | 'equipe' | 'qualidade' | 'marketing' | 'perdas'
+type Tab = 'visao' | 'jornada' | 'entrada-realidade' | 'equipe' | 'qualidade' | 'perfil' | 'marketing' | 'perdas'
 
 const TABS: { id: Tab; label: string; icon: string; description: string }[] = [
   { id: 'visao', label: 'Visão geral', icon: '📊', description: 'KPIs, funil, conversões, alertas' },
@@ -19,6 +20,7 @@ const TABS: { id: Tab; label: string; icon: string; description: string }[] = [
   { id: 'entrada-realidade', label: 'Entrada × Realidade', icon: '🔄', description: 'O que disse no site × o que virou' },
   { id: 'equipe', label: 'Equipe', icon: '👥', description: 'Performance SDR, Closer, Planner' },
   { id: 'qualidade', label: 'Qualidade do lead', icon: '🎯', description: 'Faixa, convidados, local, cruzamentos' },
+  { id: 'perfil', label: 'Quem entra × quem fecha', icon: '📈', description: 'Lift por dimensão (perfil ideal)' },
   { id: 'marketing', label: 'Marketing', icon: '📣', description: 'Origens, campanhas, atribuição' },
   { id: 'perdas', label: 'Motivos de perda', icon: '📉', description: 'Onde leads caem e por quê' },
 ]
@@ -54,6 +56,7 @@ export default function AnalyticsWeddingsPage() {
             {activeTab === 'entrada-realidade' && <EntradaRealidade />}
             {activeTab === 'equipe' && <Equipe />}
             {activeTab === 'qualidade' && <Qualidade />}
+            {activeTab === 'perfil' && <Perfil />}
             {activeTab === 'marketing' && <Marketing />}
             {activeTab === 'perdas' && <Perdas />}
           </div>
