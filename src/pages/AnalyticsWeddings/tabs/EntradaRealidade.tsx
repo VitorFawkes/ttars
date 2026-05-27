@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { useFilterParams } from '../components/FilterBar'
-import { useWwDriftVenda, type WwDriftVenda } from '@/hooks/analyticsWeddings/useWw2'
+import { useWwDriftVenda, useWwDriftCombos, type WwDriftVenda, type WwDriftCombos } from '@/hooks/analyticsWeddings/useWw2'
 import { SectionCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
 import { DrillDrawer, type DrillContext } from '../components/DrillDrawer'
 import { OpenInACButton } from '../components/OpenInACButton'
@@ -15,6 +15,7 @@ const CONV_ORDER = ['Apenas o casal', 'Até 20', '20-50', '50-80', '80-100', '+1
 export function EntradaRealidade() {
   const filters = useFilterParams()
   const { data, isLoading, error } = useWwDriftVenda(filters)
+  const { data: combos } = useWwDriftCombos(filters)
   const [drill, setDrill] = useState<DrillContext | null>(null)
   const baseCtx = { dateStart: filters.dateStart, dateEnd: filters.dateEnd }
 
@@ -26,15 +27,179 @@ export function EntradaRealidade() {
     <div className="space-y-5">
       <UniversoHeader data={data} />
       <BreakdownTipo data={data} onTipoClick={(tipo) => setDrill({ ...baseCtx, tipo, status: 'ganho', title: `Casais — ${tipo} fechados` })} />
+
+      {/* Análises cruzadas (Onda 6) — Investimento × Convidados × Destino */}
+      {combos && !combos.error && (
+        <>
+          <TopCombosFechados combos={combos} onComboClick={(faixa, destino) => setDrill({ ...baseCtx, faixa, destino, status: 'ganho', title: `Vendas — ${faixa} + ${destino}` })} />
+          <HeatmapTaxaConversao
+            titulo="🔥 Onde a conversão acontece — Faixa × Convidados"
+            subtitulo="Cada célula mostra entraram → fecharam (taxa). Quanto mais verde, melhor a combinação."
+            cells={combos.matriz_faixa_conv}
+            xLabel="Faixa"
+            yLabel="Convidados"
+            xOrder={FAIXA_ORDER}
+            yOrder={CONV_ORDER}
+            onCellClick={(faixa) => setDrill({ ...baseCtx, faixa, status: 'ganho', title: `Vendas — faixa ${faixa}` })}
+          />
+          <HeatmapTaxaConversao
+            titulo="🔥 Onde a conversão acontece — Faixa × Destino"
+            subtitulo="Identifica combos faixa de investimento + destino com maior taxa de fechamento."
+            cells={combos.matriz_faixa_destino}
+            xLabel="Faixa"
+            yLabel="Destino"
+            xOrder={FAIXA_ORDER}
+            onCellClick={(faixa, destino) => setDrill({ ...baseCtx, faixa, destino, status: 'ganho', title: `Vendas — ${faixa} + ${destino}` })}
+          />
+          <HeatmapTaxaConversao
+            titulo="🔥 Onde a conversão acontece — Convidados × Destino"
+            subtitulo="Combos de tamanho de celebração + destino que mais fecham."
+            cells={combos.matriz_destino_conv}
+            xLabel="Convidados"
+            yLabel="Destino"
+            xOrder={CONV_ORDER}
+            onCellClick={(_conv, destino) => setDrill({ ...baseCtx, destino, status: 'ganho', title: `Vendas — destino ${destino}` })}
+          />
+        </>
+      )}
+
       <InvestimentoDrift data={data} onCellClick={(fe, fv) => setDrill({ ...baseCtx, faixa: fe, status: 'ganho', title: `Casais — entrou em ${fe}, vendeu em ${fv}` })} />
       <DestinoDrift data={data} onCellClick={(de, dv) => setDrill({ ...baseCtx, destino: de, status: 'ganho', title: `Casais — declarou ${de}, vendeu ${dv}` })} />
       <ConvidadosDrift data={data} />
-      <DriftPorOrigem data={data} onOrigemClick={(origem) => setDrill({ ...baseCtx, origem, status: 'ganho', title: `Vendas — origem ${origem}` })} />
       <DriftPorConsultor data={data} onConsultorClick={(consultor_id, consultor_nome) => setDrill({ ...baseCtx, consultorId: consultor_id, status: 'ganho', title: `Vendas — ${consultor_nome ?? 'consultor'}` })} />
       <DriftPorMes data={data} />
       <VendasFechadasList data={data} />
       <DrillDrawer ctx={drill} onClose={() => setDrill(null)} />
     </div>
+  )
+}
+
+// ─── NOVO Onda 6: Análises cruzadas ricas ───────────────────────────────────
+function TopCombosFechados({ combos, onComboClick }: { combos: WwDriftCombos; onComboClick?: (faixa: string, destino: string) => void }) {
+  const items = combos.top_combos_fechados ?? []
+  if (items.length === 0) return null
+  return (
+    <SectionCard
+      title="🏆 Combos de casamento que MAIS fecham"
+      subtitle="Os 10 perfis (faixa + destino + convidados) com mais vendas. Mostra também quantos entraram com aquele perfil e a taxa de conversão. Clique pra ver os casais."
+    >
+      <div className="border border-slate-200 rounded-lg overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="px-3 py-2 text-center font-medium">#</th>
+              <th className="px-3 py-2 text-center font-medium">Faixa</th>
+              <th className="px-3 py-2 text-center font-medium">Destino</th>
+              <th className="px-3 py-2 text-center font-medium">Convidados</th>
+              <th className="px-3 py-2 text-center font-medium">Fecharam</th>
+              <th className="px-3 py-2 text-center font-medium">Entraram</th>
+              <th className="px-3 py-2 text-center font-medium">Taxa</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((c, i) => {
+              const taxa = c.taxa_pct ?? 0
+              const taxaCor = taxa >= 10 ? 'bg-emerald-100 text-emerald-800' : taxa >= 5 ? 'bg-emerald-50 text-emerald-700' : taxa >= 2 ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-600'
+              const cells = (
+                <>
+                  <td className="px-3 py-2 text-slate-400 tabular-nums text-center">{i + 1}</td>
+                  <td className="px-3 py-2 text-slate-900 font-medium text-center">{c.faixa}</td>
+                  <td className="px-3 py-2 text-slate-700 text-center">{c.destino}</td>
+                  <td className="px-3 py-2 text-slate-700 text-center">{c.convidados}</td>
+                  <td className="px-3 py-2 text-center tabular-nums text-emerald-700 font-semibold">{c.fechou}</td>
+                  <td className="px-3 py-2 text-center tabular-nums text-slate-600">{c.entrou}</td>
+                  <td className="px-3 py-2 text-center">
+                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium tabular-nums ${taxaCor}`}>{taxa}%</span>
+                  </td>
+                </>
+              )
+              return onComboClick ? (
+                <ClickableRow key={`${c.faixa}-${c.destino}-${c.convidados}`} onClick={() => onComboClick(c.faixa, c.destino)} className="border-t border-slate-100" title={`Ver casais ${c.faixa} + ${c.destino} + ${c.convidados}`}>
+                  {cells}
+                </ClickableRow>
+              ) : <tr key={`${c.faixa}-${c.destino}-${c.convidados}`} className="border-t border-slate-100">{cells}</tr>
+            })}
+          </tbody>
+        </table>
+      </div>
+    </SectionCard>
+  )
+}
+
+function HeatmapTaxaConversao({ titulo, subtitulo, cells, xLabel, yLabel, xOrder, yOrder, onCellClick }: {
+  titulo: string
+  subtitulo: string
+  cells: { x: string; y: string; entrou: number; fechou: number; taxa_pct: number | null }[]
+  xLabel: string
+  yLabel: string
+  xOrder?: string[]
+  yOrder?: string[]
+  onCellClick?: (x: string, y: string) => void
+}) {
+  if (!cells || cells.length === 0) {
+    return (
+      <SectionCard title={titulo} subtitle={subtitulo}>
+        <EmptyState message="Sem combinações suficientes (mínimo 2 leads)" />
+      </SectionCard>
+    )
+  }
+  const xs = xOrder
+    ? xOrder.filter(v => cells.some(c => c.x === v))
+    : Array.from(new Set(cells.map(c => c.x)))
+  const ys = yOrder
+    ? yOrder.filter(v => cells.some(c => c.y === v))
+    : Array.from(new Set(cells.map(c => c.y))).sort((a, b) => {
+        const sa = cells.filter(c => c.y === a).reduce((s, c) => s + c.entrou, 0)
+        const sb = cells.filter(c => c.y === b).reduce((s, c) => s + c.entrou, 0)
+        return sb - sa
+      })
+  const cellMap = new Map(cells.map(c => [`${c.x}|${c.y}`, c]))
+
+  return (
+    <SectionCard title={titulo} subtitle={subtitulo}>
+      <div className="overflow-x-auto border border-slate-200 rounded-lg bg-white">
+        <table className="w-full text-xs">
+          <thead className="bg-slate-50">
+            <tr>
+              <th className="px-3 py-2 text-center font-medium text-slate-500 sticky left-0 bg-slate-50 z-10 whitespace-nowrap">{yLabel} ↓ / {xLabel} →</th>
+              {xs.map(x => <th key={x} className="px-3 py-2 text-center font-medium text-slate-700 min-w-[90px]">{x}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {ys.map(y => (
+              <tr key={y} className="border-t border-slate-100">
+                <td className="px-3 py-2 text-slate-900 font-medium whitespace-nowrap sticky left-0 bg-white z-10">{y}</td>
+                {xs.map(x => {
+                  const cell = cellMap.get(`${x}|${y}`)
+                  if (!cell) return <td key={x} className="px-3 py-2 text-center bg-slate-50 text-slate-300">—</td>
+                  const taxa = cell.taxa_pct ?? 0
+                  const bg = cell.fechou === 0 ? 'bg-rose-50 text-rose-900'
+                    : taxa >= 10 ? 'bg-emerald-200 text-emerald-900'
+                    : taxa >= 5 ? 'bg-emerald-100 text-emerald-900'
+                    : taxa >= 2 ? 'bg-emerald-50 text-emerald-900'
+                    : 'bg-amber-50 text-amber-900'
+                  return (
+                    <td key={x} className={`p-0 ${bg}`} title={`${cell.entrou} entraram · ${cell.fechou} fecharam · ${taxa}%`}>
+                      {onCellClick ? (
+                        <button onClick={() => onCellClick(x, y)} className="w-full h-full px-2 py-2 text-center block cursor-pointer hover:ring-2 hover:ring-indigo-400 focus:ring-2 focus:ring-indigo-400 focus:outline-none">
+                          <div className="font-semibold text-sm">{taxa}%</div>
+                          <div className="text-[10px] opacity-75 mt-0.5">{cell.entrou} → {cell.fechou}</div>
+                        </button>
+                      ) : (
+                        <div className="px-2 py-2 text-center">
+                          <div className="font-semibold text-sm">{taxa}%</div>
+                          <div className="text-[10px] opacity-75 mt-0.5">{cell.entrou} → {cell.fechou}</div>
+                        </div>
+                      )}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </SectionCard>
   )
 }
 
@@ -78,14 +243,14 @@ function VendasFechadasList({ data }: { data: WwDriftVenda }) {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-3 py-2 text-left font-medium">Data da venda</th>
-              <th className="px-3 py-2 text-left font-medium">Casal · Card</th>
-              <th className="px-3 py-2 text-left font-medium">Tipo</th>
-              <th className="px-3 py-2 text-left font-medium">Destino vendido</th>
-              <th className="px-3 py-2 text-right font-medium">Convidados</th>
-              <th className="px-3 py-2 text-right font-medium">Valor</th>
-              <th className="px-3 py-2 text-left font-medium">Closer</th>
-              <th className="px-3 py-2 text-right font-medium">Monde</th>
+              <th className="px-3 py-2 text-center font-medium">Data da venda</th>
+              <th className="px-3 py-2 text-center font-medium">Casal · Card</th>
+              <th className="px-3 py-2 text-center font-medium">Tipo</th>
+              <th className="px-3 py-2 text-center font-medium">Destino vendido</th>
+              <th className="px-3 py-2 text-center font-medium">Convidados</th>
+              <th className="px-3 py-2 text-center font-medium">Valor</th>
+              <th className="px-3 py-2 text-center font-medium">Closer</th>
+              <th className="px-3 py-2 text-center font-medium">Monde</th>
               <th className="px-3 py-2 text-center font-medium">Active</th>
             </tr>
           </thead>
@@ -114,67 +279,10 @@ function VendasFechadasList({ data }: { data: WwDriftVenda }) {
                 <td className="px-3 py-2 text-slate-600 text-xs">{v.consultor_nome ?? <span className="text-slate-400">—</span>}</td>
                 <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-500">{v.monde_venda ?? '—'}</td>
                 <td className="px-3 py-2 text-center">
-                  <OpenInACButton externalId={v.contato_external_id} contactName={v.contato_nome} />
+                  <OpenInACButton dealId={v.ac_deal_id} externalId={v.contato_external_id} contactName={v.contato_nome} />
                 </td>
               </tr>
             ))}
-          </tbody>
-        </table>
-      </div>
-    </SectionCard>
-  )
-}
-
-// ─── NOVO Onda 3: Drift por subgrupo ────────────────────────────────────────
-function DriftPorOrigem({ data, onOrigemClick }: { data: WwDriftVenda; onOrigemClick?: (origem: string) => void }) {
-  if (!data.drift_por_origem || data.drift_por_origem.length === 0) return null
-  return (
-    <SectionCard
-      title="🎯 Drift por origem"
-      subtitle="Quais fontes trazem lead que casa com a realidade (manteve), faz upsell (subiu) ou pagou menos (desceu). Linha clicável pra ver casais."
-    >
-      <div className="border border-slate-200 rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-3 py-2 text-left font-medium">Origem</th>
-              <th className="px-3 py-2 text-right font-medium">Vendas</th>
-              <th className="px-3 py-2 text-right font-medium">Manteve</th>
-              <th className="px-3 py-2 text-right font-medium">Vendeu acima</th>
-              <th className="px-3 py-2 text-right font-medium">Vendeu abaixo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.drift_por_origem.map(o => {
-              const cells = (
-                <>
-                  <td className="px-3 py-2 text-slate-900 font-medium">{o.origem}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{formatNumber(o.vendas)}</td>
-                  <td className="px-3 py-2 text-right">
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700">
-                      {o.manteve} · {o.manteve_pct ?? 0}%
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700">
-                      {o.subiu} · {o.subiu_pct ?? 0}%
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700">
-                      {o.desceu} · {o.desceu_pct ?? 0}%
-                    </span>
-                  </td>
-                </>
-              )
-              return onOrigemClick ? (
-                <ClickableRow key={o.origem} onClick={() => onOrigemClick(o.origem)} className="border-t border-slate-100" title={`Ver casais — ${o.origem}`}>
-                  {cells}
-                </ClickableRow>
-              ) : (
-                <tr key={o.origem} className="border-t border-slate-100">{cells}</tr>
-              )
-            })}
           </tbody>
         </table>
       </div>
@@ -193,11 +301,11 @@ function DriftPorConsultor({ data, onConsultorClick }: { data: WwDriftVenda; onC
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-3 py-2 text-left font-medium">Closer</th>
-              <th className="px-3 py-2 text-right font-medium">Vendas</th>
-              <th className="px-3 py-2 text-right font-medium">Manteve</th>
-              <th className="px-3 py-2 text-right font-medium">Subiu (upsell)</th>
-              <th className="px-3 py-2 text-right font-medium">Desceu</th>
+              <th className="px-3 py-2 text-center font-medium">Closer</th>
+              <th className="px-3 py-2 text-center font-medium">Vendas</th>
+              <th className="px-3 py-2 text-center font-medium">Manteve</th>
+              <th className="px-3 py-2 text-center font-medium">Subiu (upsell)</th>
+              <th className="px-3 py-2 text-center font-medium">Desceu</th>
             </tr>
           </thead>
           <tbody>
@@ -364,7 +472,7 @@ function InvestimentoDrift({ data, onCellClick }: { data: WwDriftVenda; onCellCl
                 <table className="w-full text-xs">
                   <thead className="bg-slate-50">
                     <tr>
-                      <th className="px-3 py-2 text-left font-medium text-slate-500">Entrada ↓ / Vendeu →</th>
+                      <th className="px-3 py-2 text-center font-medium text-slate-500">Entrada ↓ / Vendeu →</th>
                       {faixasVendida.map(fv => (
                         <th key={fv} className="px-3 py-2 text-center font-medium text-slate-700">{fv}</th>
                       ))}
@@ -485,7 +593,7 @@ function DestinoDrift({ data, onCellClick }: { data: WwDriftVenda; onCellClick?:
                 <table className="w-full text-xs">
                   <thead className="bg-slate-50">
                     <tr>
-                      <th className="px-3 py-2 text-left font-medium text-slate-500">Entrada ↓ / Vendeu →</th>
+                      <th className="px-3 py-2 text-center font-medium text-slate-500">Entrada ↓ / Vendeu →</th>
                       {destinosV.map(d => <th key={d} className="px-3 py-2 text-center font-medium text-slate-700">{d}</th>)}
                       <th className="px-3 py-2 text-center font-medium text-slate-500 border-l border-slate-200">Total linha</th>
                     </tr>
@@ -583,7 +691,7 @@ function ConvidadosDrift({ data }: { data: WwDriftVenda }) {
                 <table className="w-full text-xs">
                   <thead className="bg-slate-50">
                     <tr>
-                      <th className="px-3 py-2 text-left font-medium text-slate-500">Entrada ↓ / Refinado →</th>
+                      <th className="px-3 py-2 text-center font-medium text-slate-500">Entrada ↓ / Refinado →</th>
                       {convR.map(c => <th key={c} className="px-3 py-2 text-center font-medium text-slate-700">{c}</th>)}
                       <th className="px-3 py-2 text-center font-medium text-slate-500 border-l border-slate-200">Total linha</th>
                     </tr>

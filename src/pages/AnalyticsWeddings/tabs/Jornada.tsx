@@ -149,15 +149,15 @@ export function Jornada() {
       >
         {orcamento_real.length === 0 ? <EmptyState message="Sem dados" /> : (
           <table className="w-full text-xs">
-            <thead className="text-left text-slate-500 border-b border-slate-200">
+            <thead className="text-center text-slate-500 border-b border-slate-200">
               <tr>
                 <th className="py-2 font-medium">Faixa no site (entrada)</th>
-                <th className="py-2 font-medium text-right">Leads</th>
-                <th className="py-2 font-medium text-right">Fecharam</th>
-                <th className="py-2 font-medium text-right">Taxa</th>
-                <th className="py-2 font-medium text-right">C/ valor real</th>
-                <th className="py-2 font-medium text-right">Mediano fechado</th>
-                <th className="py-2 font-medium text-right">Médio fechado</th>
+                <th className="py-2 font-medium text-center">Leads</th>
+                <th className="py-2 font-medium text-center">Fecharam</th>
+                <th className="py-2 font-medium text-center">Taxa</th>
+                <th className="py-2 font-medium text-center">C/ valor real</th>
+                <th className="py-2 font-medium text-center">Mediano fechado</th>
+                <th className="py-2 font-medium text-center">Médio fechado</th>
               </tr>
             </thead>
             <tbody>
@@ -191,14 +191,14 @@ export function Jornada() {
       >
         {destino_mudou.length === 0 ? <EmptyState message="Sem dados" /> : (
           <table className="w-full text-xs">
-            <thead className="text-left text-slate-500 border-b border-slate-200">
+            <thead className="text-center text-slate-500 border-b border-slate-200">
               <tr>
                 <th className="py-2 font-medium">Disse no site</th>
-                <th className="py-2 font-medium text-right">Leads</th>
-                <th className="py-2 font-medium text-right">Manteve</th>
-                <th className="py-2 font-medium text-right">Mudou</th>
-                <th className="py-2 font-medium text-right">Sem dado final</th>
-                <th className="py-2 font-medium text-right">% Manteve</th>
+                <th className="py-2 font-medium text-center">Leads</th>
+                <th className="py-2 font-medium text-center">Manteve</th>
+                <th className="py-2 font-medium text-center">Mudou</th>
+                <th className="py-2 font-medium text-center">Sem dado final</th>
+                <th className="py-2 font-medium text-center">% Manteve</th>
                 <th className="py-2 font-medium">Mais comum no final</th>
               </tr>
             </thead>
@@ -232,13 +232,13 @@ export function Jornada() {
           subtitle="Marcou um passo do funil mas não avançou em 7-120 dias. Clique pra abrir o card."
         >
           <table className="w-full text-xs">
-            <thead className="text-left text-slate-500 border-b border-slate-200">
+            <thead className="text-center text-slate-500 border-b border-slate-200">
               <tr>
                 <th className="py-2 font-medium">Card</th>
                 <th className="py-2 font-medium">Onde travou</th>
                 <th className="py-2 font-medium">Origem</th>
                 <th className="py-2 font-medium">Faixa</th>
-                <th className="py-2 font-medium text-right">Parado há</th>
+                <th className="py-2 font-medium text-center">Parado há</th>
               </tr>
             </thead>
             <tbody>

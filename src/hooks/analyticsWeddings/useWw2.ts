@@ -192,6 +192,7 @@ export type Ww2DrillRow = {
   contato_email: string | null
   contato_telefone: string | null
   contato_external_id: string | null
+  ac_deal_id: string | null
   data_venda: string | null
   monde_venda: string | null
   tipo_casamento: string | null
@@ -640,6 +641,8 @@ export type WwDriftVendaItem = {
   consultor_nome?: string | null
   contato_nome?: string | null
   contato_external_id?: string | null
+  // Enriquecimento Onda 6 (migration 20260527za)
+  ac_deal_id?: string | null
 }
 
 export type WwDriftPorOrigem = {
@@ -713,6 +716,53 @@ export function useWwDriftVenda(filters: Ww2Filters) {
   })
 }
 
+// ── Drift Combos (Entrada × Realidade, Onda 6) ─────────────────────────────
+export type WwDriftCombo3D = {
+  faixa: string
+  destino: string
+  convidados: string
+  fechou: number
+  entrou: number
+  taxa_pct: number | null
+}
+
+export type WwDriftMatrizCell = {
+  x: string
+  y: string
+  entrou: number
+  fechou: number
+  taxa_pct: number | null
+}
+
+export type WwDriftCombos = {
+  date_start: string
+  date_end: string
+  date_mode: 'cohort' | 'throughput'
+  total_leads: number
+  total_fechados: number
+  top_combos_entrada: { faixa: string; destino: string; convidados: string; qtd: number; pct: number | null }[]
+  top_combos_fechados: WwDriftCombo3D[]
+  matriz_faixa_conv: WwDriftMatrizCell[]
+  matriz_faixa_destino: WwDriftMatrizCell[]
+  matriz_destino_conv: WwDriftMatrizCell[]
+  error?: string
+}
+
+export function useWwDriftCombos(filters: Ww2Filters) {
+  const orgId = useOrgId()
+  return useQuery({
+    queryKey: ['ww', 'drift-combos', orgId, filters.dateStart, filters.dateEnd, filters.dateMode],
+    queryFn: () => callRpc<WwDriftCombos>('ww_drift_combos', {
+      p_date_start: filters.dateStart,
+      p_date_end: filters.dateEnd,
+      p_org_id: orgId,
+      p_date_mode: filters.dateMode,
+    }),
+    enabled: !!orgId,
+    staleTime: 60_000,
+  })
+}
+
 // ── Lead Ideal × Pipeline (refatorado Onda 4) ──────────────────────────────
 export type WwLeadIdealItem = {
   categoria: string
@@ -729,27 +779,63 @@ export type WwLeadIdealDim = {
   dados: WwLeadIdealItem[]
 }
 
+export type WwLeadIdealCruzamentoCell = {
+  x: string
+  y: string
+  hist_qtd: number
+  hist_pct: number | null
+  atual_qtd: number
+  atual_pct: number | null
+}
+
+export type WwLeadIdealPerfilTop = {
+  faixa: string
+  destino: string
+  convidados: string
+  qtd: number
+  pct: number | null
+}
+
 export type WwLeadIdealData = {
   atual_start: string
   atual_end: string
   historico_start: string
   historico_end: string
-  historico_meses: number
   total_historico: number
   total_atual: number
   comparacoes: WwLeadIdealDim[]
+  cruzamentos?: {
+    faixa_x_convidados: WwLeadIdealCruzamentoCell[]
+    faixa_x_destino: WwLeadIdealCruzamentoCell[]
+    convidados_x_destino: WwLeadIdealCruzamentoCell[]
+  }
+  top_perfis_historico?: WwLeadIdealPerfilTop[]
+  top_perfis_atual?: WwLeadIdealPerfilTop[]
   error?: string
 }
 
-export function useWwLeadIdeal(filters: Ww2Filters, historicoMeses: number = 12, minAmostra: number = 2) {
+export type WwLeadIdealParams = {
+  atualStart: string
+  atualEnd: string
+  historicoStart?: string | null
+  historicoEnd?: string | null
+  historicoMeses?: number
+  minAmostra?: number
+}
+
+export function useWwLeadIdeal(params: WwLeadIdealParams) {
   const orgId = useOrgId()
+  const minAmostra = params.minAmostra ?? 2
+  const usaJanelaCustom = !!(params.historicoStart && params.historicoEnd)
   return useQuery({
-    queryKey: ['ww', 'lead-ideal', orgId, filters.dateStart, filters.dateEnd, historicoMeses, minAmostra],
+    queryKey: ['ww', 'lead-ideal', orgId, params.atualStart, params.atualEnd, params.historicoStart ?? null, params.historicoEnd ?? null, params.historicoMeses ?? 12, minAmostra],
     queryFn: () => callRpc<WwLeadIdealData>('ww_perfil_lead_ideal', {
-      p_atual_start: filters.dateStart,
-      p_atual_end: filters.dateEnd,
+      p_atual_start: params.atualStart,
+      p_atual_end: params.atualEnd,
       p_org_id: orgId,
-      p_historico_meses: historicoMeses,
+      p_historico_start: usaJanelaCustom ? params.historicoStart : null,
+      p_historico_end:   usaJanelaCustom ? params.historicoEnd : null,
+      p_historico_meses: params.historicoMeses ?? 12,
       p_min_amostra: minAmostra,
     }),
     enabled: !!orgId,

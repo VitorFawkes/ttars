@@ -28,16 +28,16 @@ export function Marketing() {
       <SectionCard title="Performance por origem" subtitle="UTM source consolidado. Clique numa linha pra ver os leads.">
         {data.por_origem.length === 0 ? <EmptyState message="Sem dados" /> : (
           <table className="w-full text-xs">
-            <thead className="text-left text-slate-500 border-b border-slate-200">
+            <thead className="text-center text-slate-500 border-b border-slate-200">
               <tr>
                 <th className="py-2 font-medium">Origem</th>
-                <th className="py-2 font-medium text-right">Leads</th>
-                <th className="py-2 font-medium text-right">Qualif.</th>
-                <th className="py-2 font-medium text-right">Taxa qualif.</th>
-                <th className="py-2 font-medium text-right">Fechados</th>
-                <th className="py-2 font-medium text-right">Taxa fech.</th>
-                <th className="py-2 font-medium text-right">Ticket médio</th>
-                <th className="py-2 font-medium text-right">Tempo qualif.</th>
+                <th className="py-2 font-medium text-center">Leads</th>
+                <th className="py-2 font-medium text-center">Qualif.</th>
+                <th className="py-2 font-medium text-center">Taxa qualif.</th>
+                <th className="py-2 font-medium text-center">Fechados</th>
+                <th className="py-2 font-medium text-center">Taxa fech.</th>
+                <th className="py-2 font-medium text-center">Ticket médio</th>
+                <th className="py-2 font-medium text-center">Tempo qualif.</th>
               </tr>
             </thead>
             <tbody>
@@ -150,16 +150,16 @@ function QualidadeFonte({ data, onOrigemClick, onCampanhaClick }: { data: WwMark
             <table className="w-full text-xs">
               <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="px-3 py-2 text-left font-medium">Origem</th>
-                  <th className="px-3 py-2 text-right font-medium">Leads</th>
-                  <th className="px-3 py-2 text-right font-medium">Qualif.</th>
-                  <th className="px-3 py-2 text-right font-medium">Taxa qualif.</th>
-                  <th className="px-3 py-2 text-right font-medium">Fechou</th>
-                  <th className="px-3 py-2 text-right font-medium">Taxa fech.</th>
+                  <th className="px-3 py-2 text-center font-medium">Origem</th>
+                  <th className="px-3 py-2 text-center font-medium">Leads</th>
+                  <th className="px-3 py-2 text-center font-medium">Qualif.</th>
+                  <th className="px-3 py-2 text-center font-medium">Taxa qualif.</th>
+                  <th className="px-3 py-2 text-center font-medium">Fechou</th>
+                  <th className="px-3 py-2 text-center font-medium">Taxa fech.</th>
                   <th className="px-3 py-2 text-center font-medium">Lift</th>
-                  <th className="px-3 py-2 text-right font-medium">Ticket médio</th>
-                  <th className="px-3 py-2 text-right font-medium">% email</th>
-                  <th className="px-3 py-2 text-right font-medium">% tel</th>
+                  <th className="px-3 py-2 text-center font-medium">Ticket médio</th>
+                  <th className="px-3 py-2 text-center font-medium">% email</th>
+                  <th className="px-3 py-2 text-center font-medium">% tel</th>
                 </tr>
               </thead>
               <tbody>
@@ -241,14 +241,14 @@ function DropOffPorFase({ data, onOrigemClick }: { data: WwMarketingQualidade; o
         <table className="w-full text-xs">
           <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-3 py-2 text-left font-medium">Origem</th>
-              <th className="px-3 py-2 text-right font-medium">Entrou</th>
-              <th className="px-3 py-2 text-right font-medium">Passou SDR</th>
-              <th className="px-3 py-2 text-right font-medium">Drop SDR</th>
-              <th className="px-3 py-2 text-right font-medium">Chegou Closer</th>
-              <th className="px-3 py-2 text-right font-medium">Drop Closer</th>
-              <th className="px-3 py-2 text-right font-medium">Fechou</th>
-              <th className="px-3 py-2 text-right font-medium">Drop fech.</th>
+              <th className="px-3 py-2 text-center font-medium">Origem</th>
+              <th className="px-3 py-2 text-center font-medium">Entrou</th>
+              <th className="px-3 py-2 text-center font-medium">Passou SDR</th>
+              <th className="px-3 py-2 text-center font-medium">Drop SDR</th>
+              <th className="px-3 py-2 text-center font-medium">Chegou Closer</th>
+              <th className="px-3 py-2 text-center font-medium">Drop Closer</th>
+              <th className="px-3 py-2 text-center font-medium">Fechou</th>
+              <th className="px-3 py-2 text-center font-medium">Drop fech.</th>
             </tr>
           </thead>
           <tbody>

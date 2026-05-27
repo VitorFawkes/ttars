@@ -27,6 +27,14 @@ export function useACBaseUrl() {
   })
 }
 
+/** Deep-link para o DEAL do casal no Active (preferido — abre a card da venda) */
+export function buildACDealUrl(baseUrl: string | null | undefined, dealId: string | null | undefined): string | null {
+  if (!baseUrl || !dealId) return null
+  const id = String(dealId).trim()
+  if (!id) return null
+  return `${baseUrl}/app/deals/${id}`
+}
+
 export function buildACContactUrl(baseUrl: string | null | undefined, externalId: string | null | undefined): string | null {
   if (!baseUrl || !externalId) return null
   const id = String(externalId).trim()
