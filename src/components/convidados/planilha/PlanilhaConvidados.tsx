@@ -213,8 +213,9 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
 
       {/* Body com scroll natural — pb maior pra footer fixo não cobrir conteúdo */}
       <div className="px-6 pt-3 pb-28 flex flex-col gap-3">
-        {/* Banner de boas-vindas quando a lista está praticamente vazia */}
-        {stats.totalPessoas === 0 && convites.length <= 1 && (
+        {/* Banner de boas-vindas: mostra enquanto NENHUMA pessoa foi nomeada
+            (mesmo que existam linhas em branco do default) */}
+        {convites.every((c) => c.pessoas.every((p) => !p.nome_raw?.trim())) && (
           <PrimeiraVezBanner />
         )}
 
