@@ -6,7 +6,7 @@ import {
 import { Calendar, Users as UsersIcon, DollarSign, Loader2, ChevronDown } from 'lucide-react'
 import { format, addDays, startOfWeek, endOfWeek, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { usePlannerForecastByDono, type ForecastByDonoRow } from '@/hooks/analytics/usePlannerForecastByDono'
+import { usePlannerForecastByDono } from '@/hooks/analytics/usePlannerForecastByDono'
 import { useFilterProfilesWithRole } from '@/hooks/analytics/useFilterOptions'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { formatCurrency } from '@/utils/whatsappFormatters'
@@ -22,7 +22,7 @@ const COLORS = [
   '#84cc16', '#06b6d4', '#d946ef', '#eab308', '#22c55e',
 ]
 
-function colorFor(id: string, index: number): string {
+function colorFor(_id: string, index: number): string {
   return COLORS[index % COLORS.length]
 }
 
