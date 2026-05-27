@@ -214,9 +214,9 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
       {/* Body com scroll natural — pb maior pra footer fixo não cobrir conteúdo */}
       <div className="px-6 pt-3 pb-28 flex flex-col gap-3">
         {/* Banner de boas-vindas: mostra enquanto NENHUMA pessoa foi nomeada
-            (mesmo que existam linhas em branco do default) */}
+            OU até o casal clicar "Já entendi" (persiste em localStorage). */}
         {convites.every((c) => c.pessoas.every((p) => !p.nome_raw?.trim())) && (
-          <PrimeiraVezBanner />
+          <PrimeiraVezBanner codigo={casal.codigo} />
         )}
 
         {visibleConvites.length === 0 && convites.length === 0 ? (
@@ -289,12 +289,41 @@ function SavedIndicator({ at, isSaving }: { at: Date | null; isSaving: boolean }
 }
 
 /**
- * Banner explicativo quando a lista é nova. Some assim que o casal preenche
- * a primeira pessoa real (totalPessoas > 0).
+ * Banner explicativo quando a lista é nova. Some sozinho quando o casal
+ * preenche a primeira pessoa, OU quando clica em "Já entendi" (persiste
+ * em localStorage por código do casal).
  */
-function PrimeiraVezBanner() {
+function PrimeiraVezBanner({ codigo }: { codigo: string }) {
+  const storageKey = `welcomecrm:lista-convidados:onboarding-dispensado:${codigo}`
+  const [dispensado, setDispensado] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    try {
+      return window.localStorage.getItem(storageKey) === '1'
+    } catch {
+      return false
+    }
+  })
+
+  const handleDispensar = () => {
+    setDispensado(true)
+    try {
+      window.localStorage.setItem(storageKey, '1')
+    } catch { /* ignore */ }
+  }
+
+  if (dispensado) return null
+
   return (
-    <div className="bg-gradient-to-br from-ww-gold-soft to-ww-paper border border-ww-gold/30 rounded-xl p-5 md:p-6 mb-2">
+    <div className="relative bg-gradient-to-br from-ww-gold-soft to-ww-paper border border-ww-gold/30 rounded-xl p-5 md:p-6 mb-2">
+      <button
+        type="button"
+        onClick={handleDispensar}
+        className="absolute top-3 right-3 p-1 rounded-full text-ww-n500 hover:text-ww-n700 hover:bg-white/60 transition-colors"
+        aria-label="Fechar este aviso"
+        title="Fechar este aviso"
+      >
+        <X className="w-4 h-4" />
+      </button>
       <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-ww-gold mb-1.5">
         Como funciona
       </p>
@@ -323,6 +352,15 @@ function PrimeiraVezBanner() {
             A equipe Welcome Weddings recebe a lista. Você pode voltar e mexer sempre que quiser.
           </p>
         </div>
+      </div>
+      <div className="flex justify-end mt-4">
+        <button
+          type="button"
+          onClick={handleDispensar}
+          className="inline-flex items-center gap-1.5 px-3 h-8 text-xs font-medium rounded-md bg-white/70 border border-ww-gold/40 text-ww-gold-ink hover:bg-white transition-colors"
+        >
+          <Check className="w-3.5 h-3.5" /> Já entendi
+        </button>
       </div>
     </div>
   )
