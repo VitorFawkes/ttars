@@ -298,16 +298,44 @@ export const TriggerEditor: React.FC<TriggerEditorProps> = ({ type, config, onCh
                                 Dispara no horário exato (precisão de ~5 min). Ex: "30 minutos antes" lembra o lead antes da reunião.
                             </p>
                         </div>
-                    ) : (
-                        <div className="space-y-2">
-                            <Label className="text-xs">Dias de defasagem (positivo = depois, negativo = antes)</Label>
-                            <Input
-                                type="number"
-                                value={(config.days_offset as number) ?? 0}
-                                onChange={(e) => set({ days_offset: parseInt(e.target.value) || 0 })}
-                            />
-                        </div>
-                    )}
+                    ) : (() => {
+                        const daysOffset = (config.days_offset as number) ?? 0
+                        const dayMode = daysOffset < 0 ? 'antes' : daysOffset > 0 ? 'depois' : 'exato'
+                        const dayQty = Math.abs(daysOffset)
+                        const applyDay = (mode: string, qty: number) => {
+                            if (mode === 'exato') { set({ days_offset: 0 }); return }
+                            set({ days_offset: mode === 'antes' ? -Math.abs(qty) : Math.abs(qty) })
+                        }
+                        return (
+                            <div className="space-y-2">
+                                <Label className="text-xs">Quando disparar</Label>
+                                <CustomSelect
+                                    value={dayMode}
+                                    onChange={(v) => applyDay(v, dayQty || 1)}
+                                    options={[
+                                        { value: 'exato', label: 'No dia da data' },
+                                        { value: 'antes', label: 'Antes da data' },
+                                        { value: 'depois', label: 'Depois da data' },
+                                    ]}
+                                />
+                                {dayMode !== 'exato' && (
+                                    <div className="flex items-center gap-2">
+                                        <Input
+                                            type="number"
+                                            min={1}
+                                            value={dayQty || 1}
+                                            onChange={(e) => applyDay(dayMode, parseInt(e.target.value) || 1)}
+                                            className="w-24"
+                                        />
+                                        <span className="text-sm text-slate-500">dia(s)</span>
+                                    </div>
+                                )}
+                                <p className="text-xs text-slate-400">
+                                    Verificação diária às 6h. Dispara X dias antes/depois da data escolhida.
+                                </p>
+                            </div>
+                        )
+                    })()}
                 </div>
             )
         }

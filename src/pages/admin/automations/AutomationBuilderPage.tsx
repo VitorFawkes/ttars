@@ -1507,28 +1507,44 @@ function EventConfigEditor({
             </div>
           ) : (
             <div>
-              <Label>Quantos dias antes ou depois?</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  value={(form.event_config.offset_days as number) ?? 0}
-                  onChange={(e) =>
-                    setForm({ event_config: { ...form.event_config, offset_days: Number(e.target.value) } })
-                  }
-                  className="w-32"
-                />
-                <span className="text-sm text-slate-500">
-                  {(() => {
-                    const n = Number(form.event_config.offset_days ?? 0)
-                    if (n === 0) return '(no próprio dia)'
-                    if (n < 0) return `(${Math.abs(n)} dia${Math.abs(n) > 1 ? 's' : ''} antes)`
-                    return `(${n} dia${n > 1 ? 's' : ''} depois)`
-                  })()}
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-1">
-                Use número negativo para <strong>antes</strong> da data (ex: -7 = 7 dias antes). Positivo para <strong>depois</strong>. Zero = no próprio dia.
-              </p>
+              <Label>Quando disparar</Label>
+              {(() => {
+                const n = Number(form.event_config.offset_days ?? 0)
+                const mode = n < 0 ? 'antes' : n > 0 ? 'depois' : 'exato'
+                const qty = Math.abs(n)
+                const apply = (m: string, q: number) => {
+                  if (m === 'exato') { setForm({ event_config: { ...form.event_config, offset_days: 0 } }); return }
+                  setForm({ event_config: { ...form.event_config, offset_days: m === 'antes' ? -Math.abs(q) : Math.abs(q) } })
+                }
+                return (
+                  <div className="space-y-2">
+                    <Select
+                      value={mode}
+                      onChange={(v: string) => apply(v, qty || 1)}
+                      options={[
+                        { value: 'exato', label: 'No dia da data' },
+                        { value: 'antes', label: 'Antes da data' },
+                        { value: 'depois', label: 'Depois da data' },
+                      ]}
+                    />
+                    {mode !== 'exato' && (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min={1}
+                          value={qty || 1}
+                          onChange={(e) => apply(mode, Number(e.target.value) || 1)}
+                          className="w-24"
+                        />
+                        <span className="text-sm text-slate-500">dia(s)</span>
+                      </div>
+                    )}
+                    <p className="text-xs text-slate-500">
+                      Verificação diária às 6h. Dispara X dias antes/depois da data escolhida.
+                    </p>
+                  </div>
+                )
+              })()}
             </div>
           )}
           {Boolean(form.event_config.source) && (
