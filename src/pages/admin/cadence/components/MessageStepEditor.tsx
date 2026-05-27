@@ -39,6 +39,7 @@ const VARIABLE_HINTS = [
     '{{contact.primeiro_nome}}',
     '{{contact.nome}}',
     '{{card.titulo}}',
+    '{{card.destinos}}',
     '{{now}}',
     // Calendly (disponíveis quando o gatilho é "Reunião agendada no Calendly")
     '{{trigger.invitee_name}}',

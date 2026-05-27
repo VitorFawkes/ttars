@@ -85,13 +85,35 @@ function renderTriggerVars(
     text: string | null | undefined,
     eventData?: Record<string, any> | null,
     contato?: { nome?: string | null } | null,
-    card?: { titulo?: string | null } | null,
+    card?: { titulo?: string | null; produto_data?: Record<string, any> | null; briefing_inicial?: Record<string, any> | null } | null,
 ): string {
     if (!text) return '';
     const data = eventData || {};
     const startFormatted = formatBrazilDateTime(data.event_start_time);
     const endFormatted = formatBrazilDateTime(data.event_end_time);
     const firstName = (contato?.nome || '').split(' ')[0] || '';
+    // Merge de campos do card: produto_data tem prioridade, briefing_inicial como fallback (fase SDR)
+    const cardFields: Record<string, any> = {
+        ...(card?.briefing_inicial || {}),
+        ...(card?.produto_data || {}),
+    };
+    // Converte valor de campo em texto legível (destino pode ser string, array ou objeto)
+    const fieldToText = (v: unknown): string => {
+        if (v === null || v === undefined) return '';
+        if (typeof v === 'string' || typeof v === 'number') return String(v);
+        if (Array.isArray(v)) {
+            return v.map((x) => {
+                if (typeof x === 'string') return x;
+                if (x && typeof x === 'object') return (x as any).nome || (x as any).label || (x as any).cidade || (x as any).destino || '';
+                return '';
+            }).filter(Boolean).join(', ');
+        }
+        if (typeof v === 'object') {
+            const o = v as any;
+            return o.nome || o.label || o.cidade || o.destino || o.primary || '';
+        }
+        return '';
+    };
     return text
         // Trigger (event payload)
         .replace(/\{\{\s*trigger\.invitee_name\s*\}\}/g, String(data.invitee_name ?? ''))
@@ -104,10 +126,16 @@ function renderTriggerVars(
         .replace(/\{\{\s*trigger\.event_end_time\s*\}\}/g, endFormatted)
         .replace(/\{\{\s*trigger\.organizer_email\s*\}\}/g, String(data.organizer_email ?? ''))
         .replace(/\{\{\s*trigger\.meeting_join_url\s*\}\}/g, String(data.meeting_join_url ?? ''))
-        // Card + contact (compatibilidade com renderVars existente)
+        // Campos dinâmicos do card: {{card.<key>}} resolve de produto_data/briefing_inicial
+        // (ex: {{card.destino}}). titulo é tratado à parte abaixo.
+        .replace(/\{\{\s*card\.([a-zA-Z0-9_]+)\s*\}\}/g, (match, key: string) => {
+            if (key === 'titulo') return card?.titulo || '';
+            if (key in cardFields) return fieldToText(cardFields[key]);
+            return match; // mantém o placeholder se o campo não existe
+        })
+        // Contact (compatibilidade com renderVars existente)
         .replace(/\{\{\s*contact\.nome\s*\}\}/g, contato?.nome || '')
         .replace(/\{\{\s*contact\.primeiro_nome\s*\}\}/g, firstName)
-        .replace(/\{\{\s*card\.titulo\s*\}\}/g, card?.titulo || '')
         .replace(/\{\{\s*now\s*\}\}/g, formatBrazilNow());
 }
 
@@ -804,7 +832,7 @@ async function executeCreateTaskAction(
     // Buscar card uma única vez
     const { data: card, error: cardError } = await supabaseClient
         .from("cards")
-        .select("id, titulo, dono_atual_id, responsavel_id, pessoa_principal_id")
+        .select("id, titulo, dono_atual_id, responsavel_id, pessoa_principal_id, produto_data, briefing_inicial")
         .eq("id", cardId)
         .single();
 
@@ -1131,6 +1159,7 @@ interface DispatchArgs {
     sentByUserName: string;    // ex: 'Automação' ou 'Cadência'
     metadata: Record<string, unknown>;
     eventData?: Record<string, any>;  // Variáveis do trigger (ex: Calendly) — substituídas em {{trigger.x}}
+    cardData?: { produto_data?: Record<string, any> | null; briefing_inicial?: Record<string, any> | null };  // Campos do card pra {{card.x}}
 }
 
 interface DispatchResult {
@@ -1156,8 +1185,12 @@ async function dispatchEchoMessage(args: DispatchArgs): Promise<DispatchResult> 
     const echoBase = echoApiUrl.replace(/\/send-message\/?$/, '').replace(/\/+$/, '');
 
     const eventData = args.eventData;
-    // renderVars agora delega pra renderTriggerVars (que tb cobre {{trigger.x}})
-    const renderVars = (s: string) => renderTriggerVars(s, eventData, { nome: contato.nome }, { titulo: cardTitulo });
+    // renderVars agora delega pra renderTriggerVars (que tb cobre {{trigger.x}} e {{card.x}})
+    const renderVars = (s: string) => renderTriggerVars(s, eventData, { nome: contato.nome }, {
+        titulo: cardTitulo,
+        produto_data: args.cardData?.produto_data,
+        briefing_inicial: args.cardData?.briefing_inicial,
+    });
 
     const normalizedPhone = (contato.telefone || '').replace(/\D/g, "");
 
@@ -1532,7 +1565,7 @@ async function executeSendMessageAction(
     // Card pra variáveis e org_id (necessário pra log + insert em whatsapp_messages)
     const { data: card } = await supabaseClient
         .from("cards")
-        .select("titulo, org_id")
+        .select("titulo, org_id, produto_data, briefing_inicial")
         .eq("id", cardId)
         .single();
     const cardOrgId: string | null = card?.org_id || null;
@@ -1570,6 +1603,7 @@ async function executeSendMessageAction(
         sentByUserName: 'Automação',
         metadata: automationMetadata,
         eventData,
+        cardData: { produto_data: card?.produto_data, briefing_inicial: card?.briefing_inicial },
     });
 
     if (!dispatch.sent) {
@@ -1782,7 +1816,7 @@ async function executeNotifyInternalAction(
 
     const { data: card } = await supabaseClient
         .from("cards")
-        .select("id, titulo, dono_atual_id")
+        .select("id, titulo, dono_atual_id, produto_data, briefing_inicial")
         .eq("id", cardId)
         .single();
 
@@ -2930,6 +2964,9 @@ async function executeMessageStep(
             step_order: step.step_order,
             hsm_template_name: config.hsm_template_name || null,
         },
+        // Variáveis: {{trigger.x}} do gatilho que iniciou a cadência + {{card.x}} dos campos do card
+        eventData: instance.context?.trigger_event_data || undefined,
+        cardData: { produto_data: card.produto_data, briefing_inicial: card.briefing_inicial },
     });
 
     // 5) Log do evento (sucesso ou body vazio)
