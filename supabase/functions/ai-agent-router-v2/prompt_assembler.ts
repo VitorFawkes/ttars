@@ -139,12 +139,22 @@ export interface BuildSinglePromptInput {
       breakdown?: unknown;
     } | null;
     /**
-     * Lista de 3 dias/horários propostos pra reunião com a Wedding Planner.
-     * Buscada pelo router quando o trigger determinístico identifica
-     * desfecho_qualificado. LLM apresenta esses horários verbatim no
-     * último turno da conversa.
+     * (LEGADO — preservado pra compatibilidade) Lista de 3 dias/horários discretos.
+     * Substituído por `available_ranges` no modelo novo de ranges contínuos.
      */
     proposed_slots?: Array<{ date: string; time: string; weekday: string }> | null;
+    /**
+     * Ranges contínuos disponíveis na agenda da Wedding Planner por dia útil.
+     * Substitui o modelo antigo de slots discretos. Lead escolhe horário exato
+     * (múltiplos de 15min) dentro do range. Validação real acontece em
+     * confirm_meeting_slot.
+     */
+    available_ranges?: Array<{
+      date: string;
+      weekday: string;
+      iso_date: string;
+      ranges: Array<{ startMin: number; endMin: number; from: string; to: string }>;
+    }> | null;
     /**
      * Resultados de tools executadas no MESMO turn anterior (agentic loop).
      * Quando o LLM chama uma tool e queremos que ele use o resultado pra
@@ -293,6 +303,7 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
   // Quando o trigger determinístico identifica desfecho_qualificado, o
   // router pré-busca 3 horários e injeta aqui. LLM apresenta verbatim.
   const proposedSlotsBlock = renderProposedSlots(conversationState.proposed_slots);
+  const availableRangesBlock = renderAvailableRanges(conversationState.available_ranges);
 
   // -------- Tool results (agentic loop curto) -----------------------------
   // Quando o router executou uma tool e está re-chamando o LLM pra usar o
@@ -333,6 +344,7 @@ export function buildSinglePrompt(input: BuildSinglePromptInput): {
     stateBlock,
     qualificationResultBlock,
     proposedSlotsBlock,
+    availableRangesBlock,
     toolResultsBlock,
     silentSignalsBlock,
     qualificationBlock,
@@ -1272,10 +1284,6 @@ function renderProposedSlots(
   slots: BuildSinglePromptInput["conversationState"]["proposed_slots"] | undefined,
 ): string {
   if (!slots || slots.length === 0) return "";
-  // Formato bold WhatsApp: *texto* (asterisco simples). WhatsApp não renderiza
-  // Markdown **texto**. Padronizar aqui evita LLM ter que traduzir formato.
-  // Slots agrupados por dia: quando há vários horários no mesmo dia, sai
-  // como "*qui 14/05* às *10:00*, *14:00* ou *16:00*" (não repete o dia).
   const { asList } = formatSlotsGrouped(slots);
   const lines = asList.map((line, i) => `  ${i + 1}. ${line}`).join("\n");
   return `<proposed_slots>
@@ -1283,8 +1291,36 @@ function renderProposedSlots(
 
 ${lines}
 
-Apresente os horários ao casal EXATAMENTE no formato agrupado acima — quando há vários horários no mesmo dia (ex: "*qui 14/05* às *10:00*, *14:00* ou *16:00*"), NÃO repita o dia da semana e a data várias vezes. NÃO invente outras opções. NÃO mude o formato dos dias/horários — mesmo pra lead premium, **mantenha "qua 27/05 às 09:00", NÃO escreva "quarta-feira, dia 27 de maio, às 09h00"**. O formato compacto é decisão de marca, não cabe reformatar. Os asteriscos simples (\`*texto*\`) são a sintaxe de bold do WhatsApp — preserve EXATAMENTE assim, sem dobrar pra \`**\` e sem remover. Se o casal pedir alternativa, chame \`check_calendar\` em vez de repetir os mesmos horários.
+Apresente os horários ao casal EXATAMENTE no formato agrupado acima.
 </proposed_slots>`;
+}
+
+function renderAvailableRanges(
+  ranges: BuildSinglePromptInput["conversationState"]["available_ranges"] | undefined,
+): string {
+  if (!ranges || ranges.length === 0) return "";
+  // Formato bold WhatsApp: *texto* (asterisco simples).
+  // Cada dia vira: "*qui 28/05*: das *09:00* às *12:00* e das *14:00* às *18:00*"
+  const lines = ranges.map((d, i) => {
+    const rangeTxt = d.ranges
+      .map((r) => `das *${r.from}* às *${r.to}*`)
+      .join(" e ");
+    return `  ${i + 1}. *${d.weekday} ${d.date}*: ${rangeTxt}`;
+  }).join("\n");
+
+  return `<available_ranges>
+📅 RANGES DISPONÍVEIS NA AGENDA DA WEDDING PLANNER (calculados pelo router em cima da agenda real)
+
+${lines}
+
+REGRAS DE OFERTA:
+- Apresente os ranges ao casal EXATAMENTE no formato acima — preserve dias, intervalos, asteriscos (\`*texto*\` é bold do WhatsApp). Não invente outros dias nem outros intervalos.
+- Diga algo natural como "tem disponível *qui 28/05* das *09:00* às *12:00* e das *14:00* às *18:00*..." pra cada dia listado. Tom humano, não enumeração crua.
+- O lead escolhe horário EXATO dentro de um range (ex: 09:30, 10:15, 14:45). Granularidade obrigatória: múltiplos de 15 minutos.
+- Quando o lead escolher horário, IMEDIATAMENTE chame \`confirm_meeting_slot\` com { date: "DD/MM" ou "DD/MM/YYYY", time: "HH:MM" } usando o horário EXATO escolhido. A tool valida (granularidade, range, conflito) e cria a reunião na agenda real da Ana Carolina.
+- Se a tool retornar erro (ex: "horário deve ser múltiplo de 15min" ou "não cabe no range"), explique pro lead com clareza e ofereça os 2 horários válidos mais próximos do que ele pediu.
+- Se o lead pedir um dia FORA dos listados acima, chame \`check_calendar\` antes de prometer disponibilidade.
+</available_ranges>`;
 }
 
 /**
@@ -1366,13 +1402,20 @@ NESTE TURN:
     if (forced) {
       const parts = resolveMomentParts(forced);
       let baseText = parts[0] || forced.anchor_text || "";
-      // Substitui placeholder {slots_disponiveis} pela frase com horários
-      // agrupados por dia. Quando há vários horários no mesmo dia, sai
-      // "*qui 14/05* às *10:00*, *14:00* ou *16:00*" sem repetir o dia.
-      // Múltiplos dias são unidos com " ou ": "... ou *sex 15/05* às *10:00*, *14:00* ou *16:00*".
-      if (baseText.includes("{slots_disponiveis}") && state.proposed_slots && state.proposed_slots.length > 0) {
-        const { asInline } = formatSlotsGrouped(state.proposed_slots);
-        baseText = baseText.replaceAll("{slots_disponiveis}", asInline);
+      // Substitui placeholder {slots_disponiveis} pela frase com RANGES disponíveis.
+      // Formato novo (ranges contínuos): "*qui 28/05* das *09:00* às *12:00* e das *14:00* às *18:00*, *sex 29/05* das ..."
+      // Fallback (compat): se ainda houver proposed_slots, usa o formato antigo.
+      if (baseText.includes("{slots_disponiveis}")) {
+        if (state.available_ranges && state.available_ranges.length > 0) {
+          const rangesText = state.available_ranges.map((d) => {
+            const ranges = d.ranges.map((r) => `das *${r.from}* às *${r.to}*`).join(" e ");
+            return `*${d.weekday} ${d.date}* ${ranges}`;
+          }).join(", ");
+          baseText = baseText.replaceAll("{slots_disponiveis}", rangesText);
+        } else if (state.proposed_slots && state.proposed_slots.length > 0) {
+          const { asInline } = formatSlotsGrouped(state.proposed_slots);
+          baseText = baseText.replaceAll("{slots_disponiveis}", asInline);
+        }
       }
       const isLiteral = forced.message_mode === "literal";
       const isFaithful = forced.message_mode === "faithful";
@@ -1396,12 +1439,16 @@ ${baseText}
 - ${modeNote}
 - Marque \`current_moment_key\` = "${forced.moment_key}".
 - NÃO chame a tool \`calculate_qualification_score\` — o router já calculou e o resultado está em \`<qualification_result>\`.
-${state.proposed_slots && state.proposed_slots.length > 0
-  ? `- Apresente TODOS os ${state.proposed_slots.length} horários de \`<proposed_slots>\` verbatim e peça pro casal escolher um. Cada slot tem date+time exatos — não omita nenhum.
-- ⚠️ AGENDAMENTO: quando o casal escolher/aceitar um dos horários, a ÚNICA tool válida é \`confirm_meeting_slot\` com { date, time } da escolha exata. NUNCA use \`create_task\` pra agendar reunião com a Wedding Planner — \`create_task\` é só pra tarefas internas administrativas.
-- Sem chamar a tool, a reunião NÃO entra na agenda real da Wedding Planner — só você sabe. Sempre chame a tool ao confirmar.
-- 🔄 NEGOCIAÇÃO DE DATA: se o casal pedir uma data ou horário FORA dos slots de \`<proposed_slots>\` (ex: 'tem dia 17?', 'antes de quinta?', 'na semana que vem?', 'manhã do dia 20?'), CHAME a tool \`check_calendar\` com a data/range que o casal pediu. NÃO repita os mesmos slots originais. NÃO diga 'vou checar' sem chamar a tool. Apresente os slots retornados pela tool. Se vier vazio, leia o \`note\` e explique honestamente (ex: 'esse dia cai num domingo e a Wedding Planner não atende — quer que eu veja na segunda 18/05?').`
-  : ""}
+${state.available_ranges && state.available_ranges.length > 0
+  ? `- Apresente TODOS os ranges de \`<available_ranges>\` pra cada dia listado (${state.available_ranges.length} dias). Diga em tom natural, ex: "tem disponível *qui 28/05* das *09:00* às *12:00* e das *14:00* às *18:00*, *sex 29/05*..." — preserve formato (asteriscos, datas, horários).
+- ⚠️ AGENDAMENTO: quando o casal escolher horário EXATO dentro de um range (ex: "9h30 funciona"), IMEDIATAMENTE chame \`confirm_meeting_slot\` com { date: "DD/MM", time: "HH:MM" }. A tool valida granularidade (múltiplos de 15min), encaixe no range e conflito real. Se retornar erro, leia a mensagem e ofereça os horários válidos mais próximos.
+- NUNCA use \`create_task\` pra agendar reunião com a Wedding Planner — \`create_task\` é só pra tarefas internas administrativas.
+- Sem chamar \`confirm_meeting_slot\`, a reunião NÃO entra na agenda real — só você sabe. Sempre chame a tool ao confirmar.
+- 🔄 NEGOCIAÇÃO DE DATA: se o casal pedir um DIA FORA dos listados em \`<available_ranges>\` (ex: 'tem na semana que vem?', 'só posso terça'), CHAME a tool \`check_calendar\` com a data que o casal pediu. NÃO prometa disponibilidade sem chamar a tool.`
+  : (state.proposed_slots && state.proposed_slots.length > 0
+    ? `- Apresente TODOS os ${state.proposed_slots.length} horários de \`<proposed_slots>\` verbatim e peça pro casal escolher um. Cada slot tem date+time exatos — não omita nenhum.
+- ⚠️ AGENDAMENTO: quando o casal escolher/aceitar um dos horários, a ÚNICA tool válida é \`confirm_meeting_slot\` com { date, time } da escolha exata.`
+    : "")}
 ${forced.must_cover && forced.must_cover.length > 0
   ? `- Cubra todos os pontos de \`must_cover\` do momento.`
   : ""}

@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
 import { GitBranch, Users as UsersIcon, Calendar, Loader2, ChevronDown } from 'lucide-react'
 import { format, subDays } from 'date-fns'
 import { usePlannerStageXOwner, type StageXOwnerRow } from '@/hooks/analytics/usePlannerStageXOwner'
@@ -13,7 +12,7 @@ import { cn } from '@/lib/utils'
 type Metric = 'medio' | 'pior' | 'atuais'
 type WindowPreset = 'this_month' | 'last_30d' | 'last_90d' | 'this_year' | 'custom'
 
-const COLORS = ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6','#a855f7','#ef4444','#14b8a6','#f97316']
+// COLORS placeholder removed — paleta vem do hook quando precisar
 
 function windowDates(preset: WindowPreset, customStart?: string, customEnd?: string) {
   const now = new Date()
@@ -60,7 +59,7 @@ export default function PlannerStageTimeHeatmap() {
   const stages = usePipelineStages(meta.pipelineId)
 
   const allPlanners = useMemo(() => (profiles.data ?? []).filter(p => p.role === 'vendas'), [profiles.data])
-  const allStages = useMemo(() => (stages.data ?? []).filter(s => s.ativo), [stages.data])
+  const allStages = useMemo(() => (stages.data ?? []).filter((s) => (s as { ativo?: boolean }).ativo !== false), [stages.data])
 
   const [windowPreset, setWindowPreset] = useState<WindowPreset>('last_90d')
   const [customStart, setCustomStart] = useState(format(subDays(new Date(), 90), 'yyyy-MM-dd'))
@@ -83,7 +82,7 @@ export default function PlannerStageTimeHeatmap() {
   })
 
   // Pivot: row = stage, col = owner
-  const { stagesInGrid, ownersInGrid, valueMap, sampleByStage, sampleByOwner } = useMemo(() => {
+  const { stagesInGrid, ownersInGrid, valueMap, sampleByStage } = useMemo(() => {
     if (!data || data.length === 0) {
       return { stagesInGrid: [], ownersInGrid: [], valueMap: new Map<string, StageXOwnerRow>(), sampleByStage: new Map<string, number[]>(), sampleByOwner: new Map<string, number[]>() }
     }

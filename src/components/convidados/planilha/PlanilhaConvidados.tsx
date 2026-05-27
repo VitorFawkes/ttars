@@ -20,6 +20,9 @@ interface Props {
   convites: Convite[]
 }
 
+// Grid template compartilhado entre header e linhas
+export const PLANILHA_GRID = '40px minmax(180px, 1.6fr) 110px minmax(160px, 1.1fr) 200px 150px minmax(160px, 1.3fr) 40px'
+
 export function PlanilhaConvidados({ casal, convites }: Props) {
   const [search, setSearch] = useState('')
   const [filterLado, setFilterLado] = useState<LadoKey | ''>('')
@@ -38,6 +41,12 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
       setSavedAt(new Date())
     }
   }, [upsertConvite.isSuccess, deleteConvite.isSuccess, upsertPessoa.isSuccess, deletePessoa.isSuccess])
+
+  // Surface erro de mutação via toast (pessoa nova com erro de constraint, etc)
+  useEffect(() => {
+    const err = upsertConvite.error || upsertPessoa.error || deleteConvite.error || deletePessoa.error
+    if (err) setToast(err.message)
+  }, [upsertConvite.error, upsertPessoa.error, deleteConvite.error, deletePessoa.error])
 
   const visibleConvites = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -160,33 +169,50 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
   }, [toast])
 
   return (
-    <div className="flex flex-col gap-3">
-      <header className="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-ww-sand px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-4">
-          <img src="/brand/ww/welcome-weddings-horizontal.png" alt="Welcome Weddings" className="h-8 w-auto object-contain" />
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-ww-gold">Lista de Convidados</p>
-            <h1 className="font-ww-serif italic text-[22px] text-ww-n700 leading-tight">{casal.nome_casal}</h1>
+    <div className="flex flex-col">
+      {/* Bloco sticky unificado: header + toolbar + cabeçalho de colunas
+          ficam grudados visualmente em um único container sólido */}
+      <div className="sticky top-0 z-30 bg-white shadow-sm">
+        {/* Linha 1: Welcome Weddings + nome casal + stats */}
+        <header className="border-b border-ww-sand px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-4">
+            <img src="/brand/ww/welcome-weddings-horizontal.png" alt="Welcome Weddings" className="h-8 w-auto object-contain" />
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-ww-gold">Lista de Convidados</p>
+              <h1 className="font-ww-serif italic text-[22px] text-ww-n700 leading-tight">{casal.nome_casal}</h1>
+            </div>
           </div>
-        </div>
-        <StatsStrip stats={stats} />
-      </header>
+          <StatsStrip stats={stats} />
+        </header>
 
-      <div className="sticky top-[68px] z-10 bg-ww-paper/95 backdrop-blur border-b border-ww-sand px-6">
-        <PlanilhaToolbar
-          search={search} setSearch={setSearch}
-          filterLado={filterLado} setFilterLado={setFilterLado}
-          filterTipo={filterTipo} setFilterTipo={setFilterTipo}
-          onAddConvite={handleAddConvite} onImport={handleImport} onExport={handleExport}
-        />
-        <div className="hidden md:grid items-center gap-1.5 px-3 py-2 text-[10px] uppercase tracking-wider text-ww-n500 border-t border-ww-sand"
-          style={{ gridTemplateColumns: '32px 1.4fr 104px 1fr 180px 0.9fr 1.2fr 28px' }}>
-          <span>#</span><span>Pessoa</span><span>Idade</span><span>Telefone</span>
-          <span>Lado</span><span>Tipo</span><span>Observação</span><span></span>
+        {/* Linha 2: Toolbar */}
+        <div className="bg-ww-paper border-b border-ww-sand px-6">
+          <PlanilhaToolbar
+            search={search} setSearch={setSearch}
+            filterLado={filterLado} setFilterLado={setFilterLado}
+            filterTipo={filterTipo} setFilterTipo={setFilterTipo}
+            onAddConvite={handleAddConvite} onImport={handleImport} onExport={handleExport}
+          />
+        </div>
+
+        {/* Linha 3: Cabeçalho de colunas — todos centralizados */}
+        <div
+          className="hidden md:grid items-center bg-ww-cream border-b-2 border-ww-sand-dk text-[11px] font-semibold uppercase tracking-[0.14em] text-ww-n700"
+          style={{ gridTemplateColumns: PLANILHA_GRID }}
+        >
+          <span className="py-2.5 px-2 text-center">#</span>
+          <span className="py-2.5 px-2 text-center border-l border-ww-sand-dk/60">Pessoa</span>
+          <span className="py-2.5 px-2 text-center border-l border-ww-sand-dk/60">Idade</span>
+          <span className="py-2.5 px-2 text-center border-l border-ww-sand-dk/60">Telefone</span>
+          <span className="py-2.5 px-2 text-center border-l border-ww-sand-dk/60">Lado</span>
+          <span className="py-2.5 px-2 text-center border-l border-ww-sand-dk/60">Tipo</span>
+          <span className="py-2.5 px-2 text-center border-l border-ww-sand-dk/60">Observação</span>
+          <span className="py-2.5 px-2 border-l border-ww-sand-dk/60"></span>
         </div>
       </div>
 
-      <div className="px-6 pb-24 flex flex-col gap-2">
+      {/* Body com scroll natural — pb maior pra footer fixo não cobrir conteúdo */}
+      <div className="px-6 pt-3 pb-28 flex flex-col gap-3">
         {visibleConvites.length === 0 && convites.length === 0 ? (
           <EmptyState onAddConvite={handleAddConvite} />
         ) : visibleConvites.length === 0 ? (
@@ -216,20 +242,21 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
         )}
       </div>
 
-      <BotaoFinalizarLista codigo={casal.codigo} totalPessoas={stats.totalPessoas} />
-
-      <footer className="fixed bottom-0 left-0 right-0 z-10 bg-white/95 backdrop-blur border-t border-ww-sand px-6 py-2 flex items-center justify-between gap-4 text-[11px] text-ww-n500">
-        <div className="flex items-center gap-3">
-          <Kbd label="Tab" desc="Próxima célula" />
-          <Kbd label="↵" desc="Linha de baixo" />
-          <Kbd label="⌘N" desc="Novo convite" />
-          <Kbd label="⌘F" desc="Buscar" />
+      {/* Footer fixo: salvo + atalhos à esquerda, botão Pronto à direita */}
+      <footer className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-ww-sand shadow-[0_-4px_12px_rgba(78,24,32,0.04)] px-6 py-3 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4 min-w-0">
+          <SavedIndicator at={savedAt} isSaving={upsertConvite.isPending || upsertPessoa.isPending} />
+          <div className="hidden lg:flex items-center gap-3 text-[11px] text-ww-n500 overflow-x-auto">
+            <Kbd label="Tab" desc="Próxima célula" />
+            <Kbd label="↵" desc="Linha de baixo" />
+            <Kbd label="⌘N" desc="Novo convite" />
+          </div>
         </div>
-        <SavedIndicator at={savedAt} isSaving={upsertConvite.isPending || upsertPessoa.isPending} />
+        <BotaoFinalizarLista codigo={casal.codigo} totalPessoas={stats.totalPessoas} />
       </footer>
 
       {toast && (
-        <div className="fixed bottom-16 left-1/2 -translate-x-1/2 z-20 bg-ww-n700 text-white px-4 py-2 rounded-full text-xs shadow-ww-toast">
+        <div className="fixed bottom-16 left-1/2 -translate-x-1/2 z-40 bg-ww-n700 text-white px-4 py-2 rounded-full text-xs shadow-ww-toast">
           {toast}
           <button type="button" onClick={() => setToast(null)} className="ml-2 text-white/70 hover:text-white">
             <X className="w-3 h-3 inline" />
@@ -242,7 +269,7 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
 
 function Kbd({ label, desc }: { label: string; desc: string }) {
   return (
-    <span className="inline-flex items-center gap-1">
+    <span className="inline-flex items-center gap-1 whitespace-nowrap">
       <kbd className="font-mono px-1 py-0.5 bg-ww-cream border border-ww-sand rounded text-ww-n700">{label}</kbd>
       <span className="text-ww-n400">{desc}</span>
     </span>
