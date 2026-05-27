@@ -495,33 +495,33 @@ function FlightRow({ option, autoOpenEditor = false, onUpdate, onRemove, onSetRe
                 )}>
                     {option.airline_code || '--'}
                 </span>
-                <div className="flex flex-col min-w-0">
-                    <div className="flex items-center gap-1 min-w-0">
-                        <span className="text-sm font-medium text-slate-900 truncate">
-                            {option.airline_name || airline?.name || option.airline_code || 'Companhia'}
+                <div className="flex flex-col min-w-0 flex-1">
+                    <span className="text-sm font-medium text-slate-900 truncate">
+                        {option.airline_name || airline?.name || option.airline_code || 'Companhia'}
+                    </span>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-mono text-xs text-slate-500 truncate">
+                            {option.flight_number || '----'}
                         </span>
                         {isCheapest && (
                             <span
-                                className="inline-flex items-center gap-0.5 px-1.5 py-0 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-700 flex-shrink-0"
+                                className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-1 py-0 text-[9px] font-bold text-emerald-700 flex-shrink-0"
                                 title="Menor preço entre as opções"
                             >
                                 <TrendingDown className="h-2.5 w-2.5" />
-                                Mais barato
+                                <span className="hidden lg:inline">Mais barato</span>
                             </span>
                         )}
                         {isFastest && (
                             <span
-                                className="inline-flex items-center gap-0.5 px-1.5 py-0 rounded-full text-[9px] font-bold bg-indigo-100 text-indigo-700 flex-shrink-0"
+                                className="inline-flex items-center gap-0.5 rounded-full bg-indigo-100 px-1 py-0 text-[9px] font-bold text-indigo-700 flex-shrink-0"
                                 title="Menor duração entre as opções"
                             >
                                 <Zap className="h-2.5 w-2.5" />
-                                Mais rápido
+                                <span className="hidden lg:inline">Mais rápido</span>
                             </span>
                         )}
                     </div>
-                    <span className="font-mono text-xs text-slate-500 truncate">
-                        {option.flight_number || '----'}
-                    </span>
                 </div>
             </div>
 
