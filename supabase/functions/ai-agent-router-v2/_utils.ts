@@ -109,6 +109,145 @@ export function expandAvailableHours(sc: AgentRow["scheduling_config"]): string[
   return ["10:00", "14:00", "16:00"];
 }
 
+/**
+ * Converte "HH:MM" pra minutos desde 00:00. "09:30" → 570.
+ */
+export function timeToMinutes(t: string): number {
+  const [h, m] = t.split(":").map((x) => Number(x) || 0);
+  return h * 60 + m;
+}
+
+/**
+ * Converte minutos desde 00:00 pra "HH:MM". 570 → "09:30".
+ */
+export function minutesToTime(m: number): string {
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+}
+
+/**
+ * Range contínuo de horário livre num dia. start/end em minutos desde 00:00.
+ */
+export interface FreeRange {
+  startMin: number;
+  endMin: number;
+}
+
+/**
+ * Dia útil com ranges livres.
+ */
+export interface DayWithRanges {
+  /** "DD/MM" ou "DD/MM/YYYY" conforme dateFormat */
+  date: string;
+  /** "qui", "sex", etc */
+  weekday: string;
+  /** YYYY-MM-DD pra debug */
+  iso_date: string;
+  /** Ranges contínuos livres no dia. Cada range tem tamanho >= minDurationMin. */
+  ranges: FreeRange[];
+}
+
+/**
+ * Calcula ranges contínuos livres na agenda da Wedding Planner pros próximos
+ * `maxDays` dias úteis. Subtrai reuniões já agendadas (com duração) das janelas
+ * configuradas. Retorna só ranges com tamanho >= minDurationMin (default 60min).
+ *
+ * Lead pode escolher qualquer múltiplo de 15min dentro de cada range — desde
+ * que a reunião proposta (início + duração) caiba inteira no range.
+ */
+export function calculateFreeRanges(
+  windows: Array<{ from: string; to: string }>,
+  busyByDay: Map<string, Array<{ startMin: number; endMin: number }>>,
+  daysList: Array<{ date: string; weekday: string; iso_date: string }>,
+  minDurationMin: number,
+): DayWithRanges[] {
+  const result: DayWithRanges[] = [];
+  // Normaliza janelas em minutos, ordena por início, mescla sobrepostas
+  const baseWindows = windows
+    .map((w) => ({ startMin: timeToMinutes(w.from), endMin: timeToMinutes(w.to) }))
+    .filter((w) => w.endMin > w.startMin)
+    .sort((a, b) => a.startMin - b.startMin);
+
+  for (const day of daysList) {
+    const busy = (busyByDay.get(day.iso_date) || []).sort((a, b) => a.startMin - b.startMin);
+    const freeRanges: FreeRange[] = [];
+
+    for (const win of baseWindows) {
+      let cursor = win.startMin;
+      // Subtrai cada reunião que cai dentro da janela
+      for (const b of busy) {
+        if (b.endMin <= cursor) continue; // já passou
+        if (b.startMin >= win.endMin) break; // depois da janela
+        const overlapStart = Math.max(cursor, b.startMin);
+        const overlapEnd = Math.min(win.endMin, b.endMin);
+        // Range livre antes do bloqueio
+        if (cursor < overlapStart && overlapStart - cursor >= minDurationMin) {
+          freeRanges.push({ startMin: cursor, endMin: overlapStart });
+        }
+        cursor = Math.max(cursor, overlapEnd);
+      }
+      // Sobrou range livre até o final da janela
+      if (cursor < win.endMin && win.endMin - cursor >= minDurationMin) {
+        freeRanges.push({ startMin: cursor, endMin: win.endMin });
+      }
+    }
+
+    if (freeRanges.length > 0) {
+      result.push({
+        date: day.date,
+        weekday: day.weekday,
+        iso_date: day.iso_date,
+        ranges: freeRanges,
+      });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Valida se um horário escolhido pelo lead cabe em algum range livre + duração.
+ *
+ * Retorna null se válido, ou string de erro descritiva.
+ *
+ * Regras:
+ * - Múltiplo de `granularityMin` (default 15min)
+ * - Início + duração cabem inteiros em algum range livre
+ */
+export function validateChosenTime(
+  isoDate: string, // YYYY-MM-DD
+  timeStr: string, // HH:MM
+  durationMin: number,
+  granularityMin: number,
+  availableRanges: DayWithRanges[],
+): string | null {
+  const tm = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+  if (!tm) return "horário inválido — formato esperado HH:MM";
+
+  const h = Number(tm[1]);
+  const m = Number(tm[2]);
+  if (h < 0 || h > 23 || m < 0 || m > 59) return "horário inválido — fora de 00:00 a 23:59";
+
+  const startMin = h * 60 + m;
+  if (startMin % granularityMin !== 0) {
+    return `horário deve ser múltiplo de ${granularityMin} minutos (ex: ${minutesToTime(Math.floor(startMin / granularityMin) * granularityMin)} ou ${minutesToTime(Math.ceil(startMin / granularityMin) * granularityMin)})`;
+  }
+  const endMin = startMin + durationMin;
+
+  const dayMatch = availableRanges.find((d) => d.iso_date === isoDate);
+  if (!dayMatch) return `não atendemos no dia ${isoDate} (fora dos próximos dias úteis ou agenda lotada)`;
+
+  const fits = dayMatch.ranges.some((r) => startMin >= r.startMin && endMin <= r.endMin);
+  if (!fits) {
+    const rangesText = dayMatch.ranges
+      .map((r) => `das ${minutesToTime(r.startMin)} às ${minutesToTime(r.endMin)}`)
+      .join(", ");
+    return `horário escolhido (${timeStr}, com reunião de ${durationMin}min) não cabe nos ranges livres do dia. Disponível: ${rangesText}.`;
+  }
+  return null;
+}
+
 export interface BusinessConfigRow {
   agent_id: string;
   company_name: string | null;
@@ -675,13 +814,20 @@ export async function executePatriciaToolCall(
           return { tool_name: call.tool_name, ok: false, error: "Wedding Planner não configurada no agente. Configure ai_agents.wedding_planner_profile_id.", duration_ms: Date.now() - startedAt };
         }
 
-        // Parse data/hora → ISO local. Aceita:
-        //   - iso: "YYYY-MM-DDTHH:MM:00" (passa direto)
+        // Parse data/hora → ISO em BRT (UTC-3). Aceita:
+        //   - iso: "YYYY-MM-DDTHH:MM:00" (passa direto, anexa -03:00 se sem TZ)
         //   - date "DD/MM/YYYY" + time "HH:MM"
         //   - date "DD/MM" + time "HH:MM" (deriva ano: corrente ou próximo se já passou)
+        //
+        // IMPORTANTE: BRT (-03:00) é fixo desde 2019 (Brasil sem DST). Sem timezone
+        // o Postgres trata como UTC e cria reunião 3h antes do esperado.
         let isoLocal: string | null = null;
         if (typeof call.args.iso === "string") {
           isoLocal = call.args.iso;
+          // Se veio sem timezone, anexa BRT
+          if (!/[+-]\d{2}:?\d{2}$|Z$/.test(isoLocal)) {
+            isoLocal = `${isoLocal}-03:00`;
+          }
         } else if (typeof call.args.date === "string" && typeof call.args.time === "string") {
           const dateFull = call.args.date.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
           const dateShort = call.args.date.match(/^(\d{1,2})\/(\d{1,2})$/);
@@ -692,15 +838,13 @@ export async function executePatriciaToolCall(
             if (dateFull) {
               const dd = dateFull[1].padStart(2, "0");
               const mm = dateFull[2].padStart(2, "0");
-              isoLocal = `${dateFull[3]}-${mm}-${dd}T${hh}:${mi}:00`;
+              isoLocal = `${dateFull[3]}-${mm}-${dd}T${hh}:${mi}:00-03:00`;
             } else if (dateShort) {
               const dd = dateShort[1].padStart(2, "0");
               const mm = dateShort[2].padStart(2, "0");
-              // Deriva ano: corrente; se a data já passou (mais de 1 dia atrás),
-              // assume próximo ano.
               const now = new Date();
               let yyyy = now.getFullYear();
-              const candidate = new Date(`${yyyy}-${mm}-${dd}T${hh}:${mi}:00`);
+              const candidate = new Date(`${yyyy}-${mm}-${dd}T${hh}:${mi}:00-03:00`);
               if (Number.isNaN(candidate.getTime())) {
                 isoLocal = null;
               } else {
@@ -708,7 +852,7 @@ export async function executePatriciaToolCall(
                 if (diffMs < -24 * 3600 * 1000) {
                   yyyy++;
                 }
-                isoLocal = `${yyyy}-${mm}-${dd}T${hh}:${mi}:00`;
+                isoLocal = `${yyyy}-${mm}-${dd}T${hh}:${mi}:00-03:00`;
               }
             }
           }
@@ -717,43 +861,105 @@ export async function executePatriciaToolCall(
           return { tool_name: call.tool_name, ok: false, error: "formato inválido. Esperado { date: 'DD/MM' ou 'DD/MM/YYYY', time: 'HH:MM' } ou { iso: 'YYYY-MM-DDTHH:MM:00' }", duration_ms: Date.now() - startedAt };
         }
 
-        // IMPORTANTE: A página "Agenda" do app lê da tabela `tarefas` com
-        // tipo='reuniao' (via useCalendarMeetings). A tabela `reunioes` é
-        // legado/secundária. Antes a tool inseria em `reunioes` e a reunião
-        // não aparecia em Agenda — corrigido 18/05.
-        //
-        // Re-checa disponibilidade ANTES de criar (entre sugestão e
-        // confirmação alguém pode ter agendado outra coisa).
-        const { data: existing, error: chkErr } = await supabase
-          .from("tarefas")
-          .select("id,card_id")
-          .eq("tipo", "reuniao")
-          .eq("responsavel_id", agent.wedding_planner_profile_id)
-          .eq("data_vencimento", isoLocal)
-          .is("deleted_at", null)
-          .in("status", ["agendada", "confirmada", "agendado", "confirmado", "pendente"])
-          .limit(5);
-        if (chkErr) {
-          console.warn("[tool confirm_meeting_slot] check conflito falhou:", chkErr.message);
+        // Validações de granularidade + range + conflito real (com duração).
+        // Modelo de ranges contínuos: lead escolhe horário arbitrário dentro
+        // de um range livre, sistema valida que:
+        //   1. Horário é múltiplo de 15min
+        //   2. Início + duração (60min default) cabe numa janela configurada
+        //   3. Não conflita com reunião existente (considera duração)
+        const sc = (agent.scheduling_config ?? {}) as { slot_duration_minutes?: number; available_windows?: Array<{ from: string; to: string }> };
+        const slotDurationMin = Number(sc.slot_duration_minutes ?? 60);
+        const GRANULARITY_MIN = 15;
+        const windows = (sc.available_windows && sc.available_windows.length > 0)
+          ? sc.available_windows
+          : [{ from: "09:00", to: "12:00" }, { from: "14:00", to: "18:00" }];
+
+        // Parse iso pra startMin do dia (em BRT, ignora o sufixo de TZ)
+        const isoMatch = isoLocal.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+        if (!isoMatch) {
+          return { tool_name: call.tool_name, ok: false, error: "formato iso inválido", duration_ms: Date.now() - startedAt };
         }
-        if (Array.isArray(existing) && existing.length > 0) {
-          // Idempotência: se já tem reunião desse mesmo card no mesmo horário,
-          // retorna sucesso sem duplicar.
-          const sameCard = existing.find((row) => (row as { card_id: string }).card_id === cardId);
-          if (sameCard) {
-            return {
-              tool_name: call.tool_name,
-              ok: true,
-              result: { reuniao_id: (sameCard as { id: string }).id, status: "already_scheduled", iso: isoLocal },
-              duration_ms: Date.now() - startedAt,
-            };
-          }
+        const reqDate = `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+        const reqHour = Number(isoMatch[4]);
+        const reqMin = Number(isoMatch[5]);
+        const reqStartMin = reqHour * 60 + reqMin;
+        const reqEndMin = reqStartMin + slotDurationMin;
+
+        // 1. Granularidade
+        if (reqStartMin % GRANULARITY_MIN !== 0) {
+          const lower = Math.floor(reqStartMin / GRANULARITY_MIN) * GRANULARITY_MIN;
+          const upper = Math.ceil(reqStartMin / GRANULARITY_MIN) * GRANULARITY_MIN;
           return {
             tool_name: call.tool_name,
             ok: false,
-            error: "horário não disponível — outra reunião foi agendada nesse slot entre a sugestão e a confirmação. Peça pro casal escolher outro horário.",
+            error: `horário ${isoMatch[4]}:${isoMatch[5]} deve ser múltiplo de ${GRANULARITY_MIN} minutos. Sugestões próximas: ${minutesToTime(lower)} ou ${minutesToTime(upper)}.`,
             duration_ms: Date.now() - startedAt,
           };
+        }
+
+        // 2. Encaixe nas janelas (com duração)
+        const fitsWindow = windows.some((w) => {
+          const wStart = timeToMinutes(w.from);
+          const wEnd = timeToMinutes(w.to);
+          return reqStartMin >= wStart && reqEndMin <= wEnd;
+        });
+        if (!fitsWindow) {
+          const winList = windows.map((w) => `${w.from}-${w.to}`).join(", ");
+          return {
+            tool_name: call.tool_name,
+            ok: false,
+            error: `horário ${isoMatch[4]}:${isoMatch[5]} (com reunião de ${slotDurationMin}min) não cabe nas janelas de atendimento: ${winList}. Escolha outro horário.`,
+            duration_ms: Date.now() - startedAt,
+          };
+        }
+
+        // 3. Conflito com reuniões existentes do dia (considerando duração)
+        // Busca todas as reuniões da WP nesse dia e checa se intervalo
+        // [reqStartMin, reqEndMin) sobrepõe com [m.startMin, m.endMin).
+        const BRT_OFFSET_MIN = -180;
+        const dayStartUtc = new Date(`${reqDate}T00:00:00-03:00`);
+        const dayEndUtc = new Date(`${reqDate}T23:59:59-03:00`);
+        const { data: dayMeetings, error: dayErr } = await supabase
+          .from("tarefas")
+          .select("id,card_id,data_vencimento,metadata")
+          .eq("tipo", "reuniao")
+          .eq("responsavel_id", agent.wedding_planner_profile_id)
+          .gte("data_vencimento", dayStartUtc.toISOString())
+          .lte("data_vencimento", dayEndUtc.toISOString())
+          .is("deleted_at", null)
+          .in("status", ["agendada", "confirmada", "agendado", "confirmado", "pendente"]);
+        if (dayErr) {
+          console.warn("[tool confirm_meeting_slot] erro lendo agenda do dia:", dayErr.message);
+        }
+        if (Array.isArray(dayMeetings) && dayMeetings.length > 0) {
+          for (const m of dayMeetings) {
+            const di = (m as { data_vencimento: string | null }).data_vencimento;
+            if (!di) continue;
+            const md = new Date(di);
+            const mdBrt = new Date(md.getTime() + BRT_OFFSET_MIN * 60 * 1000);
+            const mStart = mdBrt.getUTCHours() * 60 + mdBrt.getUTCMinutes();
+            const mMeta = (m as { metadata: { duration_minutes?: number } | null }).metadata;
+            const mDur = Number(mMeta?.duration_minutes ?? slotDurationMin);
+            const mEnd = mStart + mDur;
+            // Sobreposição: [reqStartMin, reqEndMin) ∩ [mStart, mEnd) != vazio
+            if (reqStartMin < mEnd && reqEndMin > mStart) {
+              // Idempotência: mesmo card no horário EXATO retorna sucesso
+              if (reqStartMin === mStart && (m as { card_id: string }).card_id === cardId) {
+                return {
+                  tool_name: call.tool_name,
+                  ok: true,
+                  result: { reuniao_id: (m as { id: string }).id, status: "already_scheduled", iso: isoLocal },
+                  duration_ms: Date.now() - startedAt,
+                };
+              }
+              return {
+                tool_name: call.tool_name,
+                ok: false,
+                error: `horário escolhido (${isoMatch[4]}:${isoMatch[5]}, com reunião de ${slotDurationMin}min) conflita com outra reunião já agendada (${minutesToTime(mStart)} a ${minutesToTime(mEnd)}). Peça pro casal escolher outro horário.`,
+                duration_ms: Date.now() - startedAt,
+              };
+            }
+          }
         }
 
         // Pega titulo do card pra usar no titulo da reunião
@@ -776,7 +982,7 @@ export async function executePatriciaToolCall(
             responsavel_id: agent.wedding_planner_profile_id,
             data_vencimento: isoLocal,
             status: "agendada",
-            metadata: { duration_minutes: 30, source: "ai_agent_v2" },
+            metadata: { duration_minutes: slotDurationMin, source: "ai_agent_v2" },
           })
           .select("id")
           .single();

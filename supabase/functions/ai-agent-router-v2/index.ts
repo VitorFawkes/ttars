@@ -23,13 +23,14 @@ import { getDefaultsForAgent } from "./defaults/index.ts";
 import {
   type AgentRow,
   type BusinessConfigRow,
+  calculateFreeRanges,
   compactConversationHistory,
   executePatriciaToolCall,
-  expandAvailableHours,
   formatWhatsAppMessagesHeuristic,
   type IncomingMessageInput,
   isPhoneInWhitelist,
   loadConversationHistory,
+  minutesToTime,
   normalizePhone,
   normalizeWhatsAppText,
   processMediaToText,
@@ -795,6 +796,13 @@ Deno.serve(async (req) => {
     let forcedMomentKey: string | null = null;
     let qualificationResult: { score: number; qualificado: boolean; breakdown?: unknown } | null = null;
     let proposedSlots: Array<{ date: string; time: string; weekday: string }> | null = null;
+    // Ranges contínuos livres por dia (formato novo — substitui slots discretos)
+    let availableRanges: Array<{
+      date: string;
+      weekday: string;
+      iso_date: string;
+      ranges: Array<{ startMin: number; endMin: number; from: string; to: string }>;
+    }> | null = null;
 
     // ------------------------------------------------------------------
     // 8c'. Detecção de recent_blocks_count → handoff_humano_invisivel
@@ -1175,29 +1183,25 @@ Deno.serve(async (req) => {
               }
             }
 
-            // Buscar horários disponíveis. Configurável via
-            // `ai_agents.scheduling_config` (Studio). Defaults seguros mantêm
-            // comportamento legado quando config é null.
+            // Buscar RANGES contínuos disponíveis na agenda da Wedding Planner.
+            // Substituiu o modelo antigo de slots discretos (10:00, 14:00, 16:00).
+            // Agora calculamos ranges livres reais ("das 09:00 às 12:00") e o
+            // lead escolhe horário exato (em múltiplos de 15min) dentro do range.
             if (qualificationResult?.qualificado) {
               const sc = agent.scheduling_config ?? {};
-              const availableHours = expandAvailableHours(sc);
-              const maxPerDay = Number(sc.max_slots_per_day ?? 1);
               const maxDays = Number(sc.max_days ?? 3);
-              const totalSlots = Number(sc.total_slots ?? Math.max(maxDays * maxPerDay, 3));
-              const skipWeekends = sc.skip_weekends !== false; // default true
+              const skipWeekends = sc.skip_weekends !== false;
               const windowDays = Number(sc.search_window_days ?? 14);
-              const dateFormat = (sc.date_format === "full") ? "full" : "short"; // default short
+              const dateFormat = (sc.date_format === "full") ? "full" : "short";
+              const slotDurationMin = Number(sc.slot_duration_minutes ?? 60);
+              const windows = (sc.available_windows && sc.available_windows.length > 0)
+                ? sc.available_windows
+                : [{ from: "09:00", to: "12:00" }, { from: "14:00", to: "18:00" }];
 
-              // Trabalha em fuso BRT (America/Sao_Paulo, UTC-3 fixo desde 2019).
-              // Servidor Deno do edge runtime roda em UTC — se usássemos
-              // getHours() direto, candidate "10:00" não bate com reunião
-              // salva como "13:00 UTC" (=10h BRT).
               const BRT_OFFSET_MIN = -180;
               const toBrt = (d: Date): Date => new Date(d.getTime() + BRT_OFFSET_MIN * 60 * 1000);
               const todayBrt = toBrt(new Date());
               const weekdays = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
-              type Slot = { date: string; time: string; weekday: string; iso: string };
-              const candidates: Slot[] = [];
               const formatDate = (d: Date): string => {
                 const dd = String(d.getUTCDate()).padStart(2, "0");
                 const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
@@ -1206,7 +1210,10 @@ Deno.serve(async (req) => {
                 }
                 return `${dd}/${mm}`;
               };
-              for (let i = 1; i < windowDays; i++) {
+
+              // Lista dos próximos dias úteis (até maxDays)
+              const daysList: Array<{ date: string; weekday: string; iso_date: string }> = [];
+              for (let i = 1; i < windowDays && daysList.length < maxDays; i++) {
                 const d = new Date(todayBrt);
                 d.setUTCDate(todayBrt.getUTCDate() + i);
                 const wd = d.getUTCDay();
@@ -1214,31 +1221,23 @@ Deno.serve(async (req) => {
                 const yyyy = d.getUTCFullYear();
                 const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
                 const dd = String(d.getUTCDate()).padStart(2, "0");
-                const dStr = formatDate(d);
-                for (const h of availableHours) {
-                  candidates.push({
-                    date: dStr,
-                    time: h,
-                    weekday: weekdays[wd],
-                    iso: `${yyyy}-${mm}-${dd}T${h}:00`,
-                  });
-                }
+                daysList.push({
+                  date: formatDate(d),
+                  weekday: weekdays[wd],
+                  iso_date: `${yyyy}-${mm}-${dd}`,
+                });
               }
 
-              // Coleta horários ocupados de reuniões no mesmo org nas próximas
-              // N semanas. Lê da tabela `tarefas` (filtrando `tipo='reuniao'`),
-              // que é a fonte viva da operação. Tabela `reunioes` é legado e
-              // estava vazia — Patrícia oferecia horários já ocupados pela WP.
-              const occupied = new Set<string>();
+              // Reuniões ocupadas (lê da tabela tarefas tipo=reuniao, considera
+              // duração de cada uma pra calcular intervalo bloqueado).
+              const busyByDay = new Map<string, Array<{ startMin: number; endMin: number }>>();
               try {
-                // Horizonte em UTC absoluto (timestamps reais do banco). Usa
-                // hora atual real (sem shift BRT) — o filtro >= now é absoluto.
                 const nowReal = new Date();
                 const horizonStart = nowReal;
                 const horizonEnd = new Date(nowReal.getTime() + windowDays * 24 * 60 * 60 * 1000);
                 let meetingsQuery = supabase
                   .from("tarefas")
-                  .select("data_vencimento,status")
+                  .select("data_vencimento,status,metadata")
                   .eq("org_id", agent.org_id)
                   .eq("tipo", "reuniao")
                   .gte("data_vencimento", horizonStart.toISOString())
@@ -1252,63 +1251,47 @@ Deno.serve(async (req) => {
                   console.warn("[v2] trigger: erro lendo tarefas:", meetErr.message);
                 } else if (Array.isArray(meetings)) {
                   for (const m of meetings) {
-                    const di = m.data_vencimento as string | null;
+                    const di = (m as { data_vencimento: string | null }).data_vencimento;
                     if (!di) continue;
-                    // Converte UTC do banco pra BRT pra bater com candidates
+                    const md = (m as { metadata: { duration_minutes?: number } | null }).metadata;
+                    const durationMin = Number(md?.duration_minutes ?? slotDurationMin);
                     const mdBrt = toBrt(new Date(di));
                     const yyyy = mdBrt.getUTCFullYear();
                     const mm = String(mdBrt.getUTCMonth() + 1).padStart(2, "0");
                     const dd = String(mdBrt.getUTCDate()).padStart(2, "0");
-                    const hh = String(mdBrt.getUTCHours()).padStart(2, "0");
-                    const mi = String(mdBrt.getUTCMinutes()).padStart(2, "0");
-                    occupied.add(`${yyyy}-${mm}-${dd}T${hh}:${mi}:00`);
+                    const startMin = mdBrt.getUTCHours() * 60 + mdBrt.getUTCMinutes();
+                    const endMin = startMin + durationMin;
+                    const isoDate = `${yyyy}-${mm}-${dd}`;
+                    const arr = busyByDay.get(isoDate) || [];
+                    arr.push({ startMin, endMin });
+                    busyByDay.set(isoDate, arr);
                   }
                 }
               } catch (e) {
                 console.warn("[v2] trigger: exception lendo tarefas:", (e as Error).message);
               }
 
-              const free = candidates.filter((c) => !occupied.has(c.iso));
-              slotsConflictsExcluded = candidates.length - free.length;
+              // Calcula ranges contínuos livres por dia (subtrai reuniões das janelas)
+              const dayRanges = calculateFreeRanges(windows, busyByDay, daysList, slotDurationMin);
 
-              // Distribui slots em ORDEM CRONOLÓGICA: primeiro horário do
-              // primeiro dia útil, depois sequência. Até `maxPerDay` por dia,
-              // até `maxDays` dias, total <= `totalSlots`.
-              //
-              // Se a agenda estiver cheia e não houver slots livres suficientes
-              // nos primeiros `maxDays` úteis, o loop natural avança pelos
-              // próximos dias (até search_window_days) — NÃO inventa horários.
-              // Lead que não receber slot suficiente fica sob responsabilidade
-              // do LLM (pede mais opções, esclarece, etc).
-              const freeByDate = new Map<string, Slot[]>();
-              for (const c of free) {
-                const arr = freeByDate.get(c.date);
-                if (arr) arr.push(c);
-                else freeByDate.set(c.date, [c]);
-              }
-              const finalSlots: Slot[] = [];
-              let daysUsed = 0;
-              for (const [, slotsThisDate] of freeByDate) {
-                if (finalSlots.length >= totalSlots) break;
-                if (daysUsed >= maxDays) break;
-                let pickedThisDay = 0;
-                for (const slot of slotsThisDate) {
-                  if (pickedThisDay >= maxPerDay) break;
-                  if (finalSlots.length >= totalSlots) break;
-                  finalSlots.push(slot);
-                  pickedThisDay++;
-                }
-                if (pickedThisDay > 0) daysUsed++;
-              }
-              // Sem fallback genérico. Se agenda real está vazia, finalSlots
-              // fica curto (ou vazio) — LLM trata na resposta. Nunca inventar
-              // horário fixo só pra preencher.
-
-              proposedSlots = finalSlots.map((s) => ({
-                date: s.date,
-                time: s.time,
-                weekday: s.weekday,
+              availableRanges = dayRanges.map((d) => ({
+                date: d.date,
+                weekday: d.weekday,
+                iso_date: d.iso_date,
+                ranges: d.ranges.map((r) => ({
+                  startMin: r.startMin,
+                  endMin: r.endMin,
+                  from: minutesToTime(r.startMin),
+                  to: minutesToTime(r.endMin),
+                })),
               }));
+
+              // Snapshot pra auditoria: total de minutos ocupados pelos conflitos
+              slotsConflictsExcluded = Array.from(busyByDay.values())
+                .reduce((acc, arr) => acc + arr.length, 0);
+
+              // Mantém proposed_slots vazio (esquema antigo, agora usamos available_ranges)
+              proposedSlots = null;
             }
             if (qualificationResult) {
               console.log(`[v2] trigger: desfecho forçado moment=${forcedMomentKey} score=${qualificationResult.score} qualificado=${qualificationResult.qualificado} threshold=${threshold}`);
@@ -1331,9 +1314,9 @@ Deno.serve(async (req) => {
       "update_contact",
       "assign_tag",
     ];
-    // create_task é exposta SÓ fora do desfecho_qualificado com slots
+    // create_task é exposta SÓ fora do desfecho_qualificado com ranges
     // (confunde LLM, observado 2026-05-13).
-    if (!(forcedMomentKey === "desfecho_qualificado" && proposedSlots && proposedSlots.length > 0)) {
+    if (!(forcedMomentKey === "desfecho_qualificado" && availableRanges && availableRanges.length > 0)) {
       availableTools.push("create_task");
     }
     // Só expor calculate_qualification_score se o router NÃO já calculou.
@@ -1382,6 +1365,7 @@ Deno.serve(async (req) => {
         forced_moment_key: forcedMomentKey,
         qualification_result: qualificationResult,
         proposed_slots: proposedSlots,
+        available_ranges: availableRanges,
         // Fix 1.3 + 1.4 (2026-05-24) — passar facts do self_analysis turn anterior pro turn_policy
         last_lead_intent: (previousVars.last_lead_intent as "explorando" | "qualificando" | "objetando" | "pronto_pra_fechar" | undefined) ?? null,
         contradicao_detectada: (previousVars.last_contradicao_detectada as { campos?: string[]; descricao?: string } | undefined) ?? null,
