@@ -186,6 +186,18 @@ export type Ww2DrillRow = {
   origem: string
   dias_parado: number
   motivo_perda: string | null
+  // Enriquecimentos da Onda 1 (migration 20260527s_ww2_drill_down_enrich)
+  contato_id: string | null
+  contato_nome: string | null
+  contato_email: string | null
+  contato_telefone: string | null
+  contato_external_id: string | null
+  data_venda: string | null
+  monde_venda: string | null
+  tipo_casamento: string | null
+  campaign: string | null
+  medium: string | null
+  content: string | null
 }
 
 export type Ww2DrillDown = {
@@ -278,6 +290,11 @@ export type DrillFilters = {
   origem?: string
   consultorId?: string
   motivoPerda?: string
+  // Filtros para drill em cruzamentos das próximas ondas (filtragem client-side
+  // após o fetch — a RPC ww2_drill_down não conhece esses campos ainda):
+  tipo?: string
+  campaign?: string
+  medium?: string
   limit?: number
   offset?: number
 }
