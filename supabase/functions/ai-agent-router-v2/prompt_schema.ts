@@ -92,6 +92,7 @@ export const SINGLE_AGENT_OUTPUT_SCHEMA = {
                   "calculate_qualification_score",
                   "search_knowledge_base",
                   "check_calendar",
+                  "confirm_meeting_slot",
                   "request_handoff",
                   "update_contact",
                   "assign_tag",
@@ -223,6 +224,7 @@ export interface SingleAgentOutput {
       | "calculate_qualification_score"
       | "search_knowledge_base"
       | "check_calendar"
+      | "confirm_meeting_slot"
       | "request_handoff"
       | "update_contact"
       | "assign_tag"
