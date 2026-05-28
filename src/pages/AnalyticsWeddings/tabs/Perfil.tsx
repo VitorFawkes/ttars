@@ -52,8 +52,25 @@ export function Perfil() {
   const topHist = data.top_perfis_historico ?? []
   const topAtual = data.top_perfis_atual ?? []
 
+  const fonteV2 = (data as unknown as { fonte_v2?: string })?.fonte_v2
+
   return (
     <div className="space-y-5">
+      {fonteV2 && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-emerald-900">
+          <div className="flex items-start gap-3">
+            <span className="text-emerald-600 text-lg">✨</span>
+            <div className="flex-1">
+              <p className="font-medium">Histórico vem do ActiveCampaign direto</p>
+              <p className="text-emerald-700 text-xs mt-1">
+                {data.total_historico} casamentos fechados (universo lógica weddings-kpi.vercel.app) × {data.total_atual} leads novos no CRM.
+                Mesma fonte de verdade que o site dashboard usa, agora com perfil de entrada (form do casal: orçamento + convidados + destino).
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Header
         data={data}
         atualStart={atualStart} atualEnd={atualEnd}

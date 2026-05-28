@@ -25,6 +25,7 @@ export function EntradaRealidade() {
 
   return (
     <div className="space-y-5">
+      <FonteV2Banner data={data} />
       <UniversoHeader data={data} />
       <BreakdownTipo data={data} onTipoClick={(tipo) => setDrill({ ...baseCtx, tipo, status: 'ganho', title: `Casais — ${tipo} fechados` })} />
 
@@ -70,6 +71,29 @@ export function EntradaRealidade() {
       <DriftPorMes data={data} />
       <VendasFechadasList data={data} />
       <DrillDrawer ctx={drill} onClose={() => setDrill(null)} />
+    </div>
+  )
+}
+
+// ─── Banner explicando nova fonte (AC direto vs CRM defasado) ──────────────
+function FonteV2Banner({ data }: { data: WwDriftVenda }) {
+  // Se backend retornou fonte_v2, mostra banner explicativo
+  const fonteV2 = (data as unknown as { fonte_v2?: string })?.fonte_v2
+  if (!fonteV2) return null
+  return (
+    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-emerald-900">
+      <div className="flex items-start gap-3">
+        <span className="text-emerald-600 text-lg">✨</span>
+        <div className="flex-1">
+          <p className="font-medium">Fonte: ActiveCampaign direto (snapshot 28/05/2026)</p>
+          <p className="text-emerald-700 text-xs mt-1">
+            Universo de {data.total_fechados ?? 150} casamentos fechados — mesma lógica do{' '}
+            <a href="https://weddings-kpi.vercel.app/" target="_blank" rel="noreferrer" className="underline">weddings-kpi.vercel.app</a>
+            {' '}+ <strong>orçamento total real</strong> (contato AC field 376) e <strong>previsão de convidados</strong> (field 121).
+            O CRM continua defasado pra esses ganhos antigos, mas a análise aqui usa AC como fonte de verdade.
+          </p>
+        </div>
+      </div>
     </div>
   )
 }

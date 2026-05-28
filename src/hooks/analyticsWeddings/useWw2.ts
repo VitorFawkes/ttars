@@ -702,8 +702,8 @@ export type WwDriftVenda = {
 export function useWwDriftVenda(filters: Ww2Filters) {
   const orgId = useOrgId()
   return useQuery({
-    queryKey: ['ww', 'drift-venda', orgId, filters.dateStart, filters.dateEnd, filters.dateMode, filters.origins, filters.tipos],
-    queryFn: () => callRpc<WwDriftVenda>('ww_drift_venda', {
+    queryKey: ['ww', 'drift-venda-v2', orgId, filters.dateStart, filters.dateEnd, filters.dateMode, filters.origins, filters.tipos],
+    queryFn: () => callRpc<WwDriftVenda>('ww_v2_drift_venda', {
       p_date_start: filters.dateStart,
       p_date_end: filters.dateEnd,
       p_org_id: orgId,
@@ -828,8 +828,8 @@ export function useWwLeadIdeal(params: WwLeadIdealParams) {
   const minAmostra = params.minAmostra ?? 2
   const usaJanelaCustom = !!(params.historicoStart && params.historicoEnd)
   return useQuery({
-    queryKey: ['ww', 'lead-ideal', orgId, params.atualStart, params.atualEnd, params.historicoStart ?? null, params.historicoEnd ?? null, params.historicoMeses ?? 12, minAmostra],
-    queryFn: () => callRpc<WwLeadIdealData>('ww_perfil_lead_ideal', {
+    queryKey: ['ww', 'lead-ideal-v2', orgId, params.atualStart, params.atualEnd, params.historicoStart ?? null, params.historicoEnd ?? null, params.historicoMeses ?? 12, minAmostra],
+    queryFn: () => callRpc<WwLeadIdealData>('ww_v2_lead_ideal', {
       p_atual_start: params.atualStart,
       p_atual_end: params.atualEnd,
       p_org_id: orgId,
@@ -956,5 +956,75 @@ export function useWw2FilterOptions() {
     queryFn: () => callRpc<Ww2FilterOptions>('ww2_filter_options', { p_org_id: orgId }),
     enabled: !!orgId,
     staleTime: 5 * 60_000,
+  })
+}
+
+// ── Funil por Perfil (ww_funil_conversao_v1) ───────────────────────────────
+// Compara funil filtrado (por preenchimento) vs baseline (todos do período).
+// Fonte: campos AC sincronizados em cards.produto_data via integration_field_map.
+// Documentação dos 6 marcos: ver migration 20260528a_ww_funil_conversao_v1.sql.
+
+export type WwFunilMarcos = {
+  entrou: number
+  marcou_sdr: number
+  fez_sdr: number
+  marcou_closer: number
+  fez_closer: number
+  ganho: number
+}
+
+export type WwFunilConversaoData = {
+  periodo: { date_start: string; date_end: string; date_mode: 'cohort' | 'throughput' }
+  pipeline_id: string
+  org_id: string
+  filtros_aplicados: {
+    faixas: string[] | null
+    convidados: string[] | null
+    destinos: string[] | null
+    origins: string[] | null
+    tipos: string[] | null
+    consultor_ids: string[] | null
+  }
+  ac_sync: {
+    last_event_at: string | null
+    minutes_ago: number | null
+    status: 'recent' | 'stale' | 'very_stale' | 'unknown'
+  }
+  baseline: WwFunilMarcos
+  filtrado: WwFunilMarcos
+  baseline_total: number
+  filtrado_total: number
+  distincts_disponiveis: { faixas: number; convidados: number; destinos: number }
+  tem_filtro_preenchimento: boolean
+  error?: string
+}
+
+export type WwFunilConversaoParams = Ww2Filters & {
+  convidados?: string[]
+}
+
+export function useWwFunilConversao(params: WwFunilConversaoParams) {
+  const orgId = useOrgId()
+  return useQuery({
+    queryKey: [
+      'ww', 'funil-conversao-v2', orgId,
+      params.dateStart, params.dateEnd, params.dateMode,
+      params.faixas, params.convidados, params.destinos,
+      params.origins, params.tipos, params.consultorIds,
+    ],
+    queryFn: () => callRpc<WwFunilConversaoData>('ww_v2_funil_conversao', {
+      p_date_start: params.dateStart,
+      p_date_end: params.dateEnd,
+      p_date_mode: params.dateMode,
+      p_org_id: orgId,
+      p_faixas: params.faixas?.length ? params.faixas : null,
+      p_convidados: params.convidados?.length ? params.convidados : null,
+      p_destinos: params.destinos?.length ? params.destinos : null,
+      p_origins: params.origins?.length ? params.origins : null,
+      p_tipos: params.tipos?.length ? params.tipos : null,
+      p_consultor_ids: params.consultorIds?.length ? params.consultorIds : null,
+    }),
+    enabled: !!orgId,
+    staleTime: 60_000,
   })
 }

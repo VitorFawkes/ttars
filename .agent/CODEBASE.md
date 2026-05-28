@@ -5,12 +5,12 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-05-27
+> **Last Updated:** 2026-05-28
 > **Trigger:** ALWAYS ON
-> **Stats:** 219 tabelas | 224 paginas | 375 hooks | 26 views | 851 components
-> **Last Updated:** 2026-05-27
+> **Stats:** 220 tabelas | 225 paginas | 375 hooks | 26 views | 851 components
+> **Last Updated:** 2026-05-28
 > **Trigger:** ALWAYS ON
-> **Stats:** 219 tabelas | 224 paginas | 375 hooks | 26 views | 851 components
+> **Stats:** 220 tabelas | 225 paginas | 375 hooks | 26 views | 851 components
 
 ---
 
@@ -626,7 +626,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **224 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **225 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -646,6 +646,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `AnalyticsWeddingsPage` | `src/pages/AnalyticsWeddings/AnalyticsWeddingsPage.tsx` |
 | `EntradaRealidade` | `src/pages/AnalyticsWeddings/tabs/EntradaRealidade.tsx` |
 | `Equipe` | `src/pages/AnalyticsWeddings/tabs/Equipe.tsx` |
+| `FunilPerfil` | `src/pages/AnalyticsWeddings/tabs/FunilPerfil.tsx` |
 | `Jornada` | `src/pages/AnalyticsWeddings/tabs/Jornada.tsx` |
 | `Marketing` | `src/pages/AnalyticsWeddings/tabs/Marketing.tsx` |
 | `Perdas` | `src/pages/AnalyticsWeddings/tabs/Perdas.tsx` |
