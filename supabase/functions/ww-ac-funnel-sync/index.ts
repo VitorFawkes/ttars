@@ -28,15 +28,21 @@ const corsHeaders = {
 }
 
 const WW_PIPELINE_GROUPS = new Set([1, 3, 4, 5, 9, 10, 11, 12, 14, 17, 18, 19, 21, 22, 23])
-const FIELD_SDR_AGENDOU = '6'
-const FIELD_SDR_COMO    = '17'
-const FIELD_CLOSER_AGEN = '18'
-const FIELD_CLOSER_COMO = '299'
-const FIELD_GANHO       = '87'
-const RELEVANT_FIELDS = new Set([FIELD_SDR_AGENDOU, FIELD_SDR_COMO, FIELD_CLOSER_AGEN, FIELD_CLOSER_COMO, FIELD_GANHO])
+const FIELD_SDR_AGENDOU      = '6'
+const FIELD_SDR_COMO         = '17'
+const FIELD_CLOSER_AGEN      = '18'
+const FIELD_CLOSER_COMO      = '299'
+const FIELD_GANHO            = '87'
+const FIELD_DEAL_PACOTE_CONV = '62'  // Fallback de convidados quando Contact 121 vazio
+const RELEVANT_FIELDS = new Set([FIELD_SDR_AGENDOU, FIELD_SDR_COMO, FIELD_CLOSER_AGEN, FIELD_CLOSER_COMO, FIELD_GANHO, FIELD_DEAL_PACOTE_CONV])
+
+// Contact fields (Welcome Form pós-venda)
+const CONTACT_FIELD_CONVIDADOS = '121'  // DW - Previsão nº de convidados
+const CONTACT_FIELD_ORCAMENTO  = '376'  // DW - Qual o orçamento total do casamento
 
 type DealCustomFieldData = { dealId: number; customFieldId: number; fieldValue: string | null }
 type Deal = { id: string; group: string | null; title: string | null; contact?: string | null }
+type ContactFieldValue = { contact: string; field: string; value: string | null }
 
 function parseDateTime(v: string | null | undefined): string | null {
   if (!v) return null
@@ -80,6 +86,37 @@ function closerFromDropdown(v: string | null | undefined): { fez: boolean; canal
   const lower = trimmed.toLowerCase()
   if (lower === 'não teve reunião') return { fez: false, canal: trimmed }
   return { fez: true, canal: trimmed }
+}
+
+// Parser de orçamento (textarea livre): "70mil", "R$80.000,00", "130 mil para tudo" → R$
+function parseOrcamento(text: string | null | undefined): number | null {
+  if (!text) return null
+  const t = text.toLowerCase().trim()
+  if (/nao sei|não sei|nao tenho|não tenho|nao defini|não defini|depende|nao deci|não deci/.test(t)) return null
+  const matches = [...t.matchAll(/(\d+(?:[\.,]\d+)*)/g)]
+  if (!matches.length) return null
+  const parsed: number[] = []
+  for (const m of matches) {
+    const nclean = m[1].replace(/\./g, '').replace(/,/g, '.')
+    let val = parseFloat(nclean)
+    if (isNaN(val)) continue
+    const idx = (m.index ?? 0) + m[1].length
+    const following = t.substring(idx, idx + 15)
+    if (/mil/.test(following)) val *= 1000
+    else if (/milh/.test(following)) val *= 1000000
+    parsed.push(val)
+  }
+  if (!parsed.length) return null
+  return Math.max(...parsed)
+}
+
+function parseConvidados(text: string | null | undefined): number | null {
+  if (!text) return null
+  const m = text.match(/\d+/)
+  if (!m) return null
+  const v = parseInt(m[0], 10)
+  if (v > 0 && v < 5000) return v
+  return null
 }
 
 Deno.serve(async (req) => {
@@ -175,6 +212,45 @@ Deno.serve(async (req) => {
       batch.forEach((id, idx) => dealMeta.set(id, results[idx]))
     }
 
+    // ── Passo 2.5: buscar contact fields 121/376 dos contatos primários ───
+    // Só pra deals WW (universo relevante pra Entrada × Realidade)
+    const contactsToFetch = new Set<string>()
+    for (const id of dealIds) {
+      const deal = dealMeta.get(id)
+      const gid = deal?.group ? parseInt(deal.group, 10) : null
+      if (gid && WW_PIPELINE_GROUPS.has(gid) && deal?.contact) {
+        contactsToFetch.add(String(deal.contact))
+      }
+    }
+    console.log(`Buscando fields 376/121 de ${contactsToFetch.size} contatos WW...`)
+
+    const contactFields = new Map<string, { f376?: string; f121?: string }>()
+    async function fetchContactFields(cid: string): Promise<void> {
+      try {
+        const j = await acFetch<{ fieldValues?: ContactFieldValue[] }>(`/api/3/contacts/${cid}?include=fieldValues`)
+        const fvs = j.fieldValues ?? []
+        const out: { f376?: string; f121?: string } = {}
+        for (const fv of fvs) {
+          const fid = String(fv.field)
+          const v = (fv.value ?? '').trim()
+          if (!v || v === '||') continue
+          if (fid === CONTACT_FIELD_ORCAMENTO) out.f376 = v
+          else if (fid === CONTACT_FIELD_CONVIDADOS) out.f121 = v
+        }
+        contactFields.set(cid, out)
+      } catch (e) {
+        console.warn(`contact ${cid} fetch failed:`, (e as Error).message)
+        contactFields.set(cid, {})
+      }
+    }
+
+    const contactList = Array.from(contactsToFetch)
+    const CONTACT_CONC = 15
+    for (let i = 0; i < contactList.length; i += CONTACT_CONC) {
+      const batch = contactList.slice(i, i + CONTACT_CONC)
+      await Promise.all(batch.map(c => fetchContactFields(c)))
+    }
+
     // ── Passo 3: montar rows pra upsert ───────────────────────────────────
     const rows = dealIds.map(id => {
       const data = dealData.get(id)!
@@ -187,6 +263,20 @@ Deno.serve(async (req) => {
       const sdrFez = sdrChannels.length > 0 && hasRealMeeting(sdrChannels)
       const sdrCanal = realMeetingChannels(sdrChannels)
       const closer = closerFromDropdown(closerComoRaw)
+      // Realidade do casal — Welcome Form (só pra deals WW)
+      const cid = deal?.contact ? String(deal.contact) : null
+      const cFields = cid && isWw ? contactFields.get(cid) : undefined
+      const orcamentoRaw = cFields?.f376 ?? null
+      // Convidados: Contact 121 (primary) ou Deal 62 (fallback)
+      let convidadosRaw: string | null = cFields?.f121 ?? null
+      let convidadosFonte: string | null = convidadosRaw ? 'contact_121' : null
+      if (isWw && !convidadosRaw && data[FIELD_DEAL_PACOTE_CONV]) {
+        convidadosRaw = data[FIELD_DEAL_PACOTE_CONV]
+        convidadosFonte = 'deal_62'
+      }
+      const orcamentoParsed = parseOrcamento(orcamentoRaw)
+      const convidadosParsed = parseConvidados(convidadosRaw)
+
       return {
         ac_deal_id: id,
         contact_id: deal?.contact ?? null,
@@ -200,6 +290,12 @@ Deno.serve(async (req) => {
         closer_fez: closer.fez,
         closer_canal: closer.canal,
         ganho_at: parseDateTime(data[FIELD_GANHO]),
+        real_orcamento_raw: orcamentoRaw,
+        real_orcamento_parsed: orcamentoParsed,
+        real_convidados_raw: convidadosRaw,
+        real_convidados_parsed: convidadosParsed,
+        real_convidados_fonte: convidadosFonte,
+        real_dados_synced_at: isWw ? new Date().toISOString() : null,
         synced_at: new Date().toISOString(),
       }
     })
