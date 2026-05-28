@@ -1086,3 +1086,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-28T14:02:00Z | supabase/migrations/20260528s_ww_v2_drift_lead_ideal_paridade.sql | applied_to_prod
 2026-05-28T14:03:43Z | supabase/migrations/20260528s_ww_v2_drift_lead_ideal_paridade.sql | applied_to_prod
 2026-05-28T16:26:12Z | supabase/migrations/20260528t_ww_ac_funnel_real_casal.sql | applied_to_prod
+2026-05-28T16:44:10Z | supabase/migrations/20260528u_ww_v2_drift_v3_realidade_casal.sql | applied_to_prod
