@@ -1070,3 +1070,7 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-28T11:19:01Z | supabase/migrations/20260528d_ww_v2_drift_venda.sql | applied_to_prod
 2026-05-28T11:19:20Z | supabase/migrations/20260528e_ww_v2_lead_ideal.sql | applied_to_prod
 2026-05-28T11:19:39Z | supabase/migrations/20260528f_ww_v2_funil_conversao.sql | applied_to_prod
+2026-05-28T11:45:37Z | supabase/migrations/20260528g_ww_v2_reconcile_field87.sql | applied_to_prod
+2026-05-28T11:45:56Z | supabase/migrations/20260528h_ww_v2_insert_11_new.sql | applied_to_prod
+2026-05-28T12:20:31Z | supabase/migrations/20260528i_ww_closer_data_reuniao_field.sql | applied_to_prod
+2026-05-28T12:23:42Z | supabase/migrations/20260528j_ww_funil_perfil_slot.sql | applied_to_prod

@@ -161,7 +161,8 @@ BEGIN
         - 'numero_venda_monde'
         - 'numeros_venda_monde_historico'
         - 'taxa_planejamento'
-        - 'orcamento';
+        - 'orcamento'
+        - 'data_prevista_fechamento';
 
     -- 4. Criar o sub-card
     INSERT INTO cards (
