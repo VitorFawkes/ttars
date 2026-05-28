@@ -1028,3 +1028,122 @@ export function useWwFunilConversao(params: WwFunilConversaoParams) {
     staleTime: 60_000,
   })
 }
+
+// ── Funil por Perfil — Slot (nova lógica 2026-05-28) ───────────────────────
+// 6 marcos com lógica estrita revisada:
+//   marcou_sdr    = ww_sdr_data_reuniao preenchido
+//   fez_sdr       = ww_sdr_como_reuniao não vazio AND não "[]" AND não contém "Não teve reunião"
+//   marcou_closer = ww_closer_data_reuniao preenchido
+//   fez_closer    = ww_closer_como_reuniao não vazio
+//   ganho         = card no cache AC OR status_comercial='ganho'
+// Monotonicidade upward closure aplicada na agregação.
+// Ver migration 20260528j_ww_funil_perfil_slot.sql
+
+export type WwSlotPopulacao = 'ganhos' | 'em_jogo' | 'todos'
+export type WwSlotDateAxis = 'entry' | 'won'
+export type WwSlotSegmentBy = 'none' | 'convidados' | 'investimento' | 'destino'
+
+export type WwSlotMarcos = {
+  entrou: number
+  marcou_sdr: number
+  fez_sdr: number
+  marcou_closer: number
+  fez_closer: number
+  ganho: number
+}
+
+export type WwSlotSegment = {
+  bucket: string
+  total: number
+  marcos: WwSlotMarcos
+}
+
+export type WwTempoBucket = {
+  amostra: number
+  lt3: number
+  d3_7: number
+  d7_15: number
+  d15_30: number
+  ge30: number
+}
+
+export type WwSlotTempos = {
+  entrou_marcou_sdr?: WwTempoBucket
+  marcou_sdr_marcou_closer?: WwTempoBucket
+  marcou_closer_ganho?: WwTempoBucket
+}
+
+export type WwSlotParado = { total: number; parados: number }
+export type WwSlotParados = Record<string, WwSlotParado>
+
+export type WwSlotTopCombo = {
+  faixa: string
+  convidados: string
+  destino: string
+  qtd: number
+  pct: number | null
+}
+
+export type WwSlotData = {
+  config: {
+    populacao: WwSlotPopulacao
+    date_axis: WwSlotDateAxis
+    date_start: string
+    date_end: string
+    segment_by: WwSlotSegmentBy
+    dias_parado: number
+  }
+  pipeline_id: string
+  org_id: string
+  total: number
+  marcos: WwSlotMarcos
+  segments: WwSlotSegment[] | null
+  tempos: WwSlotTempos
+  parados: WwSlotParados | null
+  top_combos: WwSlotTopCombo[] | null
+  error?: string
+}
+
+export type WwSlotParams = {
+  populacao: WwSlotPopulacao
+  dateAxis: WwSlotDateAxis
+  dateStart: string
+  dateEnd: string
+  segmentBy: WwSlotSegmentBy
+  faixas?: string[]
+  convidados?: string[]
+  destinos?: string[]
+  origins?: string[]
+  tipos?: string[]
+  consultorIds?: string[]
+  diasParado?: number
+}
+
+export function useWwFunilSlot(params: WwSlotParams) {
+  const orgId = useOrgId()
+  return useQuery({
+    queryKey: [
+      'ww', 'funil-slot', orgId,
+      params.populacao, params.dateAxis, params.dateStart, params.dateEnd,
+      params.segmentBy, params.faixas, params.convidados, params.destinos,
+      params.origins, params.tipos, params.consultorIds, params.diasParado ?? 14,
+    ],
+    queryFn: () => callRpc<WwSlotData>('ww_funil_perfil_slot', {
+      p_populacao: params.populacao,
+      p_date_axis: params.dateAxis,
+      p_date_start: params.dateStart,
+      p_date_end: params.dateEnd,
+      p_org_id: orgId,
+      p_segment_by: params.segmentBy,
+      p_faixas: params.faixas?.length ? params.faixas : null,
+      p_convidados: params.convidados?.length ? params.convidados : null,
+      p_destinos: params.destinos?.length ? params.destinos : null,
+      p_origins: params.origins?.length ? params.origins : null,
+      p_tipos: params.tipos?.length ? params.tipos : null,
+      p_consultor_ids: params.consultorIds?.length ? params.consultorIds : null,
+      p_dias_parado: params.diasParado ?? 14,
+    }),
+    enabled: !!orgId,
+    staleTime: 60_000,
+  })
+}

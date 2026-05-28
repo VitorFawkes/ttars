@@ -1,0 +1,408 @@
+-- ============================================================================
+-- ww_funil_perfil_slot — RPC para nova aba "Funil por perfil" (2 slots independentes)
+--
+-- Cada chamada retorna um único "slot" (lado A ou B). Frontend chama 2× em paralelo.
+--
+-- Lógica nova dos 6 marcos (revisada por Vitor 2026-05-28):
+--   entrou        = card existe
+--   marcou_sdr    = produto_data->>'ww_sdr_data_reuniao' não vazio
+--   fez_sdr       = produto_data->>'ww_sdr_como_reuniao' não é NULL/vazio/"[]"/contém "Não teve reunião"
+--                   (o valor é armazenado como string JSON tipo '["Vídeo"]' pelo AC sync)
+--   marcou_closer = produto_data->>'ww_closer_data_reuniao' não vazio
+--   fez_closer    = produto_data->>'ww_closer_como_reuniao' não vazio
+--   ganho         = card resolvido via cache AC (ww_v2_casamentos_cache → contatos.external_id)
+--
+-- Monotonicidade: ganho=TRUE força fez_closer=TRUE → marcou_closer=TRUE → ... → marcou_sdr=TRUE
+--
+-- População (p_populacao):
+--   'ganhos'  — só cards com ganho=TRUE. Eixo de data via p_date_axis (entry|won).
+--   'em_jogo' — só cards com ganho=FALSE AND status_comercial='aberto'. Ignora período.
+--   'todos'   — qualquer status. Eixo de data = entry (created_at).
+--
+-- Retorno: total, marcos, segments (opcional), tempos_buckets, parados, top_combos.
+-- ============================================================================
+
+DROP FUNCTION IF EXISTS public.ww_funil_perfil_slot(TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT, TEXT[], TEXT[], TEXT[], TEXT[], TEXT[], UUID[], INT);
+
+CREATE FUNCTION public.ww_funil_perfil_slot(
+    p_populacao    TEXT        DEFAULT 'todos',     -- 'ganhos' | 'em_jogo' | 'todos'
+    p_date_axis    TEXT        DEFAULT 'entry',     -- 'entry' | 'won'
+    p_date_start   TIMESTAMPTZ DEFAULT (NOW() - INTERVAL '365 days'),
+    p_date_end     TIMESTAMPTZ DEFAULT NOW(),
+    p_org_id       UUID        DEFAULT NULL,
+    p_segment_by   TEXT        DEFAULT 'none',      -- 'none' | 'convidados' | 'investimento' | 'destino'
+    p_faixas       TEXT[]      DEFAULT NULL,
+    p_convidados   TEXT[]      DEFAULT NULL,
+    p_destinos     TEXT[]      DEFAULT NULL,
+    p_origins      TEXT[]      DEFAULT NULL,
+    p_tipos        TEXT[]      DEFAULT NULL,
+    p_consultor_ids UUID[]     DEFAULT NULL,
+    p_dias_parado  INT         DEFAULT 14
+)
+RETURNS JSON
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public'
+AS $func$
+DECLARE
+    v_org_id      UUID := COALESCE(p_org_id, requesting_org_id());
+    v_pipeline_id UUID;
+    v_total       INT;
+    v_marcos      JSON;
+    v_segments    JSON;
+    v_tempos      JSON;
+    v_parados     JSON;
+    v_top_combos  JSON;
+BEGIN
+    SELECT id INTO v_pipeline_id FROM pipelines WHERE produto::TEXT='WEDDING' AND org_id=v_org_id LIMIT 1;
+    IF v_pipeline_id IS NULL THEN
+        RETURN json_build_object('error', 'Pipeline WEDDING não encontrado para org_id ' || v_org_id);
+    END IF;
+
+    -- ── Set dos cards "ganho" pelo cache AC ────────────────────────────────
+    CREATE TEMP TABLE _slot_ganho_cards ON COMMIT DROP AS
+    SELECT DISTINCT cd.id AS card_id, cache.data_ganho
+      FROM ww_v2_casamentos_cache cache
+      JOIN contatos co ON co.external_id = cache.contact_id
+                       AND co.external_source = 'active_campaign'
+      JOIN cards cd ON cd.pessoa_principal_id = co.id
+     WHERE cd.deleted_at IS NULL AND cd.archived_at IS NULL
+       AND cd.produto::TEXT = 'WEDDING'
+       AND cd.org_id = v_org_id;
+
+    -- ── Pool base ──────────────────────────────────────────────────────────
+    CREATE TEMP TABLE _slot_pool ON COMMIT DROP AS
+    SELECT
+        c.id, c.created_at, c.updated_at, c.status_comercial,
+        _ww2_norm_faixa_strict(c.produto_data->>'ww_mkt_orcamento_form') AS faixa,
+        _ww2_norm_conv_strict (c.produto_data->>'ww_mkt_convidados_form') AS convidados,
+        _ww2_norm_dest_strict (c.produto_data->>'ww_mkt_destino_form')   AS destino,
+        _ww2_norm_origem(c.marketing_data) AS origem,
+        NULLIF(c.produto_data->>'ww_tipo_casamento','') AS tipo,
+        c.dono_atual_id AS consultor_id,
+        -- Raw fields
+        NULLIF(c.produto_data->>'ww_sdr_data_reuniao','')    AS sdr_data_raw,
+        NULLIF(c.produto_data->>'ww_sdr_como_reuniao','')    AS sdr_como_raw,
+        NULLIF(c.produto_data->>'ww_closer_data_reuniao','') AS closer_data_raw,
+        NULLIF(c.produto_data->>'ww_closer_como_reuniao','') AS closer_como_raw
+      FROM cards c
+     WHERE c.deleted_at IS NULL AND c.archived_at IS NULL
+       AND c.produto::TEXT = 'WEDDING'
+       AND c.org_id = v_org_id;
+
+    -- Colunas calculadas
+    ALTER TABLE _slot_pool ADD COLUMN sdr_data_ts TIMESTAMPTZ;
+    ALTER TABLE _slot_pool ADD COLUMN closer_data_ts TIMESTAMPTZ;
+    ALTER TABLE _slot_pool ADD COLUMN ganho_at TIMESTAMPTZ;
+    ALTER TABLE _slot_pool ADD COLUMN marcou_sdr BOOLEAN DEFAULT FALSE;
+    ALTER TABLE _slot_pool ADD COLUMN fez_sdr BOOLEAN DEFAULT FALSE;
+    ALTER TABLE _slot_pool ADD COLUMN marcou_closer BOOLEAN DEFAULT FALSE;
+    ALTER TABLE _slot_pool ADD COLUMN fez_closer BOOLEAN DEFAULT FALSE;
+    ALTER TABLE _slot_pool ADD COLUMN ganho BOOLEAN DEFAULT FALSE;
+
+    -- Parse timestamps + flags brutas (estritas conforme decisão do Vitor)
+    UPDATE _slot_pool SET
+        sdr_data_ts = CASE
+            WHEN sdr_data_raw ~ '^\d{4}-\d{2}-\d{2}' THEN
+              (CASE WHEN sdr_data_raw ~ 'T' THEN sdr_data_raw::TIMESTAMPTZ
+                    ELSE (sdr_data_raw || 'T00:00:00Z')::TIMESTAMPTZ END)
+            ELSE NULL END,
+        closer_data_ts = CASE
+            WHEN closer_data_raw ~ '^\d{4}-\d{2}-\d{2}' THEN
+              (CASE WHEN closer_data_raw ~ 'T' THEN closer_data_raw::TIMESTAMPTZ
+                    ELSE (closer_data_raw || 'T00:00:00Z')::TIMESTAMPTZ END)
+            ELSE NULL END,
+        marcou_sdr    = sdr_data_raw IS NOT NULL,
+        fez_sdr       = sdr_como_raw IS NOT NULL
+                     AND sdr_como_raw <> ''
+                     AND sdr_como_raw <> '[]'
+                     AND sdr_como_raw NOT ILIKE '%Não teve reunião%',
+        marcou_closer = closer_data_raw IS NOT NULL,
+        fez_closer    = closer_como_raw IS NOT NULL AND closer_como_raw <> ''
+    WHERE id IS NOT NULL;
+
+    -- Aplicar cache AC para ganho + data_ganho
+    UPDATE _slot_pool p
+       SET ganho = TRUE,
+           ganho_at = gc.data_ganho
+      FROM _slot_ganho_cards gc
+     WHERE p.id = gc.card_id;
+
+    -- Status_comercial='ganho' também conta como ganho (fallback)
+    UPDATE _slot_pool SET ganho = TRUE WHERE status_comercial = 'ganho' AND NOT ganho;
+
+    -- Monotonicidade upward closure
+    UPDATE _slot_pool SET fez_closer    = TRUE WHERE ganho;
+    UPDATE _slot_pool SET marcou_closer = TRUE WHERE fez_closer;
+    UPDATE _slot_pool SET fez_sdr       = TRUE WHERE marcou_closer;
+    UPDATE _slot_pool SET marcou_sdr    = TRUE WHERE fez_sdr;
+
+    -- ── Filtros por população + período ───────────────────────────────────
+    IF p_populacao = 'ganhos' THEN
+        DELETE FROM _slot_pool WHERE NOT ganho;
+        IF p_date_axis = 'won' THEN
+            DELETE FROM _slot_pool WHERE ganho_at IS NULL OR ganho_at NOT BETWEEN p_date_start AND p_date_end;
+        ELSE
+            DELETE FROM _slot_pool WHERE created_at NOT BETWEEN p_date_start AND p_date_end;
+        END IF;
+    ELSIF p_populacao = 'em_jogo' THEN
+        DELETE FROM _slot_pool WHERE ganho OR status_comercial <> 'aberto';
+        -- Não filtra por período
+    ELSE -- 'todos'
+        DELETE FROM _slot_pool WHERE created_at NOT BETWEEN p_date_start AND p_date_end;
+    END IF;
+
+    -- ── Filtros de perfil ─────────────────────────────────────────────────
+    IF p_origins IS NOT NULL THEN
+        DELETE FROM _slot_pool WHERE origem IS NULL OR origem != ALL(p_origins);
+    END IF;
+    IF p_tipos IS NOT NULL THEN
+        DELETE FROM _slot_pool WHERE tipo IS NULL OR tipo != ALL(p_tipos);
+    END IF;
+    IF p_consultor_ids IS NOT NULL THEN
+        DELETE FROM _slot_pool WHERE consultor_id IS NULL OR consultor_id != ALL(p_consultor_ids);
+    END IF;
+    IF p_faixas IS NOT NULL THEN
+        DELETE FROM _slot_pool WHERE faixa IS NULL OR faixa != ALL(p_faixas);
+    END IF;
+    IF p_convidados IS NOT NULL THEN
+        DELETE FROM _slot_pool WHERE convidados IS NULL OR convidados != ALL(p_convidados);
+    END IF;
+    IF p_destinos IS NOT NULL THEN
+        DELETE FROM _slot_pool WHERE destino IS NULL OR destino != ALL(p_destinos);
+    END IF;
+
+    -- ── Marcos agregados ──────────────────────────────────────────────────
+    SELECT COUNT(*) INTO v_total FROM _slot_pool;
+
+    SELECT json_build_object(
+        'entrou',         v_total,
+        'marcou_sdr',     COUNT(*) FILTER (WHERE marcou_sdr),
+        'fez_sdr',        COUNT(*) FILTER (WHERE fez_sdr),
+        'marcou_closer',  COUNT(*) FILTER (WHERE marcou_closer),
+        'fez_closer',     COUNT(*) FILTER (WHERE fez_closer),
+        'ganho',          COUNT(*) FILTER (WHERE ganho)
+    ) INTO v_marcos
+    FROM _slot_pool;
+
+    -- ── Segments (opcional) ───────────────────────────────────────────────
+    IF p_segment_by = 'convidados' THEN
+        SELECT json_agg(json_build_object(
+            'bucket', bucket,
+            'total', total,
+            'marcos', json_build_object(
+                'entrou', total,
+                'marcou_sdr', m_sdr,
+                'fez_sdr', f_sdr,
+                'marcou_closer', m_cl,
+                'fez_closer', f_cl,
+                'ganho', g
+            )
+        ) ORDER BY ord) INTO v_segments
+        FROM (
+            SELECT
+                COALESCE(convidados, '— sem informação') AS bucket,
+                COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE marcou_sdr) AS m_sdr,
+                COUNT(*) FILTER (WHERE fez_sdr) AS f_sdr,
+                COUNT(*) FILTER (WHERE marcou_closer) AS m_cl,
+                COUNT(*) FILTER (WHERE fez_closer) AS f_cl,
+                COUNT(*) FILTER (WHERE ganho) AS g,
+                CASE COALESCE(convidados, '— sem informação')
+                    WHEN 'Apenas o casal' THEN 1
+                    WHEN 'Até 20' THEN 2
+                    WHEN '20-50' THEN 3
+                    WHEN '50-80' THEN 4
+                    WHEN '80-100' THEN 5
+                    WHEN '+100' THEN 6
+                    ELSE 99 END AS ord
+            FROM _slot_pool
+            GROUP BY 1
+        ) s;
+    ELSIF p_segment_by = 'investimento' THEN
+        SELECT json_agg(json_build_object(
+            'bucket', bucket,
+            'total', total,
+            'marcos', json_build_object(
+                'entrou', total,
+                'marcou_sdr', m_sdr,
+                'fez_sdr', f_sdr,
+                'marcou_closer', m_cl,
+                'fez_closer', f_cl,
+                'ganho', g
+            )
+        ) ORDER BY ord) INTO v_segments
+        FROM (
+            SELECT
+                COALESCE(faixa, '— sem informação') AS bucket,
+                COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE marcou_sdr) AS m_sdr,
+                COUNT(*) FILTER (WHERE fez_sdr) AS f_sdr,
+                COUNT(*) FILTER (WHERE marcou_closer) AS m_cl,
+                COUNT(*) FILTER (WHERE fez_closer) AS f_cl,
+                COUNT(*) FILTER (WHERE ganho) AS g,
+                CASE COALESCE(faixa, '— sem informação')
+                    WHEN 'Até R$50 mil' THEN 1
+                    WHEN 'R$50-80 mil' THEN 2
+                    WHEN 'R$50-100 mil' THEN 3
+                    WHEN 'R$80-100 mil' THEN 4
+                    WHEN 'R$100-200 mil' THEN 5
+                    WHEN 'R$200-500 mil' THEN 6
+                    WHEN '+R$500 mil' THEN 7
+                    ELSE 99 END AS ord
+            FROM _slot_pool
+            GROUP BY 1
+        ) s;
+    ELSIF p_segment_by = 'destino' THEN
+        SELECT json_agg(json_build_object(
+            'bucket', bucket,
+            'total', total,
+            'marcos', json_build_object(
+                'entrou', total,
+                'marcou_sdr', m_sdr,
+                'fez_sdr', f_sdr,
+                'marcou_closer', m_cl,
+                'fez_closer', f_cl,
+                'ganho', g
+            )
+        ) ORDER BY total DESC) INTO v_segments
+        FROM (
+            SELECT
+                COALESCE(destino, '— sem informação') AS bucket,
+                COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE marcou_sdr) AS m_sdr,
+                COUNT(*) FILTER (WHERE fez_sdr) AS f_sdr,
+                COUNT(*) FILTER (WHERE marcou_closer) AS m_cl,
+                COUNT(*) FILTER (WHERE fez_closer) AS f_cl,
+                COUNT(*) FILTER (WHERE ganho) AS g
+            FROM _slot_pool
+            GROUP BY 1
+        ) s
+        LIMIT 12;
+    ELSE
+        v_segments := NULL;
+    END IF;
+
+    -- ── Tempos por buckets (3 transições principais) ──────────────────────
+    -- Helper inline: classificar dias em buckets nominais.
+    WITH transicoes AS (
+        SELECT 'entrou_marcou_sdr' AS transicao,
+               EXTRACT(EPOCH FROM (sdr_data_ts - created_at))/86400.0 AS dias
+        FROM _slot_pool WHERE marcou_sdr AND sdr_data_ts IS NOT NULL AND sdr_data_ts > created_at
+        UNION ALL
+        SELECT 'marcou_sdr_marcou_closer' AS transicao,
+               EXTRACT(EPOCH FROM (closer_data_ts - sdr_data_ts))/86400.0 AS dias
+        FROM _slot_pool WHERE marcou_closer AND sdr_data_ts IS NOT NULL AND closer_data_ts IS NOT NULL AND closer_data_ts > sdr_data_ts
+        UNION ALL
+        SELECT 'marcou_closer_ganho' AS transicao,
+               EXTRACT(EPOCH FROM (ganho_at - closer_data_ts))/86400.0 AS dias
+        FROM _slot_pool WHERE ganho AND ganho_at IS NOT NULL AND closer_data_ts IS NOT NULL AND ganho_at > closer_data_ts
+    )
+    SELECT json_object_agg(transicao, dados) INTO v_tempos
+    FROM (
+        SELECT
+            transicao,
+            json_build_object(
+                'amostra', COUNT(*),
+                'lt3',    COUNT(*) FILTER (WHERE dias < 3),
+                'd3_7',   COUNT(*) FILTER (WHERE dias >= 3 AND dias < 7),
+                'd7_15',  COUNT(*) FILTER (WHERE dias >= 7 AND dias < 15),
+                'd15_30', COUNT(*) FILTER (WHERE dias >= 15 AND dias < 30),
+                'ge30',   COUNT(*) FILTER (WHERE dias >= 30)
+            ) AS dados
+        FROM transicoes
+        GROUP BY transicao
+    ) t;
+    IF v_tempos IS NULL THEN v_tempos := '{}'::JSON; END IF;
+
+    -- ── Cards parados (só relevante para em_jogo) ─────────────────────────
+    IF p_populacao = 'em_jogo' THEN
+        WITH ultimo_evento AS (
+            SELECT id,
+                   GREATEST(
+                     created_at,
+                     COALESCE(sdr_data_ts, '1900-01-01'::TIMESTAMPTZ),
+                     COALESCE(closer_data_ts, '1900-01-01'::TIMESTAMPTZ),
+                     updated_at
+                   ) AS ultima_data,
+                   marcou_sdr, fez_sdr, marcou_closer, fez_closer, ganho
+            FROM _slot_pool
+        ),
+        classificado AS (
+            SELECT id,
+                CASE
+                  WHEN ganho THEN 'ganho'
+                  WHEN fez_closer THEN 'fez_closer'
+                  WHEN marcou_closer THEN 'marcou_closer'
+                  WHEN fez_sdr THEN 'fez_sdr'
+                  WHEN marcou_sdr THEN 'marcou_sdr'
+                  ELSE 'entrou'
+                END AS marco_atual,
+                ultima_data,
+                (NOW() - ultima_data) >= (p_dias_parado || ' days')::INTERVAL AS parado
+            FROM ultimo_evento
+        )
+        SELECT json_object_agg(marco_atual, json_build_object(
+            'total', total,
+            'parados', parados
+        )) INTO v_parados
+        FROM (
+            SELECT marco_atual,
+                   COUNT(*) AS total,
+                   COUNT(*) FILTER (WHERE parado) AS parados
+            FROM classificado
+            GROUP BY marco_atual
+        ) s;
+        IF v_parados IS NULL THEN v_parados := '{}'::JSON; END IF;
+    ELSE
+        v_parados := NULL;
+    END IF;
+
+    -- ── Top combos (só relevante para ganhos) ─────────────────────────────
+    IF p_populacao = 'ganhos' THEN
+        SELECT json_agg(json_build_object(
+            'faixa', faixa,
+            'convidados', convidados,
+            'destino', destino,
+            'qtd', qtd,
+            'pct', CASE WHEN v_total > 0 THEN ROUND((qtd * 100.0 / v_total)::NUMERIC, 1) ELSE NULL END
+        ) ORDER BY qtd DESC) INTO v_top_combos
+        FROM (
+            SELECT
+                COALESCE(faixa, '—') AS faixa,
+                COALESCE(convidados, '—') AS convidados,
+                COALESCE(destino, '—') AS destino,
+                COUNT(*) AS qtd
+            FROM _slot_pool
+            WHERE ganho
+            GROUP BY 1, 2, 3
+            ORDER BY 4 DESC
+            LIMIT 10
+        ) s;
+        IF v_top_combos IS NULL THEN v_top_combos := '[]'::JSON; END IF;
+    ELSE
+        v_top_combos := NULL;
+    END IF;
+
+    DROP TABLE _slot_pool;
+    DROP TABLE _slot_ganho_cards;
+
+    RETURN json_build_object(
+        'config', json_build_object(
+            'populacao',   p_populacao,
+            'date_axis',   p_date_axis,
+            'date_start',  p_date_start,
+            'date_end',    p_date_end,
+            'segment_by',  p_segment_by,
+            'dias_parado', p_dias_parado
+        ),
+        'pipeline_id', v_pipeline_id,
+        'org_id',      v_org_id,
+        'total',       v_total,
+        'marcos',      v_marcos,
+        'segments',    v_segments,
+        'tempos',      v_tempos,
+        'parados',     v_parados,
+        'top_combos',  v_top_combos
+    );
+END $func$;
+
+GRANT EXECUTE ON FUNCTION public.ww_funil_perfil_slot(TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT, TEXT[], TEXT[], TEXT[], TEXT[], TEXT[], UUID[], INT) TO authenticated;
