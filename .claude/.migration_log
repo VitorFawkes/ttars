@@ -1076,3 +1076,8 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-28T12:23:42Z | supabase/migrations/20260528j_ww_funil_perfil_slot.sql | applied_to_prod
 2026-05-28T12:28:07Z | supabase/migrations/20260518a_subcard_remove_auto_task.sql | applied_to_prod
 2026-05-28T12:45:27Z | supabase/migrations/20260528k_ww_funil_perfil_slot_v2.sql | applied_to_prod
+2026-05-28T13:00:15Z | supabase/migrations/20260528l_ww_ac_deal_funnel_cache.sql | applied_to_prod
+2026-05-28T13:00:41Z | supabase/migrations/20260528m_ww_ac_funnel_rpcs_v1.sql | applied_to_prod
+2026-05-28T13:01:03Z | supabase/migrations/20260528n_ww2_overview_journey_v2.sql | applied_to_prod
+2026-05-28T13:16:33Z | supabase/migrations/20260528o_ww_funnel_base_from_cache.sql | applied_to_prod
+2026-05-28T13:22:17Z | supabase/migrations/20260528p_ww_funnel_cron.sql | applied_to_prod

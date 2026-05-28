@@ -1029,15 +1029,21 @@ export function useWwFunilConversao(params: WwFunilConversaoParams) {
   })
 }
 
-// ── Funil por Perfil — Slot (nova lógica 2026-05-28) ───────────────────────
-// 6 marcos com lógica estrita revisada:
-//   marcou_sdr    = ww_sdr_data_reuniao preenchido
-//   fez_sdr       = ww_sdr_como_reuniao não vazio AND não "[]" AND não contém "Não teve reunião"
-//   marcou_closer = ww_closer_data_reuniao preenchido
-//   fez_closer    = ww_closer_como_reuniao não vazio
-//   ganho         = card no cache AC OR status_comercial='ganho'
-// Monotonicidade upward closure aplicada na agregação.
-// Ver migration 20260528j_ww_funil_perfil_slot.sql
+// ── Funil por Perfil — Slot (v4, 2026-05-28) ───────────────────────────────
+// Fonte: ww_ac_deal_funnel_cache (espelho direto da ActiveCampaign).
+// Sync: edge function `ww-ac-funnel-sync` roda a cada 30min via pg_cron.
+//
+// Marcos canônicos (regra AC literal, sem upward closure):
+//   marcou_sdr    = AC field 6  (datetime "Data e horário do agendamento da 1ª reunião") preenchido
+//   fez_sdr       = AC field 17 (multiselect "Como foi feita a 1ª reunião") preenchido E ≠ "Não teve reunião"
+//   marcou_closer = AC field 18 (datetime "Data e horário do agendamento com a Closer") preenchido
+//   fez_closer    = AC field 299 (dropdown "WW Como foi feita Reunião Closer") preenchido E ≠ "Não teve reunião"
+//   ganho         = AC field 87 (datetime "[WW] [Closer] Data-Hora Ganho") preenchido
+//
+// Universo = todos os deals AC com is_ww=TRUE (pipeline_group ∈ Weddings).
+// JOIN com cards.external_id é opcional (pra filtros de perfil — faixa/destino/convidados).
+// Deals AC sem card local: marcos contam, filtros de perfil ficam como "sem informação".
+// Ver migrations 20260528l (tabela), 20260528o (view + RPCs).
 
 export type WwSlotPopulacao = 'ganhos' | 'em_jogo' | 'todos'
 export type WwSlotDateAxis = 'entry' | 'won'

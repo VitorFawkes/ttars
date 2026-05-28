@@ -1,0 +1,240 @@
+// ============================================================================
+// ww-ac-funnel-sync — sincroniza ww_ac_deal_funnel_cache direto da AC API
+//
+// Popula 1 linha por deal AC com os 5 marcos canônicos do funil Weddings:
+//   sdr_agendou_at  ← deal custom field 6  (datetime)
+//   sdr_fez         ← deal custom field 17 (multiselect, ≠ "Não teve reunião")
+//   sdr_canal       ← deal custom field 17 (valores reais)
+//   closer_agendou_at ← deal custom field 18 (datetime)
+//   closer_fez      ← deal custom field 299 (dropdown, ≠ "Não teve reunião")
+//   closer_canal    ← deal custom field 299
+//   ganho_at        ← deal custom field 87 (datetime, "WW Closer Data-Hora Ganho")
+//
+// is_ww = TRUE se deal.group ∈ {1,3,4,5,9,10,11,12,14,17,18,19,21,22,23}
+//
+// Modos:
+//   - bootstrap: pagina tudo de dealCustomFieldData (~183k linhas), recria cache
+//   - incremental: re-sincroniza só deals com synced_at < NOW() - 1h
+//
+// Deploy: `npx supabase functions deploy ww-ac-funnel-sync --no-verify-jwt`
+// Cron:   a cada 30min via pg_cron (mode=incremental)
+// ============================================================================
+import { createClient } from 'jsr:@supabase/supabase-js@2'
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
+const WW_PIPELINE_GROUPS = new Set([1, 3, 4, 5, 9, 10, 11, 12, 14, 17, 18, 19, 21, 22, 23])
+const FIELD_SDR_AGENDOU = '6'
+const FIELD_SDR_COMO    = '17'
+const FIELD_CLOSER_AGEN = '18'
+const FIELD_CLOSER_COMO = '299'
+const FIELD_GANHO       = '87'
+const RELEVANT_FIELDS = new Set([FIELD_SDR_AGENDOU, FIELD_SDR_COMO, FIELD_CLOSER_AGEN, FIELD_CLOSER_COMO, FIELD_GANHO])
+
+type DealCustomFieldData = { dealId: number; customFieldId: number; fieldValue: string | null }
+type Deal = { id: string; group: string | null; title: string | null; contact?: string | null }
+
+function parseDateTime(v: string | null | undefined): string | null {
+  if (!v) return null
+  const trimmed = v.trim()
+  if (!trimmed) return null
+  if (trimmed === '0000-00-00 00:00:00' || trimmed === '0000-00-00') return null
+  // AC pode retornar com timezone embutido (ISO 8601 with offset)
+  const date = new Date(trimmed.includes('T') || trimmed.includes(' ') ? trimmed : trimmed + 'T00:00:00Z')
+  if (isNaN(date.getTime())) return null
+  return date.toISOString()
+}
+
+// Field 17 multiselect: armazenado como literal Python "['Vídeo']" ou "['Vídeo', 'Whatsapp']"
+function parseMultiselect(v: string | null | undefined): string[] {
+  if (!v) return []
+  const trimmed = v.trim()
+  if (!trimmed || trimmed === '[]') return []
+  // Tenta parse como JSON
+  try {
+    const parsed = JSON.parse(trimmed.replace(/'/g, '"'))
+    if (Array.isArray(parsed)) return parsed.map(String).map(s => s.trim()).filter(Boolean)
+  } catch {
+    // fallback: valor cru
+    return [trimmed]
+  }
+  return [trimmed]
+}
+
+function hasRealMeeting(values: string[]): boolean {
+  return values.some(v => v.toLowerCase().trim() !== 'não teve reunião')
+}
+
+function realMeetingChannels(values: string[]): string[] {
+  return values.filter(v => v.toLowerCase().trim() !== 'não teve reunião')
+}
+
+function closerFromDropdown(v: string | null | undefined): { fez: boolean; canal: string | null } {
+  if (!v) return { fez: false, canal: null }
+  const trimmed = v.trim().replace(/^\[['"]/, '').replace(/['"]\]$/, '')
+  if (!trimmed) return { fez: false, canal: null }
+  const lower = trimmed.toLowerCase()
+  if (lower === 'não teve reunião') return { fez: false, canal: trimmed }
+  return { fez: true, canal: trimmed }
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+
+  const startedAt = Date.now()
+  let mode: 'bootstrap' | 'incremental' = 'incremental'
+  try {
+    const body = await req.text().catch(() => '')
+    if (body) {
+      try {
+        const parsed = JSON.parse(body)
+        if (parsed.mode === 'bootstrap') mode = 'bootstrap'
+      } catch { /* ignore */ }
+    }
+
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    const [urlRes, keyRes] = await Promise.all([
+      supabase.rpc('get_outbound_setting', { p_key: 'ACTIVECAMPAIGN_API_URL' }),
+      supabase.rpc('get_outbound_setting', { p_key: 'ACTIVECAMPAIGN_API_KEY' }),
+    ])
+    const AC_URL = (urlRes.data as string | null)?.replace(/\/+$/, '')
+    const AC_KEY = keyRes.data as string | null
+    if (!AC_URL || !AC_KEY) {
+      return new Response(JSON.stringify({ error: 'AC credentials missing' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    async function acFetch<T = unknown>(path: string): Promise<T> {
+      const res = await fetch(`${AC_URL}${path}`, { headers: { 'Api-Token': AC_KEY! } })
+      if (!res.ok) throw new Error(`AC ${res.status} on ${path}: ${(await res.text()).substring(0, 200)}`)
+      return await res.json() as T
+    }
+
+    // ── Passo 1: paginar dealCustomFieldData e coletar por deal ───────────
+    const dealData = new Map<string, Record<string, string | null>>()
+
+    async function fetchPage(offset: number): Promise<{ rows: DealCustomFieldData[]; total: number }> {
+      const j = await acFetch<{ dealCustomFieldData: DealCustomFieldData[]; meta: { total: string } }>(
+        `/api/3/dealCustomFieldData?limit=100&offset=${offset}`
+      )
+      return { rows: j.dealCustomFieldData ?? [], total: parseInt(j.meta?.total ?? '0', 10) }
+    }
+
+    const first = await fetchPage(0)
+    const total = first.total
+    for (const r of first.rows) {
+      if (!RELEVANT_FIELDS.has(String(r.customFieldId))) continue
+      const id = String(r.dealId)
+      if (!dealData.has(id)) dealData.set(id, {})
+      dealData.get(id)![String(r.customFieldId)] = r.fieldValue
+    }
+
+    // Paginação em paralelo (max 10 concurrent)
+    const offsets: number[] = []
+    for (let o = 100; o < total; o += 100) offsets.push(o)
+    const CONCURRENCY = 10
+    for (let i = 0; i < offsets.length; i += CONCURRENCY) {
+      const batch = offsets.slice(i, i + CONCURRENCY)
+      const results = await Promise.all(batch.map(o => fetchPage(o).catch(e => { console.error(`page ${o} failed:`, e); return { rows: [] as DealCustomFieldData[], total: 0 } })))
+      for (const r of results) {
+        for (const row of r.rows) {
+          if (!RELEVANT_FIELDS.has(String(row.customFieldId))) continue
+          const id = String(row.dealId)
+          if (!dealData.has(id)) dealData.set(id, {})
+          dealData.get(id)![String(row.customFieldId)] = row.fieldValue
+        }
+      }
+    }
+
+    const dealIds = Array.from(dealData.keys())
+    console.log(`Coletados ${dealIds.length} deals com algum dos 5 campos relevantes (de ${total} fieldValues totais).`)
+
+    // ── Passo 2: buscar metadados de cada deal (group + title + contact) ──
+    async function fetchDeal(id: string): Promise<Deal | null> {
+      try {
+        const j = await acFetch<{ deal: Deal | null }>(`/api/3/deals/${id}`)
+        return j.deal ?? null
+      } catch (e) {
+        console.warn(`deal ${id} not found:`, (e as Error).message)
+        return null
+      }
+    }
+
+    const dealMeta = new Map<string, Deal | null>()
+    const META_CONC = 15
+    for (let i = 0; i < dealIds.length; i += META_CONC) {
+      const batch = dealIds.slice(i, i + META_CONC)
+      const results = await Promise.all(batch.map(id => fetchDeal(id)))
+      batch.forEach((id, idx) => dealMeta.set(id, results[idx]))
+    }
+
+    // ── Passo 3: montar rows pra upsert ───────────────────────────────────
+    const rows = dealIds.map(id => {
+      const data = dealData.get(id)!
+      const deal = dealMeta.get(id)
+      const groupId = deal?.group ? parseInt(deal.group, 10) : null
+      const isWw = groupId !== null && WW_PIPELINE_GROUPS.has(groupId)
+      const sdrComoRaw = data[FIELD_SDR_COMO]
+      const closerComoRaw = data[FIELD_CLOSER_COMO]
+      const sdrChannels = parseMultiselect(sdrComoRaw)
+      const sdrFez = sdrChannels.length > 0 && hasRealMeeting(sdrChannels)
+      const sdrCanal = realMeetingChannels(sdrChannels)
+      const closer = closerFromDropdown(closerComoRaw)
+      return {
+        ac_deal_id: id,
+        contact_id: deal?.contact ?? null,
+        pipeline_group_id: groupId,
+        is_ww: isWw,
+        deal_title: deal?.title ?? null,
+        sdr_agendou_at: parseDateTime(data[FIELD_SDR_AGENDOU]),
+        sdr_fez: sdrFez,
+        sdr_canal: sdrCanal.length ? sdrCanal : null,
+        closer_agendou_at: parseDateTime(data[FIELD_CLOSER_AGEN]),
+        closer_fez: closer.fez,
+        closer_canal: closer.canal,
+        ganho_at: parseDateTime(data[FIELD_GANHO]),
+        synced_at: new Date().toISOString(),
+      }
+    })
+
+    // ── Passo 4: upsert em lotes ──────────────────────────────────────────
+    let upserted = 0
+    const CHUNK = 500
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const chunk = rows.slice(i, i + CHUNK)
+      const { error } = await supabase.from('ww_ac_deal_funnel_cache').upsert(chunk, { onConflict: 'ac_deal_id' })
+      if (error) { console.error('upsert failed at', i, error.message); throw error }
+      upserted += chunk.length
+    }
+
+    // ── Passo 5: contagens de validação ───────────────────────────────────
+    const { data: counts } = await supabase.rpc('ww_ac_funnel_validation_counts').single().then(
+      r => ({ data: r.data as { sdr_agendou: number; sdr_fez: number; closer_agendou: number; closer_fez: number; ganho: number } | null }),
+      () => ({ data: null })
+    )
+
+    return new Response(JSON.stringify({
+      ok: true,
+      mode,
+      total_field_rows: total,
+      deals_collected: dealIds.length,
+      upserted,
+      validation: counts,
+      duration_ms: Date.now() - startedAt,
+    }, null, 2), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error('sync failed:', msg)
+    return new Response(JSON.stringify({ error: msg, duration_ms: Date.now() - startedAt }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+})
