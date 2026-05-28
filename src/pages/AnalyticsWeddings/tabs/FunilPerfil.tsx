@@ -5,12 +5,12 @@ import {
   useWw2FilterOptions,
   type WwSlotData,
   type WwSlotParams,
-  type WwSlotPopulacao,
-  type WwSlotDateAxis,
   type WwSlotSegmentBy,
   type WwSlotMarcos,
   type WwSlotTempos,
   type WwTempoBucket,
+  type WwSlotPerfilGanhos,
+  type WwSlotPerfilBucket,
 } from '@/hooks/analyticsWeddings/useWw2'
 import { SectionCard, LoadingSkeleton, ErrorBanner } from '../components/ui'
 import { formatNumber } from '../lib/format'
@@ -27,15 +27,11 @@ const MARCOS: { key: keyof WwSlotMarcos; label: string; short: string }[] = [
 
 const CONVIDADOS_OPTIONS = ['Apenas o casal', 'Até 20', '20-50', '50-80', '80-100', '+100']
 const FAIXAS_OPTIONS = ['Até R$50 mil', 'R$50-80 mil', 'R$50-100 mil', 'R$80-100 mil', 'R$100-200 mil', 'R$200-500 mil', '+R$500 mil']
+const MES_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 
 type SlotKey = 'a' | 'b'
 
 // ── Helpers ───────────────────────────────────────────────────────────────
-function thisYear(): { start: string; end: string } {
-  const y = new Date().getFullYear()
-  return { start: `${y}-01-01`, end: `${y}-12-31` }
-}
-
 function colorByRate(taxaPrev: number | null): { bar: string; text: string } {
   if (taxaPrev == null) return { bar: 'bg-slate-300', text: 'text-slate-500' }
   if (taxaPrev >= 85) return { bar: 'bg-emerald-600', text: 'text-emerald-700' }
@@ -49,12 +45,28 @@ function fmtPct(n: number | null, digits = 1): string {
   return `${n.toFixed(digits)}%`
 }
 
+function lastNMonths(n: number): string[] {
+  // Retorna ['2026-05', '2026-04', ...] (mais recente primeiro)
+  const out: string[] = []
+  const d = new Date()
+  for (let i = 0; i < n; i++) {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    out.push(`${y}-${m}`)
+    d.setMonth(d.getMonth() - 1)
+  }
+  return out
+}
+
+function fmtMes(yyyymm: string): string {
+  const [y, m] = yyyymm.split('-')
+  return `${MES_LABELS[parseInt(m, 10) - 1]}/${y.slice(2)}`
+}
+
 // ── URL state ─────────────────────────────────────────────────────────────
 type SlotState = {
-  populacao: WwSlotPopulacao
-  dateAxis: WwSlotDateAxis
-  dateStart: string  // YYYY-MM-DD
-  dateEnd: string    // YYYY-MM-DD
+  modo: 'cohort' | 'em_jogo'  // cohort = leads entrando nos meses; em_jogo = pipeline atual
+  meses: string[]              // YYYY-MM (vazio = todos)
   faixas: string[]
   convidados: string[]
   destinos: string[]
@@ -64,18 +76,25 @@ type SlotState = {
 }
 
 function defaultSlot(slot: SlotKey): SlotState {
-  const y = thisYear()
+  const months24 = lastNMonths(24)
+  if (slot === 'a') {
+    // A default: ano passado inteiro
+    const now = new Date()
+    const lastYear = now.getFullYear() - 1
+    const meses = months24.filter(m => m.startsWith(`${lastYear}-`))
+    return {
+      modo: 'cohort',
+      meses,
+      faixas: [], convidados: [], destinos: [],
+      origens: [], tipos: [], consultorIds: [],
+    }
+  }
+  // B default: em jogo agora
   return {
-    populacao: slot === 'a' ? 'ganhos' : 'em_jogo',
-    dateAxis: slot === 'a' ? 'won' : 'entry',
-    dateStart: y.start,
-    dateEnd: y.end,
-    faixas: [],
-    convidados: [],
-    destinos: [],
-    origens: [],
-    tipos: [],
-    consultorIds: [],
+    modo: 'em_jogo',
+    meses: [],
+    faixas: [], convidados: [], destinos: [],
+    origens: [], tipos: [], consultorIds: [],
   }
 }
 
@@ -86,11 +105,13 @@ function parseList(v: string | null): string[] {
 function readSlotFromUrl(params: URLSearchParams, slot: SlotKey): SlotState {
   const d = defaultSlot(slot)
   const p = (k: string) => params.get(`fp_${slot}_${k}`)
+  const modo = p('modo') as 'cohort' | 'em_jogo' | null
+  // Quando params estão vazios, retorna default; quando params existem, usa eles
+  const hasAny = ['modo', 'meses', 'faixas', 'conv', 'dest', 'origens', 'tipos', 'cons'].some(k => params.has(`fp_${slot}_${k}`))
+  if (!hasAny) return d
   return {
-    populacao: (p('pop') as WwSlotPopulacao) ?? d.populacao,
-    dateAxis: (p('axis') as WwSlotDateAxis) ?? d.dateAxis,
-    dateStart: p('start') ?? d.dateStart,
-    dateEnd: p('end') ?? d.dateEnd,
+    modo: modo ?? d.modo,
+    meses: parseList(p('meses')),
     faixas: parseList(p('faixas')),
     convidados: parseList(p('conv')),
     destinos: parseList(p('dest')),
@@ -102,10 +123,8 @@ function readSlotFromUrl(params: URLSearchParams, slot: SlotKey): SlotState {
 
 function writeSlotToParams(params: URLSearchParams, slot: SlotKey, s: SlotState) {
   const set = (k: string, v: string) => { if (v) params.set(`fp_${slot}_${k}`, v); else params.delete(`fp_${slot}_${k}`) }
-  set('pop', s.populacao)
-  set('axis', s.dateAxis)
-  set('start', s.dateStart)
-  set('end', s.dateEnd)
+  set('modo', s.modo)
+  set('meses', s.meses.join(','))
   set('faixas', s.faixas.join(','))
   set('conv', s.convidados.join(','))
   set('dest', s.destinos.join(','))
@@ -115,11 +134,13 @@ function writeSlotToParams(params: URLSearchParams, slot: SlotKey, s: SlotState)
 }
 
 function slotToRpcParams(s: SlotState, segmentBy: WwSlotSegmentBy): WwSlotParams {
+  const now = new Date()
   return {
-    populacao: s.populacao,
-    dateAxis: s.dateAxis,
-    dateStart: `${s.dateStart}T00:00:00Z`,
-    dateEnd: `${s.dateEnd}T23:59:59Z`,
+    populacao: s.modo === 'em_jogo' ? 'em_jogo' : 'todos',
+    dateAxis: 'entry',
+    // dateStart/dateEnd só usados quando meses está vazio (cohort full history)
+    dateStart: '2020-01-01T00:00:00Z',
+    dateEnd: now.toISOString(),
     segmentBy,
     faixas: s.faixas.length ? s.faixas : undefined,
     convidados: s.convidados.length ? s.convidados : undefined,
@@ -127,6 +148,7 @@ function slotToRpcParams(s: SlotState, segmentBy: WwSlotSegmentBy): WwSlotParams
     origins: s.origens.length ? s.origens : undefined,
     tipos: s.tipos.length ? s.tipos : undefined,
     consultorIds: s.consultorIds.length ? s.consultorIds : undefined,
+    meses: s.modo === 'cohort' && s.meses.length ? s.meses : undefined,
   }
 }
 
@@ -168,6 +190,22 @@ export function FunilPerfil() {
   const queryA = useWwFunilSlot(slotToRpcParams(slotA, segmentBy))
   const queryB = useWwFunilSlot(slotToRpcParams(slotB, segmentBy))
 
+  // Aplicar perfil dos ganhos do outro slot como filtro deste
+  const applyProfileFrom = (target: SlotKey, perfil: WwSlotPerfilGanhos | null) => {
+    if (!perfil) return
+    const patch: Partial<SlotState> = {}
+    if (perfil.faixa?.[0]?.bucket && perfil.faixa[0].bucket !== '— sem informação') {
+      patch.faixas = [perfil.faixa[0].bucket]
+    }
+    if (perfil.convidados?.[0]?.bucket && perfil.convidados[0].bucket !== '— sem informação') {
+      patch.convidados = [perfil.convidados[0].bucket]
+    }
+    if (perfil.destino?.[0]?.bucket && perfil.destino[0].bucket !== '— sem informação') {
+      patch.destinos = [perfil.destino[0].bucket]
+    }
+    updateSlot(target, patch)
+  }
+
   return (
     <div className="space-y-5">
       <Header />
@@ -178,7 +216,7 @@ export function FunilPerfil() {
         onDuplicate={duplicateAtoB}
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_80px_1fr] gap-3 items-stretch">
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_64px_1fr] gap-3 items-stretch">
         <SlotPanel
           slotKey="a"
           accent="indigo"
@@ -186,6 +224,7 @@ export function FunilPerfil() {
           onChange={(p) => updateSlot('a', p)}
           query={queryA}
           segmentBy={segmentBy}
+          onApplyToOther={() => applyProfileFrom('b', queryA.data?.perfil_ganhos ?? null)}
         />
         <DeltaColumn
           dataA={queryA.data ?? null}
@@ -199,6 +238,7 @@ export function FunilPerfil() {
           onChange={(p) => updateSlot('b', p)}
           query={queryB}
           segmentBy={segmentBy}
+          onApplyToOther={() => applyProfileFrom('a', queryB.data?.perfil_ganhos ?? null)}
         />
       </div>
 
@@ -212,9 +252,7 @@ export function FunilPerfil() {
 
       <ParadosCompare dataA={queryA.data ?? null} dataB={queryB.data ?? null} stateA={slotA} stateB={slotB} />
 
-      <TopCombosCompare dataA={queryA.data ?? null} dataB={queryB.data ?? null} stateA={slotA} stateB={slotB} />
-
-      <Diagnostico dataA={queryA.data ?? null} dataB={queryB.data ?? null} stateA={slotA} stateB={slotB} />
+      <Diagnostico dataA={queryA.data ?? null} dataB={queryB.data ?? null} />
     </div>
   )
 }
@@ -225,9 +263,10 @@ function Header() {
     <div className="bg-white border border-slate-200 rounded-xl p-5">
       <h2 className="text-base font-semibold text-slate-900 tracking-tight">🎯 Funil por perfil — comparação livre</h2>
       <p className="text-sm text-slate-500 mt-1.5">
-        Monte dois recortes (slots) lado a lado para comparar. Cada slot tem sua própria configuração:
-        população (ganhos, em jogo, todos), período, eixo de data (entrada ou ganho) e filtros de perfil.
-        Use "Quebrar por" para ver o funil dividido por bucket de uma dimensão.
+        Cada slot é uma coorte de leads. Selecione os <strong>meses de entrada</strong> (ou "Em jogo agora")
+        e veja o <strong>funil completo</strong> dessa coorte — incluindo a conversão real até ganho. Dentro de cada slot,
+        a seção <strong>"Perfil dos ganhos do recorte"</strong> mostra que tipo de lead virou ganho (faixa, convidados, destino),
+        com botão "Aplicar perfil ao outro slot" pra comparar o mesmo perfil em dois recortes diferentes.
       </p>
     </div>
   )
@@ -283,7 +322,7 @@ function Toolbar({
 
 // ── Slot Panel ────────────────────────────────────────────────────────────
 function SlotPanel({
-  slotKey, accent, state, onChange, query, segmentBy,
+  slotKey, accent, state, onChange, query, segmentBy, onApplyToOther,
 }: {
   slotKey: SlotKey
   accent: 'indigo' | 'slate'
@@ -291,19 +330,20 @@ function SlotPanel({
   onChange: (patch: Partial<SlotState>) => void
   query: ReturnType<typeof useWwFunilSlot>
   segmentBy: WwSlotSegmentBy
+  onApplyToOther: () => void
 }) {
   const borderClass = accent === 'indigo' ? 'border-l-4 border-l-indigo-600' : 'border-l-4 border-l-slate-700'
   const labelTxt = accent === 'indigo' ? 'text-indigo-700' : 'text-slate-700'
 
   return (
     <div className={`bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col ${borderClass}`}>
-      <div className="px-4 pt-3 pb-2 border-b border-slate-100">
+      <div className="px-4 pt-3 pb-3 border-b border-slate-100">
         <div className={`text-[10px] font-semibold uppercase tracking-wider ${labelTxt}`}>
           Slot {slotKey.toUpperCase()}
         </div>
         <SlotConfig state={state} onChange={onChange} />
       </div>
-      <div className="p-4 flex-1">
+      <div className="p-4 flex-1 space-y-4">
         {query.isLoading && <LoadingSkeleton rows={6} />}
         {query.error && <ErrorBanner error={query.error as Error} />}
         {query.data && !query.data.error && (
@@ -313,6 +353,7 @@ function SlotPanel({
               ? <FunilBarras data={query.data} />
               : <FunilTabela data={query.data} />
             }
+            <PerfilGanhosBlock data={query.data} onApplyToOther={onApplyToOther} otherSlotLetter={slotKey === 'a' ? 'B' : 'A'} />
           </>
         )}
         {query.data?.error && <ErrorBanner error={query.data.error} />}
@@ -324,105 +365,114 @@ function SlotPanel({
 // ── Slot Config ───────────────────────────────────────────────────────────
 function SlotConfig({ state, onChange }: { state: SlotState; onChange: (patch: Partial<SlotState>) => void }) {
   const { data: filterOpts } = useWw2FilterOptions()
-  const showDateAxis = state.populacao !== 'em_jogo'
-  const showDates = state.populacao !== 'em_jogo'
 
   return (
     <div className="mt-2 space-y-2">
-      {/* Linha 1: população */}
-      <div className="flex items-center gap-2">
-        <Segmented
-          value={state.populacao}
-          options={[
-            { value: 'ganhos', label: '🏆 Ganhos' },
-            { value: 'em_jogo', label: '🎲 Em jogo' },
-            { value: 'todos', label: '📋 Todos' },
-          ]}
-          onChange={(v) => onChange({ populacao: v as WwSlotPopulacao })}
-        />
-      </div>
-      {/* Linha 2: eixo + datas */}
-      {showDates && (
-        <div className="flex items-center gap-2 flex-wrap">
-          {showDateAxis && (
-            <Segmented
-              value={state.dateAxis}
-              options={[
-                { value: 'entry', label: 'Entrada' },
-                { value: 'won', label: 'Ganho' },
-              ]}
-              onChange={(v) => onChange({ dateAxis: v as WwSlotDateAxis })}
-              size="xs"
-            />
-          )}
-          <input
-            type="date"
-            value={state.dateStart}
-            onChange={(e) => onChange({ dateStart: e.target.value })}
-            className="px-2 py-1 text-xs border border-slate-200 rounded bg-white text-slate-700"
-          />
-          <span className="text-xs text-slate-400">→</span>
-          <input
-            type="date"
-            value={state.dateEnd}
-            onChange={(e) => onChange({ dateEnd: e.target.value })}
-            className="px-2 py-1 text-xs border border-slate-200 rounded bg-white text-slate-700"
-          />
-          <YearShortcuts onChange={(s, e) => onChange({ dateStart: s, dateEnd: e })} />
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="inline-flex rounded border border-slate-200 overflow-hidden bg-slate-50">
+          <button
+            onClick={() => onChange({ modo: 'cohort' })}
+            className={`text-xs px-2.5 py-1 font-medium transition ${
+              state.modo === 'cohort' ? 'bg-indigo-600 text-white' : 'text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            📅 Coorte por entrada
+          </button>
+          <button
+            onClick={() => onChange({ modo: 'em_jogo' })}
+            className={`text-xs px-2.5 py-1 font-medium transition ${
+              state.modo === 'em_jogo' ? 'bg-indigo-600 text-white' : 'text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            🎲 Em jogo agora
+          </button>
         </div>
+      </div>
+
+      {state.modo === 'cohort' && (
+        <SeletorMeses selected={state.meses} onChange={(v) => onChange({ meses: v })} />
       )}
-      {/* Linha 3: perfil filtros */}
-      <div className="flex items-center gap-1.5 flex-wrap">
+
+      <div className="flex items-center gap-1.5 flex-wrap pt-1">
+        <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide mr-1">Filtros:</span>
         <MiniMulti label="Faixa" options={FAIXAS_OPTIONS} selected={state.faixas} onChange={(v) => onChange({ faixas: v })} />
         <MiniMulti label="Conv." options={CONVIDADOS_OPTIONS} selected={state.convidados} onChange={(v) => onChange({ convidados: v })} />
         <MiniMulti label="Dest." options={filterOpts?.destinos ?? []} selected={state.destinos} onChange={(v) => onChange({ destinos: v })} />
         <MiniMulti label="Origem" options={filterOpts?.origens ?? []} selected={state.origens} onChange={(v) => onChange({ origens: v })} />
         <MiniMulti label="Tipo" options={filterOpts?.tipos ?? []} selected={state.tipos} onChange={(v) => onChange({ tipos: v })} />
+        {(state.faixas.length + state.convidados.length + state.destinos.length + state.origens.length + state.tipos.length) > 0 && (
+          <button
+            onClick={() => onChange({ faixas: [], convidados: [], destinos: [], origens: [], tipos: [] })}
+            className="text-[10px] text-slate-500 hover:text-rose-600 underline ml-1"
+          >
+            limpar
+          </button>
+        )}
       </div>
     </div>
   )
 }
 
-function YearShortcuts({ onChange }: { onChange: (s: string, e: string) => void }) {
-  const y = new Date().getFullYear()
+// ── Seletor de Meses ──────────────────────────────────────────────────────
+function SeletorMeses({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
+  const months = useMemo(() => lastNMonths(24), [])
+  const toggle = (m: string) => {
+    if (selected.includes(m)) onChange(selected.filter(x => x !== m))
+    else onChange([...selected, m])
+  }
+  const allYear = (y: number) => {
+    const target = months.filter(m => m.startsWith(`${y}-`))
+    const allIn = target.every(m => selected.includes(m))
+    if (allIn) onChange(selected.filter(m => !target.includes(m)))
+    else onChange(Array.from(new Set([...selected, ...target])))
+  }
+  const years = Array.from(new Set(months.map(m => parseInt(m.slice(0, 4), 10))))
   return (
-    <>
-      {[y, y - 1, y - 2].map(year => (
-        <button
-          key={year}
-          onClick={() => onChange(`${year}-01-01`, `${year}-12-31`)}
-          className="px-1.5 py-1 text-[10px] font-medium border border-slate-200 rounded bg-white text-slate-600 hover:border-slate-300"
-        >
-          {year}
-        </button>
-      ))}
-    </>
-  )
-}
-
-// ── Segmented control ─────────────────────────────────────────────────────
-function Segmented<T extends string>({
-  value, options, onChange, size = 'sm',
-}: {
-  value: T
-  options: { value: T; label: string }[]
-  onChange: (v: T) => void
-  size?: 'xs' | 'sm'
-}) {
-  const cls = size === 'xs' ? 'text-[11px] px-2 py-1' : 'text-xs px-2.5 py-1'
-  return (
-    <div className="inline-flex rounded border border-slate-200 overflow-hidden bg-slate-50">
-      {options.map(o => (
-        <button
-          key={o.value}
-          onClick={() => onChange(o.value)}
-          className={`font-medium transition ${cls} ${
-            value === o.value ? 'bg-indigo-600 text-white' : 'text-slate-700 hover:bg-slate-100'
-          }`}
-        >
-          {o.label}
-        </button>
-      ))}
+    <div className="space-y-1">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">Meses de entrada:</span>
+        {years.map(y => {
+          const target = months.filter(m => m.startsWith(`${y}-`))
+          const allIn = target.length > 0 && target.every(m => selected.includes(m))
+          return (
+            <button
+              key={y}
+              onClick={() => allYear(y)}
+              className={`text-[10px] px-1.5 py-0.5 rounded border transition ${
+                allIn ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+              }`}
+            >
+              {y}
+            </button>
+          )
+        })}
+        {selected.length > 0 && (
+          <button onClick={() => onChange([])} className="text-[10px] text-slate-500 hover:text-rose-600 underline ml-1">
+            limpar ({selected.length})
+          </button>
+        )}
+        {selected.length === 0 && (
+          <span className="text-[10px] text-slate-400">nenhum = todos os meses</span>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {months.map(m => {
+          const isSel = selected.includes(m)
+          return (
+            <button
+              key={m}
+              onClick={() => toggle(m)}
+              className={`text-[10px] font-medium px-1.5 py-0.5 rounded border transition tabular-nums ${
+                isSel
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              {fmtMes(m)}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -493,24 +543,27 @@ function MiniMulti({
   )
 }
 
-// ── Slot Hero (stat grande) ───────────────────────────────────────────────
+// ── Slot Hero ────────────────────────────────────────────────────────────
 function SlotHero({ data }: { data: WwSlotData }) {
   const taxa = data.total > 0 ? (data.marcos.ganho / data.total) * 100 : 0
   return (
-    <div className="flex items-baseline gap-3 mb-4">
-      <div className="text-4xl font-semibold text-slate-900 tabular-nums">
-        {data.config.populacao === 'em_jogo' ? formatNumber(data.total) : fmtPct(taxa, 1)}
+    <div>
+      <div className="flex items-baseline gap-3">
+        <div className="text-4xl font-semibold text-slate-900 tabular-nums">
+          {fmtPct(taxa, 1)}
+        </div>
+        <div className="text-xs text-slate-500">
+          {formatNumber(data.total)} leads · {formatNumber(data.marcos.ganho)} ganhos
+        </div>
       </div>
-      <div className="text-xs text-slate-500">
-        {data.config.populacao === 'em_jogo'
-          ? <span>cards em jogo · 0 ganhos ainda</span>
-          : <span>{formatNumber(data.total)} leads · {formatNumber(data.marcos.ganho)} ganhos</span>}
+      <div className="text-[10px] text-slate-400 uppercase tracking-wide font-medium mt-0.5">
+        {data.config.populacao === 'em_jogo' ? 'Pipeline atual (em jogo)' : 'Conversão da coorte'}
       </div>
     </div>
   )
 }
 
-// ── Funil de Barras (segmentBy = 'none') ──────────────────────────────────
+// ── Funil de Barras ──────────────────────────────────────────────────────
 type LinhaMarco = {
   key: keyof WwSlotMarcos
   label: string
@@ -526,7 +579,6 @@ function calcLinhas(marcos: WwSlotMarcos, total: number): LinhaMarco[] {
   const linhas: LinhaMarco[] = []
   let piorIdx = -1
   let piorDrop = 0
-
   for (let i = 0; i < MARCOS.length; i++) {
     const m = MARCOS[i]
     const count = marcos[m.key]
@@ -534,13 +586,11 @@ function calcLinhas(marcos: WwSlotMarcos, total: number): LinhaMarco[] {
     const pctTotal = total > 0 ? (count / total) * 100 : 0
     const pctPrev = prev != null && prev > 0 ? (count / prev) * 100 : null
     linhas.push({ key: m.key, label: m.label, short: m.short, count, pctTotal, pctPrev, prev, isGargalo: false })
-    // Identifica gargalo: maior queda relativa
     if (i > 0 && prev != null && prev > 0) {
       const drop = 1 - (count / prev)
       if (drop > piorDrop) { piorDrop = drop; piorIdx = i }
     }
   }
-  // Só destaca se gargalo é severo (queda > 15%)
   if (piorIdx >= 0 && piorDrop > 0.15) linhas[piorIdx].isGargalo = true
   return linhas
 }
@@ -584,7 +634,7 @@ function FunilBarras({ data }: { data: WwSlotData }) {
   )
 }
 
-// ── Funil Tabela (segmentBy ≠ 'none') ─────────────────────────────────────
+// ── Funil Tabela ─────────────────────────────────────────────────────────
 function FunilTabela({ data }: { data: WwSlotData }) {
   if (!data.segments || data.segments.length === 0) {
     return <div className="text-xs text-slate-400 py-6 text-center">Sem segmentos com dados.</div>
@@ -610,7 +660,6 @@ function FunilTabela({ data }: { data: WwSlotData }) {
               <tr key={s.bucket} className="text-slate-700">
                 <td className="py-1.5 pr-2 font-medium text-slate-900 truncate max-w-[100px]" title={s.bucket}>{s.bucket}</td>
                 {linhas.map((l, i) => {
-                  // Cell coloration by % from previous
                   let bgIntensity = ''
                   if (i > 0 && l.pctPrev != null) {
                     const t = l.pctPrev
@@ -629,7 +678,7 @@ function FunilTabela({ data }: { data: WwSlotData }) {
                   )
                 })}
                 <td className="text-right py-1.5 pl-2 font-semibold tabular-nums text-slate-900">
-                  {data.config.populacao === 'em_jogo' ? '—' : fmtPct(taxaFinal, 1)}
+                  {fmtPct(taxaFinal, 1)}
                 </td>
               </tr>
             )
@@ -640,7 +689,85 @@ function FunilTabela({ data }: { data: WwSlotData }) {
   )
 }
 
-// ── Coluna central de deltas ──────────────────────────────────────────────
+// ── Perfil dos Ganhos do Recorte ─────────────────────────────────────────
+function PerfilGanhosBlock({
+  data, onApplyToOther, otherSlotLetter,
+}: {
+  data: WwSlotData
+  onApplyToOther: () => void
+  otherSlotLetter: string
+}) {
+  const p = data.perfil_ganhos
+  if (!p || p.total_ganhos === 0) {
+    return (
+      <div className="border-t border-slate-100 pt-3 mt-3">
+        <div className="text-[10px] uppercase tracking-wide text-slate-500 font-medium mb-1">Perfil dos ganhos do recorte</div>
+        <div className="text-xs text-slate-400">Sem ganhos neste recorte ainda.</div>
+      </div>
+    )
+  }
+  const top1 = (arr: WwSlotPerfilBucket[] | null) => arr && arr.length > 0 ? arr[0] : null
+  const topFaixa = top1(p.faixa)
+  const topConv  = top1(p.convidados)
+  const topDest  = top1(p.destino)
+
+  return (
+    <div className="border-t border-slate-100 pt-3 mt-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] uppercase tracking-wide text-slate-500 font-medium">
+          Perfil dos {p.total_ganhos} ganhos do recorte
+        </div>
+        <button
+          onClick={onApplyToOther}
+          className="text-[10px] px-2 py-0.5 rounded border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+          title="Aplica os top buckets (faixa, convidados, destino) como filtro no outro slot"
+        >
+          → Aplicar ao Slot {otherSlotLetter}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 text-[11px]">
+        <PerfilDim label="💰 Faixa" items={p.faixa} highlight={topFaixa?.bucket} />
+        <PerfilDim label="👥 Convidados" items={p.convidados} highlight={topConv?.bucket} />
+        <PerfilDim label="🏝 Destino" items={p.destino} highlight={topDest?.bucket} />
+      </div>
+    </div>
+  )
+}
+
+function PerfilDim({ label, items, highlight }: { label: string; items: WwSlotPerfilBucket[] | null; highlight?: string }) {
+  if (!items || items.length === 0) {
+    return (
+      <div>
+        <div className="text-[10px] text-slate-500 font-medium mb-1">{label}</div>
+        <div className="text-[10px] text-slate-400">sem dados</div>
+      </div>
+    )
+  }
+  return (
+    <div>
+      <div className="text-[10px] text-slate-500 font-medium mb-1">{label}</div>
+      <div className="space-y-0.5">
+        {items.slice(0, 3).map(b => {
+          const isTop = b.bucket === highlight
+          return (
+            <div
+              key={b.bucket}
+              className={`flex items-center justify-between px-1.5 py-0.5 rounded ${
+                isTop ? 'bg-indigo-50 text-indigo-900' : 'text-slate-700'
+              }`}
+            >
+              <span className="truncate" title={b.bucket}>{b.bucket}</span>
+              <span className="tabular-nums font-medium">{fmtPct(b.pct, 0)}</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── Coluna central de deltas ─────────────────────────────────────────────
 function DeltaColumn({
   dataA, dataB, segmentBy,
 }: {
@@ -648,27 +775,23 @@ function DeltaColumn({
   dataB: WwSlotData | null
   segmentBy: WwSlotSegmentBy
 }) {
-  // Só mostra deltas quando segmentBy = 'none' (caso contrário a comparação é uma tabela própria)
   if (segmentBy !== 'none' || !dataA || !dataB) {
     return <div className="hidden md:block" />
   }
   const linhasA = calcLinhas(dataA.marcos, dataA.total)
   const linhasB = calcLinhas(dataB.marcos, dataB.total)
-  // Maior |delta pp| de % cumulativo
   let maxAbsIdx = -1
   let maxAbs = 0
   for (let i = 0; i < MARCOS.length; i++) {
     const d = Math.abs(linhasA[i].pctTotal - linhasB[i].pctTotal)
     if (d > maxAbs) { maxAbs = d; maxAbsIdx = i }
   }
-
   return (
-    <div className="hidden md:flex flex-col items-center pt-[112px]">
-      {/* pt-[112px] ≈ altura do header + hero do slot, alinhamento aproximado */}
-      <div className="text-[10px] uppercase tracking-wide text-slate-400 font-medium mb-1">Δ</div>
+    <div className="hidden md:flex flex-col items-center pt-[135px]">
+      <div className="text-[10px] uppercase tracking-wide text-slate-400 font-medium mb-1">Δ pp</div>
       <div className="space-y-1.5 w-full">
         {MARCOS.map((m, i) => {
-          const dPct = linhasA[i].pctTotal - linhasB[i].pctTotal  // A - B em pp
+          const dPct = linhasA[i].pctTotal - linhasB[i].pctTotal
           const abs = Math.abs(dPct)
           let cls = 'text-slate-300'
           let arrow = '◯'
@@ -681,9 +804,9 @@ function DeltaColumn({
           const isHighlight = abs >= 3
           return (
             <div key={m.key} className="h-[58px] flex items-center justify-center">
-              <span className={`inline-flex items-center gap-0.5 ${sizeCls} ${cls} ${isHighlight ? 'border rounded px-1.5 py-0.5' : ''}`}>
+              <span className={`inline-flex items-center gap-0.5 ${sizeCls} ${cls} ${isHighlight ? 'border rounded px-1 py-0.5' : ''}`}>
                 <span>{arrow}</span>
-                {abs >= 3 && <span className="tabular-nums">{abs.toFixed(1)}pp</span>}
+                {abs >= 3 && <span className="tabular-nums">{abs.toFixed(0)}</span>}
               </span>
             </div>
           )
@@ -693,12 +816,12 @@ function DeltaColumn({
   )
 }
 
-// ── Tabela comparativa (segmentBy=none) ───────────────────────────────────
+// ── Tabela comparativa ───────────────────────────────────────────────────
 function CompareTable({ dataA, dataB }: { dataA: WwSlotData; dataB: WwSlotData }) {
   const linhasA = calcLinhas(dataA.marcos, dataA.total)
   const linhasB = calcLinhas(dataB.marcos, dataB.total)
   return (
-    <SectionCard title="📊 Comparação marco a marco" subtitle="Lado A: % da etapa anterior · da entrada · contagem. Mesma coisa em B. Δ é a diferença de % cumulativo (A − B) em pontos percentuais.">
+    <SectionCard title="📊 Comparação marco a marco" subtitle="N · % da etapa anterior · % da entrada. Δ é diferença de % cumulativo (A − B) em pontos percentuais.">
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
@@ -752,7 +875,7 @@ function CompareTable({ dataA, dataB }: { dataA: WwSlotData; dataB: WwSlotData }
   )
 }
 
-// ── Projeção (banner) ─────────────────────────────────────────────────────
+// ── Projeção ─────────────────────────────────────────────────────────────
 function ProjecaoBanner({
   dataA, dataB, stateB,
 }: {
@@ -760,11 +883,10 @@ function ProjecaoBanner({
   dataB: WwSlotData | null
   stateB: SlotState
 }) {
-  // Só faz sentido se A é ganhos e B é em_jogo
   if (!dataA || !dataB) return null
-  if (dataA.config.populacao !== 'ganhos' || stateB.populacao !== 'em_jogo') return null
-  const taxaA = dataA.total > 0 ? (dataA.marcos.ganho / dataA.total) : 0
-  if (taxaA <= 0) return null
+  if (stateB.modo !== 'em_jogo') return null
+  if (dataA.total === 0 || dataA.marcos.ganho === 0) return null
+  const taxaA = dataA.marcos.ganho / dataA.total
   const projecao = Math.round(dataB.total * taxaA)
   return (
     <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-sm">
@@ -775,8 +897,7 @@ function ProjecaoBanner({
             Projeção: <strong>{formatNumber(projecao)} ganhos</strong> aplicando a taxa do Slot A ({fmtPct(taxaA * 100, 1)}) sobre os {formatNumber(dataB.total)} leads em jogo do Slot B.
           </div>
           <div className="text-xs text-slate-600 mt-0.5">
-            Cálculo: {formatNumber(dataB.total)} × {fmtPct(taxaA * 100, 1)} = {formatNumber(projecao)}.
-            Não é previsão certa — é o que aconteceria se o pipeline atual converter na mesma taxa do recorte de ganhos.
+            Não é previsão certa — é o que aconteceria se o pipeline atual converter na mesma taxa do recorte de referência.
           </div>
         </div>
       </div>
@@ -784,7 +905,7 @@ function ProjecaoBanner({
   )
 }
 
-// ── Tempos entre marcos ──────────────────────────────────────────────────
+// ── Tempos ──────────────────────────────────────────────────────────────
 const TRANSICOES: { key: keyof WwSlotTempos; label: string }[] = [
   { key: 'entrou_marcou_sdr', label: 'Entrou → Agendou SDR' },
   { key: 'marcou_sdr_marcou_closer', label: 'Agendou SDR → Agendou Closer' },
@@ -793,10 +914,12 @@ const TRANSICOES: { key: keyof WwSlotTempos; label: string }[] = [
 
 function TemposCompare({ dataA, dataB }: { dataA: WwSlotData | null; dataB: WwSlotData | null }) {
   if (!dataA && !dataB) return null
+  const anyHasData = TRANSICOES.some(t => dataA?.tempos[t.key]?.amostra || dataB?.tempos[t.key]?.amostra)
+  if (!anyHasData) return null
   return (
     <SectionCard
       title="⏱ Tempo entre marcos"
-      subtitle="Em buckets de dias. Quanto mais à esquerda (verde), mais rápido. Quanto mais à direita (vermelho), mais lento. Compare A vs B em cada transição para ver se o funil está esticando."
+      subtitle="Buckets de dias. Verde = rápido. Vermelho = lento. Compare se o funil de A vs B está esticando."
     >
       <div className="space-y-4">
         {TRANSICOES.map(t => (
@@ -867,23 +990,23 @@ function ParadosCompare({
   stateA: SlotState
   stateB: SlotState
 }) {
-  const showA = stateA.populacao === 'em_jogo' && dataA?.parados
-  const showB = stateB.populacao === 'em_jogo' && dataB?.parados
+  const showA = stateA.modo === 'em_jogo' && dataA?.parados
+  const showB = stateB.modo === 'em_jogo' && dataB?.parados
   if (!showA && !showB) return null
   return (
     <SectionCard
       title="🐢 Cards parados (apenas para slots Em jogo)"
-      subtitle="Cards que não tiveram movimento há mais de 14 dias, por marco onde estão. Use pra ver onde a equipe precisa cutucar."
+      subtitle="Cards sem movimento há +14 dias, por marco onde estão. Cutucar."
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {showA ? <ParadosList data={dataA} accent="indigo" /> : <div className="text-xs text-slate-400 py-6 text-center">Slot A não é "Em jogo"</div>}
-        {showB ? <ParadosList data={dataB} accent="slate" /> : <div className="text-xs text-slate-400 py-6 text-center">Slot B não é "Em jogo"</div>}
+        {showA ? <ParadosList data={dataA} accent="indigo" letter="A" /> : <div className="text-xs text-slate-400 py-6 text-center">Slot A não é "Em jogo"</div>}
+        {showB ? <ParadosList data={dataB} accent="slate" letter="B" /> : <div className="text-xs text-slate-400 py-6 text-center">Slot B não é "Em jogo"</div>}
       </div>
     </SectionCard>
   )
 }
 
-function ParadosList({ data, accent }: { data: WwSlotData; accent: 'indigo' | 'slate' }) {
+function ParadosList({ data, accent, letter }: { data: WwSlotData; accent: 'indigo' | 'slate'; letter: string }) {
   const parados = data.parados ?? {}
   const order: { key: string; label: string }[] = [
     { key: 'entrou', label: 'Entrou (ainda não agendou SDR)' },
@@ -895,7 +1018,7 @@ function ParadosList({ data, accent }: { data: WwSlotData; accent: 'indigo' | 's
   const labelTxt = accent === 'indigo' ? 'text-indigo-700' : 'text-slate-700'
   return (
     <div>
-      <div className={`text-[10px] uppercase tracking-wide ${labelTxt} font-medium mb-2`}>Slot {accent === 'indigo' ? 'A' : 'B'}</div>
+      <div className={`text-[10px] uppercase tracking-wide ${labelTxt} font-medium mb-2`}>Slot {letter}</div>
       <div className="space-y-1.5">
         {order.map(o => {
           const p = parados[o.key] as { total: number; parados: number } | undefined
@@ -918,71 +1041,14 @@ function ParadosList({ data, accent }: { data: WwSlotData; accent: 'indigo' | 's
   )
 }
 
-// ── Top combos ───────────────────────────────────────────────────────────
-function TopCombosCompare({
-  dataA, dataB, stateA, stateB,
-}: {
-  dataA: WwSlotData | null
-  dataB: WwSlotData | null
-  stateA: SlotState
-  stateB: SlotState
-}) {
-  const showA = stateA.populacao === 'ganhos' && dataA?.top_combos && dataA.top_combos.length > 0
-  const showB = stateB.populacao === 'ganhos' && dataB?.top_combos && dataB.top_combos.length > 0
-  if (!showA && !showB) return null
-  return (
-    <SectionCard
-      title="🏆 Top perfis que ganharam"
-      subtitle="Combinações Faixa × Convidados × Destino que mais entregaram ganhos no slot. Pareto direto pra priorizar foco comercial."
-    >
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {showA ? <TopCombosList combos={dataA.top_combos ?? []} accent="indigo" /> : <div className="text-xs text-slate-400 py-6 text-center">Slot A não é "Ganhos"</div>}
-        {showB ? <TopCombosList combos={dataB.top_combos ?? []} accent="slate" /> : <div className="text-xs text-slate-400 py-6 text-center">Slot B não é "Ganhos"</div>}
-      </div>
-    </SectionCard>
-  )
-}
-
-function TopCombosList({ combos, accent }: { combos: { faixa: string; convidados: string; destino: string; qtd: number; pct: number | null }[]; accent: 'indigo' | 'slate' }) {
-  const labelTxt = accent === 'indigo' ? 'text-indigo-700' : 'text-slate-700'
-  return (
-    <div>
-      <div className={`text-[10px] uppercase tracking-wide ${labelTxt} font-medium mb-2`}>Slot {accent === 'indigo' ? 'A' : 'B'}</div>
-      <div className="space-y-1">
-        {combos.map((c, i) => (
-          <div key={i} className="flex items-center gap-2 text-xs px-2 py-1.5 bg-slate-50 rounded">
-            <span className="text-[10px] text-slate-400 w-4">{i + 1}.</span>
-            <span className="flex-1 text-slate-700 truncate">
-              {c.faixa} · {c.convidados} · {c.destino}
-            </span>
-            <span className="tabular-nums">
-              <strong className="text-slate-900">{formatNumber(c.qtd)}</strong>
-              {c.pct != null && <span className="text-slate-400 ml-1">({fmtPct(c.pct, 0)})</span>}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ── Diagnóstico estruturado ──────────────────────────────────────────────
-function Diagnostico({
-  dataA, dataB, stateA, stateB,
-}: {
-  dataA: WwSlotData | null
-  dataB: WwSlotData | null
-  stateA: SlotState
-  stateB: SlotState
-}) {
+// ── Diagnóstico ─────────────────────────────────────────────────────────
+function Diagnostico({ dataA, dataB }: { dataA: WwSlotData | null; dataB: WwSlotData | null }) {
   if (!dataA || !dataB) return null
   if (dataA.total === 0 && dataB.total === 0) return null
 
-  // 1. Perfil dominante: bucket modal de cada dimensão por slot
-  const dominantA = stateA.populacao === 'ganhos' && dataA.top_combos?.[0]
-  const dominantB = stateB.populacao === 'ganhos' && dataB.top_combos?.[0]
+  const perfilA = dataA.perfil_ganhos
+  const perfilB = dataB.perfil_ganhos
 
-  // 2. Marco com maior queda de B vs A (em pp cumulativo)
   let piorMarco: { idx: number; delta: number } | null = null
   const linhasA = calcLinhas(dataA.marcos, dataA.total)
   const linhasB = calcLinhas(dataB.marcos, dataB.total)
@@ -993,40 +1059,43 @@ function Diagnostico({
     }
   }
 
+  const describePerfil = (p: WwSlotPerfilGanhos | null) => {
+    if (!p || p.total_ganhos === 0) return 'sem ganhos no recorte'
+    const f = p.faixa?.[0]?.bucket ?? '—'
+    const c = p.convidados?.[0]?.bucket ?? '—'
+    const d = p.destino?.[0]?.bucket ?? '—'
+    return `${f} · ${c} · ${d}`
+  }
+
   return (
-    <SectionCard title="💡 Diagnóstico" subtitle="Leitura factual dos dois recortes, sem juízo automático.">
+    <SectionCard title="💡 Diagnóstico" subtitle="Leitura factual dos dois recortes. Mostra o perfil dominante dos ganhos de cada lado e onde o funil mais diverge.">
       <ul className="space-y-1.5 text-sm">
-        {dominantA && (
-          <li className="flex items-start gap-2">
-            <span className="text-indigo-600 mt-0.5">●</span>
-            <span className="text-slate-700">
-              <strong>Perfil que mais ganhou em A:</strong>{' '}
-              {dominantA.faixa} · {dominantA.convidados} · {dominantA.destino}
-              <span className="text-slate-400"> ({formatNumber(dominantA.qtd)} ganhos · {fmtPct(dominantA.pct, 0)} dos ganhos de A)</span>
-            </span>
-          </li>
-        )}
-        {dominantB && (
-          <li className="flex items-start gap-2">
-            <span className="text-slate-700 mt-0.5">●</span>
-            <span className="text-slate-700">
-              <strong>Perfil que mais ganhou em B:</strong>{' '}
-              {dominantB.faixa} · {dominantB.convidados} · {dominantB.destino}
-              <span className="text-slate-400"> ({formatNumber(dominantB.qtd)} ganhos · {fmtPct(dominantB.pct, 0)} dos ganhos de B)</span>
-            </span>
-          </li>
-        )}
+        <li className="flex items-start gap-2">
+          <span className="text-indigo-600 mt-0.5">●</span>
+          <span className="text-slate-700">
+            <strong>Perfil dominante dos ganhos em A:</strong> {describePerfil(perfilA)}
+            {perfilA && perfilA.total_ganhos > 0 && (
+              <span className="text-slate-400"> ({perfilA.total_ganhos} ganhos)</span>
+            )}
+          </span>
+        </li>
+        <li className="flex items-start gap-2">
+          <span className="text-slate-700 mt-0.5">●</span>
+          <span className="text-slate-700">
+            <strong>Perfil dominante dos ganhos em B:</strong> {describePerfil(perfilB)}
+            {perfilB && perfilB.total_ganhos > 0 && (
+              <span className="text-slate-400"> ({perfilB.total_ganhos} ganhos)</span>
+            )}
+          </span>
+        </li>
         {piorMarco && (
           <li className="flex items-start gap-2">
             <span className="text-amber-600 mt-0.5">⚠</span>
             <span className="text-slate-700">
               <strong>Marco com maior queda de B vs A:</strong>{' '}
-              {MARCOS[piorMarco.idx].label} — Slot B chega com {fmtPct(linhasB[piorMarco.idx].pctTotal, 1)} vs {fmtPct(linhasA[piorMarco.idx].pctTotal, 1)} em A ({piorMarco.delta.toFixed(1)}pp a menos).
+              {MARCOS[piorMarco.idx].label} — B chega com {fmtPct(linhasB[piorMarco.idx].pctTotal, 1)} vs {fmtPct(linhasA[piorMarco.idx].pctTotal, 1)} em A ({piorMarco.delta.toFixed(1)}pp a menos).
             </span>
           </li>
-        )}
-        {!dominantA && !dominantB && !piorMarco && (
-          <li className="text-xs text-slate-500">Nada de relevante para destacar entre os dois recortes neste momento.</li>
         )}
       </ul>
     </SectionCard>

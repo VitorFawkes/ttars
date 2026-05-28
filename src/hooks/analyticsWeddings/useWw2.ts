@@ -1084,6 +1084,16 @@ export type WwSlotTopCombo = {
   pct: number | null
 }
 
+export type WwSlotPerfilBucket = { bucket: string; qtd: number; pct: number }
+
+export type WwSlotPerfilGanhos = {
+  total_ganhos: number
+  faixa: WwSlotPerfilBucket[] | null
+  convidados: WwSlotPerfilBucket[] | null
+  destino: WwSlotPerfilBucket[] | null
+  origem: WwSlotPerfilBucket[] | null
+}
+
 export type WwSlotData = {
   config: {
     populacao: WwSlotPopulacao
@@ -1092,15 +1102,18 @@ export type WwSlotData = {
     date_end: string
     segment_by: WwSlotSegmentBy
     dias_parado: number
+    meses: string[] | null
   }
   pipeline_id: string
   org_id: string
   total: number
+  ganhos_total: number
   marcos: WwSlotMarcos
   segments: WwSlotSegment[] | null
   tempos: WwSlotTempos
   parados: WwSlotParados | null
   top_combos: WwSlotTopCombo[] | null
+  perfil_ganhos: WwSlotPerfilGanhos | null
   error?: string
 }
 
@@ -1117,16 +1130,18 @@ export type WwSlotParams = {
   tipos?: string[]
   consultorIds?: string[]
   diasParado?: number
+  meses?: string[]  // YYYY-MM[]
 }
 
 export function useWwFunilSlot(params: WwSlotParams) {
   const orgId = useOrgId()
   return useQuery({
     queryKey: [
-      'ww', 'funil-slot', orgId,
+      'ww', 'funil-slot-v2', orgId,
       params.populacao, params.dateAxis, params.dateStart, params.dateEnd,
       params.segmentBy, params.faixas, params.convidados, params.destinos,
       params.origins, params.tipos, params.consultorIds, params.diasParado ?? 14,
+      params.meses,
     ],
     queryFn: () => callRpc<WwSlotData>('ww_funil_perfil_slot', {
       p_populacao: params.populacao,
@@ -1142,6 +1157,7 @@ export function useWwFunilSlot(params: WwSlotParams) {
       p_tipos: params.tipos?.length ? params.tipos : null,
       p_consultor_ids: params.consultorIds?.length ? params.consultorIds : null,
       p_dias_parado: params.diasParado ?? 14,
+      p_meses: params.meses?.length ? params.meses : null,
     }),
     enabled: !!orgId,
     staleTime: 60_000,

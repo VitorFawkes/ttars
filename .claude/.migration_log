@@ -1075,3 +1075,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-28T12:20:31Z | supabase/migrations/20260528i_ww_closer_data_reuniao_field.sql | applied_to_prod
 2026-05-28T12:23:42Z | supabase/migrations/20260528j_ww_funil_perfil_slot.sql | applied_to_prod
 2026-05-28T12:28:07Z | supabase/migrations/20260518a_subcard_remove_auto_task.sql | applied_to_prod
+2026-05-28T12:45:27Z | supabase/migrations/20260528k_ww_funil_perfil_slot_v2.sql | applied_to_prod
