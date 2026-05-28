@@ -254,6 +254,40 @@ async function handle(req: Request): Promise<Response> {
         return jsonResponse({ casal_id: data.id, codigo: data.codigo });
       }
 
+      case "listar_casais_publico": {
+        // Lista TODOS os casais Welcome Weddings (sem encerrados).
+        // Sem auth. Usado pelo painel /casais-painel.
+        const { data, error } = await admin.rpc("wedding_casais_publico_list");
+        if (error) throw error;
+        return jsonResponse(data ?? []);
+      }
+
+      case "marcar_visto_publico": {
+        const { casal_id } = payload as { casal_id?: string };
+        if (!casal_id) {
+          return jsonResponse({ error: "missing_casal_id" }, 400);
+        }
+        const { data, error } = await admin.rpc(
+          "wedding_casal_publico_marcar_visto",
+          { p_casal_id: casal_id },
+        );
+        if (error) throw error;
+        return jsonResponse({ ok: data === true });
+      }
+
+      case "envios_publico": {
+        const { casal_id } = payload as { casal_id?: string };
+        if (!casal_id) {
+          return jsonResponse({ error: "missing_casal_id" }, 400);
+        }
+        const { data, error } = await admin.rpc(
+          "wedding_casal_publico_envios",
+          { p_casal_id: casal_id },
+        );
+        if (error) throw error;
+        return jsonResponse(data ?? []);
+      }
+
       default:
         return jsonResponse({ error: "unknown_action", action }, 400);
     }
