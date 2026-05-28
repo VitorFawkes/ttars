@@ -1653,19 +1653,12 @@ Deno.serve(async (req) => {
 
                         // Status 'perdido' always forces to lost stage (handled above), skip regression check
                         if (status !== 'perdido') {
-                            // Rule 1: If CRM card is at a terminal stage (won/lost), never allow AC to move it out
+                            // Rule 1: If CRM card is at a terminal stage (won/lost), never allow AC to move it out.
+                            // Reabertura de lead que voltou é decisão humana — sync nunca tira card de etapa terminal.
                             if (isTerminalStage(currentCrmStageId)) {
-                                // RESCUE EXCEPTION: manual sync + card was is_lost (not is_won) + AC reopened (status=aberto)
-                                // → allow the move so leads that returned via AC can be reopened in the correct active stage.
-                                const currentStage = pipelineStages?.find(s => s.id === currentCrmStageId);
-                                const cardIsLostOnly = (currentStage as any)?.is_lost === true && (currentStage as any)?.is_won !== true;
-                                if (isManualSync && cardIsLostOnly && status === 'aberto') {
-                                    log += ` [RESCUE: importMode=sync, card was is_lost, AC reopened (status=0) — moving to AC stage]`;
-                                } else {
-                                    skipStageUpdate = true;
-                                    const currentPos = getStagePosition(currentCrmStageId);
-                                    log += ` [DONT_REGRESS: CRM at terminal stage (phase=${currentPos?.phaseOrder}, ordem=${currentPos?.stageOrder})]`;
-                                }
+                                skipStageUpdate = true;
+                                const currentPos = getStagePosition(currentCrmStageId);
+                                log += ` [DONT_REGRESS: CRM at terminal stage (phase=${currentPos?.phaseOrder}, ordem=${currentPos?.stageOrder})]`;
                             }
                             // Rule 2: If CRM stage is more advanced than AC target, don't regress
                             else if (isStageMoreAdvanced(currentCrmStageId, targetStageId)) {
@@ -1684,20 +1677,11 @@ Deno.serve(async (req) => {
                         log += ' [status_comercial deferred to CRM stage trigger]';
                     }
 
-                    // GUARD: Never let AC status '0' (open) overwrite a card that was
-                    // manually closed (ganho/perdido) in CRM. Only AC status '1' (won)
-                    // or '2' (lost) can change a closed card's status.
-                    // RESCUE EXCEPTION: manual sync of a card that was 'perdido' (not 'ganho')
-                    // is allowed to reopen status_comercial back to 'aberto' so AC reopen flows work.
+                    // GUARD: Sync nunca reabre card fechado. Se o time marcou perdido/ganho,
+                    // a reabertura é decisão humana (botão "Reabrir card"), nunca efeito colateral do sync.
                     if (existingCard && ['ganho', 'perdido'].includes(existingCard.status_comercial) && status === 'aberto') {
-                        const isRescueLost = isManualSync && existingCard.status_comercial === 'perdido';
-                        if (isRescueLost) {
-                            cardPayload.status_comercial = 'aberto';
-                            log += ` [RESCUE_STATUS: card was 'perdido', importMode=sync — reopening to 'aberto']`;
-                        } else {
-                            delete cardPayload.status_comercial;
-                            log += ` [PROTECT_STATUS: card is ${existingCard.status_comercial}, AC sent status=0 (open) — not overwriting]`;
-                        }
+                        delete cardPayload.status_comercial;
+                        log += ` [PROTECT_STATUS: card is ${existingCard.status_comercial}, AC sent status=0 (open) — not overwriting]`;
                     }
 
                     if (targetStageId && topology && !skipStageUpdate) {
