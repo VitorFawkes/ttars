@@ -1081,3 +1081,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-28T13:01:03Z | supabase/migrations/20260528n_ww2_overview_journey_v2.sql | applied_to_prod
 2026-05-28T13:16:33Z | supabase/migrations/20260528o_ww_funnel_base_from_cache.sql | applied_to_prod
 2026-05-28T13:22:17Z | supabase/migrations/20260528p_ww_funnel_cron.sql | applied_to_prod
+2026-05-28T13:36:43Z | supabase/migrations/20260528q_ww_funil_dedup_por_contato.sql | applied_to_prod

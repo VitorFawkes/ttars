@@ -398,6 +398,7 @@ export type Ww2Journey = {
   pipeline_id: string
   org_id: string
   funil_real: Ww2FunilPasso[]
+  funil_real_por_contato?: Ww2FunilPasso[]
   tempos: Ww2Tempos
   orcamento_real: Ww2OrcamentoReal[]
   destino_mudou: Ww2DestinoMudou[]
@@ -1113,8 +1114,10 @@ export type WwSlotData = {
   pipeline_id: string
   org_id: string
   total: number
+  total_contatos?: number
   ganhos_total: number
   marcos: WwSlotMarcos
+  marcos_por_contato?: WwSlotMarcos
   segments: WwSlotSegment[] | null
   tempos: WwSlotTempos
   parados: WwSlotParados | null
