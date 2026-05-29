@@ -1096,3 +1096,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-29T15:05:44Z | supabase/migrations/20260530b_ww_ac_cache_extend_motivo_utm.sql | applied_to_prod
 2026-05-29T15:24:25Z | supabase/migrations/20260530c_ww_analytics_4_tabs_ac_universe.sql | applied_to_prod
 2026-05-29T15:37:25Z | supabase/migrations/20260530d_ww_norm_origem_insta_fix.sql | applied_to_prod
+2026-05-29T17:14:12Z | supabase/migrations/20260529a_patricia_sondagem_opcionais_fronteira.sql | applied_to_prod
