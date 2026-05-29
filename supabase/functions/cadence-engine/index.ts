@@ -2779,14 +2779,32 @@ async function executeBranchStep(
     const config = step.branch_config || {};
     const branches = config.branches || [];
 
-    let targetStepKey = step.next_step_key; // default
+    // Compat: branches com `condition` próprio (multi-branch genérico) → primeira que casar.
+    const conditioned = branches.filter((b: any) => b.condition);
+    let targetStepKey: string | null = null;
 
-    // Avaliar cada branch
-    for (const branch of branches) {
-        if (await evaluateCondition(supabaseClient, branch.condition, card, instance)) {
-            targetStepKey = branch.target_step_key;
-            break;
+    if (conditioned.length > 0) {
+        for (const b of conditioned) {
+            if (await evaluateCondition(supabaseClient, b.condition, card, instance)) {
+                targetStepKey = b.target_step_key;
+                break;
+            }
         }
+        if (!targetStepKey) targetStepKey = step.next_step_key ?? null;
+    } else {
+        // Caminho if/else do editor v2: condição única no nó (gravada na raiz do
+        // branch_config como condition_type + params), roteia pela alça true/false.
+        // O `branches[]` carrega só { handle, target_step_key }, sem `condition` — por
+        // isso a condição é reconstruída aqui e avaliada uma vez.
+        const nodeCondition = buildBranchCondition(config);
+        const met = nodeCondition
+            ? await evaluateCondition(supabaseClient, nodeCondition, card, instance)
+            : false;
+        const handle = met ? 'true' : 'false';
+        const branch = branches.find((b: any) => (b.handle || 'true') === handle);
+        // Sem alça conectada para o resultado → fluxo para (não usa next_step_key, que
+        // apontava para a alça verde e fazia o card avançar independente da condição).
+        targetStepKey = branch?.target_step_key ?? null;
     }
 
     // Agendar step alvo
@@ -2795,6 +2813,24 @@ async function executeBranchStep(
     }
 
     return { branch_taken: targetStepKey };
+}
+
+/**
+ * Traduz a config do editor v2 (raiz do branch_config) para o formato que
+ * evaluateCondition espera. O editor grava `condition_type` (não `type`) e, para
+ * successful_contacts_gte, `min_contacts` (não `value`) — normalizamos aqui.
+ */
+function buildBranchCondition(config: any) {
+    const type = config?.condition_type;
+    if (!type) return null;
+    switch (type) {
+        case 'card_in_stage':           return { type, stage_id: config.stage_id };
+        case 'card_in_stages':          return { type, stage_ids: config.stage_ids };
+        case 'task_outcome':            return { type, outcome: config.outcome };
+        case 'successful_contacts_gte': return { type, value: config.min_contacts ?? config.value ?? 1 };
+        case 'total_contacts_gte':      return { type, value: config.value };
+        default:                        return { type, ...config };
+    }
 }
 
 async function executeEndStep(
@@ -4052,7 +4088,7 @@ async function evaluateCondition(
             return result;
 
         case 'card_in_stage':
-            result = card.pipeline_stage_id === condition.stage_id;
+            result = !!condition.stage_id && card.pipeline_stage_id === condition.stage_id;
             console.log(`[CadenceEngine] evaluateCondition: card_in_stage`, {
                 ...logContext,
                 expected_stage: condition.stage_id,
