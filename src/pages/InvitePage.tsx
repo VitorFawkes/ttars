@@ -37,6 +37,7 @@ export default function InvitePage() {
     const [showPassword, setShowPassword] = useState(false);
     const [acceptedTerms, setAcceptedTerms] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [azureLoading, setAzureLoading] = useState(false);
 
     useEffect(() => {
         if (token) {
@@ -55,6 +56,43 @@ export default function InvitePage() {
             setEmailMismatch(sessionEmail.toLowerCase() !== inviteData.email.toLowerCase());
         }
     }, [sessionEmail, inviteData]);
+
+    // Retorno do OAuth de um convidado NOVO: o trigger handle_new_user já casou
+    // o convite por email, provisionou profile/workspace e marcou o convite como
+    // usado. Aqui get_invite_details retorna inválido — mas o usuário está logado
+    // e dentro do sistema, então mandamos pro pipeline em vez da tela de erro.
+    useEffect(() => {
+        if (!loading && !valid && sessionEmail) {
+            navigate('/pipeline');
+        }
+    }, [loading, valid, sessionEmail, navigate]);
+
+    // Registro best-effort de aceite de termos após o OAuth (o checkbox foi
+    // confirmado antes do redirect; marcador guardado em sessionStorage).
+    useEffect(() => {
+        if (!sessionEmail || !token) return;
+        const marker = sessionStorage.getItem(`wc_invite_terms_${token}`);
+        if (!marker) return;
+        sessionStorage.removeItem(`wc_invite_terms_${token}`);
+        supabase.auth.getSession().then(({ data }) => {
+            const uid = data.session?.user?.id;
+            if (!uid) return;
+            supabase
+                .from('terms_acceptance')
+                .insert({
+                    user_id: uid,
+                    org_id: inviteData?.org_id ?? null,
+                    terms_version: TERMS_VERSION,
+                    privacy_version: PRIVACY_VERSION,
+                    dpa_version: DPA_VERSION,
+                    user_agent: navigator.userAgent,
+                    context: 'signup_oauth',
+                })
+                .then(() => {}, (err) => {
+                    console.warn('Failed to log terms acceptance (oauth):', err);
+                });
+        });
+    }, [sessionEmail, token, inviteData]);
 
     const validateToken = async (t: string) => {
         try {
@@ -182,6 +220,28 @@ export default function InvitePage() {
             toast({ title: 'Erro ao aceitar convite', description: message, type: 'error' });
         } finally {
             setAccepting(false);
+        }
+    };
+
+    const handleAzureInvite = async () => {
+        if (!acceptedTerms) {
+            toast({ title: 'Atenção', description: 'Você precisa aceitar os Termos de Uso e a Política de Privacidade.', type: 'error' });
+            return;
+        }
+        setAzureLoading(true);
+        // Marcador para registrar o aceite de termos quando o usuário voltar do OAuth.
+        if (token) sessionStorage.setItem(`wc_invite_terms_${token}`, '1');
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: 'azure',
+            options: {
+                redirectTo: `${window.location.origin}/invite/${token}`,
+                scopes: 'email openid profile',
+            },
+        });
+        // Sucesso → browser redireciona pra Microsoft. Só tratamos erro síncrono.
+        if (error) {
+            toast({ title: 'Erro', description: error.message, type: 'error' });
+            setAzureLoading(false);
         }
     };
 
@@ -374,6 +434,30 @@ export default function InvitePage() {
                         )}
                     </Button>
                 </form>
+
+                <div className="relative my-4">
+                    <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-slate-200" />
+                    </div>
+                    <div className="relative flex justify-center text-xs">
+                        <span className="bg-white px-2 text-slate-500">ou</span>
+                    </div>
+                </div>
+
+                <button
+                    type="button"
+                    onClick={handleAzureInvite}
+                    disabled={!acceptedTerms || azureLoading}
+                    className="flex w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50"
+                >
+                    <svg className="h-4 w-4" viewBox="0 0 23 23" aria-hidden="true">
+                        <rect x="1" y="1" width="10" height="10" fill="#f25022" />
+                        <rect x="12" y="1" width="10" height="10" fill="#7fba00" />
+                        <rect x="1" y="12" width="10" height="10" fill="#00a4ef" />
+                        <rect x="12" y="12" width="10" height="10" fill="#ffb900" />
+                    </svg>
+                    {azureLoading ? 'Redirecionando...' : 'Entrar com Microsoft'}
+                </button>
             </div>
         </div>
     );

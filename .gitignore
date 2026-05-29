@@ -134,3 +134,6 @@ relatorio-*.pdf
 
 # Worktrees do Claude Code
 .claude/worktrees/
+
+# Segredos Azure (client secret real) — nunca commitar
+docs/azurelogin.md
