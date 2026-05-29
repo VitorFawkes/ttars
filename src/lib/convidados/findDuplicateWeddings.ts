@@ -14,11 +14,11 @@ export function normalizeWeddingTitle(titulo: string): string {
 }
 
 export interface DuplicateWeddingGroup {
-  /** Chave do grupo (título normalizado + data). */
+  /** Chave do grupo (nome do casal normalizado). */
   key: string
   /** Nome de exibição do casal (do casamento sugerido como principal). */
   displayTitle: string
-  /** Data do casamento (ISO) compartilhada pelo grupo, ou null. */
+  /** Data do casamento sugerido (ISO). Pode variar entre os casamentos do grupo. */
   weddingDate: string | null
   /** Casamentos do grupo, ordenados com o sugerido principal primeiro. */
   weddings: WeddingWithGuests[]
@@ -28,9 +28,14 @@ export interface DuplicateWeddingGroup {
 
 /**
  * Detecta casamentos cadastrados em duplicidade no board de convidados.
- * Agrupa por título normalizado do casal + mesma data; retorna apenas grupos
- * com 2+ casamentos. O destino sugerido é o de mais convidados (empate resolve
- * pela etapa mais avançada do funil de comunicação).
+ *
+ * Regra de match: pelo **nome do casal** (título normalizado), independente da
+ * data. O "ID" exibido no card (ex.: "W - Raíssa e Gustavo - 07FEV27") já é
+ * derivado do nome, então casar por nome cobre o caso do ID — sem exigir que os
+ * dois batam. O ID será descontinuado no futuro; o nome é o sinal durável.
+ *
+ * Retorna apenas grupos com 2+ casamentos. O destino sugerido é o de mais
+ * convidados (empate resolve pela etapa mais avançada do funil).
  */
 export function findDuplicateWeddings(
   weddings: WeddingWithGuests[],
@@ -38,12 +43,8 @@ export function findDuplicateWeddings(
   const groups = new Map<string, WeddingWithGuests[]>()
 
   for (const w of weddings) {
-    const titleKey = normalizeWeddingTitle(w.titulo)
-    if (!titleKey) continue
-    // Mesma data (ou ambos sem data) faz parte da chave — evita juntar casais
-    // homônimos de datas diferentes.
-    const dateKey = w.wedding_date ?? 'sem-data'
-    const key = `${titleKey}__${dateKey}`
+    const key = normalizeWeddingTitle(w.titulo)
+    if (!key) continue
     const list = groups.get(key) ?? []
     list.push(w)
     groups.set(key, list)
