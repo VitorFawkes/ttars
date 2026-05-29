@@ -127,8 +127,11 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
     const scoreResult = session.scoreResult
     const score = scoreResult?.score ?? 0
     const threshold = scoreResult?.threshold ?? config?.threshold_qualify ?? 25
-    const qualificado = scoreResult?.qualificado ?? false
-    const disqualified = scoreResult?.disqualified ?? false
+    // Indicação é bypass: qualifica na hora, independente do score. Lido do
+    // estado local (feedback imediato) — o servidor grava o mesmo bypass.
+    const qualifiedByIndicacao = session.dadosLead.is_indicacao === true
+    const qualificado = qualifiedByIndicacao || (scoreResult?.qualificado ?? false)
+    const disqualified = !qualifiedByIndicacao && (scoreResult?.disqualified ?? false)
 
     const destinosSelecionados = useMemo(() => {
         const catalogo = findRulesByGroup(rules, 'destino')
@@ -283,6 +286,7 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                                 threshold={threshold}
                                 qualificado={qualificado}
                                 disqualified={disqualified}
+                                qualifiedByIndicacao={qualifiedByIndicacao}
                                 saving={session.saving}
                                 cardId={session.linkedCardId}
                                 onVincular={() => setShowVincular(true)}
@@ -894,6 +898,7 @@ function ScoreHeader({
     threshold,
     qualificado,
     disqualified,
+    qualifiedByIndicacao,
     saving,
     cardId,
     onVincular,
@@ -903,18 +908,22 @@ function ScoreHeader({
     threshold: number
     qualificado: boolean
     disqualified: boolean
+    qualifiedByIndicacao?: boolean
     saving: boolean
     cardId: string | null | undefined
     onVincular: () => void
     onDesvincular?: () => void
 }) {
-    const status = disqualified
+    const status = qualifiedByIndicacao
+        ? { icon: CheckCircle2, color: 'text-emerald-700', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200', label: 'Qualificado por indicação', barColor: 'bg-emerald-500' }
+        : disqualified
         ? { icon: XCircle, color: 'text-rose-700', bgColor: 'bg-rose-50', borderColor: 'border-rose-200', label: 'Desqualificado', barColor: 'bg-rose-500' }
         : qualificado
             ? { icon: CheckCircle2, color: 'text-emerald-700', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200', label: 'Qualificado', barColor: 'bg-emerald-500' }
             : { icon: AlertTriangle, color: 'text-slate-600', bgColor: 'bg-slate-50', borderColor: 'border-slate-200', label: `Abaixo de ${threshold}`, barColor: 'bg-slate-400' }
     const Icon = status.icon
-    const pct = Math.min(100, Math.round((score / Math.max(threshold, 1)) * 100))
+    // Indicação qualifica independente do score → barra cheia pra refletir o estado.
+    const pct = qualifiedByIndicacao ? 100 : Math.min(100, Math.round((score / Math.max(threshold, 1)) * 100))
 
     return (
         <div className={`relative px-6 pt-6 pb-5 border-b ${status.borderColor} ${status.bgColor}`}>

@@ -385,8 +385,9 @@ function Tabela({
             <tbody className="divide-y divide-slate-100">
                 {items.map((p) => {
                     const score = p.score_result?.score ?? 0
-                    const qualificado = p.score_result?.qualificado ?? false
-                    const disq = p.score_result?.disqualified ?? false
+                    const byIndicacao = p.dados_lead?.is_indicacao === true || p.score_result?.qualified_by_indicacao === true
+                    const qualificado = byIndicacao || (p.score_result?.qualificado ?? false)
+                    const disq = !byIndicacao && (p.score_result?.disqualified ?? false)
                     const isDraft = p.status === 'rascunho'
                     const isFinalizada = p.status === 'finalizado'
                     const isExpandable = isFinalizada && !!onToggleExpand
@@ -432,7 +433,7 @@ function Tabela({
                             </td>
                             <td className="p-3 text-slate-700">{p.sdr_nome ?? '—'}</td>
                             <td className="p-3">
-                                {isDraft && score === 0 ? (
+                                {isDraft && score === 0 && !byIndicacao ? (
                                     <span className="text-xs text-slate-400">vazio</span>
                                 ) : (
                                     <Badge
@@ -445,6 +446,7 @@ function Tabela({
                                                         ? 'bg-amber-100 text-amber-700'
                                                         : 'bg-slate-100 text-slate-700'
                                         }
+                                        title={byIndicacao ? 'Qualificado por indicação' : undefined}
                                     >
                                         {score}
                                         {disq ? ' ✗' : qualificado ? ' ✓' : ''}
