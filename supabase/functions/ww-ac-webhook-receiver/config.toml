@@ -1,0 +1,8 @@
+# ww-ac-webhook-receiver: Recebe webhooks do ActiveCampaign especificamente
+# para Welcome Weddings. Insere em ac_event_raw (Bronze layer) e dispara
+# sync incremental do deal/contact afetado.
+#
+# verify_jwt desabilitado porque AC não envia JWT — é webhook externo.
+# Idempotência via dedup_key UNIQUE em ac_event_raw.
+[auth]
+verify_jwt = false
