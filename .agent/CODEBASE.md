@@ -7,10 +7,10 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-29
 > **Trigger:** ALWAYS ON
-> **Stats:** 221 tabelas | 212 paginas | 344 hooks | 27 views | 815 components
+> **Stats:** 222 tabelas | 225 paginas | 376 hooks | 28 views | 852 components
 > **Last Updated:** 2026-05-29
 > **Trigger:** ALWAYS ON
-> **Stats:** 221 tabelas | 212 paginas | 344 hooks | 27 views | 815 components
+> **Stats:** 222 tabelas | 225 paginas | 376 hooks | 28 views | 852 components
 
 ---
 
@@ -172,7 +172,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **344 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **376 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -196,7 +196,17 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAiSkills()` | `useAiSkills.ts` |
 | `useAiSkills()` | `useAiSkills.ts` |
 | `useBriefingIA()` | `useBriefingIA.ts` |
+| `useBriefingImages()` | `useBriefingImages.ts` |
+| `useBriefingImages 2()` | `useBriefingImages 2.ts` |
+| `useBriefingImages 3()` | `useBriefingImages 3.ts` |
+| `useBriefingImages 4()` | `useBriefingImages 4.ts` |
+| `useBriefingImages 5()` | `useBriefingImages 5.ts` |
+| `useBriefingImages 6()` | `useBriefingImages 6.ts` |
+| `useBriefingImages 7()` | `useBriefingImages 7.ts` |
+| `useBriefingImages 8()` | `useBriefingImages 8.ts` |
+| `useBriefingImages 9()` | `useBriefingImages 9.ts` |
 | `useCasais()` | `useCasais.ts` |
+| `useCasais 2()` | `useCasais 2.ts` |
 | `useChatIA()` | `useChatIA.ts` |
 | `useContactSearch()` | `useContactSearch.ts` |
 | `useDuffelFlightSearch()` | `useDuffelFlightSearch.ts` |
@@ -272,6 +282,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `mockHotel()` | `mockHotel.ts` |
 | `types()` | `types.ts` |
 | `types()` | `types.ts` |
+| `useACBaseUrl()` | `useACBaseUrl.ts` |
 | `useAgentBoundaries()` | `useAgentBoundaries.ts` |
 | `useAgentBoundaries()` | `useAgentBoundaries.ts` |
 | `useAgentBusinessConfig()` | `useAgentBusinessConfig.ts` |
@@ -322,11 +333,15 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAutoMergePreflight()` | `useAutoMergePreflight.ts` |
 | `useAutoSave()` | `useAutoSave.ts` |
 | `useAutomations()` | `useAutomations.ts` |
+| `useAvipConnection()` | `useAvipConnection.ts` |
+| `useAvipConnection 2()` | `useAvipConnection 2.ts` |
+| `useAvipConnection 3()` | `useAvipConnection 3.ts` |
 | `useBulkGiftStatus()` | `useBulkGiftStatus.ts` |
 | `useBulkLeadActions()` | `useBulkLeadActions.ts` |
 | `useCancelamento()` | `useCancelamento.ts` |
 | `useCasalEnvios()` | `useCasalEnvios.ts` |
 | `useCasalMutations()` | `useCasalMutations.ts` |
+| `useCasalMutations 2()` | `useCasalMutations 2.ts` |
 | `useCatalog()` | `useCatalog.ts` |
 | `useChecklist()` | `useChecklist.ts` |
 | `useChecklistTarefa()` | `useChecklistTarefa.ts` |
@@ -344,10 +359,12 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useEditarTituloTarefa()` | `useEditarTituloTarefa.ts` |
 | `useEmpresaPessoas()` | `useEmpresaPessoas.ts` |
 | `useEmpresas()` | `useEmpresas.ts` |
+| `useEmpresas 2()` | `useEmpresas 2.ts` |
 | `useEngajamentoConversas()` | `useEngajamentoConversas.ts` |
 | `useEnvioStatus()` | `useEnvioStatus.ts` |
 | `useEnviosLotesDoDia()` | `useEnviosLotesDoDia.ts` |
 | `useEstelaScoringRules()` | `useEstelaScoringRules.ts` |
+| `useEstelaScoringRules 2()` | `useEstelaScoringRules 2.ts` |
 | `useFirstAccessOfDay()` | `useFirstAccessOfDay.ts` |
 | `useFlightLookup()` | `useFlightLookup.ts` |
 | `useFluxoConfig()` | `useFluxoConfig.ts` |
@@ -369,6 +386,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useLeadsColumns()` | `useLeadsColumns.ts` |
 | `useLeadsQuery()` | `useLeadsQuery.ts` |
 | `useListaCasalPublica()` | `useListaCasalPublica.ts` |
+| `useListaCasalPublica 2()` | `useListaCasalPublica 2.ts` |
 | `useMensagemTemplates()` | `useMensagemTemplates.ts` |
 | `useMeusLeadsSdr()` | `useMeusLeadsSdr.ts` |
 | `useModelosConcierge()` | `useModelosConcierge.ts` |
@@ -423,6 +441,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useTemplateUsages()` | `useTemplateUsages.ts` |
 | `useTemplateVarConfig()` | `useTemplateVarConfig.ts` |
 | `useToggleCritical()` | `useToggleCritical.ts` |
+| `useToggleCritical 2()` | `useToggleCritical 2.ts` |
 | `useToggleEmFuturoConcierge()` | `useToggleEmFuturoConcierge.ts` |
 | `useTripComments()` | `useTripComments.ts` |
 | `useTripItemHistory()` | `useTripItemHistory.ts` |
@@ -458,12 +477,23 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useArchiveCard()` | `useArchiveCard.ts` |
 | `useAssistedCardIds()` | `useAssistedCardIds.ts` |
 | `useAtendimentosCard()` | `useAtendimentosCard.ts` |
+| `useAvipCardLink()` | `useAvipCardLink.ts` |
+| `useAvipCardLink 2()` | `useAvipCardLink 2.ts` |
+| `useAvipCardLink 3()` | `useAvipCardLink 3.ts` |
 | `useCalendarFilters()` | `useCalendarFilters.ts` |
 | `useCardAlertRules()` | `useCardAlertRules.ts` |
 | `useCardAlerts()` | `useCardAlerts.ts` |
 | `useCardAttachments()` | `useCardAttachments.ts` |
 | `useCardConciergeStats()` | `useCardConciergeStats.ts` |
 | `useCardContactNames()` | `useCardContactNames.ts` |
+| `useCardCreation()` | `useCardCreation.ts` |
+| `useCardCreation 2()` | `useCardCreation 2.ts` |
+| `useCardCreation 3()` | `useCardCreation 3.ts` |
+| `useCardCreation 4()` | `useCardCreation 4.ts` |
+| `useCardCreation 5()` | `useCardCreation 5.ts` |
+| `useCardCreation 6()` | `useCardCreation 6.ts` |
+| `useCardCreation 7()` | `useCardCreation 7.ts` |
+| `useCardCreation 8()` | `useCardCreation 8.ts` |
 | `useCardCreationRules()` | `useCardCreationRules.ts` |
 | `useCardFinancialSummary()` | `useCardFinancialSummary.ts` |
 | `useCardGifts()` | `useCardGifts.ts` |
@@ -476,6 +506,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useCardTeam()` | `useCardTeam.ts` |
 | `useCardTeamCounts()` | `useCardTeamCounts.ts` |
 | `useCardsDisponiveis()` | `useCardsDisponiveis.ts` |
+| `useCardsDisponiveis 2()` | `useCardsDisponiveis 2.ts` |
 | `useCardsTravados()` | `useCardsTravados.ts` |
 | `useContactAvailableCards()` | `useContactAvailableCards.ts` |
 | `useDeleteCard()` | `useDeleteCard.ts` |
@@ -487,6 +518,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useGiftStatusKanban()` | `useGiftStatusKanban.ts` |
 | `useKanbanTarefas()` | `useKanbanTarefas.ts` |
 | `useKanbanViagens()` | `useKanbanViagens.ts` |
+| `useKanbanViagens 2()` | `useKanbanViagens 2.ts` |
 | `useLeadsFilters()` | `useLeadsFilters.ts` |
 | `useLeadsterCreateCards()` | `useLeadsterCreateCards.ts` |
 | `useMyAssistCardIds()` | `useMyAssistCardIds.ts` |
@@ -595,7 +627,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **212 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **225 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -615,9 +647,10 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `AnalyticsWeddingsPage` | `src/pages/AnalyticsWeddings/AnalyticsWeddingsPage.tsx` |
 | `EntradaRealidade` | `src/pages/AnalyticsWeddings/tabs/EntradaRealidade.tsx` |
 | `Equipe` | `src/pages/AnalyticsWeddings/tabs/Equipe.tsx` |
-| `Jornada` | `src/pages/AnalyticsWeddings/tabs/Jornada.tsx` |
+| `FunilComparado` | `src/pages/AnalyticsWeddings/tabs/FunilComparado.tsx` |
 | `Marketing` | `src/pages/AnalyticsWeddings/tabs/Marketing.tsx` |
 | `Perdas` | `src/pages/AnalyticsWeddings/tabs/Perdas.tsx` |
+| `Perfil` | `src/pages/AnalyticsWeddings/tabs/Perfil.tsx` |
 | `Qualidade` | `src/pages/AnalyticsWeddings/tabs/Qualidade.tsx` |
 | `VisaoGeral` | `src/pages/AnalyticsWeddings/tabs/VisaoGeral.tsx` |
 | `CalendarPage` | `src/pages/CalendarPage.tsx` |
@@ -627,6 +660,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `Cards` | `src/pages/Cards.tsx` |
 | `CatalogoPage` | `src/pages/CatalogoPage.tsx` |
 | `CreateCardFromEcho` | `src/pages/CreateCardFromEcho.tsx` |
+| `Empresas 2` | `src/pages/Empresas 2.tsx` |
 | `Empresas` | `src/pages/Empresas.tsx` |
 | `ForgotPassword` | `src/pages/ForgotPassword.tsx` |
 | `GroupsPage` | `src/pages/GroupsPage.tsx` |
@@ -713,6 +747,9 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `AutomacaoBuilderPage` | `src/pages/admin/cadence/AutomacaoBuilderPage.tsx` |
 | `CadenceBuilderPage` | `src/pages/admin/cadence/CadenceBuilderPage.tsx` |
 | `CadenceMonitorPage` | `src/pages/admin/cadence/CadenceMonitorPage.tsx` |
+| `AssessoriaVipPage 2` | `src/pages/admin/integracoes/AssessoriaVipPage 2.tsx` |
+| `AssessoriaVipPage 3` | `src/pages/admin/integracoes/AssessoriaVipPage 3.tsx` |
+| `AssessoriaVipPage` | `src/pages/admin/integracoes/AssessoriaVipPage.tsx` |
 | `Step1_BusinessIdentity` | `src/pages/admin/wizard/Step1_BusinessIdentity.tsx` |
 | `Step2_TemplateSelection` | `src/pages/admin/wizard/Step2_TemplateSelection.tsx` |
 | `Step3_FunnelConfiguration` | `src/pages/admin/wizard/Step3_FunnelConfiguration.tsx` |
@@ -793,6 +830,10 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `Terms` | `src/pages/legal/Terms.tsx` |
 | `MobileCardCreate` | `src/pages/mobile/MobileCardCreate.tsx` |
 | `MobileContactPicker` | `src/pages/mobile/MobileContactPicker.tsx` |
+| `MobileOrigemDetalhePanel 2` | `src/pages/mobile/MobileOrigemDetalhePanel 2.tsx` |
+| `MobileOrigemDetalhePanel 3` | `src/pages/mobile/MobileOrigemDetalhePanel 3.tsx` |
+| `MobileOrigemDetalhePanel 4` | `src/pages/mobile/MobileOrigemDetalhePanel 4.tsx` |
+| `MobileOrigemDetalhePanel` | `src/pages/mobile/MobileOrigemDetalhePanel.tsx` |
 | `AuditPage` | `src/pages/platform/AuditPage.tsx` |
 | `DashboardPage` | `src/pages/platform/DashboardPage.tsx` |
 | `GlobalCatalogsPage` | `src/pages/platform/GlobalCatalogsPage.tsx` |
@@ -802,8 +843,12 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `PlatformLayout` | `src/pages/platform/PlatformLayout.tsx` |
 | `SettingsPage` | `src/pages/platform/SettingsPage.tsx` |
 | `UsersPage` | `src/pages/platform/UsersPage.tsx` |
+| `CadastrarCasalPublico` | `src/pages/public/CadastrarCasalPublico.tsx` |
+| `ListaConvidadosPublic 2` | `src/pages/public/ListaConvidadosPublic 2.tsx` |
 | `ListaConvidadosPublic` | `src/pages/public/ListaConvidadosPublic.tsx` |
+| `ListaConvidadosSplash 2` | `src/pages/public/ListaConvidadosSplash 2.tsx` |
 | `ListaConvidadosSplash` | `src/pages/public/ListaConvidadosSplash.tsx` |
+| `PainelCasaisPublico` | `src/pages/public/PainelCasaisPublico.tsx` |
 | `ProposalConfirmed` | `src/pages/public/ProposalConfirmed.tsx` |
 | `ProposalReview` | `src/pages/public/ProposalReview.tsx` |
 | `ProposalView` | `src/pages/public/ProposalView.tsx` |

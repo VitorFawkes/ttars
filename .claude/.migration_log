@@ -1100,3 +1100,6 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-29T17:20:37Z | supabase/migrations/20260530e_drop_funil_perfil_orphans.sql | applied_to_prod
 2026-05-29T17:23:19Z | supabase/migrations/20260530f_ww_qualidade_consolidate_buckets.sql | applied_to_prod
 2026-05-29T17:24:12Z | supabase/migrations/20260530g_fix_join_label_suffix.sql | applied_to_prod
+2026-05-29T18:03:52Z | supabase/migrations/20260531a_sdr_indicacao_bypass_qualifica.sql | applied_to_prod
+2026-05-29T18:20:27Z | supabase/migrations/20260531a_ww_funil_filter_options.sql | applied_to_prod
+2026-05-29T19:06:14Z | supabase/migrations/20260531b_ww_funil_ranking_perfil.sql | applied_to_prod

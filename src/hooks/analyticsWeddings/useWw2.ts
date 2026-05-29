@@ -13,6 +13,7 @@ export type Ww2Filters = {
   destinos?: string[]
   tipos?: string[]
   consultorIds?: string[]
+  convidados?: string[]
 }
 
 const baseParams = (orgId: string | undefined, f: Ww2Filters) => ({
@@ -918,6 +919,122 @@ export function useWw2FilterOptions() {
     queryFn: () => callRpc<Ww2FilterOptions>('ww2_filter_options', { p_org_id: orgId }),
     enabled: !!orgId,
     staleTime: 5 * 60_000,
+  })
+}
+
+// ── Funil comparado (aba "Funil comparado") ─────────────────────────────────
+// Reusa o RPC ww_funil_conversao_v1 (6 marcos de venda, filtra os campos de
+// ENTRADA ww_mkt_*_form com normalizadores strict). Chamado 2x na aba (um por
+// período) com o MESMO filtro de perfil. ATENÇÃO: os marcos são flags
+// independentes — não são supersets estritos (marcou_closer pode ser > fez_sdr),
+// então a "passagem %" pode passar de 100%. A UI não deve assumir monotonia.
+
+export type WwFunilConversaoMarcos = {
+  entrou: number
+  marcou_sdr: number
+  fez_sdr: number
+  marcou_closer: number
+  fez_closer: number
+  ganho: number
+}
+
+export type WwFunilConversaoData = {
+  periodo: { date_start: string; date_end: string; date_mode: DateMode }
+  pipeline_id: string
+  org_id: string
+  filtros_aplicados: Record<string, unknown>
+  ac_sync: { last_event_at: string | null; minutes_ago: number | null; status: string }
+  baseline: WwFunilConversaoMarcos
+  filtrado: WwFunilConversaoMarcos
+  baseline_total: number
+  filtrado_total: number
+  distincts_disponiveis: { faixas: number; convidados: number; destinos: number }
+  tem_filtro_preenchimento: boolean
+  error?: string
+}
+
+export function useWwFunilConversao(filters: Ww2Filters) {
+  const orgId = useOrgId()
+  return useQuery({
+    queryKey: ['ww', 'funil-conversao-v1', orgId, filters.dateStart, filters.dateEnd, filters.dateMode,
+      filters.faixas, filters.convidados, filters.destinos, filters.origins, filters.consultorIds],
+    queryFn: () => callRpc<WwFunilConversaoData>('ww_funil_conversao_v1', {
+      p_date_start: filters.dateStart,
+      p_date_end: filters.dateEnd,
+      p_date_mode: filters.dateMode,
+      p_org_id: orgId,
+      p_faixas: filters.faixas?.length ? filters.faixas : null,
+      p_convidados: filters.convidados?.length ? filters.convidados : null,
+      p_destinos: filters.destinos?.length ? filters.destinos : null,
+      p_origins: filters.origins?.length ? filters.origins : null,
+      p_consultor_ids: filters.consultorIds?.length ? filters.consultorIds : null,
+    }),
+    enabled: !!orgId,
+    staleTime: 60_000,
+  })
+}
+
+export type WwFunilFilterOptions = {
+  faixas: string[]
+  convidados: string[]
+  destinos: string[]
+  origens: string[]
+  consultores: { id: string; nome: string }[]
+}
+
+export function useWwFunilFilterOptions() {
+  const orgId = useOrgId()
+  return useQuery({
+    queryKey: ['ww', 'funil-filter-options', orgId],
+    queryFn: () => callRpc<WwFunilFilterOptions>('ww_funil_filter_options', { p_org_id: orgId }),
+    enabled: !!orgId,
+    staleTime: 5 * 60_000,
+  })
+}
+
+// ── Ranking de perfis por taxa de fechamento ("quais perfis mais viram casamento")
+// Espelha o pool/ganho do ww_funil_conversao_v1 — os números batem com o funil e
+// os rótulos (strict) são os mesmos que o funil aceita no filtro. Lead bom = quem
+// mais fecha (taxa = ganho/entrou). Mostra TODOS os buckets com a amostra (entrou).
+export type WwFunilRankingDim = 'faixa' | 'convidados' | 'destino'
+
+export type WwFunilRankingRow = {
+  bucket: string
+  entrou: number
+  ganho: number
+  taxa_pct: number | null
+}
+
+export type WwFunilRankingPerfil = {
+  dimensao: WwFunilRankingDim
+  periodo: { date_start: string; date_end: string; date_mode: DateMode }
+  total_no_periodo: number
+  rows: WwFunilRankingRow[]
+  error?: string
+}
+
+export function useWwFunilRankingPerfil(params: {
+  dateStart: string
+  dateEnd: string
+  dateMode: DateMode
+  dimensao: WwFunilRankingDim
+  origins?: string[]
+  consultorIds?: string[]
+}) {
+  const orgId = useOrgId()
+  return useQuery({
+    queryKey: ['ww', 'funil-ranking-perfil', orgId, params.dateStart, params.dateEnd, params.dateMode, params.dimensao, params.origins, params.consultorIds],
+    queryFn: () => callRpc<WwFunilRankingPerfil>('ww_funil_ranking_perfil', {
+      p_date_start: params.dateStart,
+      p_date_end: params.dateEnd,
+      p_date_mode: params.dateMode,
+      p_org_id: orgId,
+      p_dimensao: params.dimensao,
+      p_origins: params.origins?.length ? params.origins : null,
+      p_consultor_ids: params.consultorIds?.length ? params.consultorIds : null,
+    }),
+    enabled: !!orgId,
+    staleTime: 60_000,
   })
 }
 
