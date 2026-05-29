@@ -250,12 +250,16 @@ export async function saveWorkflow(payload: SavePayload): Promise<SaveResult> {
         const stepKey = `n_${node.id}`
         const stepType = NODE_TO_STEP_TYPE[node.type as ActionNodeType]
 
-        // next_step_key: pega primeira aresta que sai daqui pra outro step
+        // next_step_key: pega primeira aresta que sai daqui pra outro step.
+        // Branch é exceção: o roteamento é só por branches[] (alça true/false), então
+        // next_step_key fica null pra não fazer o card avançar quando a condição falha.
         const out = (edgesBySource.get(node.id) || [])
             .filter((e) => stepNodes.some((sn) => sn.id === e.target))
-        const nextStepKey = out[0]
-            ? `n_${out[0].target}`
-            : null
+        const nextStepKey = node.type === 'action.branch'
+            ? null
+            : out[0]
+                ? `n_${out[0].target}`
+                : null
 
         // Configs por tipo: roteia a config genérica pro slot correto
         const cfg = (node.data.config as Record<string, unknown>) || {}
@@ -527,8 +531,9 @@ export async function loadWorkflow(templateId: string): Promise<LoadResult> {
             animated: true,
         })
     }
-    // step → next_step_key
+    // step → next_step_key (steps lineares; branch é tratado à parte abaixo via branches[])
     ;(steps || []).forEach((s: Record<string, unknown>) => {
+        if (s.step_type === 'branch') return
         const nextKey = s.next_step_key as string | null
         if (!nextKey) return
         const targetNodeId = stepKeyToNodeId.get(nextKey)
@@ -540,6 +545,25 @@ export async function loadWorkflow(templateId: string): Promise<LoadResult> {
             type: 'smoothstep',
             animated: true,
         })
+    })
+    // branch → arestas a partir de branch_config.branches, preservando a alça (true/false)
+    ;(steps || []).forEach((s: Record<string, unknown>) => {
+        if (s.step_type !== 'branch') return
+        const bc = (s.branch_config as Record<string, unknown>) || {}
+        const branches = (bc.branches as Array<Record<string, unknown>>) || []
+        for (const b of branches) {
+            const targetNodeId = stepKeyToNodeId.get(b.target_step_key as string)
+            if (!targetNodeId) continue
+            const handle = (b.handle as string) || 'true'
+            edges.push({
+                id: `e_${s.id}_${handle}_${targetNodeId}`,
+                source: `step_${s.id}`,
+                target: targetNodeId,
+                sourceHandle: handle,
+                type: 'smoothstep',
+                animated: true,
+            })
+        }
     })
 
     return {
