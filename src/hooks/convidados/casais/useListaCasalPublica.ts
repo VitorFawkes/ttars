@@ -58,6 +58,13 @@ interface UpsertConviteCtx {
   tempId?: string
 }
 
+// Invalida a query de status do envio pra o botão "Pronto" / "Avisar mudanças"
+// refletir que houve edição depois do último envio. Sem isso o status fica
+// congelado em cache (staleTime: 30s) e o botão fica disabled mesmo após edits.
+function invalidateStatusEnvio(qc: ReturnType<typeof useQueryClient>, codigo: string | undefined) {
+  qc.invalidateQueries({ queryKey: ['lista-publica', codigo, 'status-envio'] })
+}
+
 export function useUpsertConvitePublic(codigo: string | undefined) {
   const qc = useQueryClient()
   const queryKey = ['lista-publica', codigo] as const
@@ -128,6 +135,7 @@ export function useUpsertConvitePublic(codigo: string | undefined) {
       }
       // Refetch silencioso pra sincronizar (sem flash)
       qc.invalidateQueries({ queryKey, refetchType: 'none' })
+      invalidateStatusEnvio(qc, codigo)
     },
   })
 }
@@ -158,7 +166,10 @@ export function useDeleteConvitePublic(codigo: string | undefined) {
     onError: (_err, _id, ctx) => {
       if (ctx?.previous) qc.setQueryData(queryKey, ctx.previous)
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey, refetchType: 'none' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey, refetchType: 'none' })
+      invalidateStatusEnvio(qc, codigo)
+    },
   })
 }
 
@@ -276,6 +287,7 @@ export function useUpsertPessoaPublic(codigo: string | undefined) {
         }
       }
       qc.invalidateQueries({ queryKey, refetchType: 'none' })
+      invalidateStatusEnvio(qc, codigo)
     },
   })
 }
@@ -309,6 +321,9 @@ export function useDeletePessoaPublic(codigo: string | undefined) {
     onError: (_err, _id, ctx) => {
       if (ctx?.previous) qc.setQueryData(queryKey, ctx.previous)
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey, refetchType: 'none' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey, refetchType: 'none' })
+      invalidateStatusEnvio(qc, codigo)
+    },
   })
 }

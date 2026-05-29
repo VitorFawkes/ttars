@@ -6,6 +6,7 @@ import {
   useDeleteConvitePublic,
   useUpsertPessoaPublic,
   useDeletePessoaPublic,
+  type UpsertPessoaInput,
 } from '../../../hooks/convidados/casais/useListaCasalPublica'
 import { calcStatsConvites } from '../../../lib/convidados/calcStatsConvites'
 import { exportConvitesCSV, importConvitesCSV, downloadCSV } from '../../../lib/convidados/csvConvites'
@@ -38,6 +39,7 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
 
   useEffect(() => {
     if (upsertConvite.isSuccess || deleteConvite.isSuccess || upsertPessoa.isSuccess || deletePessoa.isSuccess) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSavedAt(new Date())
     }
   }, [upsertConvite.isSuccess, deleteConvite.isSuccess, upsertPessoa.isSuccess, deletePessoa.isSuccess])
@@ -45,6 +47,7 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
   // Surface erro de mutação via toast (pessoa nova com erro de constraint, etc)
   useEffect(() => {
     const err = upsertConvite.error || upsertPessoa.error || deleteConvite.error || deletePessoa.error
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (err) setToast(err.message)
   }, [upsertConvite.error, upsertPessoa.error, deleteConvite.error, deletePessoa.error])
 
@@ -68,20 +71,40 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
 
   const stats = useMemo(() => calcStatsConvites(convites), [convites])
 
+  // Map<guest_id, timer> — timers só pra campos de texto livre (digitação).
+  // Campos discretos (clique único) salvam imediato e não usam timer.
   const pendingPessoaTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
-  const debouncedPessoa = useCallback(
+
+  const handlePessoaChange = useCallback(
     (guest_id: string, convite_id: string, patch: Partial<Pessoa>) => {
-      const existing = pendingPessoaTimers.current.get(guest_id)
-      if (existing) clearTimeout(existing)
-      const timer = setTimeout(() => {
-        upsertPessoa.mutate({
-          guest_id, convite_id,
-          nome: patch.nome_raw, telefone: patch.telefone_raw, email: patch.email_raw,
-          faixa: patch.faixa, lado: patch.lado, tipo: patch.tipo, observacoes: patch.observacoes,
-        })
-        pendingPessoaTimers.current.delete(guest_id)
-      }, 350)
-      pendingPessoaTimers.current.set(guest_id, timer)
+      const input: UpsertPessoaInput = { guest_id, convite_id }
+      // Só campos efetivamente presentes no patch vão pro upsert — evita
+      // sobrescrever campo que outro editor pode estar salvando em paralelo.
+      if ('nome_raw' in patch) input.nome = patch.nome_raw
+      if ('telefone_raw' in patch) input.telefone = patch.telefone_raw
+      if ('email_raw' in patch) input.email = patch.email_raw
+      if ('faixa' in patch) input.faixa = patch.faixa
+      if ('lado' in patch) input.lado = patch.lado
+      if ('tipo' in patch) input.tipo = patch.tipo
+      if ('observacoes' in patch) input.observacoes = patch.observacoes
+
+      const textKeys: Array<keyof Pessoa> = ['nome_raw', 'telefone_raw', 'email_raw', 'observacoes']
+      const isTextOnly = Object.keys(patch).every((k) => textKeys.includes(k as keyof Pessoa))
+
+      if (isTextOnly) {
+        // Digitação — debounce 350ms pra coalescer keystrokes.
+        const existing = pendingPessoaTimers.current.get(guest_id)
+        if (existing) clearTimeout(existing)
+        const timer = setTimeout(() => {
+          upsertPessoa.mutate(input)
+          pendingPessoaTimers.current.delete(guest_id)
+        }, 350)
+        pendingPessoaTimers.current.set(guest_id, timer)
+      } else {
+        // Clique discreto (lado/tipo/faixa) — dispara imediato pra UI responder
+        // na hora via optimistic update do react-query (sem aguardar debounce).
+        upsertPessoa.mutate(input)
+      }
     }, [upsertPessoa])
 
   const handleAddConvite = useCallback(async () => {
@@ -174,19 +197,19 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
           ficam grudados visualmente em um único container sólido */}
       <div className="sticky top-0 z-30 bg-white shadow-sm">
         {/* Linha 1: Welcome Weddings + nome casal + stats */}
-        <header className="border-b border-ww-sand px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-4">
-            <img src="/brand/ww/welcome-weddings-horizontal.png" alt="Welcome Weddings" className="h-8 w-auto object-contain" />
+        <header className="border-b border-ww-sand px-3 py-2 sm:px-6 sm:py-3 flex items-center justify-between gap-3 sm:gap-4 flex-wrap">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <img src="/brand/ww/welcome-weddings-horizontal.png" alt="Welcome Weddings" className="h-6 sm:h-8 w-auto object-contain" />
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-ww-gold">Lista de Convidados</p>
-              <h1 className="font-ww-serif italic text-[22px] text-ww-n700 leading-tight">{casal.nome_casal}</h1>
+              <h1 className="font-ww-serif italic text-[17px] sm:text-[22px] text-ww-n700 leading-tight">{casal.nome_casal}</h1>
             </div>
           </div>
           <StatsStrip stats={stats} />
         </header>
 
         {/* Linha 2: Toolbar */}
-        <div className="bg-ww-paper border-b border-ww-sand px-6">
+        <div className="bg-ww-paper border-b border-ww-sand px-3 sm:px-6">
           <PlanilhaToolbar
             search={search} setSearch={setSearch}
             filterLado={filterLado} setFilterLado={setFilterLado}
@@ -212,7 +235,7 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
       </div>
 
       {/* Body com scroll natural — pb maior pra footer fixo não cobrir conteúdo */}
-      <div className="px-6 pt-3 pb-28 flex flex-col gap-3">
+      <div className="px-3 sm:px-6 pt-3 pb-32 sm:pb-28 flex flex-col gap-3">
         {/* Banner de boas-vindas / chip "Como funciona?" — componente decide
             internamente o que mostrar (banner cheio, chip discreto ou nada). */}
         <PrimeiraVezBanner
@@ -237,7 +260,7 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
                 onDeleteConvite={() => handleDeleteConvite(c.id)}
                 onAddPessoa={() => handleAddPessoa(c)}
                 onDeletePessoa={handleDeletePessoa}
-                onChangePessoa={(p, patch) => debouncedPessoa(p.id, c.id, patch)}
+                onChangePessoa={(p, patch) => handlePessoaChange(p.id, c.id, patch)}
                 onEnterCreate={() => handleAddPessoa(c)}
               />
             ))}
@@ -250,7 +273,7 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
       </div>
 
       {/* Footer fixo: salvo + atalhos à esquerda, botão Pronto à direita */}
-      <footer className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-ww-sand shadow-[0_-4px_12px_rgba(78,24,32,0.04)] px-6 py-3 flex items-center justify-between gap-4">
+      <footer className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-ww-sand shadow-[0_-4px_12px_rgba(78,24,32,0.04)] px-3 py-2 sm:px-6 sm:py-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-4 min-w-0">
           <SavedIndicator at={savedAt} isSaving={upsertConvite.isPending || upsertPessoa.isPending} />
           <div className="hidden lg:flex items-center gap-3 text-[11px] text-ww-n500 overflow-x-auto">
@@ -361,7 +384,7 @@ function PrimeiraVezBanner({ codigo, listaVazia }: { codigo: string; listaVazia:
         <div>
           <p className="font-semibold text-ww-n700 mb-1">1. Crie um convite (grupo)</p>
           <p className="text-[13px]">
-            Um convite agrupa pessoas que vão chegar juntas — uma família, casal ou círculo de amigos.
+            Um convite agrupa pessoas que vão chegar juntas, como uma família, casal ou círculo de amigos.
           </p>
           <p className="text-[11px] italic text-ww-n400 mt-1">
             Ex: <strong className="text-ww-n600">Família Silva</strong>, <strong className="text-ww-n600">Padrinhos</strong>, <strong className="text-ww-n600">Amigos da faculdade</strong>
@@ -370,7 +393,7 @@ function PrimeiraVezBanner({ codigo, listaVazia }: { codigo: string; listaVazia:
         <div>
           <p className="font-semibold text-ww-n700 mb-1">2. Coloque as pessoas dentro</p>
           <p className="text-[13px]">
-            Cada pessoa do grupo vira uma linha — com nome, idade e telefone (se for adulto).
+            Cada pessoa do grupo vira uma linha, com nome, idade e telefone (se for adulto).
           </p>
         </div>
         <div>

@@ -14,7 +14,7 @@ export function TipoSelect({ value, onChange }: Props) {
       className="text-[13px] rounded px-1.5 py-1 border border-transparent focus:border-ww-gold focus:ring-2 focus:ring-ww-gold/30 focus:outline-none cursor-pointer w-full"
       style={tag ? { background: tag.hue, color: tag.ink, fontWeight: 500 } : { background: 'transparent', color: '#5C5751' }}
     >
-      <option value="">—</option>
+      <option value="">Sem tipo</option>
       {TIPOS.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
     </select>
   )
