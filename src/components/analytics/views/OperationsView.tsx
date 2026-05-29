@@ -305,7 +305,7 @@ export default function OperationsView() {
                                                 'border-b border-slate-50 hover:bg-slate-50/50 transition-colors cursor-pointer',
                                                 isOffTrack && 'bg-rose-50/50 border-l-2 border-l-rose-400'
                                             )}
-                                            onClick={() => navigate(`/card/${trip.id}`)}
+                                            onClick={() => navigate(`/cards/${trip.id}`)}
                                         >
                                             <td className="px-6 py-3 font-medium text-indigo-600 hover:text-indigo-700">{trip.titulo}</td>
                                             <td className="px-4 py-3">
