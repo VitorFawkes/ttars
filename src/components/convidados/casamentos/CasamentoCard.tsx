@@ -9,9 +9,20 @@ import { useWeddingFluxo } from '../../../hooks/convidados/useWeddingFluxo'
 import { BaixarPdfButton } from '../pdf/BaixarPdfButton'
 import {
   ETAPA_LABEL,
+  STATUS_RSVP_LABEL,
   type EtapaConvidados,
+  type StatusRSVP,
   type WeddingWithGuests,
 } from '../../../hooks/convidados/types'
+
+// Quebra de convidados por estágio, na mesma ordem e cores das colunas do
+// quadro de RSVP (ver GuestKanbanBoard COLUMN_ORDER/COLUMN_TONE).
+const STAGE_COUNT_DISPLAY: { key: StatusRSVP; color: string }[] = [
+  { key: 'sem_reacao', color: 'text-slate-500' },
+  { key: 'intencao', color: 'text-sky-600' },
+  { key: 'confirmado', color: 'text-emerald-600' },
+  { key: 'nao_vai', color: 'text-rose-600' },
+]
 
 const MONTH_CODE: Record<number, string> = {
   0: 'JAN', 1: 'FEV', 2: 'MAR', 3: 'ABR', 4: 'MAI', 5: 'JUN',
@@ -71,10 +82,6 @@ interface CasamentoCardProps {
 
 export function CasamentoCard({ wedding, onDrillIn }: CasamentoCardProps) {
   const navigate = useNavigate()
-  // "Ativos" = não declinaram. total − não_vai.
-  const ativos = wedding.counts.total - wedding.counts.nao_vai
-  const total = wedding.counts.total
-
   const past = isPast(wedding.wedding_date)
   const codigo = formatWeddingCode(wedding.titulo, wedding.wedding_date ?? wedding.created_at)
   const { assignment } = useWeddingFluxo(wedding.id)
@@ -176,14 +183,18 @@ export function CasamentoCard({ wedding, onDrillIn }: CasamentoCardProps) {
       {/* Hotel — mockup */}
       <HotelBar cardId={wedding.id} local={wedding.local} />
 
-      <div className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-2.5 flex items-center justify-between gap-3">
+      <div className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-2.5 flex flex-col gap-2">
         <div className="flex items-center gap-2 text-sm text-slate-700">
           <Users className="w-4 h-4 text-slate-500 shrink-0" />
           <span>Convidados</span>
         </div>
-        <div className="text-sm tabular-nums shrink-0">
-          <span className="font-semibold text-slate-900">{ativos}</span>
-          <span className="text-slate-500">/{total} ativos</span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm tabular-nums">
+          {STAGE_COUNT_DISPLAY.map(({ key, color }) => (
+            <span key={key} className={cn('inline-flex items-baseline gap-1', color)}>
+              <span className="font-semibold">{wedding.counts[key]}</span>
+              <span className="text-xs">{STATUS_RSVP_LABEL[key]}</span>
+            </span>
+          ))}
         </div>
       </div>
 
