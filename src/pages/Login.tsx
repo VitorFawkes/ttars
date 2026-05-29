@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -15,6 +15,24 @@ export default function Login() {
     const [searchParams] = useSearchParams()
     const { session } = useAuth()
     const redirectTo = searchParams.get('redirect') || '/pipeline'
+
+    // OAuth devolve erros na URL (fragmento #error=... ou query). Traduz o
+    // bloqueio do gate de acesso para uma mensagem humana.
+    useEffect(() => {
+        const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+        const desc = hash.get('error_description') || searchParams.get('error_description')
+        const errCode = hash.get('error') || searchParams.get('error')
+        if (!desc && !errCode) return
+        if (desc && /WELCOMECRM_NO_INVITE/i.test(desc)) {
+            setError('Você ainda não tem acesso ao WelcomeCRM. Peça um convite ao administrador.')
+        } else if (desc) {
+            setError(decodeURIComponent(desc.replace(/\+/g, ' ')))
+        } else {
+            setError('Não foi possível concluir o login. Tente novamente.')
+        }
+        // Limpa o erro da URL para não reaparecer ao recarregar
+        window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    }, [searchParams])
 
     if (session) {
         navigate(redirectTo)
