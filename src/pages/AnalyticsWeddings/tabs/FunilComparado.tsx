@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useWwFunilConversao, useWwFunilFilterOptions, useWwFunilRankingPerfil, type Ww2Filters, type WwFunilConversaoMarcos, type WwFunilRankingDim } from '@/hooks/analyticsWeddings/useWw2'
+import { useWwFunilConversao, useWwFunilFilterOptions, useWwFunilRanking, type Ww2Filters, type WwFunilConversaoMarcos, type WwFunilRankingDim, type WwFunilRankingRow } from '@/hooks/analyticsWeddings/useWw2'
 import { MultiPill, ConsultorPill } from '../components/FilterPills'
 import { FunilColumn } from '../components/FunilColumn'
 import { RankingPerfil } from '../components/RankingPerfil'
@@ -121,7 +121,7 @@ export function FunilComparado() {
   const [origins, setOrigins] = useState<string[]>([])
   const [consultorIds, setConsultorIds] = useState<string[]>([])
   const [dateMode, setDateMode] = useState<DateMode>('cohort')
-  const [rankDim, setRankDim] = useState<WwFunilRankingDim>('faixa')
+  const [rankDims, setRankDims] = useState<WwFunilRankingDim[]>(['faixa'])
 
   // Períodos: B = últimos 90 dias (agora); A = mesma janela 1 ano antes (época).
   const [periodoB, setPeriodoB] = useState<Janela>(() => periodToDates('90d'))
@@ -140,9 +140,9 @@ export function FunilComparado() {
   const b = useWwFunilConversao(filtersB)
 
   // Ranking "lead bom" calculado sobre o Período A (a época) — mesmo universo do funil.
-  const ranking = useWwFunilRankingPerfil({
+  const ranking = useWwFunilRanking({
     dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd, dateMode,
-    dimensao: rankDim, origins, consultorIds,
+    dimensoes: rankDims, origins, consultorIds,
   })
 
   const marcosA: WwFunilConversaoMarcos | undefined = a.data?.filtrado
@@ -151,17 +151,18 @@ export function FunilComparado() {
   const hasFilters = faixas.length + convidados.length + destinos.length + origins.length + consultorIds.length > 0
   const clearAll = () => { setFaixas([]); setConvidados([]); setDestinos([]); setOrigins([]); setConsultorIds([]) }
 
-  // Clicar um perfil no ranking define aquela dimensão como filtro (re-clicar limpa).
-  const onPickPerfil = (dim: WwFunilRankingDim, bucket: string) => {
-    const toggle = (arr: string[]) => (arr.length === 1 && arr[0] === bucket ? [] : [bucket])
-    if (dim === 'faixa') setFaixas(toggle(faixas))
-    else if (dim === 'convidados') setConvidados(toggle(convidados))
-    else setDestinos(toggle(destinos))
+  // Clicar um perfil no ranking define TODAS as dimensões daquele combo como filtro.
+  // Re-clicar o combo já ativo limpa essas dimensões.
+  const onPickPerfil = (row: WwFunilRankingRow) => {
+    const jaAtivo =
+      (row.faixa == null || (faixas.length === 1 && faixas[0] === row.faixa)) &&
+      (row.convidados == null || (convidados.length === 1 && convidados[0] === row.convidados)) &&
+      (row.destino == null || (destinos.length === 1 && destinos[0] === row.destino)) &&
+      [row.faixa, row.convidados, row.destino].some((v) => v != null)
+    if (row.faixa != null) setFaixas(jaAtivo ? [] : [row.faixa])
+    if (row.convidados != null) setConvidados(jaAtivo ? [] : [row.convidados])
+    if (row.destino != null) setDestinos(jaAtivo ? [] : [row.destino])
   }
-  const selecionadoRank =
-    rankDim === 'faixa' ? (faixas.length === 1 ? faixas[0] : null)
-    : rankDim === 'convidados' ? (convidados.length === 1 ? convidados[0] : null)
-    : (destinos.length === 1 ? destinos[0] : null)
 
   const dropIdx = marcosA && marcosB ? biggestDropStep(marcosA, marcosB) : null
   const dropKey = dropIdx != null ? MARCO_KEYS[dropIdx] : null
@@ -225,13 +226,13 @@ export function FunilComparado() {
         </div>
       )}
 
-      {/* Descobrir lead bom — ranking por taxa de fechamento (clicável) */}
+      {/* Descobrir lead bom — ranking por taxa de fechamento, com cruzamentos (clicável) */}
       <RankingPerfil
-        dimensao={rankDim}
-        onDimensao={setRankDim}
+        dims={rankDims}
+        onDims={setRankDims}
         data={ranking.data ?? undefined}
         isLoading={ranking.isLoading}
-        selecionado={selecionadoRank}
+        sel={{ faixas, convidados, destinos }}
         onPick={onPickPerfil}
       />
 

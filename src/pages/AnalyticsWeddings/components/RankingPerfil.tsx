@@ -1,51 +1,58 @@
-import type { WwFunilRankingPerfil, WwFunilRankingDim } from '@/hooks/analyticsWeddings/useWw2'
+import type { WwFunilRanking, WwFunilRankingDim, WwFunilRankingRow } from '@/hooks/analyticsWeddings/useWw2'
 import { fmtPct } from '../lib/funil'
 import { formatNumber } from '../lib/format'
 import { EmptyState, LoadingSkeleton } from './ui'
 
-const DIM_LABEL: Record<WwFunilRankingDim, string> = {
-  faixa: 'Investimento',
-  convidados: 'Convidados',
-  destino: 'Destino',
-}
+// "Lentes": dimensão única ou cruzamentos de 2/3 dimensões.
+const LENTES: { label: string; dims: WwFunilRankingDim[] }[] = [
+  { label: 'Investimento', dims: ['faixa'] },
+  { label: 'Convidados', dims: ['convidados'] },
+  { label: 'Destino', dims: ['destino'] },
+  { label: 'Convidados × Destino', dims: ['convidados', 'destino'] },
+  { label: 'Investimento × Convidados', dims: ['faixa', 'convidados'] },
+  { label: 'Investimento × Destino', dims: ['faixa', 'destino'] },
+  { label: 'Os 3 juntos', dims: ['faixa', 'convidados', 'destino'] },
+]
 
-// Abaixo disso, a taxa é volátil — mostramos com aviso (decisão do Vitor: mostrar todos, com aviso).
-const AMOSTRA_MINIMA = 10
+const AMOSTRA_MINIMA = 10 // abaixo disso, marca "poucos casos"
 
 type Props = {
-  dimensao: WwFunilRankingDim
-  onDimensao: (d: WwFunilRankingDim) => void
-  data: WwFunilRankingPerfil | undefined
+  dims: WwFunilRankingDim[]
+  onDims: (d: WwFunilRankingDim[]) => void
+  data: WwFunilRanking | undefined
   isLoading: boolean
-  /** bucket atualmente selecionado nessa dimensão (pra destacar). */
-  selecionado: string | null
-  onPick: (dimensao: WwFunilRankingDim, bucket: string) => void
+  /** filtros de perfil atuais, pra destacar a linha selecionada. */
+  sel: { faixas: string[]; convidados: string[]; destinos: string[] }
+  onPick: (row: WwFunilRankingRow) => void
 }
 
-export function RankingPerfil({ dimensao, onDimensao, data, isLoading, selecionado, onPick }: Props) {
+function linhaSelecionada(row: WwFunilRankingRow, sel: Props['sel']): boolean {
+  const checa = (val: string | null, arr: string[]) => val == null || (arr.length === 1 && arr[0] === val)
+  // selecionada quando TODAS as dimensões presentes batem com o filtro (e há ao menos uma)
+  const presentes = [row.faixa, row.convidados, row.destino].filter((v) => v != null).length
+  return presentes > 0 && checa(row.faixa, sel.faixas) && checa(row.convidados, sel.convidados) && checa(row.destino, sel.destinos)
+}
+
+export function RankingPerfil({ dims, onDims, data, isLoading, sel, onPick }: Props) {
   const rows = data?.rows ?? []
-  const maxTaxa = rows.reduce((m, r) => Math.max(m, r.taxa_pct ?? 0), 0) || 1
+  const ehCruzamento = dims.length > 1
+  const dimsKey = dims.join('+')
 
   return (
     <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5">
       <div className="flex items-baseline justify-between mb-1 flex-wrap gap-2">
         <h3 className="text-sm font-semibold text-slate-900 tracking-tight">Quais perfis mais viram casamento</h3>
-        <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
-          {(['faixa', 'convidados', 'destino'] as WwFunilRankingDim[]).map((d) => (
-            <button
-              key={d}
-              onClick={() => onDimensao(d)}
-              className={`px-2.5 py-1 text-xs font-medium rounded-md transition ${
-                dimensao === d ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              {DIM_LABEL[d]}
-            </button>
-          ))}
-        </div>
+        <select
+          value={dimsKey}
+          onChange={(e) => { const l = LENTES.find((x) => x.dims.join('+') === e.target.value); if (l) onDims(l.dims) }}
+          className="px-2.5 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          {LENTES.map((l) => <option key={l.dims.join('+')} value={l.dims.join('+')}>{l.label}</option>)}
+        </select>
       </div>
       <p className="text-xs text-slate-500 mb-4">
         No período A (a época), ordenado por quem mais fechou. <span className="text-indigo-600 font-medium">Clique num perfil</span> pra comparar com agora.
+        {ehCruzamento && ' Cruzamentos com poucos casos são puxados pra baixo automaticamente — confie nos que têm mais leads.'}
       </p>
 
       {isLoading ? (
@@ -54,21 +61,21 @@ export function RankingPerfil({ dimensao, onDimensao, data, isLoading, seleciona
         <EmptyState message="Sem leads suficientes nesse período pra ranquear. Amplie o período A." />
       ) : (
         <div className="space-y-1.5">
-          {rows.map((r) => {
-            const isSel = selecionado === r.bucket
+          {rows.slice(0, 15).map((r) => {
+            const isSel = linhaSelecionada(r, sel)
             const poucos = r.entrou < AMOSTRA_MINIMA
-            const width = Math.max(3, Math.min(100, ((r.taxa_pct ?? 0) / maxTaxa) * 100))
+            const width = Math.max(3, Math.min(100, r.taxa_pct ?? 0))
             return (
               <button
-                key={r.bucket}
-                onClick={() => onPick(dimensao, r.bucket)}
+                key={r.label}
+                onClick={() => onPick(r)}
                 className={`w-full text-left rounded-lg border px-3 py-2 transition ${
                   isSel ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                 }`}
               >
                 <div className="flex items-center justify-between gap-3">
                   <span className={`text-sm font-medium truncate ${isSel ? 'text-indigo-800' : 'text-slate-800'}`}>
-                    {r.bucket}
+                    {r.label}
                     {poucos && (
                       <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 align-middle">poucos casos</span>
                     )}
