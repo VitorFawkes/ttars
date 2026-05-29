@@ -9,6 +9,7 @@ export default function Login() {
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
     const [loading, setLoading] = useState(false)
+    const [azureLoading, setAzureLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const navigate = useNavigate()
     const [searchParams] = useSearchParams()
@@ -56,6 +57,24 @@ export default function Login() {
             setError(message)
         } finally {
             setLoading(false)
+        }
+    }
+
+    const handleAzureLogin = async () => {
+        setAzureLoading(true)
+        setError(null)
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: 'azure',
+            options: {
+                redirectTo: `${window.location.origin}${redirectTo}`,
+                scopes: 'email openid profile',
+            },
+        })
+        // Em caso de sucesso o browser é redirecionado para a Microsoft —
+        // não precisa resetar azureLoading. Só tratamos erro síncrono.
+        if (error) {
+            setError(error.message)
+            setAzureLoading(false)
         }
     }
 
@@ -125,6 +144,32 @@ export default function Login() {
                             className="group relative flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50"
                         >
                             {loading ? 'Processando...' : 'Entrar'}
+                        </button>
+                    </div>
+
+                    <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-slate-200" />
+                        </div>
+                        <div className="relative flex justify-center text-xs">
+                            <span className="bg-white px-2 text-slate-500">ou</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <button
+                            type="button"
+                            onClick={handleAzureLogin}
+                            disabled={azureLoading || loading}
+                            className="flex w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50"
+                        >
+                            <svg className="h-4 w-4" viewBox="0 0 23 23" aria-hidden="true">
+                                <rect x="1" y="1" width="10" height="10" fill="#f25022" />
+                                <rect x="12" y="1" width="10" height="10" fill="#7fba00" />
+                                <rect x="1" y="12" width="10" height="10" fill="#00a4ef" />
+                                <rect x="12" y="12" width="10" height="10" fill="#ffb900" />
+                            </svg>
+                            {azureLoading ? 'Redirecionando...' : 'Entrar com Microsoft'}
                         </button>
                     </div>
 
