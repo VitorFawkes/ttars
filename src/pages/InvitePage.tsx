@@ -447,7 +447,7 @@ export default function InvitePage() {
                 <button
                     type="button"
                     onClick={handleAzureInvite}
-                    disabled={!acceptedTerms || azureLoading}
+                    disabled={azureLoading}
                     className="flex w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50"
                 >
                     <svg className="h-4 w-4" viewBox="0 0 23 23" aria-hidden="true">
