@@ -144,6 +144,23 @@ function TopCombosFechados({ combos, onComboClick }: { combos: WwDriftCombos; on
               ) : <tr key={`${c.faixa}-${c.destino}-${c.convidados}`} className="border-t border-slate-100">{cells}</tr>
             })}
           </tbody>
+          <tfoot className="bg-slate-50 border-t-2 border-slate-300">
+            {(() => {
+              const totalFechou = items.reduce((s, c) => s + c.fechou, 0)
+              const totalEntrou = items.reduce((s, c) => s + c.entrou, 0)
+              const taxaTotal = totalEntrou > 0 ? Math.round(1000 * totalFechou / totalEntrou) / 10 : 0
+              return (
+                <tr>
+                  <td className="px-3 py-2 text-slate-700 font-semibold text-center" colSpan={4}>Total ({items.length} combos)</td>
+                  <td className="px-3 py-2 text-center tabular-nums text-emerald-800 font-bold">{totalFechou}</td>
+                  <td className="px-3 py-2 text-center tabular-nums text-slate-700 font-semibold">{totalEntrou}</td>
+                  <td className="px-3 py-2 text-center">
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold tabular-nums bg-slate-200 text-slate-800">{taxaTotal}%</span>
+                  </td>
+                </tr>
+              )
+            })()}
+          </tfoot>
         </table>
       </div>
     </SectionCard>
@@ -179,6 +196,22 @@ function HeatmapTaxaConversao({ titulo, subtitulo, cells, xLabel, yLabel, xOrder
       })
   const cellMap = new Map(cells.map(c => [`${c.x}|${c.y}`, c]))
 
+  const rowTotals = new Map<string, { entrou: number; fechou: number }>()
+  const colTotals = new Map<string, { entrou: number; fechou: number }>()
+  let grandEntrou = 0
+  let grandFechou = 0
+  ys.forEach(y => rowTotals.set(y, { entrou: 0, fechou: 0 }))
+  xs.forEach(x => colTotals.set(x, { entrou: 0, fechou: 0 }))
+  cells.forEach(c => {
+    const r = rowTotals.get(c.y)
+    if (r) { r.entrou += c.entrou; r.fechou += c.fechou }
+    const cc = colTotals.get(c.x)
+    if (cc) { cc.entrou += c.entrou; cc.fechou += c.fechou }
+    grandEntrou += c.entrou
+    grandFechou += c.fechou
+  })
+  const taxaFmt = (entrou: number, fechou: number) => entrou > 0 ? Math.round(1000 * fechou / entrou) / 10 : 0
+
   return (
     <SectionCard title={titulo} subtitle={subtitulo}>
       <div className="overflow-x-auto border border-slate-200 rounded-lg bg-white">
@@ -187,40 +220,66 @@ function HeatmapTaxaConversao({ titulo, subtitulo, cells, xLabel, yLabel, xOrder
             <tr>
               <th className="px-3 py-2 text-center font-medium text-slate-500 sticky left-0 bg-slate-50 z-10 whitespace-nowrap">{yLabel} ↓ / {xLabel} →</th>
               {xs.map(x => <th key={x} className="px-3 py-2 text-center font-medium text-slate-700 min-w-[90px]">{x}</th>)}
+              <th className="px-3 py-2 text-center font-semibold text-slate-700 border-l-2 border-slate-300 min-w-[90px]">Total</th>
             </tr>
           </thead>
           <tbody>
-            {ys.map(y => (
-              <tr key={y} className="border-t border-slate-100">
-                <td className="px-3 py-2 text-slate-900 font-medium whitespace-nowrap sticky left-0 bg-white z-10">{y}</td>
-                {xs.map(x => {
-                  const cell = cellMap.get(`${x}|${y}`)
-                  if (!cell) return <td key={x} className="px-3 py-2 text-center bg-slate-50 text-slate-300">—</td>
-                  const taxa = cell.taxa_pct ?? 0
-                  const bg = cell.fechou === 0 ? 'bg-rose-50 text-rose-900'
-                    : taxa >= 10 ? 'bg-emerald-200 text-emerald-900'
-                    : taxa >= 5 ? 'bg-emerald-100 text-emerald-900'
-                    : taxa >= 2 ? 'bg-emerald-50 text-emerald-900'
-                    : 'bg-amber-50 text-amber-900'
-                  return (
-                    <td key={x} className={`p-0 ${bg}`} title={`${cell.entrou} entraram · ${cell.fechou} fecharam · ${taxa}%`}>
-                      {onCellClick ? (
-                        <button onClick={() => onCellClick(x, y)} className="w-full h-full px-2 py-2 text-center block cursor-pointer hover:ring-2 hover:ring-indigo-400 focus:ring-2 focus:ring-indigo-400 focus:outline-none">
-                          <div className="font-semibold text-sm">{taxa}%</div>
-                          <div className="text-[10px] opacity-75 mt-0.5">{cell.entrou} → {cell.fechou}</div>
-                        </button>
-                      ) : (
-                        <div className="px-2 py-2 text-center">
-                          <div className="font-semibold text-sm">{taxa}%</div>
-                          <div className="text-[10px] opacity-75 mt-0.5">{cell.entrou} → {cell.fechou}</div>
-                        </div>
-                      )}
-                    </td>
-                  )
-                })}
-              </tr>
-            ))}
+            {ys.map(y => {
+              const rt = rowTotals.get(y) ?? { entrou: 0, fechou: 0 }
+              return (
+                <tr key={y} className="border-t border-slate-100">
+                  <td className="px-3 py-2 text-slate-900 font-medium whitespace-nowrap sticky left-0 bg-white z-10">{y}</td>
+                  {xs.map(x => {
+                    const cell = cellMap.get(`${x}|${y}`)
+                    if (!cell) return <td key={x} className="px-3 py-2 text-center bg-slate-50 text-slate-300">—</td>
+                    const taxa = cell.taxa_pct ?? 0
+                    const bg = cell.fechou === 0 ? 'bg-rose-50 text-rose-900'
+                      : taxa >= 10 ? 'bg-emerald-200 text-emerald-900'
+                      : taxa >= 5 ? 'bg-emerald-100 text-emerald-900'
+                      : taxa >= 2 ? 'bg-emerald-50 text-emerald-900'
+                      : 'bg-amber-50 text-amber-900'
+                    return (
+                      <td key={x} className={`p-0 ${bg}`} title={`${cell.entrou} entraram · ${cell.fechou} fecharam · ${taxa}%`}>
+                        {onCellClick ? (
+                          <button onClick={() => onCellClick(x, y)} className="w-full h-full px-2 py-2 text-center block cursor-pointer hover:ring-2 hover:ring-indigo-400 focus:ring-2 focus:ring-indigo-400 focus:outline-none">
+                            <div className="font-semibold text-sm">{taxa}%</div>
+                            <div className="text-[10px] opacity-75 mt-0.5">{cell.entrou} → {cell.fechou}</div>
+                          </button>
+                        ) : (
+                          <div className="px-2 py-2 text-center">
+                            <div className="font-semibold text-sm">{taxa}%</div>
+                            <div className="text-[10px] opacity-75 mt-0.5">{cell.entrou} → {cell.fechou}</div>
+                          </div>
+                        )}
+                      </td>
+                    )
+                  })}
+                  <td className="px-2 py-2 text-center bg-slate-100 text-slate-800 border-l-2 border-slate-300">
+                    <div className="font-semibold text-sm tabular-nums">{taxaFmt(rt.entrou, rt.fechou)}%</div>
+                    <div className="text-[10px] opacity-75 mt-0.5 tabular-nums">{rt.entrou} → {rt.fechou}</div>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
+          <tfoot className="bg-slate-100 border-t-2 border-slate-300">
+            <tr>
+              <td className="px-3 py-2 text-slate-700 font-semibold sticky left-0 bg-slate-100 z-10 whitespace-nowrap">Total</td>
+              {xs.map(x => {
+                const ct = colTotals.get(x) ?? { entrou: 0, fechou: 0 }
+                return (
+                  <td key={x} className="px-2 py-2 text-center text-slate-800">
+                    <div className="font-semibold text-sm tabular-nums">{taxaFmt(ct.entrou, ct.fechou)}%</div>
+                    <div className="text-[10px] opacity-75 mt-0.5 tabular-nums">{ct.entrou} → {ct.fechou}</div>
+                  </td>
+                )
+              })}
+              <td className="px-2 py-2 text-center bg-slate-200 text-slate-900 border-l-2 border-slate-300">
+                <div className="font-bold text-sm tabular-nums">{taxaFmt(grandEntrou, grandFechou)}%</div>
+                <div className="text-[10px] opacity-75 mt-0.5 tabular-nums">{grandEntrou} → {grandFechou}</div>
+              </td>
+            </tr>
+          </tfoot>
         </table>
       </div>
     </SectionCard>
@@ -308,6 +367,23 @@ function VendasFechadasList({ data }: { data: WwDriftVenda }) {
               </tr>
             ))}
           </tbody>
+          <tfoot className="bg-slate-100 border-t-2 border-slate-300">
+            {(() => {
+              const total = data.vendas_lista.length
+              const totalConv = data.vendas_lista.reduce((s, v) => s + (v.num_convidados ?? 0), 0)
+              const totalValor = data.vendas_lista.reduce((s, v) => s + (v.valor_final ?? 0), 0)
+              const convComDado = data.vendas_lista.filter(v => v.num_convidados != null).length
+              const valorComDado = data.vendas_lista.filter(v => v.valor_final != null).length
+              return (
+                <tr>
+                  <td className="px-3 py-2 text-slate-700 font-semibold" colSpan={4}>Total ({formatNumber(total)} vendas)</td>
+                  <td className="px-3 py-2 text-right tabular-nums font-bold text-slate-900" title={`Soma de ${convComDado} vendas com convidados informados`}>{formatNumber(totalConv)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums font-bold text-emerald-800" title={`Soma de ${valorComDado} vendas com valor informado`}>{formatCurrency(totalValor)}</td>
+                  <td className="px-3 py-2" colSpan={3}></td>
+                </tr>
+              )
+            })()}
+          </tfoot>
         </table>
       </div>
     </SectionCard>
@@ -364,6 +440,36 @@ function DriftPorConsultor({ data, onConsultorClick }: { data: WwDriftVenda; onC
               )
             })}
           </tbody>
+          <tfoot className="bg-slate-100 border-t-2 border-slate-300">
+            {(() => {
+              const totalVendas = data.drift_por_consultor.reduce((s, c) => s + c.vendas, 0)
+              const totalManteve = data.drift_por_consultor.reduce((s, c) => s + c.manteve, 0)
+              const totalSubiu = data.drift_por_consultor.reduce((s, c) => s + c.subiu, 0)
+              const totalDesceu = data.drift_por_consultor.reduce((s, c) => s + c.desceu, 0)
+              const pct = (n: number) => totalVendas > 0 ? Math.round(100 * n / totalVendas) : 0
+              return (
+                <tr>
+                  <td className="px-3 py-2 text-slate-700 font-semibold">Total ({data.drift_por_consultor.length} closers)</td>
+                  <td className="px-3 py-2 text-right tabular-nums font-bold text-slate-900">{formatNumber(totalVendas)}</td>
+                  <td className="px-3 py-2 text-right">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold bg-emerald-100 text-emerald-800">
+                      {totalManteve} · {pct(totalManteve)}%
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold bg-indigo-100 text-indigo-800">
+                      {totalSubiu} · {pct(totalSubiu)}%
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800">
+                      {totalDesceu} · {pct(totalDesceu)}%
+                    </span>
+                  </td>
+                </tr>
+              )
+            })()}
+          </tfoot>
         </table>
       </div>
     </SectionCard>
@@ -399,7 +505,7 @@ function UniversoHeader({ data }: { data: WwDriftVenda }) {
   const fechados = data.total_fechados
   return (
     <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 rounded-xl p-5">
-      <div className="flex items-baseline justify-between flex-wrap gap-3">
+      <div className="flex items-start justify-between flex-wrap gap-4">
         <div className="max-w-3xl">
           <h2 className="text-base font-semibold text-slate-900">🔄 Entrada × Realidade</h2>
           {isCohort ? (
@@ -421,8 +527,15 @@ function UniversoHeader({ data }: { data: WwDriftVenda }) {
             Venda fechada = card tem campo <code className="bg-white px-1 rounded">Data/Hora do Ganho</code> preenchido pelo closer.
           </p>
         </div>
-        <div className="text-xs bg-white border border-indigo-200 rounded-lg px-3 py-1.5 text-indigo-700 whitespace-nowrap">
-          📅 Modo: <strong>{isCohort ? 'Entrada do lead (cohort)' : 'Data da venda (throughput)'}</strong>
+        <div className="flex flex-col gap-2 items-end">
+          <div className="bg-emerald-600 text-white rounded-xl px-4 py-2.5 shadow-sm">
+            <div className="text-[10px] uppercase tracking-wide opacity-90 font-medium">Ganhos analisados</div>
+            <div className="text-2xl font-bold tabular-nums leading-tight">{formatNumber(fechados)}</div>
+            <div className="text-[10px] opacity-90 mt-0.5">no período filtrado</div>
+          </div>
+          <div className="text-xs bg-white border border-indigo-200 rounded-lg px-3 py-1.5 text-indigo-700 whitespace-nowrap">
+            📅 Modo: <strong>{isCohort ? 'Entrada do lead (cohort)' : 'Data da venda (throughput)'}</strong>
+          </div>
         </div>
       </div>
     </div>
@@ -544,6 +657,21 @@ function InvestimentoDrift({ data, onCellClick }: { data: WwDriftVenda; onCellCl
                       )
                     })}
                   </tbody>
+                  <tfoot className="bg-slate-100 border-t-2 border-slate-300">
+                    {(() => {
+                      const colTotais = faixasVendida.map(fv => faixasEntrada.reduce((s, fe) => s + (matrizMap.get(`${fe}|${fv}`)?.qtd ?? 0), 0))
+                      const grand = colTotais.reduce((s, n) => s + n, 0)
+                      return (
+                        <tr>
+                          <td className="px-3 py-2 text-slate-700 font-semibold whitespace-nowrap">Total coluna</td>
+                          {colTotais.map((n, i) => (
+                            <td key={faixasVendida[i]} className="px-3 py-2 text-center text-slate-800 font-semibold tabular-nums">{n}</td>
+                          ))}
+                          <td className="px-3 py-2 text-center bg-slate-200 text-slate-900 font-bold tabular-nums border-l border-slate-300">{grand}</td>
+                        </tr>
+                      )
+                    })()}
+                  </tfoot>
                 </table>
               </div>
             </div>
@@ -656,6 +784,21 @@ function DestinoDrift({ data, onCellClick }: { data: WwDriftVenda; onCellClick?:
                       )
                     })}
                   </tbody>
+                  <tfoot className="bg-slate-100 border-t-2 border-slate-300">
+                    {(() => {
+                      const colTotais = destinosV.map(dv => destinosE.reduce((s, de) => s + (matrizMap.get(`${de}|${dv}`) ?? 0), 0))
+                      const grand = colTotais.reduce((s, n) => s + n, 0)
+                      return (
+                        <tr>
+                          <td className="px-3 py-2 text-slate-700 font-semibold whitespace-nowrap">Total coluna</td>
+                          {colTotais.map((n, i) => (
+                            <td key={destinosV[i]} className="px-3 py-2 text-center text-slate-800 font-semibold tabular-nums">{n}</td>
+                          ))}
+                          <td className="px-3 py-2 text-center bg-slate-200 text-slate-900 font-bold tabular-nums border-l border-slate-300">{grand}</td>
+                        </tr>
+                      )
+                    })()}
+                  </tfoot>
                 </table>
               </div>
             </div>
@@ -754,6 +897,21 @@ function ConvidadosDrift({ data }: { data: WwDriftVenda }) {
                       )
                     })}
                   </tbody>
+                  <tfoot className="bg-slate-100 border-t-2 border-slate-300">
+                    {(() => {
+                      const colTotais = convR.map(cr => convE.reduce((s, ce) => s + (matrizMap.get(`${ce}|${cr}`) ?? 0), 0))
+                      const grand = colTotais.reduce((s, n) => s + n, 0)
+                      return (
+                        <tr>
+                          <td className="px-3 py-2 text-slate-700 font-semibold whitespace-nowrap">Total coluna</td>
+                          {colTotais.map((n, i) => (
+                            <td key={convR[i]} className="px-3 py-2 text-center text-slate-800 font-semibold tabular-nums">{n}</td>
+                          ))}
+                          <td className="px-3 py-2 text-center bg-slate-200 text-slate-900 font-bold tabular-nums border-l border-slate-300">{grand}</td>
+                        </tr>
+                      )
+                    })()}
+                  </tfoot>
                 </table>
               </div>
             </div>

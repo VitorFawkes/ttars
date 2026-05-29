@@ -8,17 +8,15 @@ import { EntradaRealidade } from './tabs/EntradaRealidade'
 import { Equipe } from './tabs/Equipe'
 import { Qualidade } from './tabs/Qualidade'
 import { Perfil } from './tabs/Perfil'
-import { FunilPerfil } from './tabs/FunilPerfil'
 import { Marketing } from './tabs/Marketing'
 import { Perdas } from './tabs/Perdas'
 import { formatRange } from './lib/dates'
 
-type Tab = 'visao' | 'jornada' | 'funil-perfil' | 'entrada-realidade' | 'equipe' | 'qualidade' | 'perfil' | 'marketing' | 'perdas'
+type Tab = 'visao' | 'jornada' | 'entrada-realidade' | 'equipe' | 'qualidade' | 'perfil' | 'marketing' | 'perdas'
 
 const TABS: { id: Tab; label: string; icon: string; description: string }[] = [
   { id: 'visao', label: 'Visão geral', icon: '📊', description: 'KPIs, funil, conversões, alertas' },
   { id: 'jornada', label: 'Jornada do lead', icon: '🛤️', description: 'Funil real, tempos, dados fechamento' },
-  { id: 'funil-perfil', label: 'Funil por perfil', icon: '🎯', description: 'Conversão por filtro vs baseline' },
   { id: 'entrada-realidade', label: 'Entrada × Realidade', icon: '🔄', description: 'O que disse no site × o que virou' },
   { id: 'equipe', label: 'Equipe', icon: '👥', description: 'Performance SDR, Closer, Planner' },
   { id: 'qualidade', label: 'Qualidade do lead', icon: '🎯', description: 'Faixa, convidados, local, cruzamentos' },
@@ -55,7 +53,6 @@ export default function AnalyticsWeddingsPage() {
           <div className="flex-1 min-w-0">
             {activeTab === 'visao' && <VisaoGeral />}
             {activeTab === 'jornada' && <Jornada />}
-            {activeTab === 'funil-perfil' && <FunilPerfil />}
             {activeTab === 'entrada-realidade' && <EntradaRealidade />}
             {activeTab === 'equipe' && <Equipe />}
             {activeTab === 'qualidade' && <Qualidade />}
