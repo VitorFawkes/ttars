@@ -195,6 +195,7 @@ function Header({ data, atualStart, atualEnd, histStart, histEnd, onAtualStart, 
           <div className="text-2xl font-semibold text-slate-900 mt-1 tabular-nums">
             {formatNumber(data.total_historico)} <span className="text-sm font-normal text-slate-500">vendas</span>
           </div>
+          <div className="text-[11px] text-slate-500 mt-0.5">Fechamentos que ocorreram no período</div>
           <div className="mt-2 flex items-center gap-2 flex-wrap">
             <input type="date" value={toDateInput(histStart)} onChange={e => onHistStart(fromDateInputStart(e.target.value))} className="px-2 py-1 text-xs border border-slate-300 rounded text-slate-700" />
             <span className="text-xs text-slate-500">até</span>
@@ -217,6 +218,7 @@ function Header({ data, atualStart, atualEnd, histStart, histEnd, onAtualStart, 
           <div className="text-2xl font-semibold text-slate-900 mt-1 tabular-nums">
             {formatNumber(data.total_atual)} <span className="text-sm font-normal text-slate-500">leads novos</span>
           </div>
+          <div className="text-[11px] text-slate-500 mt-0.5">Leads que chegaram no período</div>
           <div className="mt-2 flex items-center gap-2 flex-wrap">
             <input type="date" value={toDateInput(atualStart)} onChange={e => onAtualStart(fromDateInputStart(e.target.value))} className="px-2 py-1 text-xs border border-slate-300 rounded text-slate-700" />
             <span className="text-xs text-slate-500">até</span>
