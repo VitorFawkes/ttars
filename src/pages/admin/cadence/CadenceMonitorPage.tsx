@@ -342,7 +342,7 @@ const CadenceMonitorPage: React.FC = () => {
                                         <TableRow key={instance.id}>
                                             <TableCell>
                                                 <a
-                                                    href={`/card/${instance.card_id}`}
+                                                    href={`/cards/${instance.card_id}`}
                                                     className="text-blue-600 hover:underline font-medium"
                                                     target="_blank"
                                                 >

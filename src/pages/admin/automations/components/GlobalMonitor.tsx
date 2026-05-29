@@ -378,7 +378,7 @@ export function GlobalMonitor() {
                                                 {g.instances.map((row) => (
                                                     <TableRow key={row.id} className="bg-white">
                                                         <TableCell>
-                                                            <a href={`/card/${row.card_id}`} className="text-blue-600 hover:underline font-medium text-sm" target="_blank" rel="noreferrer">
+                                                            <a href={`/cards/${row.card_id}`} className="text-blue-600 hover:underline font-medium text-sm" target="_blank" rel="noreferrer">
                                                                 {row.card_titulo}
                                                             </a>
                                                         </TableCell>

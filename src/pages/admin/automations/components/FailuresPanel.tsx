@@ -192,7 +192,7 @@ export function FailuresPanel() {
                                         <TableCell>
                                             {row.card_id ? (
                                                 <a
-                                                    href={`/card/${row.card_id}`}
+                                                    href={`/cards/${row.card_id}`}
                                                     target="_blank"
                                                     className="text-blue-600 hover:underline text-sm"
                                                     rel="noreferrer"
