@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Search, X, ChevronLeft, ChevronRight, Heart, AlertCircle, Users } from 'lucide-react'
+import { Search, X, ChevronLeft, ChevronRight, Heart, AlertCircle, Users, Combine } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { useWeddingsWithGuestCounts } from '../../../hooks/convidados/useWeddingsWithGuestCounts'
 import { useConvidadosPreferences } from '../../../hooks/convidados/useConvidadosPreferences'
 import { ETAPA_LABEL, ETAPA_ORDER, type EtapaConvidados } from '../../../hooks/convidados/types'
+import { findDuplicateWeddings } from '../../../lib/convidados/findDuplicateWeddings'
+import { UnirCasamentosDuplicadosModal } from '../UnirCasamentosDuplicadosModal'
 import { CasamentoCard } from './CasamentoCard'
 
 const PAGE_SIZE = 12
@@ -40,6 +42,10 @@ export function CasamentosBoard() {
   const [page, setPage] = useState(1)
   // Busca não persiste — zera sempre que entra na aba
   const [search, setSearch] = useState('')
+  const [unirOpen, setUnirOpen] = useState(false)
+
+  // Casamentos duplicados (mesmo casal + mesma data) detectados no board.
+  const duplicateGroups = useMemo(() => findDuplicateWeddings(data), [data])
 
   // Estatísticas (sempre baseadas no conjunto total, não no filtrado)
   const stats = useMemo(() => {
@@ -187,6 +193,19 @@ export function CasamentosBoard() {
               <X className="w-3 h-3" /> Limpar
             </button>
           )}
+          {duplicateGroups.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setUnirOpen(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 rounded-md transition-colors shrink-0"
+              title="Casamentos duplicados detectados — unir num só"
+            >
+              <Combine className="w-3.5 h-3.5" /> Unir duplicados
+              <span className="tabular-nums text-[10px] font-semibold rounded-full px-1.5 min-w-[1.1rem] inline-flex items-center justify-center bg-amber-600 text-white">
+                {duplicateGroups.length}
+              </span>
+            </button>
+          )}
           <span className="text-xs text-slate-500 tabular-nums shrink-0">
             {filtered.length} de {data.length}
           </span>
@@ -275,6 +294,8 @@ export function CasamentosBoard() {
           </div>
         </footer>
       )}
+
+      <UnirCasamentosDuplicadosModal open={unirOpen} onClose={() => setUnirOpen(false)} />
     </div>
   )
 }
