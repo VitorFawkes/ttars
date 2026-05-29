@@ -1091,3 +1091,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-28T20:49:43Z | supabase/migrations/20260528v_fix_date_mode_3_rpcs.sql | applied_to_prod
 2026-05-28T21:20:48Z | supabase/migrations/20260528w_hotfix_drift_cohort_throughput.sql | applied_to_prod
 2026-05-28T23:29:22Z | supabase/migrations/20260528x_auditoria_universo_unificado.sql | applied_to_prod
+2026-05-29T13:14:38Z | supabase/migrations/20260529a_fundir_casamentos.sql | applied_to_prod
