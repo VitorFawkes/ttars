@@ -84,6 +84,10 @@ export function useWeddings() {
           .eq('org_id', orgId)
           .in('pipeline_stage_id', stageIds)
           .is('deleted_at', null)
+          // Esconde casamentos arquivados (ex.: o duplicado que sobrou após
+          // unir dois casamentos) — senão a sobra vazia continua aparecendo
+          // no board como uma falsa duplicata.
+          .is('archived_at', null)
           .order('created_at', { ascending: false })
           .range(start, start + PAGE - 1)
         if (error) throw error
