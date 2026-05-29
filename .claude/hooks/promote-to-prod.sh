@@ -46,6 +46,16 @@ if ! bash "$SCRIPT_DIR/test-business-rules.sh" prod; then
   exit 1
 fi
 
+# Invariantes de Analytics-Weddings (BEGIN/ROLLBACK — read-only)
+echo ""
+echo "Rodando invariantes de Analytics-Weddings contra produção..."
+if ! bash "$SCRIPT_DIR/test-analytics-invariants.sh" prod; then
+  echo ""
+  echo "ATENÇÃO: invariante de Analytics-Weddings quebrada. Veja stderr acima." >&2
+  echo "A mudança FOI APLICADA em produção — investigar causa raiz antes de confirmar." >&2
+  exit 1
+fi
+
 # Smoke test contra produção
 echo ""
 echo "Rodando smoke test contra produção..."
