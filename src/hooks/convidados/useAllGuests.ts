@@ -52,6 +52,10 @@ export function useAllGuests(filters: AllGuestsFilters) {
           )
           .eq('org_id', orgId)
           .not('card_id', 'is', null)
+          // Ordenação estável por PK: sem ela, a paginação por offset (.range)
+          // é indefinida e descarta/duplica linhas entre páginas, subnotificando
+          // a contagem de convidados na lista. Ver useWeddings (mesmo padrão).
+          .order('id', { ascending: true })
         if (filters.statusFilter.length > 0) q = q.in('status_rsvp', filters.statusFilter)
         if (filters.weddingFilter.length > 0) q = q.in('card_id', filters.weddingFilter)
         return q
