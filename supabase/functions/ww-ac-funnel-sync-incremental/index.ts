@@ -31,8 +31,14 @@ const FIELD_CLOSER_AGEN      = '18'
 const FIELD_CLOSER_COMO      = '299'
 const FIELD_GANHO            = '87'
 const FIELD_DEAL_PACOTE_CONV = '62'
+const FIELD_DEAL_MOTIVO_CLOSER = '47'
+const FIELD_DEAL_MOTIVO_SDR    = '56'
 const CONTACT_FIELD_CONVIDADOS = '121'
 const CONTACT_FIELD_ORCAMENTO  = '376'
+const CONTACT_FIELD_UTM_SOURCE = '46'
+const CONTACT_FIELD_UTM_MEDIUM = '47'
+const CONTACT_FIELD_UTM_CAMPAIGN = '48'
+const CONTACT_FIELD_ORIGEM_CONVERSAO = '137'
 
 type Deal = { id: string; group: string | null; title: string | null; contact?: string | null }
 
@@ -170,11 +176,11 @@ Deno.serve(async (req) => {
     // 2. Construir mapa de campos do deal
     const fieldMap: Record<string, string | null> = {}
     for (const f of (fieldsRes.dealCustomFieldData ?? [])) {
-      fieldMap[String(f.customFieldId)] = f.fieldValue ?? null
+      fieldMap[String(f.customFieldId)] = f.fieldValue == null ? null : String(f.fieldValue)
     }
 
-    // 3. Buscar contact fields 376/121 se for WW e tiver contato
-    let cFields: { f376?: string; f121?: string } = {}
+    // 3. Buscar contact fields (Welcome Form + UTMs) se for WW e tiver contato
+    let cFields: { f376?: string; f121?: string; utm_source?: string; utm_medium?: string; utm_campaign?: string; origem?: string } = {}
     if (isWw && deal.contact) {
       try {
         const j = await acFetch<{ fieldValues?: Array<{ field: string | number; value: string | null }> }>(
@@ -182,10 +188,14 @@ Deno.serve(async (req) => {
         )
         for (const fv of (j.fieldValues ?? [])) {
           const fid = String(fv.field)
-          const v = (fv.value ?? '').trim()
+          const v = String(fv.value ?? '').trim()
           if (!v || v === '||') continue
           if (fid === CONTACT_FIELD_ORCAMENTO) cFields.f376 = v
           else if (fid === CONTACT_FIELD_CONVIDADOS) cFields.f121 = v
+          else if (fid === CONTACT_FIELD_UTM_SOURCE) cFields.utm_source = v
+          else if (fid === CONTACT_FIELD_UTM_MEDIUM) cFields.utm_medium = v
+          else if (fid === CONTACT_FIELD_UTM_CAMPAIGN) cFields.utm_campaign = v
+          else if (fid === CONTACT_FIELD_ORIGEM_CONVERSAO) cFields.origem = v
         }
       } catch (e) {
         console.warn(`contact ${deal.contact} fetch failed:`, (e as Error).message)
@@ -227,6 +237,12 @@ Deno.serve(async (req) => {
       real_convidados_parsed: parseConvidados(convidadosRaw),
       real_convidados_fonte: convidadosFonte,
       real_dados_synced_at: isWw ? new Date().toISOString() : null,
+      motivo_perda_closer_raw: fieldMap[FIELD_DEAL_MOTIVO_CLOSER] ?? null,
+      motivo_perda_sdr_raw: fieldMap[FIELD_DEAL_MOTIVO_SDR] ?? null,
+      utm_source: cFields.utm_source ?? null,
+      utm_medium: cFields.utm_medium ?? null,
+      utm_campaign: cFields.utm_campaign ?? null,
+      origem_conversao: cFields.origem ?? null,
       synced_at: new Date().toISOString(),
     }
 

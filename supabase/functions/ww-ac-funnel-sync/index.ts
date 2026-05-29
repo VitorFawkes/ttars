@@ -34,11 +34,17 @@ const FIELD_CLOSER_AGEN      = '18'
 const FIELD_CLOSER_COMO      = '299'
 const FIELD_GANHO            = '87'
 const FIELD_DEAL_PACOTE_CONV = '62'  // Fallback de convidados quando Contact 121 vazio
-const RELEVANT_FIELDS = new Set([FIELD_SDR_AGENDOU, FIELD_SDR_COMO, FIELD_CLOSER_AGEN, FIELD_CLOSER_COMO, FIELD_GANHO, FIELD_DEAL_PACOTE_CONV])
+const FIELD_DEAL_MOTIVO_CLOSER = '47' // [WW] [Closer] Motivo de Perda (dropdown)
+const FIELD_DEAL_MOTIVO_SDR    = '56' // SDR WT - Motivo de Perda (dropdown)
+const RELEVANT_FIELDS = new Set([FIELD_SDR_AGENDOU, FIELD_SDR_COMO, FIELD_CLOSER_AGEN, FIELD_CLOSER_COMO, FIELD_GANHO, FIELD_DEAL_PACOTE_CONV, FIELD_DEAL_MOTIVO_CLOSER, FIELD_DEAL_MOTIVO_SDR])
 
-// Contact fields (Welcome Form pós-venda)
+// Contact fields (Welcome Form pós-venda + atribuição de origem)
 const CONTACT_FIELD_CONVIDADOS = '121'  // DW - Previsão nº de convidados
 const CONTACT_FIELD_ORCAMENTO  = '376'  // DW - Qual o orçamento total do casamento
+const CONTACT_FIELD_UTM_SOURCE = '46'
+const CONTACT_FIELD_UTM_MEDIUM = '47'
+const CONTACT_FIELD_UTM_CAMPAIGN = '48'
+const CONTACT_FIELD_ORIGEM_CONVERSAO = '137'
 
 type DealCustomFieldData = { dealId: number; customFieldId: number; fieldValue: string | null }
 type Deal = { id: string; group: string | null; title: string | null; contact?: string | null }
@@ -170,7 +176,7 @@ Deno.serve(async (req) => {
       if (!RELEVANT_FIELDS.has(String(r.customFieldId))) continue
       const id = String(r.dealId)
       if (!dealData.has(id)) dealData.set(id, {})
-      dealData.get(id)![String(r.customFieldId)] = r.fieldValue
+      dealData.get(id)![String(r.customFieldId)] = r.fieldValue == null ? null : String(r.fieldValue)
     }
 
     // Paginação em paralelo (max 10 concurrent)
@@ -185,7 +191,7 @@ Deno.serve(async (req) => {
           if (!RELEVANT_FIELDS.has(String(row.customFieldId))) continue
           const id = String(row.dealId)
           if (!dealData.has(id)) dealData.set(id, {})
-          dealData.get(id)![String(row.customFieldId)] = row.fieldValue
+          dealData.get(id)![String(row.customFieldId)] = row.fieldValue == null ? null : String(row.fieldValue)
         }
       }
     }
@@ -224,18 +230,23 @@ Deno.serve(async (req) => {
     }
     console.log(`Buscando fields 376/121 de ${contactsToFetch.size} contatos WW...`)
 
-    const contactFields = new Map<string, { f376?: string; f121?: string }>()
+    type ContactSnapshot = { f376?: string; f121?: string; utm_source?: string; utm_medium?: string; utm_campaign?: string; origem?: string }
+    const contactFields = new Map<string, ContactSnapshot>()
     async function fetchContactFields(cid: string): Promise<void> {
       try {
         const j = await acFetch<{ fieldValues?: ContactFieldValue[] }>(`/api/3/contacts/${cid}?include=fieldValues`)
         const fvs = j.fieldValues ?? []
-        const out: { f376?: string; f121?: string } = {}
+        const out: ContactSnapshot = {}
         for (const fv of fvs) {
           const fid = String(fv.field)
-          const v = (fv.value ?? '').trim()
+          const v = String(fv.value ?? '').trim()
           if (!v || v === '||') continue
           if (fid === CONTACT_FIELD_ORCAMENTO) out.f376 = v
           else if (fid === CONTACT_FIELD_CONVIDADOS) out.f121 = v
+          else if (fid === CONTACT_FIELD_UTM_SOURCE) out.utm_source = v
+          else if (fid === CONTACT_FIELD_UTM_MEDIUM) out.utm_medium = v
+          else if (fid === CONTACT_FIELD_UTM_CAMPAIGN) out.utm_campaign = v
+          else if (fid === CONTACT_FIELD_ORIGEM_CONVERSAO) out.origem = v
         }
         contactFields.set(cid, out)
       } catch (e) {
@@ -296,6 +307,12 @@ Deno.serve(async (req) => {
         real_convidados_parsed: convidadosParsed,
         real_convidados_fonte: convidadosFonte,
         real_dados_synced_at: isWw ? new Date().toISOString() : null,
+        motivo_perda_closer_raw: data[FIELD_DEAL_MOTIVO_CLOSER] ?? null,
+        motivo_perda_sdr_raw: data[FIELD_DEAL_MOTIVO_SDR] ?? null,
+        utm_source: cFields?.utm_source ?? null,
+        utm_medium: cFields?.utm_medium ?? null,
+        utm_campaign: cFields?.utm_campaign ?? null,
+        origem_conversao: cFields?.origem ?? null,
         synced_at: new Date().toISOString(),
       }
     })
