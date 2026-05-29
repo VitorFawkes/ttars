@@ -5,12 +5,12 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-05-28
+> **Last Updated:** 2026-05-29
 > **Trigger:** ALWAYS ON
-> **Stats:** 220 tabelas | 225 paginas | 375 hooks | 26 views | 851 components
-> **Last Updated:** 2026-05-28
+> **Stats:** 221 tabelas | 226 paginas | 375 hooks | 27 views | 851 components
+> **Last Updated:** 2026-05-29
 > **Trigger:** ALWAYS ON
-> **Stats:** 220 tabelas | 225 paginas | 375 hooks | 26 views | 851 components
+> **Stats:** 221 tabelas | 226 paginas | 375 hooks | 27 views | 851 components
 
 ---
 
@@ -626,7 +626,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **225 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **226 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -848,6 +848,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `ListaConvidadosPublic` | `src/pages/public/ListaConvidadosPublic.tsx` |
 | `ListaConvidadosSplash 2` | `src/pages/public/ListaConvidadosSplash 2.tsx` |
 | `ListaConvidadosSplash` | `src/pages/public/ListaConvidadosSplash.tsx` |
+| `PainelCasaisPublico` | `src/pages/public/PainelCasaisPublico.tsx` |
 | `ProposalConfirmed` | `src/pages/public/ProposalConfirmed.tsx` |
 | `ProposalReview` | `src/pages/public/ProposalReview.tsx` |
 | `ProposalView` | `src/pages/public/ProposalView.tsx` |

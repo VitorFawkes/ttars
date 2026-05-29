@@ -25,6 +25,8 @@ export function ConviteGroup({
   onAddPessoa, onDeletePessoa, onChangePessoa, onEnterCreate,
 }: Props) {
   const [nome, setNome] = useState(convite.nome)
+  // Sync prop → state local quando servidor manda novo nome (refetch, outro editor).
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setNome(convite.nome), [convite.nome])
 
   const handleNomeBlur = () => {
@@ -38,18 +40,17 @@ export function ConviteGroup({
 
   return (
     <section className="bg-white border-y border-ww-sand">
-      <header className="grid items-center gap-2 px-3 py-2 bg-ww-cream/60 border-b border-ww-sand"
-        style={{ gridTemplateColumns: '24px 24px 1fr auto auto auto' }}>
-        <button type="button" className="text-ww-n400 hover:text-ww-n600 cursor-grab" title="Arrastar para reordenar" aria-label="Arrastar">
+      <header className="flex items-center gap-2 flex-wrap px-3 py-2 bg-ww-cream/60 border-b border-ww-sand">
+        <button type="button" className="hidden md:block text-ww-n400 hover:text-ww-n600 cursor-grab shrink-0" title="Arrastar para reordenar" aria-label="Arrastar">
           <GripVertical className="w-3.5 h-3.5" />
         </button>
-        <button type="button" onClick={onToggleCollapse} className="text-ww-n500 hover:text-ww-n700" aria-label={collapsed ? 'Expandir' : 'Recolher'}>
+        <button type="button" onClick={onToggleCollapse} className="text-ww-n500 hover:text-ww-n700 shrink-0" aria-label={collapsed ? 'Expandir' : 'Recolher'}>
           {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
-        <div className="flex flex-col">
+        <div className="flex flex-col flex-1 min-w-0">
           <p
             className="text-[10px] uppercase tracking-[0.18em] text-ww-gold font-medium leading-none mb-0.5"
-            title="Um convite agrupa pessoas que vão chegar juntas — tipo uma família, casal ou círculo de amigos."
+            title="Um convite agrupa pessoas que vão chegar juntas, tipo uma família, casal ou círculo de amigos."
           >
             Convite (grupo)
           </p>
@@ -60,23 +61,23 @@ export function ConviteGroup({
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() } }}
             placeholder="Família Silva, Padrinhos, Amigos da faculdade…"
             className={cn(
-              'font-ww-serif italic text-lg bg-transparent border-b border-transparent focus:outline-none px-0.5 transition-colors',
+              'w-full font-ww-serif italic text-base sm:text-lg bg-transparent border-b border-transparent focus:outline-none px-0.5 transition-colors',
               nomeVazio
                 ? 'text-ww-n400 border-amber-300 placeholder:text-ww-n400 hover:border-amber-400 focus:border-ww-gold'
                 : 'text-ww-n700 hover:border-ww-sand focus:border-ww-gold',
             )}
           />
         </div>
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-ww-gold-soft text-ww-gold-ink">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-ww-gold-soft text-ww-gold-ink shrink-0">
           <Users className="w-3 h-3" />
           {convite.pessoas.length} {convite.pessoas.length === 1 ? 'pessoa' : 'pessoas'}
         </span>
         <button type="button" onClick={onAddPessoa}
-          className="inline-flex items-center gap-1 px-2 h-7 text-[11px] font-medium rounded border border-ww-sand-dk text-ww-n600 hover:text-ww-gold-ink hover:border-ww-gold transition-colors">
+          className="inline-flex items-center gap-1 px-2 h-7 text-[11px] font-medium rounded border border-ww-sand-dk text-ww-n600 hover:text-ww-gold-ink hover:border-ww-gold transition-colors shrink-0">
           <Plus className="w-3 h-3" /> Pessoa
         </button>
         <button type="button" onClick={onDeleteConvite}
-          className="p-1.5 rounded text-ww-n400 hover:text-ww-rosewood hover:bg-ww-rosewood-soft transition-colors"
+          className="p-1.5 rounded text-ww-n400 hover:text-ww-rosewood hover:bg-ww-rosewood-soft transition-colors shrink-0"
           aria-label="Excluir convite" title="Excluir este grupo inteiro">
           <Trash2 className="w-3.5 h-3.5" />
         </button>

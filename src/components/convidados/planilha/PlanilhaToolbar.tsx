@@ -24,12 +24,12 @@ export function PlanilhaToolbar({
 
   return (
     <div className="flex items-center justify-between gap-2 flex-wrap py-2">
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative">
+      <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+        <div className="relative w-full sm:w-72">
           <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-ww-n400" />
           <input type="search" value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar convite, pessoa ou telefone…"
-            className="w-72 pl-8 pr-7 h-8 text-[12.5px] border border-ww-sand-dk rounded-full focus:outline-none focus:ring-2 focus:ring-ww-gold/30 focus:border-ww-gold bg-white" />
+            className="w-full pl-8 pr-7 h-8 text-[12.5px] border border-ww-sand-dk rounded-full focus:outline-none focus:ring-2 focus:ring-ww-gold/30 focus:border-ww-gold bg-white" />
           {search && (
             <button type="button" onClick={() => setSearch('')}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-ww-n400 hover:text-ww-n700" aria-label="Limpar busca">
@@ -55,7 +55,7 @@ export function PlanilhaToolbar({
         </div>
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 flex-wrap">
         <button type="button" onClick={() => setImportOpen(true)} className={btnGhost} title="Importar lista de uma planilha">
           <Upload className="w-3 h-3" /> Importar
         </button>
