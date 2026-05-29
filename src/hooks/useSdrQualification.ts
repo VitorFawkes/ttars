@@ -12,6 +12,8 @@ export type SdrScoreResult = {
     score: number
     threshold: number
     qualificado: boolean
+    /** Quando true, a qualificação veio do bypass de indicação (não do score). */
+    qualified_by_indicacao?: boolean
     disqualified: boolean
     disqualifiers_hit?: Array<{ dimension: string; label: string; rule_id: string }>
     sinal_bonus_applied: number
