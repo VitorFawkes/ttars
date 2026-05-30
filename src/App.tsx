@@ -28,6 +28,7 @@ import PortalEditor from './pages/PortalEditor'
 import ProposalsPage from './pages/ProposalsPage'
 import CatalogoPage from './pages/CatalogoPage'
 import AnalyticsWeddingsPage from './pages/AnalyticsWeddings/AnalyticsWeddingsPage'
+import SdrConfigPage from './pages/wsdr/SdrConfigPage'
 import ProposalView from './pages/public/ProposalView'
 import TripPortalPublic from './pages/public/TripPortalPublic'
 import ListaConvidadosPublic from './pages/public/ListaConvidadosPublic'
@@ -340,6 +341,7 @@ function App() {
                   <Route path="/analytics/sdr" element={<Navigate to="/analytics/whatsapp" replace />} />
                   <Route path="/analytics/v2/*" element={<Navigate to="/analytics" replace />} />
                   <Route path="/analytics-weddings" element={<AnalyticsWeddingsPage />} />
+                  <Route path="/weddings/sdr" element={<SdrConfigPage />} />
                   <Route path="/proposals/:id/edit" element={<BuilderPageV5 />} />
                   <Route path="/portal-editor/:proposalId" element={<PortalEditor />} />
                   <Route path="/portal-editor/card/:cardId" element={<PortalEditor />} />

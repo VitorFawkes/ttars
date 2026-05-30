@@ -311,6 +311,85 @@ Deno.serve(async (req) => {
                         console.log(`[webhook] AI skip: no phone_number_id on inbound`);
                         continue;
                     }
+
+                    // ── SDR Weddings (agente NOVO, isolado em n8n) — intercepta a linha Elopement ──
+                    // Teste controlado: SÓ o número do Vitor recebe resposta (agente novo "Sofia"
+                    // no n8n); o resto da linha Elopement é ignorado. Patricia NÃO é tocada — aqui
+                    // interceptamos toda a linha Elopement antes de qualquer lógica dela. Qualquer
+                    // erro: loga e ignora (não cai na Patricia, evita resposta dupla).
+                    // REVERSÍVEL: remover este bloco restaura a Patricia na linha Elopement.
+                    const SDRW_ELOPEMENT_LINE = "fe26b171-81b5-4622-8d77-aa5bf102d781";
+                    const SDRW_TEST_LOCAL = "11964293533"; // número do Vitor sem DDI
+                    if (phoneNumberId === SDRW_ELOPEMENT_LINE) {
+                        const sdrwIsVitor = normalizedContact.endsWith(SDRW_TEST_LOCAL);
+                        if (sdrwIsVitor) {
+                            try {
+                                const { data: cts } = await supabaseClient
+                                    .from("contatos")
+                                    .select("id, nome, telefone")
+                                    .eq("telefone_normalizado", SDRW_TEST_LOCAL)
+                                    .not("telefone", "is", null)
+                                    .limit(1);
+                                const ct = (cts && cts[0]) || null;
+                                const sdrwContactId = ct?.id || null;
+                                let sdrwHistory: { role: string; text: string }[] = [];
+                                if (sdrwContactId) {
+                                    // Histórico recente E só da PRÓPRIA Sofia: inclui o que o lead
+                                    // mandou (inbound) + respostas da Sofia (source=sdr-weddings).
+                                    // Exclui mensagens de outros agentes (ex: Patricia=ai_agent_v2)
+                                    // que contaminariam/confundiriam o contexto da Sofia.
+                                    const sdrwSince = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
+                                    const { data: msgs } = await supabaseClient
+                                        .from("whatsapp_messages")
+                                        .select("body, direction, created_at, metadata")
+                                        .eq("contact_id", sdrwContactId)
+                                        .gte("created_at", sdrwSince)
+                                        .or("direction.eq.inbound,metadata->>source.eq.sdr-weddings")
+                                        .order("created_at", { ascending: true })
+                                        .limit(16);
+                                    sdrwHistory = (msgs || [])
+                                        .filter((m: { body: string | null }) => (m.body || "").trim() !== "")
+                                        .map((m: { body: string | null; direction: string }) => ({
+                                            role: m.direction === "outbound" ? "assistant" : "casal",
+                                            text: m.body || "",
+                                        }));
+                                }
+                                const sdrwRes = await fetch("https://n8n-n8n.ymnmx7.easypanel.host/webhook/sdr-weddings", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                        contact_phone: normalizedContact,
+                                        contact_id: sdrwContactId,
+                                        nome: data.contact_name || data.contact?.name || data.pushname || singlePayload.contact_name || ct?.nome || "",
+                                        message: messageText,
+                                        history: sdrwHistory,
+                                    }),
+                                });
+                                const sdrwJson = await sdrwRes.json().catch(() => ({}));
+                                const sdrwReply = sdrwJson?.reply;
+                                if (sdrwReply && sdrwContactId) {
+                                    await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-message`, {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${serviceKey}` },
+                                        body: JSON.stringify({
+                                            contact_id: sdrwContactId,
+                                            corpo: sdrwReply,
+                                            phone_number_id: SDRW_ELOPEMENT_LINE,
+                                            source: "sdr-weddings",
+                                        }),
+                                    });
+                                    console.log("[webhook] SDR Weddings (Sofia) respondeu via Echo");
+                                } else {
+                                    console.warn(`[webhook] SDR Weddings sem reply/contato (reply=${!!sdrwReply}, contact=${sdrwContactId})`);
+                                }
+                            } catch (err) {
+                                console.error("[webhook] SDR Weddings branch error:", err);
+                            }
+                        } else {
+                            console.log(`[webhook] Elopement teste: ignorando ${normalizedContact} (só ${SDRW_TEST_LOCAL} responde)`);
+                        }
+                        continue; // intercepta TODA a linha Elopement no teste; Patricia não roda aqui
+                    }
                     const { data: lineRow } = await supabaseClient
                         .from("whatsapp_linha_config")
                         .select("id")

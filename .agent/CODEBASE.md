@@ -5,12 +5,12 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-05-29
+> **Last Updated:** 2026-05-30
 > **Trigger:** ALWAYS ON
-> **Stats:** 222 tabelas | 225 paginas | 376 hooks | 28 views | 852 components
-> **Last Updated:** 2026-05-29
+> **Stats:** 223 tabelas | 226 paginas | 376 hooks | 28 views | 855 components
+> **Last Updated:** 2026-05-30
 > **Trigger:** ALWAYS ON
-> **Stats:** 222 tabelas | 225 paginas | 376 hooks | 28 views | 852 components
+> **Stats:** 223 tabelas | 226 paginas | 376 hooks | 28 views | 855 components
 
 ---
 
@@ -627,7 +627,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **225 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **226 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -856,6 +856,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `TripPortalPublic` | `src/pages/public/TripPortalPublic.tsx` |
 | `PontuacoesPage` | `src/pages/sdr/PontuacoesPage.tsx` |
 | `LeadsterSettingsPage` | `src/pages/settings/LeadsterSettingsPage.tsx` |
+| `SdrConfigPage` | `src/pages/wsdr/SdrConfigPage.tsx` |
 
 ## 4. UI Component Library
 
