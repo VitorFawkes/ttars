@@ -1,10 +1,20 @@
-import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select } from '@/components/ui/Select'
 import { StringListEditor } from './StringListEditor'
-import { Loader2, CheckCircle, AlertCircle } from 'lucide-react'
+import {
+  Loader2,
+  CheckCircle,
+  AlertCircle,
+  User,
+  Mic,
+  MessageSquare,
+  ListChecks,
+  Wallet,
+  ShieldAlert,
+} from 'lucide-react'
 
 export interface SofiaConfig {
   persona_nome: string
@@ -27,10 +37,37 @@ interface SofiaConfigFormProps {
 }
 
 const TOM_OPTIONS = [
-  { value: 'acolhedor', label: '💚 Acolhedor — quentinha, amigável, acessível' },
-  { value: 'formal', label: '🤝 Formal — profissional, respeitoso, estruturado' },
-  { value: 'direto', label: '⚡ Direto — assertivo, objetivo, sem rodeios' },
+  { value: 'acolhedor', label: 'Acolhedor — caloroso, próximo, humano' },
+  { value: 'formal', label: 'Formal — profissional, respeitoso, sóbrio' },
+  { value: 'direto', label: 'Direto — assertivo, objetivo, sem rodeios' },
 ]
+
+function Section({
+  icon,
+  title,
+  description,
+  children,
+  last = false,
+}: {
+  icon: ReactNode
+  title: string
+  description: string
+  children: ReactNode
+  last?: boolean
+}) {
+  return (
+    <div className={last ? 'space-y-4' : 'space-y-4 pb-6 border-b border-slate-200'}>
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          <span className="text-slate-400">{icon}</span>
+          <h3 className="text-base font-semibold text-slate-900 tracking-tight">{title}</h3>
+        </div>
+        <p className="text-sm text-slate-500">{description}</p>
+      </div>
+      {children}
+    </div>
+  )
+}
 
 export function SofiaConfigForm({
   config,
@@ -40,43 +77,29 @@ export function SofiaConfigForm({
   saveStatus = 'idle',
   saveMessage = '',
 }: SofiaConfigFormProps) {
-  const [localConfig, setLocalConfig] = useState<SofiaConfig>(config)
-
   const handleChange = <K extends keyof SofiaConfig>(field: K, value: SofiaConfig[K]) => {
-    const updated = { ...localConfig, [field]: value }
-    setLocalConfig(updated)
-    onConfigChange(updated)
-  }
-
-  const handleSave = async () => {
-    await onSave()
+    onConfigChange({ ...config, [field]: value })
   }
 
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault()
-        handleSave()
+        onSave()
       }}
       className="space-y-8"
     >
-      {/* Seção: Identidade */}
-      <div className="space-y-4 pb-6 border-b border-slate-200">
-        <h3 className="text-lg font-semibold text-slate-900 tracking-tight">
-          👤 Identidade da Sofia
-        </h3>
-        <p className="text-sm text-slate-600">
-          Quem é a Sofia? Nome, empresa, e qual é a proposta dela para os noivos.
-        </p>
-
+      <Section
+        icon={<User className="w-4 h-4" />}
+        title="Identidade"
+        description="Quem é a Sofia: nome, marca e a proposta que ela leva para os noivos."
+      >
         <div className="space-y-3">
           <div>
-            <label className="block text-sm font-medium text-slate-900 mb-1.5">
-              Nome da persona
-            </label>
+            <label className="block text-sm font-medium text-slate-900 mb-1.5">Nome da persona</label>
             <Input
               type="text"
-              value={localConfig.persona_nome}
+              value={config.persona_nome}
               onChange={(e) => handleChange('persona_nome', e.target.value)}
               placeholder="ex: Sofia"
               className="w-full"
@@ -84,12 +107,10 @@ export function SofiaConfigForm({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-900 mb-1.5">
-              Empresa / Marca
-            </label>
+            <label className="block text-sm font-medium text-slate-900 mb-1.5">Empresa / marca</label>
             <Input
               type="text"
-              value={localConfig.empresa}
+              value={config.empresa}
               onChange={(e) => handleChange('empresa', e.target.value)}
               placeholder="ex: Welcome Weddings"
               className="w-full"
@@ -101,101 +122,82 @@ export function SofiaConfigForm({
               Proposta (pitch em 1-2 frases)
             </label>
             <Textarea
-              value={localConfig.proposta}
+              value={config.proposta}
               onChange={(e) => handleChange('proposta', e.target.value)}
-              placeholder="ex: Ajudo casais a planejar o casamento dos sonhos com eficiência e sem estresse."
+              placeholder="ex: a gente faz destination wedding desde 2012, premiada como uma das melhores da América Latina."
               className="w-full"
               persistKey="sofia-proposta"
             />
           </div>
         </div>
-      </div>
+      </Section>
 
-      {/* Seção: Tom de Voz */}
-      <div className="space-y-4 pb-6 border-b border-slate-200">
-        <h3 className="text-lg font-semibold text-slate-900 tracking-tight">
-          🎤 Tom de Voz
-        </h3>
-        <p className="text-sm text-slate-600">
-          Como a Sofia fala com os noivos? Escolha o tom que melhor a descreve.
-        </p>
-
+      <Section
+        icon={<Mic className="w-4 h-4" />}
+        title="Tom de voz"
+        description="Como a Sofia fala com os noivos."
+      >
         <Select
-          value={localConfig.tom}
-          onChange={(value) => handleChange('tom', value as 'acolhedor' | 'formal' | 'direto')}
+          value={config.tom}
+          onChange={(value) => handleChange('tom', value as SofiaConfig['tom'])}
           options={TOM_OPTIONS}
           className="w-full"
         />
-      </div>
+      </Section>
 
-      {/* Seção: Apresentação */}
-      <div className="space-y-4 pb-6 border-b border-slate-200">
-        <h3 className="text-lg font-semibold text-slate-900 tracking-tight">
-          👋 Mensagem de Abertura
-        </h3>
-        <p className="text-sm text-slate-600">
-          Como a Sofia se apresenta no primeiro contato com um noivo? Deixe natural e autêntico.
-        </p>
-
+      <Section
+        icon={<MessageSquare className="w-4 h-4" />}
+        title="Mensagem de abertura"
+        description="A primeira mensagem que a Sofia manda no primeiro contato."
+      >
         <Textarea
-          value={localConfig.abertura}
+          value={config.abertura}
           onChange={(e) => handleChange('abertura', e.target.value)}
-          placeholder="ex: Oi! Sou a Sofia, da Welcome Weddings. Vi que vocês estão planejando um casamento e gostaria de saber mais sobre o que vocês sonham. Tudo bem?"
-          className="w-full"
+          placeholder="ex: Oi! Aqui é a Sofia, da Welcome Weddings. Pra começar, como é o nome de vocês?"
+          className="w-full min-h-[120px]"
           persistKey="sofia-abertura"
         />
-      </div>
+      </Section>
 
-      {/* Seção: Etapas de Qualificação */}
-      <div className="space-y-4 pb-6 border-b border-slate-200">
-        <h3 className="text-lg font-semibold text-slate-900 tracking-tight">
-          ❓ Perguntas de Qualificação
-        </h3>
-        <p className="text-sm text-slate-600">
-          Em ordem. A Sofia fará essas perguntas para entender melhor os noivos.
-        </p>
-
+      <Section
+        icon={<ListChecks className="w-4 h-4" />}
+        title="Perguntas de qualificação"
+        description="Em ordem. A Sofia avança uma de cada vez para entender o casal."
+      >
         <StringListEditor
-          items={localConfig.etapas}
+          items={config.etapas}
           onChange={(items) => handleChange('etapas', items)}
           placeholder="ex: Qual é a data pretendida do casamento?"
           allowReorder={true}
         />
-      </div>
+      </Section>
 
-      {/* Seção: Faixas de Orçamento */}
-      <div className="space-y-4 pb-6 border-b border-slate-200">
-        <h3 className="text-lg font-semibold text-slate-900 tracking-tight">
-          💰 Faixas de Orçamento
-        </h3>
-        <p className="text-sm text-slate-600">
-          Faixas que a Sofia pode mencionar quando perguntada sobre valor.
-        </p>
-
+      <Section
+        icon={<Wallet className="w-4 h-4" />}
+        title="Faixas de orçamento"
+        description="Faixas que a Sofia pode oferecer se o casal não quiser dizer um valor."
+      >
         <StringListEditor
-          items={localConfig.faixas_orcamento}
+          items={config.faixas_orcamento}
           onChange={(items) => handleChange('faixas_orcamento', items)}
           placeholder="ex: R$ 80 a 150 mil"
           allowReorder={false}
         />
-      </div>
+      </Section>
 
-      {/* Seção: Fronteiras / Limites */}
-      <div className="space-y-4 pb-6">
-        <h3 className="text-lg font-semibold text-slate-900 tracking-tight">
-          🛑 Fronteiras (Nunca Faça)
-        </h3>
-        <p className="text-sm text-slate-600">
-          Comportamentos ou tópicos que a Sofia deve evitar completamente.
-        </p>
-
+      <Section
+        icon={<ShieldAlert className="w-4 h-4" />}
+        title="Fronteiras (nunca faça)"
+        description="O que a Sofia deve evitar por completo."
+        last
+      >
         <StringListEditor
-          items={localConfig.fronteiras}
+          items={config.fronteiras}
           onChange={(items) => handleChange('fronteiras', items)}
-          placeholder="ex: Nunca pressione por decisão imediata"
+          placeholder="ex: Nunca dar preço fechado — remeter à Wedding Planner"
           allowReorder={false}
         />
-      </div>
+      </Section>
 
       {/* Barra de ações */}
       <div className="flex items-center justify-between pt-6 border-t border-slate-200">
@@ -203,7 +205,7 @@ export function SofiaConfigForm({
           {saveStatus === 'success' && (
             <div className="flex items-center gap-2 text-green-700">
               <CheckCircle className="w-4 h-4" />
-              <span className="text-sm font-medium">Salvo com sucesso!</span>
+              <span className="text-sm font-medium">Salvo com sucesso</span>
             </div>
           )}
           {saveStatus === 'error' && (
@@ -225,7 +227,7 @@ export function SofiaConfigForm({
               Salvando...
             </>
           ) : (
-            '💾 Salvar Configuração'
+            'Salvar configuração'
           )}
         </Button>
       </div>

@@ -12,23 +12,28 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
+// Fallback usado só se a config ainda não existir no banco. Mantido idêntico ao
+// seed da Sofia (posicionamento real, sem clichê) para que o fallback nunca
+// contradiga as próprias fronteiras dela.
 const DEFAULT_CONFIG: SofiaConfig = {
   persona_nome: 'Sofia',
   empresa: 'Welcome Weddings',
-  proposta: 'Ajudo casais a planejar o casamento dos sonhos com eficiência e sem estresse.',
+  proposta:
+    'a gente faz destination wedding desde 2012 e já foi premiada como uma das melhores produtoras de destination wedding da América Latina',
   tom: 'acolhedor',
   abertura:
-    'Oi! Sou a Sofia, da Welcome Weddings. Vi que vocês estão planejando um casamento e gostaria de saber mais sobre o que vocês sonham. Tudo bem?',
+    'Oi! Aqui é a Sofia, da Welcome Weddings, tudo bem? Como é o nome de vocês? A gente faz destination wedding desde 2012 e já foi premiada como uma das melhores produtoras de destination wedding da América Latina. A ideia aqui é uma conversa rápida pra eu entender o que vocês esperam, tirar dúvidas e, se fizer sentido, marcar um papo com a nossa Wedding Planner. Pra começar: o que é o casamento pra vocês, e como vocês imaginam ele?',
   etapas: [
-    'Qual é a data pretendida do casamento?',
-    'Quantos convidados vocês estão pensando em chamar?',
-    'Qual é o estilo do casamento que vocês imaginam?',
+    'O que é o casamento pra vocês e como imaginam ele',
+    'Destino ou região',
+    'Número de convidados (estimado)',
+    'Faixa de investimento / orçamento',
   ],
-  faixas_orcamento: ['R$ 80 a 150 mil', 'R$ 150 a 300 mil', 'R$ 300 mil+'],
+  faixas_orcamento: ['R$ 80 a 150 mil', 'R$ 150 a 250 mil', 'R$ 250 a 400 mil', 'R$ 400 mil ou mais'],
   fronteiras: [
-    'Nunca pressione por uma decisão imediata',
-    'Evite mencionar competidores nomes específicos',
-    'Não fale mal do casal ou de suas escolhas',
+    'Nunca dar preço fechado nem chutar valor — remeter à Wedding Planner',
+    'Nunca inventar data ou horário de reunião — perguntar o melhor período e dizer que reserva com a Planner',
+    'Nunca usar clichê (casamento dos sonhos, experiência premium, pode deixar com a gente)',
   ],
 }
 
@@ -152,12 +157,10 @@ export default function SdrConfigPage() {
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Cabeçalho */}
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">
-            ✨ Configuração da Sofia
-          </h1>
-          <p className="text-slate-600 mt-2">
-            SDR de Casamentos — edite como a Sofia conversa com os noivos. As mudanças valem na próxima
-            mensagem.
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Configuração da Sofia</h1>
+          <p className="text-slate-500 mt-2">
+            A Sofia é a SDR de casamentos no WhatsApp. Edite como ela conversa com os noivos — as
+            mudanças valem na próxima mensagem.
           </p>
         </div>
 
@@ -174,11 +177,11 @@ export default function SdrConfigPage() {
         </div>
 
         {/* Painel de teste */}
-        <ConversationTester configSaved={saveStatus === 'success' || (saveStatus === 'idle' && config !== DEFAULT_CONFIG)} />
+        <ConversationTester />
 
         {/* Footer */}
-        <div className="text-center text-sm text-slate-500 pb-8">
-          <p>Configuração exclusiva para Welcome Weddings</p>
+        <div className="text-center text-sm text-slate-400 pb-8">
+          <p>Configuração exclusiva da Welcome Weddings</p>
         </div>
       </div>
     </div>
