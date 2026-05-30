@@ -7,10 +7,10 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-30
 > **Trigger:** ALWAYS ON
-> **Stats:** 223 tabelas | 226 paginas | 376 hooks | 28 views | 855 components
+> **Stats:** 223 tabelas | 210 paginas | 361 hooks | 28 views | 846 components
 > **Last Updated:** 2026-05-30
 > **Trigger:** ALWAYS ON
-> **Stats:** 223 tabelas | 226 paginas | 376 hooks | 28 views | 855 components
+> **Stats:** 223 tabelas | 210 paginas | 361 hooks | 28 views | 846 components
 
 ---
 
@@ -172,7 +172,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **376 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **361 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -196,15 +196,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAiSkills()` | `useAiSkills.ts` |
 | `useAiSkills()` | `useAiSkills.ts` |
 | `useBriefingIA()` | `useBriefingIA.ts` |
-| `useBriefingImages()` | `useBriefingImages.ts` |
 | `useBriefingImages 2()` | `useBriefingImages 2.ts` |
 | `useBriefingImages 3()` | `useBriefingImages 3.ts` |
-| `useBriefingImages 4()` | `useBriefingImages 4.ts` |
-| `useBriefingImages 5()` | `useBriefingImages 5.ts` |
-| `useBriefingImages 6()` | `useBriefingImages 6.ts` |
-| `useBriefingImages 7()` | `useBriefingImages 7.ts` |
-| `useBriefingImages 8()` | `useBriefingImages 8.ts` |
-| `useBriefingImages 9()` | `useBriefingImages 9.ts` |
 | `useCasais()` | `useCasais.ts` |
 | `useCasais 2()` | `useCasais 2.ts` |
 | `useChatIA()` | `useChatIA.ts` |
@@ -333,7 +326,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAutoMergePreflight()` | `useAutoMergePreflight.ts` |
 | `useAutoSave()` | `useAutoSave.ts` |
 | `useAutomations()` | `useAutomations.ts` |
-| `useAvipConnection()` | `useAvipConnection.ts` |
 | `useAvipConnection 2()` | `useAvipConnection 2.ts` |
 | `useAvipConnection 3()` | `useAvipConnection 3.ts` |
 | `useBulkGiftStatus()` | `useBulkGiftStatus.ts` |
@@ -477,7 +469,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useArchiveCard()` | `useArchiveCard.ts` |
 | `useAssistedCardIds()` | `useAssistedCardIds.ts` |
 | `useAtendimentosCard()` | `useAtendimentosCard.ts` |
-| `useAvipCardLink()` | `useAvipCardLink.ts` |
 | `useAvipCardLink 2()` | `useAvipCardLink 2.ts` |
 | `useAvipCardLink 3()` | `useAvipCardLink 3.ts` |
 | `useCalendarFilters()` | `useCalendarFilters.ts` |
@@ -486,14 +477,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useCardAttachments()` | `useCardAttachments.ts` |
 | `useCardConciergeStats()` | `useCardConciergeStats.ts` |
 | `useCardContactNames()` | `useCardContactNames.ts` |
-| `useCardCreation()` | `useCardCreation.ts` |
 | `useCardCreation 2()` | `useCardCreation 2.ts` |
 | `useCardCreation 3()` | `useCardCreation 3.ts` |
-| `useCardCreation 4()` | `useCardCreation 4.ts` |
-| `useCardCreation 5()` | `useCardCreation 5.ts` |
-| `useCardCreation 6()` | `useCardCreation 6.ts` |
-| `useCardCreation 7()` | `useCardCreation 7.ts` |
-| `useCardCreation 8()` | `useCardCreation 8.ts` |
 | `useCardCreationRules()` | `useCardCreationRules.ts` |
 | `useCardFinancialSummary()` | `useCardFinancialSummary.ts` |
 | `useCardGifts()` | `useCardGifts.ts` |
@@ -627,23 +612,10 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **226 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **210 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
-| `AlertsPanel` | `src/pages/AnalyticsV2/AlertsPanel.tsx` |
-| `AnalyticsV2Page` | `src/pages/AnalyticsV2/AnalyticsV2Page.tsx` |
-| `AnalyticsV2Sidebar` | `src/pages/AnalyticsV2/AnalyticsV2Sidebar.tsx` |
-| `CardTimelineDrawer` | `src/pages/AnalyticsV2/CardTimelineDrawer.tsx` |
-| `ExplorarPage` | `src/pages/AnalyticsV2/ExplorarPage.tsx` |
-| `MeuPainelRedirect` | `src/pages/AnalyticsV2/MeuPainelRedirect.tsx` |
-| `UniversalFilterBar` | `src/pages/AnalyticsV2/UniversalFilterBar.tsx` |
-| `WidgetCard` | `src/pages/AnalyticsV2/WidgetCard.tsx` |
-| `ComercialDashboard` | `src/pages/AnalyticsV2/dashboards/ComercialDashboard.tsx` |
-| `DonoDashboard` | `src/pages/AnalyticsV2/dashboards/DonoDashboard.tsx` |
-| `PosDashboard` | `src/pages/AnalyticsV2/dashboards/PosDashboard.tsx` |
-| `SdrDashboard` | `src/pages/AnalyticsV2/dashboards/SdrDashboard.tsx` |
-| `VendasDashboard` | `src/pages/AnalyticsV2/dashboards/VendasDashboard.tsx` |
 | `AnalyticsWeddingsPage` | `src/pages/AnalyticsWeddings/AnalyticsWeddingsPage.tsx` |
 | `EntradaRealidade` | `src/pages/AnalyticsWeddings/tabs/EntradaRealidade.tsx` |
 | `Equipe` | `src/pages/AnalyticsWeddings/tabs/Equipe.tsx` |
@@ -749,7 +721,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `CadenceMonitorPage` | `src/pages/admin/cadence/CadenceMonitorPage.tsx` |
 | `AssessoriaVipPage 2` | `src/pages/admin/integracoes/AssessoriaVipPage 2.tsx` |
 | `AssessoriaVipPage 3` | `src/pages/admin/integracoes/AssessoriaVipPage 3.tsx` |
-| `AssessoriaVipPage` | `src/pages/admin/integracoes/AssessoriaVipPage.tsx` |
 | `Step1_BusinessIdentity` | `src/pages/admin/wizard/Step1_BusinessIdentity.tsx` |
 | `Step2_TemplateSelection` | `src/pages/admin/wizard/Step2_TemplateSelection.tsx` |
 | `Step3_FunnelConfiguration` | `src/pages/admin/wizard/Step3_FunnelConfiguration.tsx` |
@@ -832,8 +803,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `MobileContactPicker` | `src/pages/mobile/MobileContactPicker.tsx` |
 | `MobileOrigemDetalhePanel 2` | `src/pages/mobile/MobileOrigemDetalhePanel 2.tsx` |
 | `MobileOrigemDetalhePanel 3` | `src/pages/mobile/MobileOrigemDetalhePanel 3.tsx` |
-| `MobileOrigemDetalhePanel 4` | `src/pages/mobile/MobileOrigemDetalhePanel 4.tsx` |
-| `MobileOrigemDetalhePanel` | `src/pages/mobile/MobileOrigemDetalhePanel.tsx` |
 | `AuditPage` | `src/pages/platform/AuditPage.tsx` |
 | `DashboardPage` | `src/pages/platform/DashboardPage.tsx` |
 | `GlobalCatalogsPage` | `src/pages/platform/GlobalCatalogsPage.tsx` |
