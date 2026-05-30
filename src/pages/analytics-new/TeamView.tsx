@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Trophy, Target, Clock, Loader2, ListTodo, DollarSign, TrendingUp } from 'lucide-react'
+import { Trophy, Target, Clock, Loader2, ListTodo, DollarSign, TrendingUp, Gauge } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import KpiCard from '@/components/analytics/KpiCard'
 import { useTeamLeaderboard } from '@/hooks/analytics/useTeamLeaderboard'
@@ -101,6 +101,22 @@ export default function TeamView() {
     () => (sla.data ?? []).map(r => r.compliance_rate),
     [sla.data],
   )
+
+  // Sales velocity (composto): (oportunidades × win rate × ticket) ÷ ciclo, por consultor da fase atual.
+  // Reusa os dados já validados de useTeamPerformance — não inventa métrica nova.
+  const velocityRows = useMemo(() => {
+    return (phasePerf.data ?? [])
+      .map(r => {
+        const winrate = r.conversion_rate / 100
+        const velocity = r.ciclo_medio_dias > 0
+          ? (r.total_cards * winrate * r.ticket_medio) / r.ciclo_medio_dias
+          : 0
+        return { ...r, velocity }
+      })
+      .filter(r => r.velocity > 0)
+      .sort((a, b) => b.velocity - a.velocity)
+  }, [phasePerf.data])
+  const maxVelocity = useMemo(() => Math.max(...velocityRows.map(r => r.velocity), 1), [velocityRows])
 
   const openOpenByOwner = (ownerId: string, ownerName: string) => {
     drillDown.open({
@@ -367,6 +383,61 @@ export default function TeamView() {
                     </td>
                     <td className="py-2.5 text-right text-slate-700 tabular-nums">
                       {row.ciclo_medio_dias > 0 ? row.ciclo_medio_dias.toFixed(0) : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </WidgetCard>
+
+      {/* Velocidade de vendas (composto) */}
+      <WidgetCard
+        title="Velocidade de vendas"
+        subtitle="Quanto cada consultor gera por dia de ciclo: (oportunidades × win rate × ticket médio) ÷ ciclo médio. Leitura do período (não card a card) — compare no contexto: lead ruim infla oportunidades e derruba win rate ao mesmo tempo. Faz mais sentido na fase Planner."
+        action={<Gauge className="w-4 h-4 text-slate-300" />}
+      >
+        {phasePerf.isLoading ? (
+          <div className="h-40 flex items-center justify-center text-slate-400">
+            <Loader2 className="w-5 h-5 animate-spin" />
+          </div>
+        ) : velocityRows.length === 0 ? (
+          <div className="h-32 flex items-center justify-center text-sm text-slate-400 text-center px-4">
+            Sem ciclo e ticket suficientes pra calcular velocidade na fase {PHASES.find(p => p.value === phaseTab)?.label}. Tente a fase Planner.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 text-xs text-slate-500 uppercase tracking-wider">
+                  <th className="text-left py-2 font-medium">Consultor</th>
+                  <th className="text-right py-2 font-medium">Oportunidades</th>
+                  <th className="text-right py-2 font-medium">Win rate</th>
+                  <th className="text-right py-2 font-medium">Ticket médio</th>
+                  <th className="text-right py-2 font-medium">Ciclo (dias)</th>
+                  <th className="text-right py-2 font-medium">Velocidade / dia</th>
+                  <th className="text-left py-2 font-medium w-1/5">Visual</th>
+                </tr>
+              </thead>
+              <tbody>
+                {velocityRows.map(row => (
+                  <tr key={row.user_id} className="border-b border-slate-50 hover:bg-slate-50">
+                    <td className="py-2.5 text-slate-900 font-medium">{row.user_nome}</td>
+                    <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.total_cards}</td>
+                    <td className="py-2.5 text-right text-slate-700 tabular-nums">{pct(row.conversion_rate)}</td>
+                    <td className="py-2.5 text-right text-slate-700 tabular-nums">{formatCurrency(row.ticket_medio)}</td>
+                    <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.ciclo_medio_dias.toFixed(0)}</td>
+                    <td className="py-2.5 text-right text-emerald-700 font-semibold tabular-nums">
+                      {formatCurrency(row.velocity)}/dia
+                    </td>
+                    <td className="py-2.5">
+                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden max-w-[160px]">
+                        <div
+                          className="h-full bg-emerald-500"
+                          style={{ width: `${(row.velocity / maxVelocity) * 100}%` }}
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))}
