@@ -1112,3 +1112,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-30T22:51:47Z | supabase/migrations/20260531e_ww_funil_conversao_v1_monotonico.sql | applied_to_prod
 2026-05-30T23:22:27Z | supabase/migrations/20260530a_wsdr_foundation.sql | applied_to_prod
 2026-05-30T23:42:16Z | supabase/migrations/20260530b_wsdr_spawn.sql | applied_to_prod
+2026-05-30T23:49:39Z | supabase/migrations/20260530c_wsdr_persist_lead.sql | applied_to_prod
+2026-05-30T23:51:25Z | supabase/migrations/20260530c_wsdr_persist_lead.sql | applied_to_prod
