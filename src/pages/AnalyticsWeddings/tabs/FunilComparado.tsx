@@ -125,6 +125,7 @@ export function FunilComparado() {
   const [rankDims, setRankDims] = useState<WwFunilRankingDim[]>(['faixa'])
   const [crossX, setCrossX] = useState<WwFunilRankingDim>('convidados')
   const [crossY, setCrossY] = useState<WwFunilRankingDim>('faixa')
+  const [descobrir, setDescobrir] = useState(false)
 
   // Períodos: B = últimos 90 dias (agora); A = mesma janela 1 ano antes (época).
   const [periodoB, setPeriodoB] = useState<Janela>(() => periodToDates('90d'))
@@ -199,6 +200,14 @@ export function FunilComparado() {
 
   const selectCls = 'px-2.5 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
 
+  // Resumo legível do que está filtrado (pro usuário sempre saber o que está olhando).
+  const partesPerfil: string[] = []
+  if (faixas.length) partesPerfil.push(faixas.join(' ou '))
+  if (convidados.length) partesPerfil.push(`${convidados.join(' ou ')} convidados`)
+  if (destinos.length) partesPerfil.push(destinos.join(' ou '))
+  if (origins.length) partesPerfil.push(origins.join(' ou '))
+  const resumoPerfil = partesPerfil.length ? partesPerfil.join(' · ') : 'todos os perfis de lead'
+
   return (
     <div className="space-y-5">
       {/* Controles */}
@@ -233,6 +242,12 @@ export function FunilComparado() {
         </div>
       </div>
 
+      {/* Resumo do que está filtrado */}
+      <div className="flex items-center gap-2 text-sm px-1">
+        <span className="text-slate-400">Olhando:</span>
+        <span className="font-semibold text-slate-800">{resumoPerfil}</span>
+      </div>
+
       {periodosIguais && (
         <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600">
           Os dois períodos estão iguais — ajuste as datas de um dos lados para comparar.
@@ -245,27 +260,36 @@ export function FunilComparado() {
         </div>
       )}
 
-      {/* Descobrir lead bom — ranking por taxa de fechamento, com cruzamentos (clicável) */}
-      <RankingPerfil
-        dims={rankDims}
-        onDims={setRankDims}
-        data={ranking.data ?? undefined}
-        isLoading={ranking.isLoading}
-        sel={{ faixas, convidados, destinos }}
-        onPick={onPickPerfil}
-      />
-
-      {/* Cruzamento personalizado — agrupa faixinhas pra não fragmentar a amostra */}
-      <CruzamentoCustom
-        key={`${crossX}-${crossY}-${options?.faixas?.length ?? 0}-${options?.convidados?.length ?? 0}-${options?.destinos?.length ?? 0}`}
-        eixoX={crossX}
-        eixoY={crossY}
-        onEixos={(x, y) => { setCrossX(x); setCrossY(y) }}
-        options={options ?? undefined}
-        data={cruz.data ?? undefined}
-        isLoading={cruz.isLoading}
-        onPickCelula={onPickCelula}
-      />
+      {/* Descoberta de perfil — colapsável, fechada por padrão pra não poluir */}
+      <button
+        onClick={() => setDescobrir((v) => !v)}
+        className="w-full bg-white border border-slate-200 shadow-sm rounded-xl p-4 flex items-center justify-between text-left hover:border-slate-300 transition"
+      >
+        <span className="text-sm font-semibold text-slate-900">🔍 Não sabe qual perfil olhar? Descubra quais fecham mais</span>
+        <span className="text-xs font-medium text-indigo-600">{descobrir ? 'fechar ▲' : 'abrir ▼'}</span>
+      </button>
+      {descobrir && (
+        <RankingPerfil
+          dims={rankDims}
+          onDims={setRankDims}
+          data={ranking.data ?? undefined}
+          isLoading={ranking.isLoading}
+          sel={{ faixas, convidados, destinos }}
+          onPick={onPickPerfil}
+        />
+      )}
+      {descobrir && (
+        <CruzamentoCustom
+          key={`${crossX}-${crossY}-${options?.faixas?.length ?? 0}-${options?.convidados?.length ?? 0}-${options?.destinos?.length ?? 0}`}
+          eixoX={crossX}
+          eixoY={crossY}
+          onEixos={(x, y) => { setCrossX(x); setCrossY(y) }}
+          options={options ?? undefined}
+          data={cruz.data ?? undefined}
+          isLoading={cruz.isLoading}
+          onPickCelula={onPickCelula}
+        />
+      )}
 
       {/* Resumo comparativo */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -277,24 +301,19 @@ export function FunilComparado() {
           isPct />
       </div>
 
-      {/* Diagnóstico */}
+      {/* Leitura rápida: onde caiu + se é mix ou execução */}
       {dropIdx != null && marcosA && marcosB && (
         <div className="bg-rose-50 border border-rose-200 rounded-lg p-4">
-          <div className="text-sm font-semibold text-rose-900">Onde a conversão mais caiu</div>
+          <div className="text-sm font-semibold text-rose-900">Leitura rápida</div>
           <p className="text-xs text-rose-800 mt-1">
-            A maior queda foi na passagem para <strong>{MARCO_LABELS[MARCO_KEYS[dropIdx]]}</strong>:
+            Maior queda na passagem para <strong>{MARCO_LABELS[MARCO_KEYS[dropIdx]]}</strong>:
             de <strong>{fmtPct(linhasA[dropIdx]?.stepPct ?? null)}</strong> na época
             para <strong>{fmtPct(linhasB[dropIdx]?.stepPct ?? null)}</strong> agora
             ({fmtDeltaPp(deltas[dropIdx] ?? null)}).
           </p>
-        </div>
-      )}
-
-      {/* É mix ou execução? */}
-      {interpretacao && (
-        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-          <div className="text-sm font-semibold text-slate-900">{interpretacao.titulo}</div>
-          <p className="text-xs text-slate-600 mt-1">{interpretacao.texto}</p>
+          {interpretacao && (
+            <p className="text-xs text-rose-800 mt-1.5"><strong>{interpretacao.titulo}.</strong> {interpretacao.texto}</p>
+          )}
         </div>
       )}
 
