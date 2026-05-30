@@ -178,7 +178,26 @@ return [{ json: {
   allowed: p.allowed,
   org_id: p.org_id,
   agent_slug: p.agent_slug,
+  phone: p.phone,
+  crm_write_enabled: !!(cfg.capabilities && cfg.capabilities.crm_write && cfg.capabilities.crm_write.enabled),
 }}];`;
+
+// Extrai Dados (Agente 2 da Camila — "Atualiza dados"): lê a conversa e devolve SÓ
+// um JSON com os campos ww_* ditos EXPLICITAMENTE pelo casal. Nada de inventar.
+const EXTRACT_SYSTEM = `Você é um extrator de dados de uma conversa de casamento. Leia a conversa e devolva SOMENTE um JSON (sem texto, sem markdown, sem crases) com as chaves que o casal disse EXPLICITAMENTE. Chaves possíveis: ww_destino (cidade/região do casamento), ww_num_convidados (número, só dígitos), ww_orcamento_faixa (faixa ou valor que o CASAL pretende investir), ww_data_casamento (data YYYY-MM-DD se houver), ww_nome_parceiro (nome do parceiro/segunda pessoa do casal). Omita chaves não ditas. Se nada foi dito, devolva {}.`;
+const EXTRACT_USER = `Conversa até aqui:
+{{ $('Monta').item.json.historico }}
+Última mensagem do casal: {{ $('Monta').item.json.ultima_mensagem_lead }}
+Devolva só o JSON.`;
+
+// Parse seguro do JSON extraído (tira crases/markdown, try/catch -> {}).
+const CODE_PARSE = `let t = String($('Extrai Dados').item.json.output || '').trim();
+t = t.replace(/^\`\`\`(json)?/i,'').replace(/\`\`\`$/,'').trim();
+let fields = {};
+try { fields = JSON.parse(t); } catch(e) { fields = {}; }
+if (typeof fields !== 'object' || Array.isArray(fields)) fields = {};
+const m = $('Monta').first().json;
+return [{ json: { fields, org_id: m.org_id, agent_slug: m.agent_slug, phone: m.phone, nome: m.nome } }];`;
 
 // Limpa: garantia determinística da regra absoluta "zero travessões". O modelo às
 // vezes espelha os "—" das fronteiras; aqui trocamos travessão/en-dash usados como
@@ -218,6 +237,26 @@ function buildWorkflow() {
       parameters: { jsCode: CODE_LIMPA } },
     { id: 'responde', name: 'Responde Webhook', type: 'n8n-nodes-base.respondToWebhook', typeVersion: 1, position: [1480, 300],
       parameters: { respondWith: 'json', responseBody: '={{ { "reply": $json.output, "allowed": $json.allowed } }}', options: {} } },
+    // --- Ramo de gravação no CRM (Agente 2 da Camila), pós-resposta, gated por config ---
+    { id: 'crmgate', name: 'CRM Gate', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1480, 520],
+      parameters: { jsCode: `const m = $('Monta').first().json; return m.crm_write_enabled ? [{ json: m }] : [];` } },
+    { id: 'extrai', name: 'Extrai Dados', type: '@n8n/n8n-nodes-langchain.agent', typeVersion: 2.2, position: [1680, 520],
+      parameters: { promptType: 'define', text: '=' + EXTRACT_USER, options: { systemMessage: '=' + EXTRACT_SYSTEM, enableStreaming: false } } },
+    { id: 'modelextrai', name: 'Modelo Extrai', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1.2, position: [1680, 700],
+      parameters: { model: { __rl: true, value: MODEL_ID, mode: 'list', cachedResultName: MODEL_ID }, options: MODEL_OPTIONS },
+      credentials: { openAiApi: OPENAI_CREDENTIAL } },
+    { id: 'parse', name: 'Parse Dados', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1880, 520],
+      parameters: { jsCode: CODE_PARSE } },
+    { id: 'gravacrm', name: 'Grava CRM', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [2080, 520],
+      parameters: {
+        method: 'POST',
+        url: `${SUPABASE_URL}/rest/v1/rpc/wsdr_persist_lead`,
+        authentication: 'predefinedCredentialType', nodeCredentialType: 'supabaseApi',
+        sendBody: true, specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({ p_org_id: $('Parse Dados').item.json.org_id, p_agent_slug: $('Parse Dados').item.json.agent_slug, p_contact_phone: $('Parse Dados').item.json.phone, p_contact_name: $('Parse Dados').item.json.nome, p_fields: $('Parse Dados').item.json.fields }) }}`,
+        options: {},
+      },
+      credentials: { supabaseApi: SUPABASE_CREDENTIAL } },
   ];
   const connections = {
     'Webhook SDR Weddings': { main: [[{ node: 'Prepara', type: 'main', index: 0 }]] },
@@ -227,6 +266,11 @@ function buildWorkflow() {
     'OpenAI Chat Model': { ai_languageModel: [[{ node: 'Responde Lead', type: 'ai_languageModel', index: 0 }]] },
     'Responde Lead': { main: [[{ node: 'Limpa Travessao', type: 'main', index: 0 }]] },
     'Limpa Travessao': { main: [[{ node: 'Responde Webhook', type: 'main', index: 0 }]] },
+    'Responde Webhook': { main: [[{ node: 'CRM Gate', type: 'main', index: 0 }]] },
+    'CRM Gate': { main: [[{ node: 'Extrai Dados', type: 'main', index: 0 }]] },
+    'Modelo Extrai': { ai_languageModel: [[{ node: 'Extrai Dados', type: 'ai_languageModel', index: 0 }]] },
+    'Extrai Dados': { main: [[{ node: 'Parse Dados', type: 'main', index: 0 }]] },
+    'Parse Dados': { main: [[{ node: 'Grava CRM', type: 'main', index: 0 }]] },
   };
   return { name: 'SDR Weddings (novo - isolado)', nodes, connections, settings: { executionOrder: 'v1' } };
 }
