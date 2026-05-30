@@ -1106,3 +1106,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-29T19:24:37Z | supabase/migrations/20260529_wsdr_agent_config.sql | applied_to_prod
 2026-05-29T19:58:56Z | supabase/migrations/20260531c_ww_funil_ranking_combo.sql | applied_to_prod
 2026-05-29T20:00:25Z | supabase/migrations/20260531c_ww_funil_ranking_combo.sql | applied_to_prod
+2026-05-30T13:53:52Z | supabase/migrations/20260531d_ww_funil_ranking_combo_limit.sql | applied_to_prod

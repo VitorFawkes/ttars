@@ -3,15 +3,12 @@ import { fmtPct } from '../lib/funil'
 import { formatNumber } from '../lib/format'
 import { EmptyState, LoadingSkeleton } from './ui'
 
-// "Lentes": dimensão única ou cruzamentos de 2/3 dimensões.
+// Ranking por UMA informação. Cruzamentos ficam no bloco "Cruzamento personalizado"
+// (onde o usuário agrupa as faixinhas pra não fragmentar a amostra).
 const LENTES: { label: string; dims: WwFunilRankingDim[] }[] = [
   { label: 'Investimento', dims: ['faixa'] },
   { label: 'Convidados', dims: ['convidados'] },
   { label: 'Destino', dims: ['destino'] },
-  { label: 'Convidados × Destino', dims: ['convidados', 'destino'] },
-  { label: 'Investimento × Convidados', dims: ['faixa', 'convidados'] },
-  { label: 'Investimento × Destino', dims: ['faixa', 'destino'] },
-  { label: 'Os 3 juntos', dims: ['faixa', 'convidados', 'destino'] },
 ]
 
 const AMOSTRA_MINIMA = 10 // abaixo disso, marca "poucos casos"
@@ -35,7 +32,6 @@ function linhaSelecionada(row: WwFunilRankingRow, sel: Props['sel']): boolean {
 
 export function RankingPerfil({ dims, onDims, data, isLoading, sel, onPick }: Props) {
   const rows = data?.rows ?? []
-  const ehCruzamento = dims.length > 1
   const dimsKey = dims.join('+')
 
   return (
@@ -52,7 +48,6 @@ export function RankingPerfil({ dims, onDims, data, isLoading, sel, onPick }: Pr
       </div>
       <p className="text-xs text-slate-500 mb-4">
         No período A (a época), ordenado por quem mais fechou. <span className="text-indigo-600 font-medium">Clique num perfil</span> pra comparar com agora.
-        {ehCruzamento && ' Cruzamentos com poucos casos são puxados pra baixo automaticamente — confie nos que têm mais leads.'}
       </p>
 
       {isLoading ? (

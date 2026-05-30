@@ -3,6 +3,7 @@ import { useWwFunilConversao, useWwFunilFilterOptions, useWwFunilRanking, type W
 import { MultiPill, ConsultorPill } from '../components/FilterPills'
 import { FunilColumn } from '../components/FunilColumn'
 import { RankingPerfil } from '../components/RankingPerfil'
+import { CruzamentoCustom } from '../components/CruzamentoCustom'
 import {
   toLinhas, deltasPassagem, biggestDropStep, daysAgo,
   MARCO_KEYS, MARCO_LABELS, MARCOS_TARDIOS, fmtPct, fmtDeltaPp, cumPct,
@@ -122,6 +123,8 @@ export function FunilComparado() {
   const [consultorIds, setConsultorIds] = useState<string[]>([])
   const [dateMode, setDateMode] = useState<DateMode>('cohort')
   const [rankDims, setRankDims] = useState<WwFunilRankingDim[]>(['faixa'])
+  const [crossX, setCrossX] = useState<WwFunilRankingDim>('convidados')
+  const [crossY, setCrossY] = useState<WwFunilRankingDim>('faixa')
 
   // Períodos: B = últimos 90 dias (agora); A = mesma janela 1 ano antes (época).
   const [periodoB, setPeriodoB] = useState<Janela>(() => periodToDates('90d'))
@@ -144,6 +147,11 @@ export function FunilComparado() {
     dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd, dateMode,
     dimensoes: rankDims, origins, consultorIds,
   })
+  // Cruzamento cru (todas as células) — o frontend agrupa em grupos custom.
+  const cruz = useWwFunilRanking({
+    dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd, dateMode,
+    dimensoes: [crossX, crossY], origins, consultorIds,
+  })
 
   const marcosA: WwFunilConversaoMarcos | undefined = a.data?.filtrado
   const marcosB: WwFunilConversaoMarcos | undefined = b.data?.filtrado
@@ -162,6 +170,17 @@ export function FunilComparado() {
     if (row.faixa != null) setFaixas(jaAtivo ? [] : [row.faixa])
     if (row.convidados != null) setConvidados(jaAtivo ? [] : [row.convidados])
     if (row.destino != null) setDestinos(jaAtivo ? [] : [row.destino])
+  }
+
+  // Cruzamento personalizado: define eixos e aplica grupos (múltiplos buckets) no filtro.
+  const setDimFilter = (dim: WwFunilRankingDim, buckets: string[]) => {
+    if (dim === 'faixa') setFaixas(buckets)
+    else if (dim === 'convidados') setConvidados(buckets)
+    else setDestinos(buckets)
+  }
+  const onPickCelula = (dx: WwFunilRankingDim, bx: string[], dy: WwFunilRankingDim, by: string[]) => {
+    setDimFilter(dx, bx)
+    setDimFilter(dy, by)
   }
 
   const dropIdx = marcosA && marcosB ? biggestDropStep(marcosA, marcosB) : null
@@ -234,6 +253,18 @@ export function FunilComparado() {
         isLoading={ranking.isLoading}
         sel={{ faixas, convidados, destinos }}
         onPick={onPickPerfil}
+      />
+
+      {/* Cruzamento personalizado — agrupa faixinhas pra não fragmentar a amostra */}
+      <CruzamentoCustom
+        key={`${crossX}-${crossY}-${options?.faixas?.length ?? 0}-${options?.convidados?.length ?? 0}-${options?.destinos?.length ?? 0}`}
+        eixoX={crossX}
+        eixoY={crossY}
+        onEixos={(x, y) => { setCrossX(x); setCrossY(y) }}
+        options={options ?? undefined}
+        data={cruz.data ?? undefined}
+        isLoading={cruz.isLoading}
+        onPickCelula={onPickCelula}
       />
 
       {/* Resumo comparativo */}
