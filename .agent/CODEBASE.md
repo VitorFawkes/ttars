@@ -7,10 +7,10 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-30
 > **Trigger:** ALWAYS ON
-> **Stats:** 210 tabelas | 203 paginas | 345 hooks | 23 views | 819 components
+> **Stats:** 210 tabelas | 205 paginas | 346 hooks | 23 views | 819 components
 > **Last Updated:** 2026-05-30
 > **Trigger:** ALWAYS ON
-> **Stats:** 210 tabelas | 203 paginas | 345 hooks | 23 views | 819 components
+> **Stats:** 210 tabelas | 205 paginas | 346 hooks | 23 views | 819 components
 
 ---
 
@@ -172,7 +172,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **345 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **346 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -417,6 +417,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useSaudeSummary()` | `useSaudeSummary.ts` |
 | `useSaudeTarefasVencidas()` | `useSaudeTarefasVencidas.ts` |
 | `useScheduledJobs()` | `useScheduledJobs.ts` |
+| `useSdrLeadCohort()` | `useSdrLeadCohort.ts` |
 | `useSdrQualification()` | `useSdrQualification.ts` |
 | `useSdrRpcs()` | `useSdrRpcs.ts` |
 | `useTaskOutcomes()` | `useTaskOutcomes.ts` |
@@ -596,7 +597,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **203 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **205 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -720,10 +721,12 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `OperationsView` | `src/pages/analytics-new/OperationsView.tsx` |
 | `PipelineView` | `src/pages/analytics-new/PipelineView.tsx` |
 | `PlannerView` | `src/pages/analytics-new/PlannerView.tsx` |
+| `PrevisaoView` | `src/pages/analytics-new/PrevisaoView.tsx` |
 | `ResumoView` | `src/pages/analytics-new/ResumoView.tsx` |
 | `RetentionView` | `src/pages/analytics-new/RetentionView.tsx` |
 | `SLAView` | `src/pages/analytics-new/SLAView.tsx` |
 | `SaudeView` | `src/pages/analytics-new/SaudeView.tsx` |
+| `SdrEvolutionSection` | `src/pages/analytics-new/SdrEvolutionSection.tsx` |
 | `SdrView` | `src/pages/analytics-new/SdrView.tsx` |
 | `SimpleFilterBar` | `src/pages/analytics-new/SimpleFilterBar.tsx` |
 | `TeamView` | `src/pages/analytics-new/TeamView.tsx` |
