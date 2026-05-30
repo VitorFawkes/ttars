@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Inbox, MessageCircle, CalendarCheck, Trophy, Loader2, ArrowRightLeft } from 'lucide-react'
+import { Inbox, MessageCircle, CalendarCheck, Trophy, Loader2, ArrowRightLeft, Timer } from 'lucide-react'
 import KpiCard from '@/components/analytics/KpiCard'
 import { useFunnelConversion, useLossReasons } from '@/hooks/analytics/useFunnelConversion'
 import { useTeamLeaderboard } from '@/hooks/analytics/useTeamLeaderboard'
@@ -48,6 +48,57 @@ function useSdrFollowThroughLocal() {
   })
 }
 
+// ── Speed-to-lead / SLA de 1ª resposta (reusa analytics_whatsapp_speed_v2, já provado) ──
+interface SpeedBucket { bucket: string; count: number }
+interface SpeedResponse {
+  overall: {
+    total_responses: number
+    median_business_minutes: number | null
+    p90_business_minutes: number | null
+    avg_business_minutes: number | null
+  }
+  buckets: SpeedBucket[]
+}
+
+function useSdrSpeedToLeadLocal() {
+  const { dateRange, product, ownerIds, origins } = useAnalyticsFilters()
+  return useQuery({
+    queryKey: ['analytics', 'sdr_speed_to_lead', dateRange.start, dateRange.end, product, ownerIds, origins],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC tipada via JSON
+      const { data, error } = await (supabase.rpc as any)('analytics_whatsapp_speed_v2', {
+        p_from: dateRange.start.slice(0, 10),
+        p_to: dateRange.end.slice(0, 10),
+        p_product: product,
+        p_origem: origins.length > 0 ? origins : undefined,
+        p_owner_id: ownerIds.length === 1 ? ownerIds[0] : undefined,
+      })
+      if (error) throw error
+      return (data as SpeedResponse) ?? null
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+// Buckets em horário comercial considerados "dentro de 1h" (meta de higiene)
+const SPEED_WITHIN_1H = new Set(['< 5min', '5-15min', '15-60min'])
+
+function formatResponseMinutes(m: number | null | undefined): string {
+  if (m == null) return '—'
+  if (m < 1) return '< 1 min'
+  if (m < 60) return `${Math.round(m)} min`
+  const h = Math.floor(m / 60)
+  const min = Math.round(m % 60)
+  return min > 0 ? `${h}h ${min}min` : `${h}h`
+}
+
+function speedBucketColor(bucket: string): string {
+  if (bucket === '< 5min' || bucket === '5-15min') return 'bg-emerald-500'
+  if (bucket === '15-60min') return 'bg-emerald-400'
+  if (bucket === '1-4h') return 'bg-amber-400'
+  return 'bg-rose-400'
+}
+
 // Etapas reconhecidas como marcos do funil SDR. Usado para cards de KPI.
 const SDR_MILESTONES: Array<{ key: string; label: string; match: (n: string) => boolean }> = [
   { key: 'novo', label: 'Novos leads', match: n => /novo\s*lead|entrada|primeiro/i.test(n) },
@@ -92,6 +143,7 @@ export default function SdrView() {
   const resumo = useResumoOverview()
   const resumoPrev = useResumoOverviewPrevious()
   const followThrough = useSdrFollowThroughLocal()
+  const speed = useSdrSpeedToLeadLocal()
   const profilesByRole = useFilterProfilesWithRole()
   const drillDown = useDrillDownStore()
   const { origins, setOrigins } = useAnalyticsFilters()
@@ -127,6 +179,17 @@ export default function SdrView() {
 
   // Quando há filtro de pessoa global ativo, exibe info
   const prevLeads = resumoPrev.data?.empresa.kpis.leads_entrada
+
+  // Speed-to-lead: mediana, % até 1h (higiene) e distribuição em buckets
+  const speedStats = useMemo(() => {
+    const o = speed.data?.overall
+    const buckets = speed.data?.buckets ?? []
+    const total = buckets.reduce((s, b) => s + b.count, 0)
+    const within1h = buckets.filter(b => SPEED_WITHIN_1H.has(b.bucket)).reduce((s, b) => s + b.count, 0)
+    const pctWithin1h = total > 0 ? Math.round((within1h / total) * 100) : 0
+    const maxBucket = Math.max(...buckets.map(b => b.count), 1)
+    return { median: o?.median_business_minutes ?? null, total, pctWithin1h, buckets, maxBucket }
+  }, [speed.data])
 
   const openCardsInStage = (stageId: string, stageName: string) => {
     drillDown.open({
@@ -229,6 +292,58 @@ export default function SdrView() {
           clickHint={milestoneStages[3].stage ? 'Ver leads →' : undefined}
         />
       </div>
+
+      {/* Tempo de 1ª resposta — SLA de atendimento (speed-to-lead) */}
+      <WidgetCard
+        title="Tempo de 1ª resposta (atendimento)"
+        subtitle="Quanto tempo levamos pra responder a 1ª mensagem do lead, em horário comercial. Meta de higiene: até 1h — em venda consultiva de ticket alto, responder rápido é higiene, não o fator decisivo (qualidade do lead e relacionamento pesam mais)."
+        action={<Timer className="w-4 h-4 text-slate-300" />}
+      >
+        {speed.isLoading ? (
+          <div className="h-40 flex items-center justify-center text-slate-400">
+            <Loader2 className="w-5 h-5 animate-spin" />
+          </div>
+        ) : !speed.data || speedStats.total === 0 ? (
+          <div className="h-32 flex items-center justify-center text-sm text-slate-400">
+            Sem conversas de WhatsApp no período
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="rounded-xl p-3 bg-emerald-50">
+                <p className="text-[10px] font-medium text-slate-600 uppercase tracking-wider">Tempo típico (mediana)</p>
+                <p className="text-2xl font-bold text-emerald-700 tabular-nums">{formatResponseMinutes(speedStats.median)}</p>
+              </div>
+              <div className={cn('rounded-xl p-3', speedStats.pctWithin1h >= 70 ? 'bg-emerald-50' : speedStats.pctWithin1h >= 40 ? 'bg-amber-50' : 'bg-rose-50')}>
+                <p className="text-[10px] font-medium text-slate-600 uppercase tracking-wider">Respondidos em até 1h</p>
+                <p className={cn('text-2xl font-bold tabular-nums', speedStats.pctWithin1h >= 70 ? 'text-emerald-700' : speedStats.pctWithin1h >= 40 ? 'text-amber-700' : 'text-rose-700')}>
+                  {speedStats.pctWithin1h}%
+                </p>
+              </div>
+              <div className="rounded-xl p-3 bg-slate-50">
+                <p className="text-[10px] font-medium text-slate-600 uppercase tracking-wider">Respostas medidas</p>
+                <p className="text-2xl font-bold text-slate-700 tabular-nums">{speedStats.total.toLocaleString('pt-BR')}</p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {speedStats.buckets.map(b => (
+                <div key={b.bucket} className="flex items-center gap-3">
+                  <span className="text-xs font-medium text-slate-700 w-20">{b.bucket}</span>
+                  <div className="flex-1 h-5 bg-slate-100 rounded overflow-hidden">
+                    <div
+                      className={cn('h-full', speedBucketColor(b.bucket))}
+                      style={{ width: `${(b.count / speedStats.maxBucket) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-slate-600 tabular-nums w-12 text-right">
+                    {b.count.toLocaleString('pt-BR')}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </WidgetCard>
 
       {/* Funil SDR — barras clicáveis */}
       <WidgetCard
