@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/textarea'
 import { Loader2, Send, AlertCircle, RotateCcw } from 'lucide-react'
@@ -15,6 +15,13 @@ export function ConversationTester() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Mantém a conversa rolada na última mensagem (sem mexer no scroll da página).
+  useEffect(() => {
+    const el = scrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [messages, loading])
 
   const handleTest = async () => {
     const userMessage = input.trim()
@@ -84,7 +91,10 @@ export function ConversationTester() {
       </div>
 
       {/* Histórico de mensagens */}
-      <div className="bg-slate-50 rounded-lg p-4 h-80 overflow-y-auto space-y-3 border border-slate-200">
+      <div
+        ref={scrollRef}
+        className="bg-slate-50 rounded-lg p-4 h-80 overflow-y-auto space-y-3 border border-slate-200"
+      >
         {messages.length === 0 ? (
           <p className="text-sm text-slate-400 text-center py-12">
             Mande a primeira mensagem para começar a conversa.

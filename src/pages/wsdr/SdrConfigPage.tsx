@@ -87,11 +87,14 @@ export default function SdrConfigPage() {
     setSaveStatus('idle')
 
     try {
+      // upsert (não update) para que dê pra montar o agente do zero: se a org
+      // ainda não tem linha, cria; se já tem, atualiza. onConflict no par único.
       const { error } = await db
         .from('wsdr_agent_config')
-        .update({ config })
-        .eq('slug', 'sofia-weddings')
-        .eq('org_id', org.id)
+        .upsert(
+          { org_id: org.id, slug: 'sofia-weddings', config },
+          { onConflict: 'org_id,slug' }
+        )
 
       if (error) {
         setSaveStatus('error')
@@ -115,7 +118,7 @@ export default function SdrConfigPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 p-8">
+      <div className="h-full overflow-y-auto bg-slate-50 p-8">
         <div className="max-w-4xl mx-auto space-y-8">
           <div>
             <Skeleton className="h-8 w-64 mb-2" />
@@ -136,7 +139,7 @@ export default function SdrConfigPage() {
 
   if (!config) {
     return (
-      <div className="min-h-screen bg-slate-50 p-8">
+      <div className="h-full overflow-y-auto bg-slate-50 p-8">
         <div className="max-w-4xl mx-auto">
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
@@ -153,7 +156,7 @@ export default function SdrConfigPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8">
+    <div className="h-full overflow-y-auto bg-slate-50 p-8">
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Cabeçalho */}
         <div>
