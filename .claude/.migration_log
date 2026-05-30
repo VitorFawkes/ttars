@@ -1110,3 +1110,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-30T20:47:39Z | supabase/migrations/20260530h_analytics_org_isolation_safe_casts.sql | applied_to_prod
 2026-05-30T22:50:04Z | supabase/migrations/20260530i_analytics_sdr_lead_cohort.sql | applied_to_prod
 2026-05-30T22:51:47Z | supabase/migrations/20260531e_ww_funil_conversao_v1_monotonico.sql | applied_to_prod
+2026-05-30T23:22:27Z | supabase/migrations/20260530a_wsdr_foundation.sql | applied_to_prod

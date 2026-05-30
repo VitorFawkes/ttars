@@ -78,12 +78,15 @@ Contexto desta conversa:
 
 Escreva a próxima mensagem da {{ $('Monta').item.json.persona }} no WhatsApp. Seja a melhor SDR humana possível: entenda o casal, reaja ao que disseram e conduza com naturalidade rumo ao convite pra Wedding Planner quando fizer sentido. Se for o primeiro contato, use a mensagem de abertura. Respeite as linhas vermelhas, sobretudo: nunca fale preço. Devolva só o texto pronto pro WhatsApp.`;
 
-// Prepara: normaliza + whitelist
+// Prepara: normaliza + whitelist + resolve org/agente (default Sofia/Weddings)
+const DEFAULT_ORG_ID = 'b0000000-0000-0000-0000-000000000002'; // Welcome Weddings
 const CODE_PREPARA = `const raw = $input.first().json;
 const body = raw.body || raw;
 const ALLOW_LOCAL = '11964293533';
 const phone = String(body.phone || body.contact_phone || '').replace(/\\D/g, '');
 const allowed = phone.endsWith(ALLOW_LOCAL);
+const org_id = body.org_id || '${DEFAULT_ORG_ID}';
+const agent_slug = body.agent_slug || '${AGENT_SLUG}';
 let hist = body.history || body.historico || [];
 let historico = '';
 if (Array.isArray(hist)) {
@@ -96,27 +99,39 @@ if (Array.isArray(hist)) {
 } else { historico = String(hist || ''); }
 const ultima = body.message || body.message_text || body.text || '';
 const is_primeiro = body.is_primeiro_contato != null ? !!body.is_primeiro_contato : (historico.trim() === '');
-return [{ json: { allowed, phone, nome: body.nome || body.contact_name || '', is_primeiro_contato: is_primeiro, ultima_mensagem_lead: ultima, historico, contact_id: body.contact_id || null } }];`;
+return [{ json: { allowed, phone, org_id, agent_slug, nome: body.nome || body.contact_name || '', is_primeiro_contato: is_primeiro, ultima_mensagem_lead: ultima, historico, contact_id: body.contact_id || null } }];`;
 
-// Monta: combina config (Carrega Config) + Prepara em campos planos (botões formatados)
+// Monta: combina config (Carrega Config) + Prepara em campos planos (botões formatados).
+// Lê o formato v2 (aninhado em identity/voice/qualification/boundaries) COM fallback
+// para o formato flat antigo, então funciona com config v1 ou v2.
 const CODE_MONTA = `const cfg = $('Carrega Config').first().json || {};
 const p = $('Prepara').first().json || {};
+const id = cfg.identity || {};
+const vo = cfg.voice || {};
+const qu = cfg.qualification || {};
+const bo = cfg.boundaries || {};
 const tomMap = { acolhedor: 'acolhedor, caloroso e humano', formal: 'profissional e formal, sóbrio', direto: 'direto e objetivo, sem rodeios' };
 const arr = (x) => Array.isArray(x) ? x : [];
+const tom = vo.tom || cfg.tom || 'acolhedor';
+const etapas = qu.etapas || cfg.etapas;
+const faixas = qu.faixas_orcamento || cfg.faixas_orcamento;
+const fronteiras = bo.custom || cfg.fronteiras;
 return [{ json: {
-  persona: cfg.persona_nome || 'Sofia',
-  empresa: cfg.empresa || 'Welcome Weddings',
-  proposta: cfg.proposta || '',
-  tom_desc: tomMap[cfg.tom] || cfg.tom || 'acolhedor, caloroso e humano',
-  abertura: cfg.abertura || '',
-  etapas_txt: arr(cfg.etapas).map((e,i) => (i+1) + '. ' + e).join('\\n'),
-  faixas_txt: arr(cfg.faixas_orcamento).join('; '),
-  fronteiras_txt: arr(cfg.fronteiras).map(f => '- ' + f).join('\\n'),
+  persona: id.persona_nome || cfg.persona_nome || 'Sofia',
+  empresa: id.empresa || cfg.empresa || 'Welcome Weddings',
+  proposta: id.proposta || cfg.proposta || '',
+  tom_desc: tomMap[tom] || tom || 'acolhedor, caloroso e humano',
+  abertura: vo.abertura || cfg.abertura || '',
+  etapas_txt: arr(etapas).map((e,i) => (i+1) + '. ' + e).join('\\n'),
+  faixas_txt: arr(faixas).join('; '),
+  fronteiras_txt: arr(fronteiras).map(f => '- ' + f).join('\\n'),
   historico: p.historico || '',
   ultima_mensagem_lead: p.ultima_mensagem_lead || '',
   nome: p.nome || '',
   is_primeiro_contato: p.is_primeiro_contato,
   allowed: p.allowed,
+  org_id: p.org_id,
+  agent_slug: p.agent_slug,
 }}];`;
 
 // Limpa: garantia determinística da regra absoluta "zero travessões". O modelo às
@@ -142,7 +157,7 @@ function buildWorkflow() {
         url: `${SUPABASE_URL}/rest/v1/rpc/wsdr_get_config`,
         authentication: 'predefinedCredentialType', nodeCredentialType: 'supabaseApi',
         sendBody: true, specifyBody: 'json',
-        jsonBody: `={{ JSON.stringify({ p_slug: "${AGENT_SLUG}" }) }}`,
+        jsonBody: `={{ JSON.stringify({ p_slug: $('Prepara').first().json.agent_slug, p_org_id: $('Prepara').first().json.org_id }) }}`,
         options: {},
       },
       credentials: { supabaseApi: SUPABASE_CREDENTIAL } },
