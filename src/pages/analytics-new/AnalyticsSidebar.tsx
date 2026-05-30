@@ -16,6 +16,7 @@ import {
   Archive,
   UserCheck,
   Briefcase,
+  CalendarClock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -40,6 +41,7 @@ const SECTIONS: Array<{ title: string; items: NavItem[] }> = [
       { to: '/analytics/funil', label: 'Funil', icon: GitBranch },
       { to: '/analytics/equipe', label: 'Equipe', icon: Users },
       { to: '/analytics/financeiro', label: 'Financeiro', icon: Wallet },
+      { to: '/analytics/previsao', label: 'Previsão', icon: CalendarClock },
       { to: '/analytics/retencao', label: 'Retenção', icon: Repeat },
     ],
   },
