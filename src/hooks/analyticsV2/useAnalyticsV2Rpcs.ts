@@ -297,7 +297,7 @@ export function useCardStageHistory(cardId: string | null) {
 
 // ========== Comercial Dashboard (migration 20260421i) ==========
 // TODO: remover cast `rpcComercial` quando tipos forem regenerados pós-promoção em prod
-const rpcComercial = (supabase.rpc as unknown) as (fn: string, args?: unknown) => ReturnType<typeof supabase.rpc>
+const rpcComercial = (supabase.rpc as unknown) as (fn: string, args?: unknown) => Promise<{ data: unknown; error: { message: string } | null }>
 
 export function useForecastPonderado() {
   const f = useFilters()

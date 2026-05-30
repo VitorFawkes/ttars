@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
 // TODO: remover cast quando `npx supabase gen types` rodar com as RPCs da migration 20260425f em prod
-const rpc = (supabase.rpc as unknown) as (fn: string, args?: unknown) => ReturnType<typeof supabase.rpc>
+const rpc = (supabase.rpc as unknown) as (fn: string, args?: unknown) => Promise<{ data: unknown; error: { message: string } | null }>
 
 export interface SavedView {
   id: string

@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useAnalyticsV2Filters, getRpcFilters } from './useAnalyticsV2Filters'
 
 // TODO: remover cast quando `npx supabase gen types` for rodado com as RPCs da migration 20260425e em prod
-const rpc = (supabase.rpc as unknown) as (fn: string, args?: unknown) => ReturnType<typeof supabase.rpc>
+const rpc = (supabase.rpc as unknown) as (fn: string, args?: unknown) => Promise<{ data: unknown; error: { message: string } | null }>
 
 function useFilters() {
   return useAnalyticsV2Filters(useShallow(getRpcFilters))
