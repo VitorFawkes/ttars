@@ -42,7 +42,8 @@ export default function FinancialView() {
       <header>
         <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Financeiro</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Faturamento, receita (margem), ticket médio — quebrado por origem, consultor e mês.
+          Faturamento, receita, ticket médio — quebrado por origem, consultor e mês.
+          A margem é uma <strong>estimativa de 10%</strong> do faturamento (salvo vendas importadas do Monde, que trazem o valor real).
         </p>
       </header>
 
@@ -60,13 +61,13 @@ export default function FinancialView() {
           subtitle={`${kpis?.qtd ?? 0} vendas no período`}
         />
         <KpiCard
-          title="Receita (margem)"
+          title="Receita (margem estimada)"
           value={kpis ? formatCurrency(kpis.receita) : 'R$ 0'}
           icon={TrendingUp}
           color="text-emerald-700"
           bgColor="bg-emerald-50"
           isLoading={isLoading}
-          subtitle={kpis ? `Margem: ${kpis.margem_pct}%` : undefined}
+          subtitle={kpis ? `Margem estimada: ${kpis.margem_pct}% (10% fixo, salvo Monde)` : undefined}
         />
         <KpiCard
           title="Ticket médio"
@@ -124,7 +125,7 @@ export default function FinancialView() {
       {/* Por origem */}
       <WidgetCard
         title="Por origem"
-        subtitle="Onde está o dinheiro vindo — faturamento, receita e margem por origem"
+        subtitle="Onde está o dinheiro vindo — faturamento, receita e margem (estimada em ~10%) por origem"
       >
         {isLoading ? (
           <div className="h-32 bg-slate-50 rounded-lg animate-pulse" />

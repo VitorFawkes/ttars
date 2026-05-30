@@ -106,13 +106,13 @@ export default function ResumoView() {
             delta={kpis && prevKpis ? { current: kpis.ticket_medio, previous: prevKpis.ticket_medio } : undefined}
           />
           <KpiCard
-            title="Conversão geral"
+            title="Conversão do período"
             value={kpis ? `${kpis.conversao_geral}%` : '0%'}
             icon={Target}
             color="text-indigo-600"
             bgColor="bg-indigo-50"
             isLoading={isLoading}
-            subtitle={`${kpis?.leads_entrada ?? 0} leads no período`}
+            subtitle={`ganhos ÷ ${kpis?.leads_entrada ?? 0} leads do período`}
             delta={kpis && prevKpis ? { current: kpis.conversao_geral, previous: prevKpis.conversao_geral } : undefined}
           />
         </div>

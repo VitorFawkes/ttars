@@ -30,7 +30,7 @@ export default function FunnelLossReasons({ isLoading, reasons, onReasonDrill }:
       title="Motivos de perda"
       description={
         top.length > 0
-          ? `Top ${top.length} de ${totalCount.toLocaleString('pt-BR')} perdidos no período — clique para ver os cards`
+          ? `Top ${top.length} de ${totalCount.toLocaleString('pt-BR')} perdidos no período — clique para ver os cards. Motivo registrado pelo consultor: leitura indicativa, confirme com o cliente antes de concluir.`
           : 'Sem perdas no período'
       }
       isLoading={isLoading}
