@@ -53,6 +53,7 @@ import TeamView from './pages/analytics-new/TeamView'
 import SdrView from './pages/analytics-new/SdrView'
 import PlannerView from './pages/analytics-new/PlannerView'
 import FinancialView from './pages/analytics-new/FinancialView'
+import PrevisaoView from './pages/analytics-new/PrevisaoView'
 import RetentionView from './pages/analytics-new/RetentionView'
 import OperationsView from './pages/analytics-new/OperationsView'
 import ConciergeView from './pages/analytics-new/ConciergeView'
@@ -315,6 +316,7 @@ function App() {
                     <Route path="sdr" element={<SdrView />} />
                     <Route path="planner" element={<PlannerView />} />
                     <Route path="financeiro" element={<FinancialView />} />
+                    <Route path="previsao" element={<PrevisaoView />} />
                     <Route path="retencao" element={<RetentionView />} />
                     <Route path="operacoes" element={<OperationsView />} />
                     <Route path="concierge" element={<ConciergeView />} />

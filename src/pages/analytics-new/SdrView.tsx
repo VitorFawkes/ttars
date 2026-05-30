@@ -11,6 +11,7 @@ import { useFilterProfilesWithRole } from '@/hooks/analytics/useFilterOptions'
 import { supabase } from '@/lib/supabase'
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
+import SdrEvolutionSection from './SdrEvolutionSection'
 import { cn } from '@/lib/utils'
 
 interface SdrFollowThroughRow {
@@ -216,11 +217,6 @@ export default function SdrView() {
     })
   }
 
-  const openLeadsByOrigin = (origem: string) => {
-    // Filtro global de origem — re-filtra toda a página
-    setOrigins([origem])
-  }
-
   return (
     <div className="flex flex-col gap-6">
       <header>
@@ -344,6 +340,9 @@ export default function SdrView() {
           </div>
         )}
       </WidgetCard>
+
+      {/* Evolução / jornada dos leads — coorte, conversão por origem, tempo até fechar */}
+      <SdrEvolutionSection />
 
       {/* Funil SDR — barras clicáveis */}
       <WidgetCard
@@ -584,59 +583,6 @@ export default function SdrView() {
         )}
       </WidgetCard>
 
-      {/* Leads por origem — clicáveis */}
-      <WidgetCard
-        title="De onde vieram os leads"
-        subtitle="Quantos leads entraram por cada canal. Clique numa linha pra filtrar a página inteira por aquela origem."
-      >
-        {resumo.isLoading ? (
-          <div className="h-32 bg-slate-50 rounded-lg animate-pulse" />
-        ) : !resumo.data || resumo.data.por_origem.length === 0 ? (
-          <div className="h-32 flex items-center justify-center text-sm text-slate-400">
-            Sem leads no período
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 text-xs text-slate-500 uppercase tracking-wider">
-                  <th className="text-left py-2 font-medium">Origem</th>
-                  <th className="text-right py-2 font-medium">Leads</th>
-                  <th className="text-right py-2 font-medium">Ganhos</th>
-                  <th className="text-right py-2 font-medium">% Sucesso</th>
-                </tr>
-              </thead>
-              <tbody>
-                {resumo.data.por_origem.map(row => {
-                  const conv = row.leads > 0 ? Math.round((row.ganhos / row.leads) * 100) : 0
-                  const isActive = origins.includes(row.origem)
-                  return (
-                    <tr
-                      key={row.origem}
-                      onClick={() => openLeadsByOrigin(row.origem)}
-                      className={cn('border-b border-slate-50 hover:bg-indigo-50 cursor-pointer', isActive && 'bg-indigo-50')}
-                    >
-                      <td className="py-2.5 text-slate-900 font-medium">
-                        <span className="hover:text-indigo-700 hover:underline">
-                          {ORIGEM_LABELS[row.origem] ?? row.origem}
-                        </span>
-                      </td>
-                      <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.leads}</td>
-                      <td className="py-2.5 text-right text-slate-700 tabular-nums">{row.ganhos}</td>
-                      <td className="py-2.5 text-right">
-                        <ConversionBadge rate={conv} />
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-            <p className="text-xs text-slate-400 mt-3">
-              Clicar numa origem aplica como filtro nessa página. Volte limpando o filtro no topo.
-            </p>
-          </div>
-        )}
-      </WidgetCard>
     </div>
   )
 }
