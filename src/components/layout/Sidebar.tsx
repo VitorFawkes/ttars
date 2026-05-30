@@ -20,6 +20,7 @@ import {
   Smile,
   Heart,
   LibraryBig,
+  Bot,
   type LucideIcon,
 } from "lucide-react";
 import { BellConciergeIcon } from "../icons/BellConciergeIcon";
@@ -67,6 +68,12 @@ const navigation: {
   { name: "Presentes", href: "/presentes", icon: Gift, roles: ["pos_venda"] },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
   { name: "NPS", href: "/nps", icon: Smile },
+  {
+    name: "SDR Sofia",
+    href: "/weddings/sdr",
+    icon: Bot,
+    orgsOnly: ["welcome-weddings"],
+  },
   {
     name: "Pontuações SDR",
     href: "/sdr/pontuacoes",
@@ -119,6 +126,9 @@ export default function Sidebar() {
         window.clearTimeout(collapseTimerRef.current);
         collapseTimerRef.current = null;
       }
+      // Hover intencional: expande na hora quando o mouse entra/popover abre;
+      // o colapso é adiado 150ms abaixo (debounce). Comportamento estabelecido.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsExpanded(true);
       return;
     }
@@ -133,13 +143,17 @@ export default function Sidebar() {
   const handleMouseLeave = () => setIsMouseInside(false);
 
   const filteredNavigation = useMemo(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const p = profile as {
+      is_admin?: boolean
+      role?: string
+      role_info?: { name?: string }
+      team?: { phase?: { slug?: string } }
+    } | null
     const isAdminOrGestor =
-      profile?.is_admin === true ||
-      ["gestor", "manager"].includes((profile as any)?.role_info?.name);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const phaseSlug = (profile as any)?.team?.phase?.slug as string | undefined;
-    const profileRole = profile?.role as string | undefined;
+      p?.is_admin === true ||
+      ["gestor", "manager"].includes(p?.role_info?.name ?? "");
+    const phaseSlug = p?.team?.phase?.slug;
+    const profileRole = p?.role as string | undefined;
     return navigation.filter((item) => {
       if (item.adminOnly && !isAdminOrGestor) return false;
       if (item.phases) {
