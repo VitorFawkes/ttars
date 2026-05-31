@@ -199,6 +199,8 @@ return [{ json: { allowed, phone, org_id, agent_slug, nome: body.nome || body.co
 const CODE_MONTA = `const cfg = $('Carrega Config').first().json || {};
 const p = $('Prepara').first().json || {};
 const est = (() => { try { const e = $('Carrega Estado').first().json; return (e && typeof e === 'object') ? e : {}; } catch(x) { return {}; } })();
+// Debounce: se o buffer foi reivindicado (3 msgs viraram 1), usa o texto concatenado.
+const ultima_lead = (() => { try { const cl = $('Buffer Claim').first().json; if (cl && cl.claimed && cl.text) return cl.text; } catch(x) {} return p.ultima_mensagem_lead || ''; })();
 const id = cfg.identity || {};
 const vo = cfg.voice || {};
 const qu = cfg.qualification || {};
@@ -254,7 +256,7 @@ return [{ json: {
   faixas_txt: arr(faixas).join('; '),
   fronteiras_txt: arr(fronteiras).map(f => '- ' + f).join('\\n'),
   historico: p.historico || '',
-  ultima_mensagem_lead: p.ultima_mensagem_lead || '',
+  ultima_mensagem_lead: ultima_lead,
   nome: p.nome || '',
   is_primeiro_contato: p.is_primeiro_contato,
   allowed: p.allowed,
@@ -435,6 +437,29 @@ function buildWorkflow() {
       credentials: { supabaseApi: SUPABASE_CREDENTIAL } },
     { id: 'monta', name: 'Monta', type: 'n8n-nodes-base.code', typeVersion: 2, position: [840, 300],
       parameters: { jsCode: CODE_MONTA } },
+    // --- M5 Debounce por silêncio (gated por capabilities.memory.enabled). OFF = flui direto. ---
+    { id: 'debgate', name: 'Debounce?', type: 'n8n-nodes-base.if', typeVersion: 2, position: [740, 120],
+      parameters: { conditions: { options: { caseSensitive: true, leftValue: '', typeValidation: 'loose' }, combinator: 'and',
+        conditions: [{ id: 'd1', leftValue: "={{ $('Carrega Config').first().json.capabilities && $('Carrega Config').first().json.capabilities.memory && $('Carrega Config').first().json.capabilities.memory.enabled }}", rightValue: '', operator: { type: 'boolean', operation: 'true', singleValue: true } }] }, options: {} } },
+    { id: 'bufappend', name: 'Buffer Append', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [940, 60],
+      parameters: { method: 'POST', url: `${SUPABASE_URL}/rest/v1/rpc/wsdr_buffer_append`,
+        authentication: 'predefinedCredentialType', nodeCredentialType: 'supabaseApi', sendBody: true, specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({ p_org_id: $('Prepara').first().json.org_id, p_agent_slug: $('Prepara').first().json.agent_slug, p_contact_phone: $('Prepara').first().json.phone, p_text: $('Prepara').first().json.ultima_mensagem_lead }) }}`,
+        options: { response: { response: { neverError: true } } } },
+      credentials: { supabaseApi: SUPABASE_CREDENTIAL } },
+    { id: 'espera', name: 'Espera', type: 'n8n-nodes-base.wait', typeVersion: 1.1, position: [1140, 60],
+      parameters: { resume: 'timeInterval', amount: `={{ Math.max(1, Math.round(($('Carrega Config').first().json.capabilities.memory.debounce_ms || 8000)/1000)) }}`, unit: 'seconds' } },
+    { id: 'bufclaim', name: 'Buffer Claim', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [1340, 60],
+      parameters: { method: 'POST', url: `${SUPABASE_URL}/rest/v1/rpc/wsdr_buffer_claim`,
+        authentication: 'predefinedCredentialType', nodeCredentialType: 'supabaseApi', sendBody: true, specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({ p_org_id: $('Prepara').first().json.org_id, p_agent_slug: $('Prepara').first().json.agent_slug, p_contact_phone: $('Prepara').first().json.phone, p_seq: $('Buffer Append').first().json.seq }) }}`,
+        options: { response: { response: { neverError: true } } } },
+      credentials: { supabaseApi: SUPABASE_CREDENTIAL } },
+    { id: 'claimou', name: 'Reivindicou?', type: 'n8n-nodes-base.if', typeVersion: 2, position: [1540, 60],
+      parameters: { conditions: { options: { caseSensitive: true, leftValue: '', typeValidation: 'loose' }, combinator: 'and',
+        conditions: [{ id: 'c1', leftValue: "={{ $('Buffer Claim').first().json.claimed }}", rightValue: '', operator: { type: 'boolean', operation: 'true', singleValue: true } }] }, options: {} } },
+    { id: 'respvazio', name: 'Responde Vazio', type: 'n8n-nodes-base.respondToWebhook', typeVersion: 1, position: [1740, 140],
+      parameters: { respondWith: 'json', responseBody: '={{ { "reply": "", "bubbles": [], "skipped": true } }}', options: {} } },
     { id: 'consolida', name: 'Consolida', type: '@n8n/n8n-nodes-langchain.agent', typeVersion: 2.2, position: [1020, 460],
       parameters: { promptType: 'define', text: '=' + CONSOLIDA_USER, options: { systemMessage: '=' + CONSOLIDA_SYSTEM, enableStreaming: false } } },
     { id: 'modelconsolida', name: 'Modelo Consolida', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1.2, position: [1020, 660],
@@ -524,7 +549,12 @@ function buildWorkflow() {
   const connections = {
     'Webhook SDR Weddings': { main: [[{ node: 'Prepara', type: 'main', index: 0 }]] },
     'Prepara': { main: [[{ node: 'Carrega Config', type: 'main', index: 0 }]] },
-    'Carrega Config': { main: [[{ node: 'Carrega Estado', type: 'main', index: 0 }]] },
+    'Carrega Config': { main: [[{ node: 'Debounce?', type: 'main', index: 0 }]] },
+    'Debounce?': { main: [[{ node: 'Buffer Append', type: 'main', index: 0 }], [{ node: 'Carrega Estado', type: 'main', index: 0 }]] },
+    'Buffer Append': { main: [[{ node: 'Espera', type: 'main', index: 0 }]] },
+    'Espera': { main: [[{ node: 'Buffer Claim', type: 'main', index: 0 }]] },
+    'Buffer Claim': { main: [[{ node: 'Reivindicou?', type: 'main', index: 0 }]] },
+    'Reivindicou?': { main: [[{ node: 'Carrega Estado', type: 'main', index: 0 }], [{ node: 'Responde Vazio', type: 'main', index: 0 }]] },
     'Carrega Estado': { main: [[{ node: 'Monta', type: 'main', index: 0 }]] },
     'Monta': { main: [[{ node: 'Consolida', type: 'main', index: 0 }]] },
     'Modelo Consolida': { ai_languageModel: [[{ node: 'Consolida', type: 'ai_languageModel', index: 0 }]] },
