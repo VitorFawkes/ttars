@@ -180,7 +180,22 @@ return [{ json: {
   agent_slug: p.agent_slug,
   phone: p.phone,
   crm_write_enabled: !!(cfg.capabilities && cfg.capabilities.crm_write && cfg.capabilities.crm_write.enabled),
+  calendar_enabled: !!(cfg.capabilities && cfg.capabilities.calendar && cfg.capabilities.calendar.enabled),
 }}];`;
+
+// Extrai Reuniao: detecta se o casal CONFIRMOU um horário específico + e-mail.
+const BOOK_SYSTEM = `Você analisa a conversa de casamento e decide se o casal CONFIRMOU um horário específico de reunião com a Wedding Planner. Devolva SOMENTE um JSON (sem markdown/crases): {"confirmou": true|false, "iso": "YYYY-MM-DDTHH:MM:SS-03:00" ou "", "email": "" }. confirmou=true só se o casal escolheu um dia E hora concretos e topou. Se não houver hora concreta confirmada, confirmou=false e iso "".`;
+const BOOK_USER = `Conversa:
+{{ $('Monta').item.json.historico }}
+Última mensagem do casal: {{ $('Monta').item.json.ultima_mensagem_lead }}
+Devolva só o JSON.`;
+const CODE_PARSE_BOOK = `let t = String($('Extrai Reuniao').item.json.output || '').trim();
+t = t.replace(/^\`\`\`(json)?/i,'').replace(/\`\`\`$/,'').trim();
+let r = {}; try { r = JSON.parse(t); } catch(e) { r = {}; }
+const m = $('Monta').first().json;
+const ok = r && r.confirmou === true && typeof r.iso === 'string' && r.iso.length >= 16;
+if (!ok) return [];
+return [{ json: { iso: r.iso, org_id: m.org_id, agent_slug: m.agent_slug, phone: m.phone, nome: m.nome } }];`;
 
 // Extrai Dados (Agente 2 da Camila — "Atualiza dados"): lê a conversa e devolve SÓ
 // um JSON com os campos ww_* ditos EXPLICITAMENTE pelo casal. Nada de inventar.
@@ -257,6 +272,26 @@ function buildWorkflow() {
         options: {},
       },
       credentials: { supabaseApi: SUPABASE_CREDENTIAL } },
+    // --- Ramo de agenda (marca reunião se o casal confirmou horário), pós-resposta, gated ---
+    { id: 'agendagate', name: 'Agenda Gate', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1480, 760],
+      parameters: { jsCode: `const m = $('Monta').first().json; return m.calendar_enabled ? [{ json: m }] : [];` } },
+    { id: 'extraireuniao', name: 'Extrai Reuniao', type: '@n8n/n8n-nodes-langchain.agent', typeVersion: 2.2, position: [1680, 760],
+      parameters: { promptType: 'define', text: '=' + BOOK_USER, options: { systemMessage: '=' + BOOK_SYSTEM, enableStreaming: false } } },
+    { id: 'modelreuniao', name: 'Modelo Reuniao', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1.2, position: [1680, 940],
+      parameters: { model: { __rl: true, value: MODEL_ID, mode: 'list', cachedResultName: MODEL_ID }, options: MODEL_OPTIONS },
+      credentials: { openAiApi: OPENAI_CREDENTIAL } },
+    { id: 'parsereuniao', name: 'Parse Reuniao', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1880, 760],
+      parameters: { jsCode: CODE_PARSE_BOOK } },
+    { id: 'marcareuniao', name: 'Marca Reuniao', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [2080, 760],
+      parameters: {
+        method: 'POST',
+        url: `${SUPABASE_URL}/rest/v1/rpc/wsdr_book_meeting`,
+        authentication: 'predefinedCredentialType', nodeCredentialType: 'supabaseApi',
+        sendBody: true, specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({ p_org_id: $('Parse Reuniao').item.json.org_id, p_agent_slug: $('Parse Reuniao').item.json.agent_slug, p_contact_phone: $('Parse Reuniao').item.json.phone, p_contact_name: $('Parse Reuniao').item.json.nome, p_iso: $('Parse Reuniao').item.json.iso }) }}`,
+        options: {},
+      },
+      credentials: { supabaseApi: SUPABASE_CREDENTIAL } },
   ];
   const connections = {
     'Webhook SDR Weddings': { main: [[{ node: 'Prepara', type: 'main', index: 0 }]] },
@@ -266,11 +301,15 @@ function buildWorkflow() {
     'OpenAI Chat Model': { ai_languageModel: [[{ node: 'Responde Lead', type: 'ai_languageModel', index: 0 }]] },
     'Responde Lead': { main: [[{ node: 'Limpa Travessao', type: 'main', index: 0 }]] },
     'Limpa Travessao': { main: [[{ node: 'Responde Webhook', type: 'main', index: 0 }]] },
-    'Responde Webhook': { main: [[{ node: 'CRM Gate', type: 'main', index: 0 }]] },
+    'Responde Webhook': { main: [[{ node: 'CRM Gate', type: 'main', index: 0 }, { node: 'Agenda Gate', type: 'main', index: 0 }]] },
     'CRM Gate': { main: [[{ node: 'Extrai Dados', type: 'main', index: 0 }]] },
     'Modelo Extrai': { ai_languageModel: [[{ node: 'Extrai Dados', type: 'ai_languageModel', index: 0 }]] },
     'Extrai Dados': { main: [[{ node: 'Parse Dados', type: 'main', index: 0 }]] },
     'Parse Dados': { main: [[{ node: 'Grava CRM', type: 'main', index: 0 }]] },
+    'Agenda Gate': { main: [[{ node: 'Extrai Reuniao', type: 'main', index: 0 }]] },
+    'Modelo Reuniao': { ai_languageModel: [[{ node: 'Extrai Reuniao', type: 'ai_languageModel', index: 0 }]] },
+    'Extrai Reuniao': { main: [[{ node: 'Parse Reuniao', type: 'main', index: 0 }]] },
+    'Parse Reuniao': { main: [[{ node: 'Marca Reuniao', type: 'main', index: 0 }]] },
   };
   return { name: 'SDR Weddings (novo - isolado)', nodes, connections, settings: { executionOrder: 'v1' } };
 }
