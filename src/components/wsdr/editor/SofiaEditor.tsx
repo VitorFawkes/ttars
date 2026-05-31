@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
-  User, MessageSquare, Zap, ShieldAlert, Eye, Loader2, CheckCircle, AlertCircle, Sparkles,
+  User, MessageSquare, Zap, ShieldAlert, Eye, Loader2, CheckCircle, AlertCircle, Sparkles, Wallet,
 } from 'lucide-react'
+import { PricingEditor } from '@/components/wsdr/editor/PricingEditor'
 import { AgentEditorLayout, type EditorTab } from '@/components/ai-agent/editor/AgentEditorLayout'
 import { StringListEditor } from '@/components/wsdr/StringListEditor'
 import { CapabilityCard } from '@/components/wsdr/editor/CapabilityCard'
@@ -31,6 +32,7 @@ function setCapEnabled(x: SofiaConfigV2, key: CapabilityKey, enabled: boolean): 
 const TABS: EditorTab[] = [
   { id: 'quem', label: 'Quem é a Sofia', icon: User },
   { id: 'conversa', label: 'Como ela conversa', icon: MessageSquare },
+  { id: 'preco', label: 'Preço', icon: Wallet },
   { id: 'faz', label: 'O que ela faz', icon: Zap },
   { id: 'vermelhas', label: 'Linhas vermelhas', icon: ShieldAlert },
   { id: 'avancado', label: 'Avançado', icon: Eye },
@@ -147,6 +149,12 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
               <StringListEditor items={c.qualification.faixas_orcamento} onChange={items => update(x => ({ ...x, qualification: { ...x.qualification, faixas_orcamento: items } }))} placeholder="ex: R$ 80 a 150 mil" />
             </Card>
           </>
+        )}
+
+        {tab === 'preco' && (
+          <Card icon={<Wallet className="w-4 h-4" />} title="Preço e valor" desc="A Sofia pode falar de valor (assessoria + faixas por destino) e nunca negocia. Você decide quando e como ela revela.">
+            <PricingEditor pricing={c.pricing} onChange={p => update(x => ({ ...x, pricing: p }))} />
+          </Card>
         )}
 
         {tab === 'faz' && (

@@ -39,6 +39,23 @@ export interface SofiaCapabilities {
   }
 }
 
+export type RevealStrategy = 'always' | 'on_question' | 'on_hesitation' | 'hand_to_planner'
+export interface DestinationRange {
+  destino: string
+  moeda: string // BRL | USD | EUR
+  tiers: { convidados: number; a_partir: number }[]
+  contexto?: string
+}
+export interface SofiaPricing {
+  mention_fee: boolean
+  fee_min_brl: number
+  fee_max_brl: number
+  reveal_strategy: RevealStrategy
+  tone_on_pushback: 'empathetic' | 'firm'
+  can_negotiate: boolean
+  destination_ranges: DestinationRange[]
+}
+
 export interface SofiaConfigV2 {
   config_version: number
   identity: { persona_nome: string; empresa: string; proposta: string }
@@ -50,6 +67,31 @@ export interface SofiaConfigV2 {
   }
   boundaries: { curadas: Record<string, boolean>; custom: string[] }
   capabilities: SofiaCapabilities
+  pricing: SofiaPricing
+}
+
+export const REVEAL_OPTIONS: { value: RevealStrategy; label: string; hint: string }[] = [
+  { value: 'on_question', label: 'Só quando perguntam', hint: 'Menciona a assessoria de leve; mostra as faixas por destino só se o casal perguntar valor. (Recomendado)' },
+  { value: 'always', label: 'Proativa (sempre)', hint: 'Já oferece assessoria e faixas cedo, sem esperar perguntarem.' },
+  { value: 'on_hesitation', label: 'Só se hesitar', hint: 'Fala de valor apenas se o casal hesitar ou insistir.' },
+  { value: 'hand_to_planner', label: 'Segurar e remeter à Planner', hint: 'Fala só da assessoria; faixas de casamento ficam pra Planner.' },
+]
+
+export function defaultPricing(): SofiaPricing {
+  return {
+    mention_fee: true,
+    fee_min_brl: 4000,
+    fee_max_brl: 18000,
+    reveal_strategy: 'on_question',
+    tone_on_pushback: 'empathetic',
+    can_negotiate: false,
+    destination_ranges: [
+      { destino: 'Europa', moeda: 'EUR', tiers: [{ convidados: 20, a_partir: 18000 }, { convidados: 50, a_partir: 55000 }, { convidados: 100, a_partir: 120000 }], contexto: 'a partir de, conforme escopo' },
+      { destino: 'Mendoza', moeda: 'USD', tiers: [{ convidados: 20, a_partir: 15000 }, { convidados: 50, a_partir: 26000 }, { convidados: 100, a_partir: 52000 }] },
+      { destino: 'Nordeste', moeda: 'BRL', tiers: [{ convidados: 20, a_partir: 40000 }, { convidados: 50, a_partir: 100000 }, { convidados: 100, a_partir: 200000 }] },
+      { destino: 'Caribe', moeda: 'USD', tiers: [{ convidados: 20, a_partir: 5000 }, { convidados: 50, a_partir: 10000 }, { convidados: 100, a_partir: 17000 }] },
+    ],
+  }
 }
 
 export const TOM_OPTIONS: { value: Tom; label: string; emoji: string; exemplo: string }[] = [
@@ -132,6 +174,7 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
       multimodal: { enabled: false, audio: true, image: true, pdf: true },
       memory: { enabled: false, window_messages: 10, debounce_ms: 8000, bubbles_enabled: true, bubble_delay_ms: 1500 },
     },
+    pricing: defaultPricing(),
   }
 }
 
@@ -140,8 +183,8 @@ export function normalizeToV2(raw: unknown): SofiaConfigV2 {
   const def = defaultSofiaConfig()
   if (!raw || typeof raw !== 'object') return def
   const c = raw as Record<string, any>
-  if (c.config_version === 2 && c.identity && c.capabilities) {
-    // mescla com defaults pra garantir todas as chaves de capabilities
+  if ((c.config_version === 2 || c.config_version === 3) && c.identity && c.capabilities) {
+    // mescla com defaults pra garantir todas as chaves (v2 e v3)
     return {
       ...def,
       ...c,
@@ -157,6 +200,7 @@ export function normalizeToV2(raw: unknown): SofiaConfigV2 {
         multimodal: { ...def.capabilities.multimodal, ...(c.capabilities?.multimodal || {}) },
         memory: { ...def.capabilities.memory, ...(c.capabilities?.memory || {}) },
       },
+      pricing: { ...def.pricing, ...(c.pricing || {}), destination_ranges: c.pricing?.destination_ranges ?? def.pricing.destination_ranges },
     }
   }
   // v1 flat -> v2
