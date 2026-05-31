@@ -284,6 +284,9 @@ t = t.replace(/^\`\`\`(json)?/i,'').replace(/\`\`\`$/,'').trim();
 let fields = {};
 try { fields = JSON.parse(t); } catch(e) { fields = {}; }
 if (typeof fields !== 'object' || Array.isArray(fields)) fields = {};
+// Mescla a decisão de qualificação (Agente 2): grava o booleano no card pro gestor.
+const q = (() => { try { return $('Parse Qualifica').first().json; } catch(e) { return {}; } })();
+if (q && typeof q.qualificado === 'boolean') fields.ww_sdr_qualificado = q.qualificado;
 const m = $('Monta').first().json;
 return [{ json: { fields, org_id: m.org_id, agent_slug: m.agent_slug, phone: m.phone, nome: m.nome } }];`;
 
