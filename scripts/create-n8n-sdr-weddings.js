@@ -206,6 +206,9 @@ const bo = cfg.boundaries || {};
 const tomMap = { acolhedor: 'acolhedor, caloroso e humano', formal: 'profissional e formal, sóbrio', direto: 'direto e objetivo, sem rodeios' };
 const arr = (x) => Array.isArray(x) ? x : [];
 const tom = vo.tom || cfg.tom || 'acolhedor';
+// Formalidade (slider 0-1) entra DE VERDADE no tom: 0=bem informal, 1=formal e sóbrio.
+const fm = (typeof vo.formalidade === 'number') ? vo.formalidade : 0.5;
+const formalidade_desc = fm < 0.34 ? 'bem informal e leve, pode usar gírias leves e contrações' : fm > 0.66 ? 'mais formal e sóbrio, sem gírias, ainda caloroso' : 'natural, nem formal demais nem casual demais';
 const etapas = qu.etapas || cfg.etapas;
 const faixas = qu.faixas_orcamento || cfg.faixas_orcamento;
 const fronteiras = bo.custom || cfg.fronteiras;
@@ -245,7 +248,7 @@ return [{ json: {
   persona: id.persona_nome || cfg.persona_nome || 'Sofia',
   empresa: id.empresa || cfg.empresa || 'Welcome Weddings',
   proposta: id.proposta || cfg.proposta || '',
-  tom_desc: tomMap[tom] || tom || 'acolhedor, caloroso e humano',
+  tom_desc: (tomMap[tom] || tom || 'acolhedor, caloroso e humano') + ', ' + formalidade_desc,
   abertura: vo.abertura || cfg.abertura || '',
   etapas_txt: arr(etapas).map((e,i) => (i+1) + '. ' + e).join('\\n'),
   faixas_txt: arr(faixas).join('; '),
