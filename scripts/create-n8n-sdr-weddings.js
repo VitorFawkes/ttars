@@ -136,6 +136,11 @@ Contexto desta conversa:
 - Conversa até aqui:
 {{ $('Monta').item.json.historico || '(ainda não trocamos mensagem, é o começo)' }}
 
+Estado consolidado da conversa (sua memória; confie nisto pra não repetir perguntas já respondidas):
+- Resumo do casal: {{ $('Parse Consolida').item.json.resumo || '(ainda montando)' }}
+- Onde estamos: {{ $('Parse Consolida').item.json.contexto || '(início)' }}
+- Sinais: {{ JSON.stringify($('Parse Consolida').item.json.sinais || {}) }}
+
 Base de conhecimento (se o casal perguntar algo coberto aqui, responda com base nisto, sem inventar; se não estiver aqui, não invente):
 {{ $('Monta').item.json.faqs_txt || '(sem base de conhecimento cadastrada)' }}
 
@@ -169,6 +174,7 @@ return [{ json: { allowed, phone, org_id, agent_slug, nome: body.nome || body.co
 // para o formato flat antigo, então funciona com config v1 ou v2.
 const CODE_MONTA = `const cfg = $('Carrega Config').first().json || {};
 const p = $('Prepara').first().json || {};
+const est = (() => { try { const e = $('Carrega Estado').first().json; return (e && typeof e === 'object') ? e : {}; } catch(x) { return {}; } })();
 const id = cfg.identity || {};
 const vo = cfg.voice || {};
 const qu = cfg.qualification || {};
@@ -217,6 +223,8 @@ return [{ json: {
   org_id: p.org_id,
   agent_slug: p.agent_slug,
   phone: p.phone,
+  resumo_antigo: est.resumo || '',
+  contexto_antigo: est.contexto || '',
   faqs_txt: faqs_txt,
   pricing_txt: pricing_txt,
   glossary_usar: glossary_usar,
@@ -289,6 +297,32 @@ try {
 } catch (e) { bubbles = [out]; }
 return [{ json: { output: out, bubbles, allowed: $('Prepara').first().json.allowed } }];`;
 
+// Agente 1 — Consolidador (cérebro humano): mantém resumo/contexto/sinais do casal.
+const CONSOLIDA_SYSTEM = `Você consolida o ESTADO de uma conversa de casamento da {{ $('Monta').item.json.empresa }}. Leia o histórico + o resumo/contexto ANTERIORES e devolva SOMENTE um JSON válido (sem markdown, sem crases) com:
+- "resumo": fatos estáveis do casal (nomes, destino/região, nº de convidados, orçamento do casal, data pretendida, restrições). Frases curtas.
+- "contexto": onde a conversa está, o que já aconteceu e o próximo passo natural.
+- "sinais": objeto só com sinais VERDADEIROS detectados, ex: {"fuga": true, "pressao_familia": true, "hesitacao_preco": true, "urgencia": true}. Se nenhum, {}.
+Atualize a partir do anterior; NÃO invente. Se não há novidade, repita o anterior.`;
+const CONSOLIDA_USER = `Resumo anterior: {{ $('Monta').item.json.resumo_antigo || '(vazio)' }}
+Contexto anterior: {{ $('Monta').item.json.contexto_antigo || '(vazio)' }}
+
+Histórico:
+{{ $('Monta').item.json.historico || '(começo)' }}
+Última mensagem do casal: {{ $('Monta').item.json.ultima_mensagem_lead }}
+
+Devolva só o JSON {resumo, contexto, sinais}.`;
+const CODE_PARSE_CONSOLIDA = `let t = String($('Consolida').item.json.output || '').trim();
+t = t.replace(/^\`\`\`(json)?/i,'').replace(/\`\`\`$/,'').trim();
+let r = {};
+try { r = JSON.parse(t); } catch(e) { r = {}; }
+const m = $('Monta').first().json;
+return [{ json: {
+  resumo: (r && typeof r.resumo === 'string') ? r.resumo : (m.resumo_antigo || ''),
+  contexto: (r && typeof r.contexto === 'string') ? r.contexto : (m.contexto_antigo || ''),
+  sinais: (r && r.sinais && typeof r.sinais === 'object') ? r.sinais : {},
+  org_id: m.org_id, agent_slug: m.agent_slug, phone: m.phone,
+}}];`;
+
 function buildWorkflow() {
   const nodes = [
     { id: 'webhook', name: 'Webhook SDR Weddings', type: 'n8n-nodes-base.webhook', typeVersion: 1, position: [240, 300], webhookId: 'sdr-weddings-hook',
@@ -305,9 +339,36 @@ function buildWorkflow() {
         options: {},
       },
       credentials: { supabaseApi: SUPABASE_CREDENTIAL } },
+    { id: 'estado', name: 'Carrega Estado', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [740, 460],
+      parameters: {
+        method: 'POST',
+        url: `${SUPABASE_URL}/rest/v1/rpc/wsdr_get_conversation_state`,
+        authentication: 'predefinedCredentialType', nodeCredentialType: 'supabaseApi',
+        sendBody: true, specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({ p_org_id: $('Prepara').first().json.org_id, p_agent_slug: $('Prepara').first().json.agent_slug, p_contact_phone: $('Prepara').first().json.phone }) }}`,
+        options: { response: { response: { neverError: true } } },
+      },
+      credentials: { supabaseApi: SUPABASE_CREDENTIAL } },
     { id: 'monta', name: 'Monta', type: 'n8n-nodes-base.code', typeVersion: 2, position: [840, 300],
       parameters: { jsCode: CODE_MONTA } },
-    { id: 'agente', name: 'Responde Lead', type: '@n8n/n8n-nodes-langchain.agent', typeVersion: 2.2, position: [1060, 300],
+    { id: 'consolida', name: 'Consolida', type: '@n8n/n8n-nodes-langchain.agent', typeVersion: 2.2, position: [1020, 460],
+      parameters: { promptType: 'define', text: '=' + CONSOLIDA_USER, options: { systemMessage: '=' + CONSOLIDA_SYSTEM, enableStreaming: false } } },
+    { id: 'modelconsolida', name: 'Modelo Consolida', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1.2, position: [1020, 660],
+      parameters: { model: { __rl: true, value: MODEL_ID, mode: 'list', cachedResultName: MODEL_ID }, options: MODEL_OPTIONS },
+      credentials: { openAiApi: OPENAI_CREDENTIAL } },
+    { id: 'parseconsolida', name: 'Parse Consolida', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1220, 460],
+      parameters: { jsCode: CODE_PARSE_CONSOLIDA } },
+    { id: 'salvaestado', name: 'Salva Estado', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [1420, 460],
+      parameters: {
+        method: 'POST',
+        url: `${SUPABASE_URL}/rest/v1/rpc/wsdr_save_conversation_state`,
+        authentication: 'predefinedCredentialType', nodeCredentialType: 'supabaseApi',
+        sendBody: true, specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({ p_org_id: $('Parse Consolida').item.json.org_id, p_agent_slug: $('Parse Consolida').item.json.agent_slug, p_contact_phone: $('Parse Consolida').item.json.phone, p_resumo: $('Parse Consolida').item.json.resumo, p_contexto: $('Parse Consolida').item.json.contexto, p_sinais: $('Parse Consolida').item.json.sinais }) }}`,
+        options: { response: { response: { neverError: true } } },
+      },
+      credentials: { supabaseApi: SUPABASE_CREDENTIAL } },
+    { id: 'agente', name: 'Responde Lead', type: '@n8n/n8n-nodes-langchain.agent', typeVersion: 2.2, position: [1640, 300],
       parameters: { promptType: 'define', text: '=' + USER_TEXT, options: { systemMessage: '=' + SYSTEM_PROMPT, enableStreaming: false } } },
     { id: 'model', name: 'OpenAI Chat Model', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1.2, position: [1060, 520],
       parameters: { model: { __rl: true, value: MODEL_ID, mode: 'list', cachedResultName: MODEL_ID }, options: MODEL_OPTIONS },
@@ -362,8 +423,13 @@ function buildWorkflow() {
   const connections = {
     'Webhook SDR Weddings': { main: [[{ node: 'Prepara', type: 'main', index: 0 }]] },
     'Prepara': { main: [[{ node: 'Carrega Config', type: 'main', index: 0 }]] },
-    'Carrega Config': { main: [[{ node: 'Monta', type: 'main', index: 0 }]] },
-    'Monta': { main: [[{ node: 'Responde Lead', type: 'main', index: 0 }]] },
+    'Carrega Config': { main: [[{ node: 'Carrega Estado', type: 'main', index: 0 }]] },
+    'Carrega Estado': { main: [[{ node: 'Monta', type: 'main', index: 0 }]] },
+    'Monta': { main: [[{ node: 'Consolida', type: 'main', index: 0 }]] },
+    'Modelo Consolida': { ai_languageModel: [[{ node: 'Consolida', type: 'ai_languageModel', index: 0 }]] },
+    'Consolida': { main: [[{ node: 'Parse Consolida', type: 'main', index: 0 }]] },
+    'Parse Consolida': { main: [[{ node: 'Salva Estado', type: 'main', index: 0 }]] },
+    'Salva Estado': { main: [[{ node: 'Responde Lead', type: 'main', index: 0 }]] },
     'OpenAI Chat Model': { ai_languageModel: [[{ node: 'Responde Lead', type: 'ai_languageModel', index: 0 }]] },
     'Responde Lead': { main: [[{ node: 'Limpa Travessao', type: 'main', index: 0 }]] },
     'Limpa Travessao': { main: [[{ node: 'Bolhas', type: 'main', index: 0 }]] },
