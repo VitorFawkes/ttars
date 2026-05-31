@@ -186,6 +186,7 @@ return [{ json: {
   agent_slug: p.agent_slug,
   phone: p.phone,
   faqs_txt: faqs_txt,
+  bubbles_enabled: !!(cfg.capabilities && cfg.capabilities.memory && cfg.capabilities.memory.enabled && cfg.capabilities.memory.bubbles_enabled),
   crm_write_enabled: !!(cfg.capabilities && cfg.capabilities.crm_write && cfg.capabilities.crm_write.enabled),
   calendar_enabled: !!(cfg.capabilities && cfg.capabilities.calendar && cfg.capabilities.calendar.enabled),
 }}];`;
@@ -232,6 +233,26 @@ const CODE_LIMPA = `const out = String($('Responde Lead').item.json.output || ''
   .trim();
 return [{ json: { output: out, allowed: $('Prepara').first().json.allowed } }];`;
 
+// Bolhas: divide a resposta em 1-3 mensagens curtas (entrega humana) quando ligado.
+// Defensivo: qualquer erro -> uma bolha só. Não quebra a réplica.
+const CODE_BOLHAS = `const out = String($('Limpa Travessao').item.json.output || '');
+const m = $('Monta').first().json;
+let bubbles = [out];
+try {
+  if (m.bubbles_enabled && out.length > 90) {
+    const parts = out.split(/(?<=[.!?…])\\s+/).filter(s => s.trim());
+    const acc = []; let cur = '';
+    for (const p of parts) {
+      if ((cur + ' ' + p).trim().length > 160 && cur) { acc.push(cur.trim()); cur = p; }
+      else { cur = (cur ? cur + ' ' : '') + p; }
+    }
+    if (cur.trim()) acc.push(cur.trim());
+    bubbles = acc.length ? acc : [out];
+    if (bubbles.length > 3) bubbles = [bubbles.slice(0, 2).join(' '), bubbles.slice(2).join(' ')];
+  }
+} catch (e) { bubbles = [out]; }
+return [{ json: { output: out, bubbles, allowed: $('Prepara').first().json.allowed } }];`;
+
 function buildWorkflow() {
   const nodes = [
     { id: 'webhook', name: 'Webhook SDR Weddings', type: 'n8n-nodes-base.webhook', typeVersion: 1, position: [240, 300], webhookId: 'sdr-weddings-hook',
@@ -257,8 +278,10 @@ function buildWorkflow() {
       credentials: { openAiApi: OPENAI_CREDENTIAL } },
     { id: 'limpa', name: 'Limpa Travessao', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1260, 300],
       parameters: { jsCode: CODE_LIMPA } },
+    { id: 'bolhas', name: 'Bolhas', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1370, 300],
+      parameters: { jsCode: CODE_BOLHAS } },
     { id: 'responde', name: 'Responde Webhook', type: 'n8n-nodes-base.respondToWebhook', typeVersion: 1, position: [1480, 300],
-      parameters: { respondWith: 'json', responseBody: '={{ { "reply": $json.output, "allowed": $json.allowed } }}', options: {} } },
+      parameters: { respondWith: 'json', responseBody: '={{ { "reply": $json.output, "bubbles": $json.bubbles, "allowed": $json.allowed } }}', options: {} } },
     // --- Ramo de gravação no CRM (Agente 2 da Camila), pós-resposta, gated por config ---
     { id: 'crmgate', name: 'CRM Gate', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1480, 520],
       parameters: { jsCode: `const m = $('Monta').first().json; return m.crm_write_enabled ? [{ json: m }] : [];` } },
@@ -307,7 +330,8 @@ function buildWorkflow() {
     'Monta': { main: [[{ node: 'Responde Lead', type: 'main', index: 0 }]] },
     'OpenAI Chat Model': { ai_languageModel: [[{ node: 'Responde Lead', type: 'ai_languageModel', index: 0 }]] },
     'Responde Lead': { main: [[{ node: 'Limpa Travessao', type: 'main', index: 0 }]] },
-    'Limpa Travessao': { main: [[{ node: 'Responde Webhook', type: 'main', index: 0 }]] },
+    'Limpa Travessao': { main: [[{ node: 'Bolhas', type: 'main', index: 0 }]] },
+    'Bolhas': { main: [[{ node: 'Responde Webhook', type: 'main', index: 0 }]] },
     'Responde Webhook': { main: [[{ node: 'CRM Gate', type: 'main', index: 0 }, { node: 'Agenda Gate', type: 'main', index: 0 }]] },
     'CRM Gate': { main: [[{ node: 'Extrai Dados', type: 'main', index: 0 }]] },
     'Modelo Extrai': { ai_languageModel: [[{ node: 'Extrai Dados', type: 'ai_languageModel', index: 0 }]] },
