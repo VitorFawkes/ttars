@@ -367,18 +367,26 @@ Deno.serve(async (req) => {
                                 });
                                 const sdrwJson = await sdrwRes.json().catch(() => ({}));
                                 const sdrwReply = sdrwJson?.reply;
-                                if (sdrwReply && sdrwContactId) {
-                                    await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-message`, {
-                                        method: "POST",
-                                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${serviceKey}` },
-                                        body: JSON.stringify({
-                                            contact_id: sdrwContactId,
-                                            corpo: sdrwReply,
-                                            phone_number_id: SDRW_ELOPEMENT_LINE,
-                                            source: "sdr-weddings",
-                                        }),
-                                    });
-                                    console.log("[webhook] SDR Weddings (Sofia) respondeu via Echo");
+                                // Entrega humana: se a Sofia devolveu bolhas, manda uma a uma com
+                                // um pequeno delay; senão, manda a resposta inteira (compat).
+                                const sdrwBubbles = (Array.isArray(sdrwJson?.bubbles) && sdrwJson.bubbles.length)
+                                    ? sdrwJson.bubbles
+                                    : (sdrwReply ? [sdrwReply] : []);
+                                if (sdrwBubbles.length && sdrwContactId) {
+                                    for (let bi = 0; bi < sdrwBubbles.length; bi++) {
+                                        if (bi > 0) await new Promise((r) => setTimeout(r, 1500));
+                                        await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-message`, {
+                                            method: "POST",
+                                            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${serviceKey}` },
+                                            body: JSON.stringify({
+                                                contact_id: sdrwContactId,
+                                                corpo: sdrwBubbles[bi],
+                                                phone_number_id: SDRW_ELOPEMENT_LINE,
+                                                source: "sdr-weddings",
+                                            }),
+                                        });
+                                    }
+                                    console.log(`[webhook] SDR Weddings (Sofia) respondeu via Echo (${sdrwBubbles.length} bolha(s))`);
                                 } else {
                                     console.warn(`[webhook] SDR Weddings sem reply/contato (reply=${!!sdrwReply}, contact=${sdrwContactId})`);
                                 }
