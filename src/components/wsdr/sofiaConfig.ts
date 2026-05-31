@@ -56,6 +56,16 @@ export interface SofiaPricing {
   destination_ranges: DestinationRange[]
 }
 
+export type Importancia = 'desqualifica' | 'baixa' | 'media' | 'alta' | 'essencial'
+export interface QualCriterion { label: string; importancia: Importancia }
+export const IMPORTANCIA_OPTIONS: { value: Importancia; label: string; hint: string; color: string }[] = [
+  { value: 'essencial', label: 'Essencial', hint: 'Sem isso, o casal não qualifica', color: 'indigo' },
+  { value: 'alta', label: 'Alta', hint: 'Pesa bastante na nota', color: 'sky' },
+  { value: 'media', label: 'Média', hint: 'Ajuda, mas não decide', color: 'slate' },
+  { value: 'baixa', label: 'Baixa', hint: 'Conta pouco', color: 'slate' },
+  { value: 'desqualifica', label: 'Desqualifica', hint: 'Se aparecer, derruba a nota', color: 'rose' },
+]
+
 export interface SofiaConfigV2 {
   config_version: number
   identity: { persona_nome: string; empresa: string; proposta: string }
@@ -63,6 +73,7 @@ export interface SofiaConfigV2 {
   qualification: {
     etapas: string[]
     faixas_orcamento: string[]
+    criteria: QualCriterion[]
     gates: Record<string, unknown>
   }
   boundaries: { curadas: Record<string, boolean>; custom: string[]; comportamentos: string[] }
@@ -164,6 +175,14 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
         'Faixa de investimento / orçamento',
       ],
       faixas_orcamento: ['R$ 80 a 150 mil', 'R$ 150 a 250 mil', 'R$ 250 a 400 mil', 'R$ 400 mil ou mais'],
+      criteria: [
+        { label: 'Tem uma visão do casamento (o que significa pra eles + o estilo: praia, intimista, grande festa)', importancia: 'alta' },
+        { label: 'Tem destino ou região em mente, ou está aberto a explorar (Nordeste, Trancoso, Caribe, Europa…)', importancia: 'alta' },
+        { label: 'Tem ideia do número de convidados, mesmo aproximada', importancia: 'media' },
+        { label: 'Tem orçamento ou faixa de investimento realista pro casal', importancia: 'essencial' },
+        { label: 'Tem data ou época pretendida (o ano já vale)', importancia: 'media' },
+        { label: 'Só curiosidade, sem intenção real, ou "daqui a muitos anos"', importancia: 'desqualifica' },
+      ],
       gates: {},
     },
     boundaries: { curadas, custom: [], comportamentos: [] },
@@ -209,7 +228,7 @@ export function normalizeToV2(raw: unknown): SofiaConfigV2 {
     ...def,
     identity: { persona_nome: c.persona_nome || def.identity.persona_nome, empresa: c.empresa || def.identity.empresa, proposta: c.proposta || def.identity.proposta },
     voice: { tom: (c.tom as Tom) || def.voice.tom, formalidade: def.voice.formalidade, abertura: c.abertura || def.voice.abertura, glossary: { marca: [], proibida: [] } },
-    qualification: { etapas: c.etapas || def.qualification.etapas, faixas_orcamento: c.faixas_orcamento || def.qualification.faixas_orcamento, gates: {} },
+    qualification: { etapas: c.etapas || def.qualification.etapas, faixas_orcamento: c.faixas_orcamento || def.qualification.faixas_orcamento, criteria: def.qualification.criteria, gates: {} },
     boundaries: { curadas: def.boundaries.curadas, custom: c.fronteiras || [], comportamentos: [] },
   }
 }
