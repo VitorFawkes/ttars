@@ -45,6 +45,7 @@ if (!API_KEY) { console.error('N8N_API_KEY obrigatório.'); process.exit(1); }
 // parsing inequívoco. Só os {{ }} são botões vindos da config (nó Monta).
 const SYSTEM_PROMPT = `<papel>
 Você é {{ $('Monta').item.json.persona }}, especialista de casamentos da {{ $('Monta').item.json.empresa }}, conversando por WhatsApp com um casal que chamou a gente depois de ver algo nosso. Seu tom é {{ $('Monta').item.json.tom_desc }}. Você é gente de verdade, nunca um robô ou formulário.
+{{ $('Monta').item.json.proposta_txt }}
 </papel>
 
 <objetivo>
@@ -99,7 +100,8 @@ Regras absolutas, nunca quebre:
 - Pouca intenção (só curiosidade, sem data, "daqui muitos anos"): reconheça com carinho, deixe a porta aberta, não force outra pergunta.
 - Zero clichê batido (casamento dos sonhos, experiência premium, pode deixar com a gente, transformar sonhos em realidade).
 - Zero travessão ou hífen como separador: use vírgula, ponto ou reticências.
-- Zero emoji na primeira mensagem; depois no máximo um, só se o casal usar primeiro.
+- {{ $('Monta').item.json.emoji_rule_txt }}
+{{ $('Monta').item.json.ai_mention_txt }}
 {{ $('Monta').item.json.fronteiras_txt }}
 </linhas_vermelhas>
 
@@ -235,6 +237,17 @@ const gl = vo.glossary || {};
 const glossary_usar = arr(gl.marca).map(g => g.palavra || g).filter(Boolean).join(', ');
 const glossary_evitar = arr(gl.proibida).map(g => (g.palavra||g) + (g.alternativa ? (' (prefira "' + g.alternativa + '")') : '')).filter(Boolean).join(', ');
 const comportamentos_txt = arr(bo.comportamentos).map(c => '- ' + c).join('\\n');
+// Decisões de marca (curadas editáveis) que entram no cérebro de verdade.
+const cu = bo.curadas || {};
+const emoji_rule_txt = (cu.no_first_emoji !== false)
+  ? 'Zero emoji na primeira mensagem; depois no máximo um, só se o casal usar primeiro.'
+  : 'Pode usar emojis com leveza e moderação, espelhando o casal.';
+const ai_mention_txt = (cu.no_ai_mention === true)
+  ? '- Nunca diga que é uma IA, robô, assistente virtual ou sistema; atenda como uma pessoa do time.'
+  : '';
+// Proposta = identidade canônica da empresa (usada pra ela se apresentar em qualquer momento).
+const proposta_val = id.proposta || cfg.proposta || '';
+const proposta_txt = proposta_val ? ('Sobre a ' + (id.empresa || cfg.empresa || 'gente') + ': ' + proposta_val + '. Use isso pra se apresentar com naturalidade, sem decorar.') : '';
 // Momentos: instruções editáveis pra situações específicas. O gatilho vira uma frase
 // "Quando X" + a instrução; o cérebro (GPT-5.5) avalia o gatilho com naturalidade.
 const momTrig = { always: 'Em qualquer momento', on_price_question: 'Quando o casal perguntar preço ou valor', on_price_hesitation: 'Quando o casal hesitar por causa do valor', on_family_mentioned: 'Quando o casal mencionar a família (pais, sogros)', on_destination_unclear: 'Quando o destino ainda não estiver claro', on_high_qualification: 'Quando o casal já estiver bem qualificado', on_low_qualification: 'Quando ainda faltar qualificar o casal', on_hesitation_timeout: 'Quando o casal hesitar ou disser que vai pensar', custom_condition: '' };
@@ -250,6 +263,9 @@ return [{ json: {
   persona: id.persona_nome || cfg.persona_nome || 'Sofia',
   empresa: id.empresa || cfg.empresa || 'Welcome Weddings',
   proposta: id.proposta || cfg.proposta || '',
+  proposta_txt: proposta_txt,
+  emoji_rule_txt: emoji_rule_txt,
+  ai_mention_txt: ai_mention_txt,
   tom_desc: (tomMap[tom] || tom || 'acolhedor, caloroso e humano') + ', ' + formalidade_desc,
   abertura: vo.abertura || cfg.abertura || '',
   etapas_txt: arr(etapas).map((e,i) => (i+1) + '. ' + e).join('\\n'),

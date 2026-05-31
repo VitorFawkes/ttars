@@ -136,14 +136,19 @@ export interface CuratedBoundary {
   label: string
   hint: string
   defaultOn: boolean
+  // editable=true → decisão de marca, vira toggle real ligado ao cérebro.
+  // editable=false → garantia de qualidade/segurança, fixa no cérebro (mostrada só-leitura).
+  editable: boolean
 }
 export const CURATED_BOUNDARIES: CuratedBoundary[] = [
-  { key: 'no_price', label: 'Nunca dar preço fechado', hint: 'Remete sempre à Wedding Planner. Só usa faixas pra perguntar o orçamento do casal.', defaultOn: true },
-  { key: 'no_invented_date', label: 'Nunca inventar data ou horário', hint: 'Pergunta o melhor período e diz que reserva com a Planner.', defaultOn: true },
-  { key: 'no_cliche', label: 'Nunca usar clichê', hint: '"casamento dos sonhos", "experiência premium", "pode deixar com a gente"…', defaultOn: true },
-  { key: 'no_dash', label: 'Nunca usar travessão', hint: 'Usa vírgula, ponto ou reticências. Garantido também por uma trava automática.', defaultOn: true },
-  { key: 'no_first_emoji', label: 'Sem emoji na 1ª mensagem', hint: 'Depois no máximo um, e só se o casal usar primeiro.', defaultOn: true },
-  { key: 'no_ai_mention', label: 'Nunca dizer que é uma IA', hint: 'Atende como uma pessoa do time.', defaultOn: false },
+  // Garantias de qualidade/segurança — sempre ativas, fixas no cérebro (read-only).
+  { key: 'no_price', label: 'Nunca dar preço fechado', hint: 'Remete o valor fechado à Wedding Planner. As faixas e a estratégia ficam na aba Preço.', defaultOn: true, editable: false },
+  { key: 'no_invented_date', label: 'Nunca inventar data ou horário', hint: 'Pergunta o melhor período e diz que reserva com a Planner.', defaultOn: true, editable: false },
+  { key: 'no_cliche', label: 'Nunca usar clichê', hint: '"casamento dos sonhos", "experiência premium", "pode deixar com a gente"…', defaultOn: true, editable: false },
+  { key: 'no_dash', label: 'Nunca usar travessão', hint: 'Usa vírgula, ponto ou reticências. Garantido também por uma trava automática.', defaultOn: true, editable: false },
+  // Decisões de marca — você escolhe.
+  { key: 'no_first_emoji', label: 'Sem emoji na 1ª mensagem', hint: 'Ligado: nada de emoji no primeiro contato. Desligado: ela pode usar emojis com leveza.', defaultOn: true, editable: true },
+  { key: 'no_ai_mention', label: 'Nunca dizer que é uma IA', hint: 'Ligado: atende como uma pessoa do time. Desligado: pode revelar que é uma assistente virtual.', defaultOn: false, editable: true },
 ]
 
 export type CapabilityKey = keyof SofiaCapabilities

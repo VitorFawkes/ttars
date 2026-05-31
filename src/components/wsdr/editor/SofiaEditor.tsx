@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
-  User, MessageSquare, Zap, ShieldAlert, Eye, Loader2, CheckCircle, AlertCircle, Sparkles, Wallet,
+  User, MessageSquare, Zap, ShieldAlert, ShieldCheck, Eye, Loader2, CheckCircle, AlertCircle, Sparkles, Wallet,
 } from 'lucide-react'
 import { PricingEditor } from '@/components/wsdr/editor/PricingEditor'
 import { CriteriaEditor } from '@/components/wsdr/editor/CriteriaEditor'
@@ -230,9 +230,9 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
 
         {tab === 'vermelhas' && (
           <>
-            <Card icon={<ShieldAlert className="w-4 h-4" />} title="Regras de marca" desc="O que a Sofia NUNCA faz. Ligue as que valem pro seu negócio.">
+            <Card icon={<ShieldAlert className="w-4 h-4" />} title="Decisões de marca" desc="Escolhas de estilo da sua marca. Ligue ou desligue como preferir, valem na próxima conversa.">
               <div className="space-y-2">
-                {CURATED_BOUNDARIES.map(b => {
+                {CURATED_BOUNDARIES.filter(b => b.editable).map(b => {
                   const on = c.boundaries.curadas[b.key] ?? b.defaultOn
                   return (
                     <div key={b.key} className={cn('flex items-start justify-between gap-3 p-3 rounded-lg border', on ? 'bg-rose-50/60 border-rose-200' : 'bg-white border-slate-200')}>
@@ -244,6 +244,19 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
                     </div>
                   )
                 })}
+              </div>
+            </Card>
+            <Card icon={<ShieldCheck className="w-4 h-4" />} title="Garantias de qualidade" desc="Regras que protegem a qualidade da conversa. Ficam sempre ativas (não dá pra desligar, e é de propósito).">
+              <div className="space-y-2">
+                {CURATED_BOUNDARIES.filter(b => !b.editable).map(b => (
+                  <div key={b.key} className="flex items-start justify-between gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50/60">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-900">{b.label}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{b.hint}</p>
+                    </div>
+                    <span className="flex items-center gap-1 text-xs font-medium text-emerald-700 shrink-0"><ShieldCheck className="w-3.5 h-3.5" />Sempre ativa</span>
+                  </div>
+                ))}
               </div>
             </Card>
             <Card icon={<ShieldAlert className="w-4 h-4" />} title="Regras personalizadas" desc="Outras coisas específicas do seu negócio que a Sofia não pode fazer.">
