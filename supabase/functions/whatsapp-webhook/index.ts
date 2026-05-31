@@ -1,5 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { processMediaToText } from "../_shared/media.ts";
+
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") || "";
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -354,6 +357,30 @@ Deno.serve(async (req) => {
                                             text: m.body || "",
                                         }));
                                 }
+                                // Multimodal: se veio mídia (áudio/foto/PDF) sem texto, converte em
+                                // texto antes de mandar pro cérebro (gated pela config da Sofia).
+                                let sdrwMessage = messageText;
+                                const sdrwMsgType = data.type || data.message_type || "text";
+                                const sdrwMediaUrl = data.media_url || data.media?.url || null;
+                                if ((!sdrwMessage || !sdrwMessage.trim()) && sdrwMediaUrl && sdrwMsgType !== "text") {
+                                    try {
+                                        const { data: sdrwCfg } = await supabaseClient
+                                            .from("wsdr_agent_config")
+                                            .select("config")
+                                            .eq("slug", "sofia-weddings")
+                                            .eq("org_id", "b0000000-0000-0000-0000-000000000002")
+                                            .maybeSingle();
+                                        const mm = sdrwCfg?.config?.capabilities?.multimodal || null;
+                                        if (mm?.enabled) {
+                                            sdrwMessage = await processMediaToText(sdrwMsgType, sdrwMediaUrl, OPENAI_API_KEY, mm);
+                                        } else {
+                                            sdrwMessage = `[o casal mandou um ${sdrwMsgType}, mas a Sofia não está processando mídia agora]`;
+                                        }
+                                    } catch (mErr) {
+                                        console.error("[webhook] Sofia multimodal error:", mErr);
+                                        sdrwMessage = `[${sdrwMsgType} recebido]`;
+                                    }
+                                }
                                 const sdrwRes = await fetch("https://n8n-n8n.ymnmx7.easypanel.host/webhook/sdr-weddings", {
                                     method: "POST",
                                     headers: { "Content-Type": "application/json" },
@@ -361,7 +388,7 @@ Deno.serve(async (req) => {
                                         contact_phone: normalizedContact,
                                         contact_id: sdrwContactId,
                                         nome: data.contact_name || data.contact?.name || data.pushname || singlePayload.contact_name || ct?.nome || "",
-                                        message: messageText,
+                                        message: sdrwMessage,
                                         history: sdrwHistory,
                                     }),
                                 });
