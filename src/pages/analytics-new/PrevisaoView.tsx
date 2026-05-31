@@ -48,7 +48,32 @@ export default function PrevisaoView() {
       }
     }
     overdue.sort((a, b) => b.valor - a.valor)
-    // por consultor (próximos 90d, abertos não-atrasados)
+
+    // ATRASADOS por consultor (de quem é) — bata o olho
+    const overByPlanner = new Map<string, { id: string; nome: string; valor: number; qtd: number }>()
+    for (const c of overdue) {
+      const cur = overByPlanner.get(c.planner_id) ?? { id: c.planner_id, nome: c.planner_nome, valor: 0, qtd: 0 }
+      cur.valor += c.valor; cur.qtd++
+      overByPlanner.set(c.planner_id, cur)
+    }
+    const overduePlanners = Array.from(overByPlanner.values()).sort((a, b) => b.valor - a.valor)
+    const maxOverdue = Math.max(...overduePlanners.map(p => p.valor), 1)
+
+    // ATRASADOS por tempo de atraso (severidade) — quanto mais escuro, mais crítico
+    const aging = [
+      { key: 'le7', label: 'Até 7 dias', valor: 0, qtd: 0, color: '#f59e0b' },
+      { key: 'd8_30', label: '8 a 30 dias', valor: 0, qtd: 0, color: '#fb7185' },
+      { key: 'd31_90', label: '31 a 90 dias', valor: 0, qtd: 0, color: '#f43f5e' },
+      { key: 'd90', label: 'Mais de 90 dias', valor: 0, qtd: 0, color: '#9f1239' },
+    ]
+    for (const c of overdue) {
+      const d = daysBetween(todayStr, c.data_prevista)
+      const b = d <= 7 ? aging[0] : d <= 30 ? aging[1] : d <= 90 ? aging[2] : aging[3]
+      b.valor += c.valor; b.qtd++
+    }
+    const maxAging = Math.max(...aging.map(a => a.valor), 1)
+
+    // PREVISÃO por consultor (próximos 90d, abertos não-atrasados)
     const byPlanner = new Map<string, { nome: string; valor: number; qtd: number }>()
     for (const c of list) {
       if (!c.data_prevista || c.data_prevista < todayStr || c.data_prevista >= in90) continue
@@ -58,7 +83,7 @@ export default function PrevisaoView() {
     }
     const planners = Array.from(byPlanner.values()).sort((a, b) => b.valor - a.valor)
     const maxPlanner = Math.max(...planners.map(p => p.valor), 1)
-    return { v30, c30, v90, c90, vOver, overdueCount: overdue.length, overdue, planners, maxPlanner, total: list.length }
+    return { v30, c30, v90, c90, vOver, overdueCount: overdue.length, overdue, planners, maxPlanner, overduePlanners, maxOverdue, aging, maxAging, total: list.length }
   }, [cards, todayStr, today])
 
   const openPlannerPipeline = (plannerId: string, plannerNome: string) => {
@@ -110,6 +135,68 @@ export default function PrevisaoView() {
 
       {/* Linha do tempo de previsão — gráfico interativo (reusa o existente, rico) */}
       <PlannerForecastChart />
+
+      {/* ATRASADOS — visão de relance: de quem é + quão crítico */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Atrasados por consultor — responde "de quem é" de relance */}
+        <WidgetCard
+          title="Atrasados por consultor"
+          subtitle="De quem são os cards vencidos. A barra é o R$ parado com cada consultor — clique pra ver o pipeline dele."
+          action={<AlertTriangle className="w-4 h-4 text-rose-300" />}
+        >
+          {isLoading ? (
+            <div className="h-40 flex items-center justify-center text-slate-400"><Loader2 className="w-5 h-5 animate-spin" /></div>
+          ) : stats.overduePlanners.length === 0 ? (
+            <div className="h-32 flex items-center justify-center text-sm text-slate-400">Nenhum card atrasado 🎉</div>
+          ) : (
+            <div className="space-y-2.5">
+              {stats.overduePlanners.slice(0, 12).map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => openPlannerPipeline(p.id, p.nome)}
+                  className="w-full flex items-center gap-3 text-left group"
+                >
+                  <span className="w-32 text-xs font-medium text-slate-700 truncate group-hover:text-rose-700" title={p.nome}>{p.nome}</span>
+                  <div className="flex-1 h-6 bg-slate-100 rounded overflow-hidden relative">
+                    <div className="h-full bg-rose-400 group-hover:bg-rose-500 transition-colors" style={{ width: `${(p.valor / stats.maxOverdue) * 100}%` }} />
+                    <span className="absolute inset-y-0 left-2 flex items-center text-[11px] text-slate-700 tabular-nums">
+                      {p.qtd} card{p.qtd > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <span className="w-24 text-right text-sm font-semibold text-rose-700 tabular-nums">{formatCurrency(p.valor)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </WidgetCard>
+
+        {/* Há quanto tempo estão atrasados — severidade de relance */}
+        <WidgetCard
+          title="Há quanto tempo estão atrasados"
+          subtitle="Quanto mais escuro, mais crítico: cards que estouraram a data prevista há mais tempo."
+        >
+          {isLoading ? (
+            <div className="h-40 flex items-center justify-center text-slate-400"><Loader2 className="w-5 h-5 animate-spin" /></div>
+          ) : stats.overdueCount === 0 ? (
+            <div className="h-32 flex items-center justify-center text-sm text-slate-400">Nenhum card atrasado 🎉</div>
+          ) : (
+            <div className="space-y-2.5">
+              {stats.aging.map(a => (
+                <div key={a.key} className="flex items-center gap-3">
+                  <span className="w-28 text-xs font-medium text-slate-700">{a.label}</span>
+                  <div className="flex-1 h-6 bg-slate-100 rounded overflow-hidden relative">
+                    <div className="h-full rounded transition-all" style={{ width: `${(a.valor / stats.maxAging) * 100}%`, backgroundColor: a.color }} />
+                    <span className="absolute inset-y-0 left-2 flex items-center text-[11px] text-slate-700 tabular-nums">
+                      {a.qtd} card{a.qtd === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                  <span className="w-24 text-right text-sm font-semibold tabular-nums" style={{ color: a.color }}>{formatCurrency(a.valor)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </WidgetCard>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Atrasados / em risco — acionável */}
