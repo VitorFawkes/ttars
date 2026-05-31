@@ -289,25 +289,31 @@ const CODE_LIMPA = `const out = String($('Responde Lead').item.json.output || ''
   .trim();
 return [{ json: { output: out, allowed: $('Prepara').first().json.allowed } }];`;
 
-// Bolhas: divide a resposta em 1-3 mensagens curtas (entrega humana) quando ligado.
-// Defensivo: qualquer erro -> uma bolha só. Não quebra a réplica.
-const CODE_BOLHAS = `const out = String($('Limpa Travessao').item.json.output || '');
-const m = $('Monta').first().json;
+// Formatter (4º nó, GPT-5.1): quando o modo bolhas está LIGADO, divide a resposta em
+// 1-3 mensagens como um humano faria no WhatsApp — agrupa o que vai junto, separa o
+// que é natural mandar em outra linha. SEM regra dura de caractere/frase. Saída JSON.
+const FORMATTER_SYSTEM = `Você formata uma resposta de WhatsApp em bolhas, como um humano de verdade manda. Receba o texto pronto e devolva SOMENTE um JSON válido (sem markdown, sem crases): {"bolhas": ["...", "..."]}.
+Regras: pense em como uma pessoa real separaria no WhatsApp, agrupando o que pertence à mesma ideia e quebrando onde é natural respirar. Use de 1 a 3 bolhas (1 se a mensagem é curta/uma ideia só). NUNCA reescreva, encurte ou mude as palavras, só decida onde cortar. Mantenha o texto integral somando as bolhas. Nada de rótulos, números ou explicação.`;
+const FORMATTER_USER = `Texto pronto pra enviar:
+{{ $('Limpa Travessao').item.json.output }}
+
+Devolva só o JSON {bolhas}.`;
+// Parse das bolhas do Formatter: defensivo (qualquer erro -> 1 bolha com o texto inteiro).
+const CODE_PARSE_BOLHAS = `const out = String($('Limpa Travessao').item.json.output || '');
+let t = String($('Formata Bolhas').item.json.output || '').trim();
+t = t.replace(/^\`\`\`(json)?/i,'').replace(/\`\`\`$/,'').trim();
 let bubbles = [out];
 try {
-  if (m.bubbles_enabled && out.length > 90) {
-    const parts = out.split(/(?<=[.!?…])\\s+/).filter(s => s.trim());
-    const acc = []; let cur = '';
-    for (const p of parts) {
-      if ((cur + ' ' + p).trim().length > 160 && cur) { acc.push(cur.trim()); cur = p; }
-      else { cur = (cur ? cur + ' ' : '') + p; }
-    }
-    if (cur.trim()) acc.push(cur.trim());
-    bubbles = acc.length ? acc : [out];
-    if (bubbles.length > 3) bubbles = [bubbles.slice(0, 2).join(' '), bubbles.slice(2).join(' ')];
+  const r = JSON.parse(t);
+  if (r && Array.isArray(r.bolhas)) {
+    const arr = r.bolhas.map(s => String(s||'').trim()).filter(Boolean);
+    if (arr.length) bubbles = arr.slice(0, 3);
   }
 } catch (e) { bubbles = [out]; }
 return [{ json: { output: out, bubbles, allowed: $('Prepara').first().json.allowed } }];`;
+// Bolha única: modo padrão (single) — uma mensagem só, sem custo de LLM.
+const CODE_BOLHA_UNICA = `const out = String($('Limpa Travessao').item.json.output || '');
+return [{ json: { output: out, bubbles: [out], allowed: $('Prepara').first().json.allowed } }];`;
 
 // Agente 1 — Consolidador (cérebro humano): mantém resumo/contexto/sinais do casal.
 const CONSOLIDA_SYSTEM = `Você consolida o ESTADO de uma conversa de casamento da {{ $('Monta').item.json.empresa }}. Leia o histórico + o resumo/contexto ANTERIORES e devolva SOMENTE um JSON válido (sem markdown, sem crases) com:
@@ -427,11 +433,21 @@ function buildWorkflow() {
     { id: 'model', name: 'OpenAI Chat Model', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1.2, position: [1060, 520],
       parameters: { model: { __rl: true, value: MODEL_ID, mode: 'list', cachedResultName: MODEL_ID }, options: MODEL_OPTIONS },
       credentials: { openAiApi: OPENAI_CREDENTIAL } },
-    { id: 'limpa', name: 'Limpa Travessao', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1260, 300],
+    { id: 'limpa', name: 'Limpa Travessao', type: 'n8n-nodes-base.code', typeVersion: 2, position: [2140, 300],
       parameters: { jsCode: CODE_LIMPA } },
-    { id: 'bolhas', name: 'Bolhas', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1370, 300],
-      parameters: { jsCode: CODE_BOLHAS } },
-    { id: 'responde', name: 'Responde Webhook', type: 'n8n-nodes-base.respondToWebhook', typeVersion: 1, position: [1480, 300],
+    { id: 'modobolhas', name: 'Modo Bolhas?', type: 'n8n-nodes-base.if', typeVersion: 2, position: [2320, 300],
+      parameters: { conditions: { options: { caseSensitive: true, leftValue: '', typeValidation: 'loose' }, combinator: 'and',
+        conditions: [{ id: 'c1', leftValue: "={{ $('Monta').first().json.bubbles_enabled }}", rightValue: '', operator: { type: 'boolean', operation: 'true', singleValue: true } }] }, options: {} } },
+    { id: 'formatabolhas', name: 'Formata Bolhas', type: '@n8n/n8n-nodes-langchain.agent', typeVersion: 2.2, position: [2520, 420],
+      parameters: { promptType: 'define', text: '=' + FORMATTER_USER, options: { systemMessage: '=' + FORMATTER_SYSTEM, enableStreaming: false } } },
+    { id: 'modelbolhas', name: 'Modelo Bolhas', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1.2, position: [2520, 620],
+      parameters: { model: { __rl: true, value: MODEL_ID, mode: 'list', cachedResultName: MODEL_ID }, options: MODEL_OPTIONS },
+      credentials: { openAiApi: OPENAI_CREDENTIAL } },
+    { id: 'parsebolhas', name: 'Parse Bolhas', type: 'n8n-nodes-base.code', typeVersion: 2, position: [2720, 420],
+      parameters: { jsCode: CODE_PARSE_BOLHAS } },
+    { id: 'bolhaunica', name: 'Bolha Unica', type: 'n8n-nodes-base.code', typeVersion: 2, position: [2520, 200],
+      parameters: { jsCode: CODE_BOLHA_UNICA } },
+    { id: 'responde', name: 'Responde Webhook', type: 'n8n-nodes-base.respondToWebhook', typeVersion: 1, position: [2920, 300],
       parameters: { respondWith: 'json', responseBody: '={{ { "reply": $json.output, "bubbles": $json.bubbles, "allowed": $json.allowed } }}', options: {} } },
     // --- Ramo de gravação no CRM (Agente 2 da Camila), pós-resposta, gated por config ---
     { id: 'crmgate', name: 'CRM Gate', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1480, 520],
@@ -489,8 +505,12 @@ function buildWorkflow() {
     'Parse Qualifica': { main: [[{ node: 'Responde Lead', type: 'main', index: 0 }]] },
     'OpenAI Chat Model': { ai_languageModel: [[{ node: 'Responde Lead', type: 'ai_languageModel', index: 0 }]] },
     'Responde Lead': { main: [[{ node: 'Limpa Travessao', type: 'main', index: 0 }]] },
-    'Limpa Travessao': { main: [[{ node: 'Bolhas', type: 'main', index: 0 }]] },
-    'Bolhas': { main: [[{ node: 'Responde Webhook', type: 'main', index: 0 }]] },
+    'Limpa Travessao': { main: [[{ node: 'Modo Bolhas?', type: 'main', index: 0 }]] },
+    'Modo Bolhas?': { main: [[{ node: 'Formata Bolhas', type: 'main', index: 0 }], [{ node: 'Bolha Unica', type: 'main', index: 0 }]] },
+    'Modelo Bolhas': { ai_languageModel: [[{ node: 'Formata Bolhas', type: 'ai_languageModel', index: 0 }]] },
+    'Formata Bolhas': { main: [[{ node: 'Parse Bolhas', type: 'main', index: 0 }]] },
+    'Parse Bolhas': { main: [[{ node: 'Responde Webhook', type: 'main', index: 0 }]] },
+    'Bolha Unica': { main: [[{ node: 'Responde Webhook', type: 'main', index: 0 }]] },
     'Responde Webhook': { main: [[{ node: 'CRM Gate', type: 'main', index: 0 }, { node: 'Agenda Gate', type: 'main', index: 0 }]] },
     'CRM Gate': { main: [[{ node: 'Extrai Dados', type: 'main', index: 0 }]] },
     'Modelo Extrai': { ai_languageModel: [[{ node: 'Extrai Dados', type: 'ai_languageModel', index: 0 }]] },
