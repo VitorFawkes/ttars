@@ -134,6 +134,15 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
               </Field>
               <InfoBanner>Exemplo neste tom: <span className="italic text-slate-700">"{TOM_OPTIONS.find(t => t.value === c.voice.tom)?.exemplo}"</span></InfoBanner>
             </Card>
+
+            <Card icon={<Sparkles className="w-4 h-4" />} title="Glossário de voz" desc="Palavras que a Sofia deve usar e palavras que deve evitar.">
+              <Field label="Palavras a USAR" hint="Ex: noivos, vocês, a gente.">
+                <StringListEditor items={c.voice.glossary.marca} onChange={items => update(x => ({ ...x, voice: { ...x.voice, glossary: { ...x.voice.glossary, marca: items } } }))} placeholder="ex: noivos" />
+              </Field>
+              <Field label="Palavras/expressões a EVITAR" hint="Ex: parceiro, experiência inesquecível, premium.">
+                <StringListEditor items={c.voice.glossary.proibida} onChange={items => update(x => ({ ...x, voice: { ...x.voice, glossary: { ...x.voice.glossary, proibida: items } } }))} placeholder="ex: parceiro" />
+              </Field>
+            </Card>
           </>
         )}
 
@@ -229,6 +238,9 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
             </Card>
             <Card icon={<ShieldAlert className="w-4 h-4" />} title="Regras personalizadas" desc="Outras coisas específicas do seu negócio que a Sofia não pode fazer.">
               <StringListEditor items={c.boundaries.custom} onChange={items => update(x => ({ ...x, boundaries: { ...x.boundaries, custom: items } }))} placeholder="ex: Nunca dar o contato direto da Planner sem permissão" />
+            </Card>
+            <Card icon={<ShieldAlert className="w-4 h-4" />} title="Comportamentos proibidos" desc="Em linguagem simples: o que a Sofia nunca deve fazer ou revelar, ou um jeito de falar a evitar.">
+              <StringListEditor items={c.boundaries.comportamentos} onChange={items => update(x => ({ ...x, boundaries: { ...x.boundaries, comportamentos: items } }))} placeholder="ex: nunca revele que somos uma IA; não prometa data sem confirmar" />
             </Card>
           </>
         )}

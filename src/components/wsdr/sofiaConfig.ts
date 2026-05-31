@@ -59,13 +59,13 @@ export interface SofiaPricing {
 export interface SofiaConfigV2 {
   config_version: number
   identity: { persona_nome: string; empresa: string; proposta: string }
-  voice: { tom: Tom; formalidade: number; abertura: string }
+  voice: { tom: Tom; formalidade: number; abertura: string; glossary: { marca: string[]; proibida: string[] } }
   qualification: {
     etapas: string[]
     faixas_orcamento: string[]
     gates: Record<string, unknown>
   }
-  boundaries: { curadas: Record<string, boolean>; custom: string[] }
+  boundaries: { curadas: Record<string, boolean>; custom: string[]; comportamentos: string[] }
   capabilities: SofiaCapabilities
   pricing: SofiaPricing
 }
@@ -154,6 +154,7 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
       tom: 'acolhedor',
       formalidade: 0.5,
       abertura: 'Oi! Aqui é a Sofia, da Welcome Weddings, tudo bem? Como é o nome de vocês? A gente faz destination wedding desde 2012 e já foi premiada como uma das melhores produtoras de destination wedding da América Latina. A ideia aqui é uma conversa rápida pra eu entender o que vocês esperam, tirar dúvidas e, se fizer sentido, marcar um papo com a nossa Wedding Planner. Pra começar: o que é o casamento pra vocês, e como vocês imaginam ele?',
+      glossary: { marca: [], proibida: [] },
     },
     qualification: {
       etapas: [
@@ -165,7 +166,7 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
       faixas_orcamento: ['R$ 80 a 150 mil', 'R$ 150 a 250 mil', 'R$ 250 a 400 mil', 'R$ 400 mil ou mais'],
       gates: {},
     },
-    boundaries: { curadas, custom: [] },
+    boundaries: { curadas, custom: [], comportamentos: [] },
     capabilities: {
       crm_write: { enabled: false, writable_fields: [], protected_fields: [], stage_move_enabled: false, target_stage_id: null },
       calendar: { enabled: false, wedding_planner_profile_id: null, windows: [], slot_duration_minutes: 45, skip_weekends: true, max_slots: 4, search_window_days: 14 },
@@ -191,7 +192,7 @@ export function normalizeToV2(raw: unknown): SofiaConfigV2 {
       identity: { ...def.identity, ...c.identity },
       voice: { ...def.voice, ...c.voice },
       qualification: { ...def.qualification, ...c.qualification },
-      boundaries: { curadas: { ...def.boundaries.curadas, ...(c.boundaries?.curadas || {}) }, custom: c.boundaries?.custom || [] },
+      boundaries: { curadas: { ...def.boundaries.curadas, ...(c.boundaries?.curadas || {}) }, custom: c.boundaries?.custom || [], comportamentos: c.boundaries?.comportamentos || [] },
       capabilities: {
         crm_write: { ...def.capabilities.crm_write, ...(c.capabilities?.crm_write || {}) },
         calendar: { ...def.capabilities.calendar, ...(c.capabilities?.calendar || {}) },
@@ -207,9 +208,9 @@ export function normalizeToV2(raw: unknown): SofiaConfigV2 {
   return {
     ...def,
     identity: { persona_nome: c.persona_nome || def.identity.persona_nome, empresa: c.empresa || def.identity.empresa, proposta: c.proposta || def.identity.proposta },
-    voice: { tom: (c.tom as Tom) || def.voice.tom, formalidade: def.voice.formalidade, abertura: c.abertura || def.voice.abertura },
+    voice: { tom: (c.tom as Tom) || def.voice.tom, formalidade: def.voice.formalidade, abertura: c.abertura || def.voice.abertura, glossary: { marca: [], proibida: [] } },
     qualification: { etapas: c.etapas || def.qualification.etapas, faixas_orcamento: c.faixas_orcamento || def.qualification.faixas_orcamento, gates: {} },
-    boundaries: { curadas: def.boundaries.curadas, custom: c.fronteiras || [] },
+    boundaries: { curadas: def.boundaries.curadas, custom: c.fronteiras || [], comportamentos: [] },
   }
 }
 
