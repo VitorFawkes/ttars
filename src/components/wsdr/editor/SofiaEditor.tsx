@@ -5,6 +5,7 @@ import {
 import { PricingEditor } from '@/components/wsdr/editor/PricingEditor'
 import { CriteriaEditor } from '@/components/wsdr/editor/CriteriaEditor'
 import { MomentsEditor } from '@/components/wsdr/editor/MomentsEditor'
+import { WeddingPlannerPicker } from '@/components/wsdr/editor/WeddingPlannerPicker'
 import { AgentEditorLayout, type EditorTab } from '@/components/ai-agent/editor/AgentEditorLayout'
 import { StringListEditor } from '@/components/wsdr/StringListEditor'
 import { CapabilityCard } from '@/components/wsdr/editor/CapabilityCard'
@@ -193,6 +194,7 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
                   )}
                   {meta.key === 'calendar' && (
                     <div className="space-y-3">
+                      <WeddingPlannerPicker value={c.capabilities.calendar.wedding_planner_profile_id} onChange={id => update(x => ({ ...x, capabilities: { ...x.capabilities, calendar: { ...x.capabilities.calendar, wedding_planner_profile_id: id } } }))} />
                       <Field label="Duração da reunião (min)"><Input type="number" value={c.capabilities.calendar.slot_duration_minutes} onChange={e => update(x => ({ ...x, capabilities: { ...x.capabilities, calendar: { ...x.capabilities.calendar, slot_duration_minutes: Number(e.target.value) } } }))} /></Field>
                       <label className="flex items-center justify-between text-sm text-slate-700"><span>Pular fins de semana</span><Switch checked={c.capabilities.calendar.skip_weekends} onCheckedChange={v => update(x => ({ ...x, capabilities: { ...x.capabilities, calendar: { ...x.capabilities.calendar, skip_weekends: v } } }))} className={c.capabilities.calendar.skip_weekends ? 'bg-indigo-600' : ''} /></label>
                     </div>
