@@ -4,6 +4,7 @@ import {
 } from 'lucide-react'
 import { PricingEditor } from '@/components/wsdr/editor/PricingEditor'
 import { CriteriaEditor } from '@/components/wsdr/editor/CriteriaEditor'
+import { MomentsEditor } from '@/components/wsdr/editor/MomentsEditor'
 import { AgentEditorLayout, type EditorTab } from '@/components/ai-agent/editor/AgentEditorLayout'
 import { StringListEditor } from '@/components/wsdr/StringListEditor'
 import { CapabilityCard } from '@/components/wsdr/editor/CapabilityCard'
@@ -157,6 +158,9 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
             </Card>
             <Card icon={<MessageSquare className="w-4 h-4" />} title="Critérios da nota do casal" desc="O que a Sofia avalia pra dar uma nota (0 a 100) e decidir o que ainda falta perguntar.">
               <CriteriaEditor criteria={c.qualification.criteria} onChange={items => update(x => ({ ...x, qualification: { ...x.qualification, criteria: items } }))} />
+            </Card>
+            <Card icon={<MessageSquare className="w-4 h-4" />} title="Momentos da conversa" desc="Faça a Sofia falar ou agir de um jeito específico em certos momentos (ex: quando perguntam preço).">
+              <MomentsEditor moments={c.moments} onChange={items => update(x => ({ ...x, moments: items }))} />
             </Card>
             <Card icon={<MessageSquare className="w-4 h-4" />} title="Faixas de orçamento" desc="A Sofia oferece estas faixas se o casal não quiser dizer um valor. Nunca pra falar quanto a gente cobra.">
               <StringListEditor items={c.qualification.faixas_orcamento} onChange={items => update(x => ({ ...x, qualification: { ...x.qualification, faixas_orcamento: items } }))} placeholder="ex: R$ 80 a 150 mil" />

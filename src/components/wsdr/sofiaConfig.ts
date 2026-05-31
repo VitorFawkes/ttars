@@ -56,6 +56,23 @@ export interface SofiaPricing {
   destination_ranges: DestinationRange[]
 }
 
+export type MomentTrigger =
+  | 'always' | 'on_price_question' | 'on_price_hesitation' | 'on_family_mentioned'
+  | 'on_low_qualification' | 'on_high_qualification' | 'on_destination_unclear'
+  | 'on_hesitation_timeout' | 'custom_condition'
+export interface SofiaMoment { label: string; instrucao: string; trigger_type: MomentTrigger; enabled: boolean }
+export const MOMENT_TRIGGERS: { value: MomentTrigger; label: string; exemplo: string }[] = [
+  { value: 'always', label: 'Em qualquer momento', exemplo: 'Vale pra conversa toda' },
+  { value: 'on_price_question', label: 'Quando perguntam preço', exemplo: '"quanto custa?", "qual o valor?"' },
+  { value: 'on_price_hesitation', label: 'Quando hesitam pelo valor', exemplo: '"tá caro", "vou ver se cabe"' },
+  { value: 'on_family_mentioned', label: 'Quando citam a família', exemplo: '"meus pais", "minha sogra quer opinar"' },
+  { value: 'on_destination_unclear', label: 'Quando o destino está indefinido', exemplo: '"ainda não sabemos onde"' },
+  { value: 'on_high_qualification', label: 'Quando o casal está bem qualificado', exemplo: 'já tem destino, data, convidados e orçamento' },
+  { value: 'on_low_qualification', label: 'Quando ainda falta qualificar', exemplo: 'faltam dados essenciais' },
+  { value: 'on_hesitation_timeout', label: 'Quando hesitam ou querem pensar', exemplo: '"vou pensar", "depois eu vejo"' },
+  { value: 'custom_condition', label: 'Condição que eu descrevo', exemplo: 'a própria instrução diz quando' },
+]
+
 export type Importancia = 'desqualifica' | 'baixa' | 'media' | 'alta' | 'essencial'
 export interface QualCriterion { label: string; importancia: Importancia }
 export const IMPORTANCIA_OPTIONS: { value: Importancia; label: string; hint: string; color: string }[] = [
@@ -79,6 +96,7 @@ export interface SofiaConfigV2 {
   boundaries: { curadas: Record<string, boolean>; custom: string[]; comportamentos: string[] }
   capabilities: SofiaCapabilities
   pricing: SofiaPricing
+  moments: SofiaMoment[]
 }
 
 export const REVEAL_OPTIONS: { value: RevealStrategy; label: string; hint: string }[] = [
@@ -195,6 +213,11 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
       memory: { enabled: false, window_messages: 10, debounce_ms: 8000, bubbles_enabled: true, bubble_delay_ms: 1500 },
     },
     pricing: defaultPricing(),
+    moments: [
+      { label: 'Quando perguntam preço', instrucao: 'Fale da assessoria com leveza (R$ 4 a 18 mil conforme escopo), contextualize que depende de destino, época e formato, e diga que a Wedding Planner detalha tudo na conversa. Não negocie.', trigger_type: 'on_price_question', enabled: true },
+      { label: 'Quando citam a família', instrucao: 'Acolha: casamento é coisa de família. Diga que a Planner está acostumada a conversar com pais e família junto, sem pressão.', trigger_type: 'on_family_mentioned', enabled: true },
+      { label: 'Quando o destino ainda está indefinido', instrucao: 'Não trave. Pergunte se têm um lugar no coração ou se estão abertos a explorar, e cite regiões que a gente conhece bem (Nordeste, Trancoso, Caribe, Europa).', trigger_type: 'on_destination_unclear', enabled: true },
+    ],
   }
 }
 

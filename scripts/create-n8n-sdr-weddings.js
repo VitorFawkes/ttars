@@ -118,6 +118,11 @@ Palavras/expressões a EVITAR: {{ $('Monta').item.json.glossary_evitar || '(nenh
 {{ $('Monta').item.json.comportamentos_txt || '(nenhum adicional)' }}
 </comportamentos_proibidos>
 
+<momentos>
+Instruções pra momentos específicos da conversa (siga quando o momento acontecer, com naturalidade, sem anunciar que é uma regra):
+{{ $('Monta').item.json.momentos_txt || '(nenhuma)' }}
+</momentos>
+
 <antipadroes>
 Evite sempre:
 - Justificar a pergunta ("pra eu te ajudar melhor"). Pergunte direto.
@@ -225,6 +230,11 @@ const gl = vo.glossary || {};
 const glossary_usar = arr(gl.marca).map(g => g.palavra || g).filter(Boolean).join(', ');
 const glossary_evitar = arr(gl.proibida).map(g => (g.palavra||g) + (g.alternativa ? (' (prefira "' + g.alternativa + '")') : '')).filter(Boolean).join(', ');
 const comportamentos_txt = arr(bo.comportamentos).map(c => '- ' + c).join('\\n');
+// Momentos: instruções editáveis pra situações específicas. O gatilho vira uma frase
+// "Quando X" + a instrução; o cérebro (GPT-5.5) avalia o gatilho com naturalidade.
+const momTrig = { always: 'Em qualquer momento', on_price_question: 'Quando o casal perguntar preço ou valor', on_price_hesitation: 'Quando o casal hesitar por causa do valor', on_family_mentioned: 'Quando o casal mencionar a família (pais, sogros)', on_destination_unclear: 'Quando o destino ainda não estiver claro', on_high_qualification: 'Quando o casal já estiver bem qualificado', on_low_qualification: 'Quando ainda faltar qualificar o casal', on_hesitation_timeout: 'Quando o casal hesitar ou disser que vai pensar', custom_condition: '' };
+const moments = arr(cfg.moments).filter(m => m && m.enabled !== false && (m.instrucao || m.prompt_text));
+const momentos_txt = moments.map(m => { const when = momTrig[m.trigger_type] || ''; const instr = m.instrucao || m.prompt_text; return when ? ('- ' + when + ': ' + instr) : ('- ' + instr); }).join('\\n');
 // Critérios de qualificação (com importância). Vazio -> deriva das etapas (todas "importante").
 const crit = arr(qu.criteria);
 const criterios_txt = (crit.length
@@ -256,6 +266,7 @@ return [{ json: {
   glossary_usar: glossary_usar,
   glossary_evitar: glossary_evitar,
   comportamentos_txt: comportamentos_txt,
+  momentos_txt: momentos_txt,
   bubbles_enabled: !!(cfg.capabilities && cfg.capabilities.memory && cfg.capabilities.memory.enabled && cfg.capabilities.memory.bubbles_enabled),
   crm_write_enabled: !!(cfg.capabilities && cfg.capabilities.crm_write && cfg.capabilities.crm_write.enabled),
   calendar_enabled: !!(cfg.capabilities && cfg.capabilities.calendar && cfg.capabilities.calendar.enabled),
