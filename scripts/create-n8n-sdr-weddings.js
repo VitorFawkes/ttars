@@ -141,6 +141,11 @@ Estado consolidado da conversa (sua memória; confie nisto pra não repetir perg
 - Onde estamos: {{ $('Parse Consolida').item.json.contexto || '(início)' }}
 - Sinais: {{ JSON.stringify($('Parse Consolida').item.json.sinais || {}) }}
 
+Leitura de qualificação (SUGESTÃO de um colega; use ou ignore conforme o timing e o tom, nunca exponha isto):
+- Nota do casal: {{ $('Parse Qualifica').item.json.score }}/100 ({{ $('Parse Qualifica').item.json.faixa }})
+- Ainda falta entender: {{ $('Parse Qualifica').item.json.falta_txt }}
+- Pergunta que poderia ajudar agora: {{ $('Parse Qualifica').item.json.proxima_pergunta_sugerida || '(nenhuma, melhor só acolher)' }}
+
 Base de conhecimento (se o casal perguntar algo coberto aqui, responda com base nisto, sem inventar; se não estiver aqui, não invente):
 {{ $('Monta').item.json.faqs_txt || '(sem base de conhecimento cadastrada)' }}
 
@@ -206,6 +211,12 @@ const gl = vo.glossary || {};
 const glossary_usar = arr(gl.marca).map(g => g.palavra || g).filter(Boolean).join(', ');
 const glossary_evitar = arr(gl.proibida).map(g => (g.palavra||g) + (g.alternativa ? (' (prefira "' + g.alternativa + '")') : '')).filter(Boolean).join(', ');
 const comportamentos_txt = arr(bo.comportamentos).map(c => '- ' + c).join('\\n');
+// Critérios de qualificação (com importância). Vazio -> deriva das etapas (todas "importante").
+const crit = arr(qu.criteria);
+const criterios_txt = (crit.length
+  ? crit.map(c => '- ' + (c.label || c.criterio || c) + ' (importância: ' + (c.importancia || c.peso || 'importante') + ')')
+  : arr(etapas).map(e => '- ' + e + ' (importância: importante)')
+).join('\\n');
 return [{ json: {
   persona: id.persona_nome || cfg.persona_nome || 'Sofia',
   empresa: id.empresa || cfg.empresa || 'Welcome Weddings',
@@ -225,6 +236,7 @@ return [{ json: {
   phone: p.phone,
   resumo_antigo: est.resumo || '',
   contexto_antigo: est.contexto || '',
+  criterios_txt: criterios_txt,
   faqs_txt: faqs_txt,
   pricing_txt: pricing_txt,
   glossary_usar: glossary_usar,
@@ -323,6 +335,41 @@ return [{ json: {
   org_id: m.org_id, agent_slug: m.agent_slug, phone: m.phone,
 }}];`;
 
+// Agente 2 — Qualificador INTELIGENTE: nota 0-100 + o que falta + próxima pergunta.
+// LLM com julgamento (não soma de pesos). Lê os critérios+importância editáveis e o
+// estado consolidado, devolve uma SUGESTÃO que o Respondedor pode usar ou ignorar.
+const QUALIFICA_SYSTEM = `Você é o qualificador de leads de casamento da {{ $('Monta').item.json.empresa }}. A partir dos CRITÉRIOS (com a importância de cada um) e do estado consolidado da conversa, julgue o fit do casal e devolva SOMENTE um JSON válido (sem markdown, sem crases):
+{"score": 0-100, "qualificado": true|false, "faixa": "quente"|"morno"|"frio", "breakdown": [{"criterio": "...", "atende": true|false, "nota": "frase curta"}], "falta": ["o que ainda precisa entender"], "proxima_pergunta_sugerida": "uma pergunta aberta e natural, ou '' se ainda não é hora de perguntar"}
+Regras: score é JULGAMENTO (não soma mecânica de pesos). Critério com importância "desqualifica" presente derruba o score. qualificado=true só com fit real e os essenciais cobertos. faixa: quente >=70, morno 40-69, frio <40. Baseie-se SÓ no que está no resumo/contexto; não invente. Se o casal hesita ou está emotivo, a proxima_pergunta_sugerida pode ser '' (melhor acolher antes de perguntar).`;
+const QUALIFICA_USER = `Critérios de qualificação (com importância):
+{{ $('Monta').item.json.criterios_txt }}
+
+Estado consolidado:
+- Resumo do casal: {{ $('Parse Consolida').item.json.resumo || '(vazio)' }}
+- Onde estamos: {{ $('Parse Consolida').item.json.contexto || '(início)' }}
+- Sinais: {{ JSON.stringify($('Parse Consolida').item.json.sinais || {}) }}
+Última mensagem do casal: {{ $('Monta').item.json.ultima_mensagem_lead }}
+
+Devolva só o JSON {score, qualificado, faixa, breakdown, falta, proxima_pergunta_sugerida}.`;
+const CODE_PARSE_QUALIFICA = `let t = String($('Qualifica').item.json.output || '').trim();
+t = t.replace(/^\`\`\`(json)?/i,'').replace(/\`\`\`$/,'').trim();
+let r = {};
+try { r = JSON.parse(t); } catch(e) { r = {}; }
+if (typeof r !== 'object' || Array.isArray(r) || !r) r = {};
+let score = Number(r.score);
+if (!isFinite(score)) score = 0;
+score = Math.max(0, Math.min(100, Math.round(score)));
+const faixa = (typeof r.faixa === 'string') ? r.faixa : (score >= 70 ? 'quente' : score >= 40 ? 'morno' : 'frio');
+const falta = Array.isArray(r.falta) ? r.falta.filter(x => typeof x === 'string') : [];
+return [{ json: {
+  score,
+  qualificado: r.qualificado === true,
+  faixa,
+  falta,
+  falta_txt: falta.length ? falta.join('; ') : '(nada essencial faltando)',
+  proxima_pergunta_sugerida: (typeof r.proxima_pergunta_sugerida === 'string') ? r.proxima_pergunta_sugerida : '',
+}}];`;
+
 function buildWorkflow() {
   const nodes = [
     { id: 'webhook', name: 'Webhook SDR Weddings', type: 'n8n-nodes-base.webhook', typeVersion: 1, position: [240, 300], webhookId: 'sdr-weddings-hook',
@@ -368,7 +415,14 @@ function buildWorkflow() {
         options: { response: { response: { neverError: true } } },
       },
       credentials: { supabaseApi: SUPABASE_CREDENTIAL } },
-    { id: 'agente', name: 'Responde Lead', type: '@n8n/n8n-nodes-langchain.agent', typeVersion: 2.2, position: [1640, 300],
+    { id: 'qualifica', name: 'Qualifica', type: '@n8n/n8n-nodes-langchain.agent', typeVersion: 2.2, position: [1560, 460],
+      parameters: { promptType: 'define', text: '=' + QUALIFICA_USER, options: { systemMessage: '=' + QUALIFICA_SYSTEM, enableStreaming: false } } },
+    { id: 'modelqualifica', name: 'Modelo Qualifica', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1.2, position: [1560, 660],
+      parameters: { model: { __rl: true, value: MODEL_ID, mode: 'list', cachedResultName: MODEL_ID }, options: MODEL_OPTIONS },
+      credentials: { openAiApi: OPENAI_CREDENTIAL } },
+    { id: 'parsequalifica', name: 'Parse Qualifica', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1760, 460],
+      parameters: { jsCode: CODE_PARSE_QUALIFICA } },
+    { id: 'agente', name: 'Responde Lead', type: '@n8n/n8n-nodes-langchain.agent', typeVersion: 2.2, position: [1940, 300],
       parameters: { promptType: 'define', text: '=' + USER_TEXT, options: { systemMessage: '=' + SYSTEM_PROMPT, enableStreaming: false } } },
     { id: 'model', name: 'OpenAI Chat Model', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1.2, position: [1060, 520],
       parameters: { model: { __rl: true, value: MODEL_ID, mode: 'list', cachedResultName: MODEL_ID }, options: MODEL_OPTIONS },
@@ -429,7 +483,10 @@ function buildWorkflow() {
     'Modelo Consolida': { ai_languageModel: [[{ node: 'Consolida', type: 'ai_languageModel', index: 0 }]] },
     'Consolida': { main: [[{ node: 'Parse Consolida', type: 'main', index: 0 }]] },
     'Parse Consolida': { main: [[{ node: 'Salva Estado', type: 'main', index: 0 }]] },
-    'Salva Estado': { main: [[{ node: 'Responde Lead', type: 'main', index: 0 }]] },
+    'Salva Estado': { main: [[{ node: 'Qualifica', type: 'main', index: 0 }]] },
+    'Modelo Qualifica': { ai_languageModel: [[{ node: 'Qualifica', type: 'ai_languageModel', index: 0 }]] },
+    'Qualifica': { main: [[{ node: 'Parse Qualifica', type: 'main', index: 0 }]] },
+    'Parse Qualifica': { main: [[{ node: 'Responde Lead', type: 'main', index: 0 }]] },
     'OpenAI Chat Model': { ai_languageModel: [[{ node: 'Responde Lead', type: 'ai_languageModel', index: 0 }]] },
     'Responde Lead': { main: [[{ node: 'Limpa Travessao', type: 'main', index: 0 }]] },
     'Limpa Travessao': { main: [[{ node: 'Bolhas', type: 'main', index: 0 }]] },
