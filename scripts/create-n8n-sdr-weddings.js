@@ -26,6 +26,11 @@ const SUPABASE_CREDENTIAL = { id: 'SXzk2uSaw8b7BcaN', name: 'WelcomeSupabase' };
 // costumam recusar temperature custom, então só mandamos maxTokens neles.
 const MODEL_ID = process.env.SDR_WEDDINGS_MODEL || 'gpt-5.5';
 const MODEL_OPTIONS = /^gpt-5/.test(MODEL_ID) ? { maxTokens: 4096 } : { temperature: 0.7, maxTokens: 4096 };
+// Modelo auxiliar (Consolidador, Qualificador, Formatter, extratores): tarefas de
+// julgamento/estruturação mais baratas que o cérebro principal. GPT-5.1 por padrão
+// (decisão do painel: só o Respondedor precisa do 5.5). Cai pra 5.5 se não setado.
+const AUX_MODEL_ID = process.env.SDR_WEDDINGS_MODEL_AUX || 'gpt-5.1';
+const AUX_MODEL_OPTIONS = /^gpt-5/.test(AUX_MODEL_ID) ? { maxTokens: 4096 } : { temperature: 0.4, maxTokens: 4096 };
 
 if (!API_KEY) { console.error('N8N_API_KEY obrigatório.'); process.exit(1); }
 
@@ -419,7 +424,7 @@ function buildWorkflow() {
     { id: 'consolida', name: 'Consolida', type: '@n8n/n8n-nodes-langchain.agent', typeVersion: 2.2, position: [1020, 460],
       parameters: { promptType: 'define', text: '=' + CONSOLIDA_USER, options: { systemMessage: '=' + CONSOLIDA_SYSTEM, enableStreaming: false } } },
     { id: 'modelconsolida', name: 'Modelo Consolida', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1.2, position: [1020, 660],
-      parameters: { model: { __rl: true, value: MODEL_ID, mode: 'list', cachedResultName: MODEL_ID }, options: MODEL_OPTIONS },
+      parameters: { model: { __rl: true, value: AUX_MODEL_ID, mode: 'list', cachedResultName: AUX_MODEL_ID }, options: AUX_MODEL_OPTIONS },
       credentials: { openAiApi: OPENAI_CREDENTIAL } },
     { id: 'parseconsolida', name: 'Parse Consolida', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1220, 460],
       parameters: { jsCode: CODE_PARSE_CONSOLIDA } },
@@ -436,7 +441,7 @@ function buildWorkflow() {
     { id: 'qualifica', name: 'Qualifica', type: '@n8n/n8n-nodes-langchain.agent', typeVersion: 2.2, position: [1560, 460],
       parameters: { promptType: 'define', text: '=' + QUALIFICA_USER, options: { systemMessage: '=' + QUALIFICA_SYSTEM, enableStreaming: false } } },
     { id: 'modelqualifica', name: 'Modelo Qualifica', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1.2, position: [1560, 660],
-      parameters: { model: { __rl: true, value: MODEL_ID, mode: 'list', cachedResultName: MODEL_ID }, options: MODEL_OPTIONS },
+      parameters: { model: { __rl: true, value: AUX_MODEL_ID, mode: 'list', cachedResultName: AUX_MODEL_ID }, options: AUX_MODEL_OPTIONS },
       credentials: { openAiApi: OPENAI_CREDENTIAL } },
     { id: 'parsequalifica', name: 'Parse Qualifica', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1760, 460],
       parameters: { jsCode: CODE_PARSE_QUALIFICA } },
@@ -453,7 +458,7 @@ function buildWorkflow() {
     { id: 'formatabolhas', name: 'Formata Bolhas', type: '@n8n/n8n-nodes-langchain.agent', typeVersion: 2.2, position: [2520, 420],
       parameters: { promptType: 'define', text: '=' + FORMATTER_USER, options: { systemMessage: '=' + FORMATTER_SYSTEM, enableStreaming: false } } },
     { id: 'modelbolhas', name: 'Modelo Bolhas', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1.2, position: [2520, 620],
-      parameters: { model: { __rl: true, value: MODEL_ID, mode: 'list', cachedResultName: MODEL_ID }, options: MODEL_OPTIONS },
+      parameters: { model: { __rl: true, value: AUX_MODEL_ID, mode: 'list', cachedResultName: AUX_MODEL_ID }, options: AUX_MODEL_OPTIONS },
       credentials: { openAiApi: OPENAI_CREDENTIAL } },
     { id: 'parsebolhas', name: 'Parse Bolhas', type: 'n8n-nodes-base.code', typeVersion: 2, position: [2720, 420],
       parameters: { jsCode: CODE_PARSE_BOLHAS } },
@@ -467,7 +472,7 @@ function buildWorkflow() {
     { id: 'extrai', name: 'Extrai Dados', type: '@n8n/n8n-nodes-langchain.agent', typeVersion: 2.2, position: [1680, 520],
       parameters: { promptType: 'define', text: '=' + EXTRACT_USER, options: { systemMessage: '=' + EXTRACT_SYSTEM, enableStreaming: false } } },
     { id: 'modelextrai', name: 'Modelo Extrai', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1.2, position: [1680, 700],
-      parameters: { model: { __rl: true, value: MODEL_ID, mode: 'list', cachedResultName: MODEL_ID }, options: MODEL_OPTIONS },
+      parameters: { model: { __rl: true, value: AUX_MODEL_ID, mode: 'list', cachedResultName: AUX_MODEL_ID }, options: AUX_MODEL_OPTIONS },
       credentials: { openAiApi: OPENAI_CREDENTIAL } },
     { id: 'parse', name: 'Parse Dados', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1880, 520],
       parameters: { jsCode: CODE_PARSE } },
@@ -487,7 +492,7 @@ function buildWorkflow() {
     { id: 'extraireuniao', name: 'Extrai Reuniao', type: '@n8n/n8n-nodes-langchain.agent', typeVersion: 2.2, position: [1680, 760],
       parameters: { promptType: 'define', text: '=' + BOOK_USER, options: { systemMessage: '=' + BOOK_SYSTEM, enableStreaming: false } } },
     { id: 'modelreuniao', name: 'Modelo Reuniao', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1.2, position: [1680, 940],
-      parameters: { model: { __rl: true, value: MODEL_ID, mode: 'list', cachedResultName: MODEL_ID }, options: MODEL_OPTIONS },
+      parameters: { model: { __rl: true, value: AUX_MODEL_ID, mode: 'list', cachedResultName: AUX_MODEL_ID }, options: AUX_MODEL_OPTIONS },
       credentials: { openAiApi: OPENAI_CREDENTIAL } },
     { id: 'parsereuniao', name: 'Parse Reuniao', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1880, 760],
       parameters: { jsCode: CODE_PARSE_BOOK } },
