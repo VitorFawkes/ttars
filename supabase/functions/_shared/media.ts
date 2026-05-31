@@ -7,8 +7,12 @@ const IMAGE_PROMPT =
 const DOCUMENT_PROMPT =
   "Extraia em português o conteúdo relevante deste documento para um atendimento de casamento (orçamento, proposta, lista, contrato). Resuma os pontos principais de forma objetiva.";
 
+// Limite de tempo por chamada externa (download + OpenAI). Estoura -> cai no catch do
+// processMediaToText e devolve placeholder neutro, sem travar a edge function.
+const FETCH_TIMEOUT_MS = 30000;
+
 export async function downloadMedia(url: string): Promise<{ base64: string; mimeType: string }> {
-  const response = await fetch(url);
+  const response = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!response.ok) throw new Error(`Media download failed ${response.status}`);
   const buffer = await response.arrayBuffer();
   const bytes = new Uint8Array(buffer);
@@ -32,6 +36,7 @@ export async function transcribeAudio(base64: string, mimeType: string, apiKey: 
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}` },
     body: formData,
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`Whisper API error ${res.status}: ${await res.text()}`);
   const result = await res.json();
@@ -54,6 +59,7 @@ export async function analyzeImage(base64: string, mimeType: string, apiKey: str
       max_completion_tokens: 1000,
       temperature: 0.1,
     }),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`Vision API ${res.status}: ${await res.text()}`);
   const result = await res.json();
@@ -72,6 +78,7 @@ export async function analyzeDocument(base64: string, mimeType: string, apiKey: 
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}` },
     body: formData,
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
   if (!uploadRes.ok) throw new Error(`File upload ${uploadRes.status}: ${await uploadRes.text()}`);
   const fileObj = await uploadRes.json();
@@ -91,6 +98,7 @@ export async function analyzeDocument(base64: string, mimeType: string, apiKey: 
         max_completion_tokens: 1500,
         temperature: 0.1,
       }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(`Chat API ${res.status}: ${await res.text()}`);
     const result = await res.json();

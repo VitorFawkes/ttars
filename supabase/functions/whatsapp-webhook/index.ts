@@ -335,6 +335,16 @@ Deno.serve(async (req) => {
                                     .limit(1);
                                 const ct = (cts && cts[0]) || null;
                                 const sdrwContactId = ct?.id || null;
+                                // Roteamento real por linha: resolve (org, agente) pela linha de WhatsApp,
+                                // pra suportar agentes clonados em outras linhas/marcas. Se não resolver,
+                                // o n8n cai no seu default (Sofia/Weddings) — a Sofia atual não quebra.
+                                let sdrwOrgId: string | null = null;
+                                let sdrwAgentSlug: string | null = null;
+                                try {
+                                    const { data: route } = await supabaseClient.rpc("wsdr_resolve_agent_by_line", { p_phone_line: phoneNumberId });
+                                    const r = Array.isArray(route) ? route[0] : route;
+                                    if (r?.org_id) { sdrwOrgId = r.org_id; sdrwAgentSlug = r.agent_slug; }
+                                } catch (_rErr) { /* fallback: n8n usa o default */ }
                                 let sdrwHistory: { role: string; text: string }[] = [];
                                 if (sdrwContactId) {
                                     // Histórico recente E só da PRÓPRIA Sofia: inclui o que o lead
@@ -390,6 +400,8 @@ Deno.serve(async (req) => {
                                         nome: data.contact_name || data.contact?.name || data.pushname || singlePayload.contact_name || ct?.nome || "",
                                         message: sdrwMessage,
                                         history: sdrwHistory,
+                                        org_id: sdrwOrgId || undefined,
+                                        agent_slug: sdrwAgentSlug || undefined,
                                     }),
                                 });
                                 const sdrwJson = await sdrwRes.json().catch(() => ({}));
