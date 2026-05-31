@@ -5,6 +5,7 @@ import {
 import { AgentEditorLayout, type EditorTab } from '@/components/ai-agent/editor/AgentEditorLayout'
 import { StringListEditor } from '@/components/wsdr/StringListEditor'
 import { CapabilityCard } from '@/components/wsdr/editor/CapabilityCard'
+import { KnowledgeFaqEditor } from '@/components/wsdr/editor/KnowledgeFaqEditor'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
@@ -191,7 +192,8 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
                     <Field label="Horário padrão da retomada"><Input value={c.capabilities.followup.default_time} onChange={e => update(x => ({ ...x, capabilities: { ...x.capabilities, followup: { ...x.capabilities.followup, default_time: e.target.value } } }))} placeholder="ex: 10:30" /></Field>
                   )}
                   {meta.key === 'knowledge' && (
-                    <p className="text-xs text-slate-500">As perguntas e respostas (FAQs) que a Sofia consulta serão cadastradas aqui assim que esta capacidade entrar no ar.</p>
+                    <KnowledgeFaqEditor faqs={c.capabilities.knowledge.faqs}
+                      onChange={faqs => update(x => ({ ...x, capabilities: { ...x.capabilities, knowledge: { ...x.capabilities.knowledge, faqs } } }))} />
                   )}
                 </CapabilityCard>
               )

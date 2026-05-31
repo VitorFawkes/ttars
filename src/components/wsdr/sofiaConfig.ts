@@ -27,7 +27,7 @@ export interface SofiaCapabilities {
     max_slots: number
     search_window_days: number
   }
-  knowledge: { enabled: boolean; top_k: number }
+  knowledge: { enabled: boolean; top_k: number; faqs: { q: string; a: string }[] }
   followup: { enabled: boolean; default_time: string; days: number[] }
   multimodal: { enabled: boolean; audio: boolean; image: boolean; pdf: boolean }
   memory: {
@@ -91,8 +91,8 @@ export interface CapabilityMeta {
 // Metadados (texto pro leigo + status de fiação) de cada capacidade.
 export const CAPABILITY_META: CapabilityMeta[] = [
   { key: 'crm_write', title: 'Registrar no CRM', subtitle: 'Grava o casal e o progresso no funil', description: 'Quando ligado, a Sofia cria o card do casal e atualiza os dados (destino, convidados, orçamento, data) conforme a conversa.', icon: 'Database', color: 'amber', status: 'em_testes' },
-  { key: 'calendar', title: 'Marcar reunião', subtitle: 'Usa o calendário do próprio CRM', description: 'A Sofia oferece horários reais da Wedding Planner e marca a reunião de verdade. O card avança sozinho pra "Reunião Agendada".', icon: 'CalendarClock', color: 'sky', status: 'em_breve' },
-  { key: 'knowledge', title: 'Base de conhecimento', subtitle: 'Responde dúvidas com as suas FAQs', description: 'A Sofia consulta as perguntas e respostas que você cadastrar antes de responder dúvidas do casal.', icon: 'BookOpen', color: 'emerald', status: 'em_breve' },
+  { key: 'calendar', title: 'Marcar reunião', subtitle: 'Usa o calendário do próprio CRM', description: 'A Sofia marca a reunião de verdade no calendário do CRM quando o casal confirma um horário. O card avança sozinho pra "Reunião Agendada". Configure a Wedding Planner e os horários disponíveis.', icon: 'CalendarClock', color: 'sky', status: 'em_testes' },
+  { key: 'knowledge', title: 'Base de conhecimento', subtitle: 'Responde dúvidas com as suas FAQs', description: 'A Sofia consulta as perguntas e respostas que você cadastrar antes de responder dúvidas do casal (e não inventa o que não está aqui).', icon: 'BookOpen', color: 'emerald', status: 'em_testes' },
   { key: 'followup', title: 'Follow-up', subtitle: 'Cria tarefas de retomada', description: 'Quando há interesse mas sem horário marcado, a Sofia agenda uma tarefa de retomar a conversa (dia 1, 3, 7).', icon: 'BellRing', color: 'violet', status: 'em_breve' },
   { key: 'multimodal', title: 'Áudio, foto e PDF', subtitle: 'Entende mensagens além de texto', description: 'A Sofia transcreve áudios, entende fotos de inspiração e lê PDFs que o casal mandar.', icon: 'Mic', color: 'rose', status: 'em_breve' },
   { key: 'memory', title: 'Memória e entrega humana', subtitle: 'Lembra da conversa e responde em bolhas', description: 'A Sofia junta mensagens rápidas, lembra o contexto e responde em pequenas bolhas com um delay natural.', icon: 'Sparkles', color: 'indigo', status: 'em_breve' },
@@ -127,7 +127,7 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
     capabilities: {
       crm_write: { enabled: false, writable_fields: [], protected_fields: [], stage_move_enabled: false, target_stage_id: null },
       calendar: { enabled: false, wedding_planner_profile_id: null, windows: [], slot_duration_minutes: 45, skip_weekends: true, max_slots: 4, search_window_days: 14 },
-      knowledge: { enabled: false, top_k: 4 },
+      knowledge: { enabled: false, top_k: 4, faqs: [] },
       followup: { enabled: false, default_time: '10:30', days: [1, 3, 7] },
       multimodal: { enabled: false, audio: true, image: true, pdf: true },
       memory: { enabled: false, window_messages: 10, debounce_ms: 8000, bubbles_enabled: true, bubble_delay_ms: 1500 },

@@ -122,6 +122,9 @@ Contexto desta conversa:
 - Conversa até aqui:
 {{ $('Monta').item.json.historico || '(ainda não trocamos mensagem, é o começo)' }}
 
+Base de conhecimento (se o casal perguntar algo coberto aqui, responda com base nisto, sem inventar; se não estiver aqui, não invente):
+{{ $('Monta').item.json.faqs_txt || '(sem base de conhecimento cadastrada)' }}
+
 Escreva a próxima mensagem da {{ $('Monta').item.json.persona }} no WhatsApp. Seja a melhor SDR humana possível: entenda o casal, reaja ao que disseram e conduza com naturalidade rumo ao convite pra Wedding Planner quando fizer sentido. Se for o primeiro contato, use a mensagem de abertura. Respeite as linhas vermelhas, sobretudo: nunca fale preço. Devolva só o texto pronto pro WhatsApp.`;
 
 // Prepara: normaliza + whitelist + resolve org/agente (default Sofia/Weddings)
@@ -162,6 +165,9 @@ const tom = vo.tom || cfg.tom || 'acolhedor';
 const etapas = qu.etapas || cfg.etapas;
 const faixas = qu.faixas_orcamento || cfg.faixas_orcamento;
 const fronteiras = bo.custom || cfg.fronteiras;
+const kb = (cfg.capabilities && cfg.capabilities.knowledge) || {};
+const faqs = (kb.enabled && Array.isArray(kb.faqs)) ? kb.faqs : [];
+const faqs_txt = faqs.map(f => '- P: ' + (f.q||f.pergunta||'') + '\\n  R: ' + (f.a||f.resposta||'')).join('\\n');
 return [{ json: {
   persona: id.persona_nome || cfg.persona_nome || 'Sofia',
   empresa: id.empresa || cfg.empresa || 'Welcome Weddings',
@@ -179,6 +185,7 @@ return [{ json: {
   org_id: p.org_id,
   agent_slug: p.agent_slug,
   phone: p.phone,
+  faqs_txt: faqs_txt,
   crm_write_enabled: !!(cfg.capabilities && cfg.capabilities.crm_write && cfg.capabilities.crm_write.enabled),
   calendar_enabled: !!(cfg.capabilities && cfg.capabilities.calendar && cfg.capabilities.calendar.enabled),
 }}];`;
