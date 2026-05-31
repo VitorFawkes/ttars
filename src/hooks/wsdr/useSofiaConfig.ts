@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { useOrg } from '@/contexts/OrgContext'
 import { supabase } from '@/lib/supabase'
@@ -7,6 +7,27 @@ import { type SofiaConfigV2, defaultSofiaConfig, normalizeToV2 } from '@/compone
 
 // wsdr_agent_config é módulo novo isolado, fora dos tipos gerados.
 const db = supabase as unknown as SupabaseClient
+
+// Mescla os campos editados (v2) por cima da config BRUTA, preservando chaves v3
+// que o editor v2 ainda não conhece (pricing, moments, referrals, voice.glossary,
+// qualification.criteria, boundaries.comportamentos, capabilities.memory.*). Sem isso,
+// salvar pela tela atual apagaria a config v3 gravada no banco.
+function mergePreservandoV3(raw: Record<string, unknown> | null | undefined, next: SofiaConfigV2): Record<string, unknown> {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, any>
+  const n = next as unknown as Record<string, any>
+  return {
+    ...r,
+    ...n,
+    voice: { ...(r.voice || {}), ...(n.voice || {}) },
+    qualification: { ...(r.qualification || {}), ...(n.qualification || {}) },
+    boundaries: { ...(r.boundaries || {}), ...(n.boundaries || {}) },
+    capabilities: {
+      ...(r.capabilities || {}),
+      ...(n.capabilities || {}),
+      memory: { ...((r.capabilities || {}).memory || {}), ...((n.capabilities || {}).memory || {}) },
+    },
+  }
+}
 
 export type SaveStatus = 'idle' | 'saving' | 'success' | 'error'
 
@@ -17,6 +38,7 @@ export function useSofiaConfig(slug = 'sofia-weddings') {
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState<SaveStatus>('idle')
   const [error, setError] = useState('')
+  const rawRef = useRef<Record<string, unknown> | null>(null) // config bruta do banco (preserva v3)
 
   useEffect(() => {
     let alive = true
@@ -32,8 +54,10 @@ export function useSofiaConfig(slug = 'sofia-weddings') {
       if (!alive) return
       if (err) {
         setError(err.message)
+        rawRef.current = null
         setConfig(defaultSofiaConfig())
       } else {
+        rawRef.current = (data?.config as Record<string, unknown>) ?? null
         setConfig(normalizeToV2(data?.config))
       }
       setLoading(false)
@@ -46,15 +70,17 @@ export function useSofiaConfig(slug = 'sofia-weddings') {
     if (!orgId) return
     setStatus('saving')
     setError('')
+    const configToSave = mergePreservandoV3(rawRef.current, next)
     const { error: err } = await db
       .from('wsdr_agent_config')
-      .upsert({ org_id: orgId, slug, config: next }, { onConflict: 'org_id,slug' })
+      .upsert({ org_id: orgId, slug, config: configToSave }, { onConflict: 'org_id,slug' })
     if (err) {
       setStatus('error')
       setError(err.message)
       toast.error('Erro ao salvar', { description: err.message })
       return
     }
+    rawRef.current = configToSave
     setStatus('success')
     toast.success('Configuração salva!')
     setTimeout(() => setStatus('idle'), 2500)
