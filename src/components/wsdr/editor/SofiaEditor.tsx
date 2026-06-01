@@ -11,6 +11,7 @@ import { DiscoverySlotsEditor } from '@/components/wsdr/editor/DiscoverySlotsEdi
 import { OpeningEditor } from '@/components/wsdr/editor/OpeningEditor'
 import { BoundariesEditor } from '@/components/wsdr/editor/BoundariesEditor'
 import { WeddingPlannerPicker } from '@/components/wsdr/editor/WeddingPlannerPicker'
+import { StagePicker } from '@/components/wsdr/editor/StagePicker'
 import { AgentEditorLayout, type EditorTab } from '@/components/ai-agent/editor/AgentEditorLayout'
 import { StringListEditor } from '@/components/wsdr/StringListEditor'
 import { CapabilityCard } from '@/components/wsdr/editor/CapabilityCard'
@@ -87,10 +88,18 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
         description={meta.description} status={meta.status} enabled={cap.enabled}
         onToggle={v => update(x => setCapEnabled(x, meta.key, v))}>
         {meta.key === 'crm_write' && (
-          <label className="flex items-center justify-between text-sm text-slate-700">
-            <span>Mover o card de etapa automaticamente</span>
-            <Switch checked={c.capabilities.crm_write.stage_move_enabled} onCheckedChange={v => update(x => ({ ...x, capabilities: { ...x.capabilities, crm_write: { ...x.capabilities.crm_write, stage_move_enabled: v } } }))} className={c.capabilities.crm_write.stage_move_enabled ? 'bg-indigo-600' : ''} />
-          </label>
+          <div className="space-y-3">
+            <label className="flex items-center justify-between text-sm text-slate-700">
+              <span>Mover o card de etapa automaticamente</span>
+              <Switch checked={c.capabilities.crm_write.stage_move_enabled} onCheckedChange={v => update(x => ({ ...x, capabilities: { ...x.capabilities, crm_write: { ...x.capabilities.crm_write, stage_move_enabled: v } } }))} className={c.capabilities.crm_write.stage_move_enabled ? 'bg-indigo-600' : ''} />
+            </label>
+            {c.capabilities.crm_write.stage_move_enabled && (
+              <StagePicker
+                value={c.capabilities.crm_write.target_stage_id}
+                onChange={id => update(x => ({ ...x, capabilities: { ...x.capabilities, crm_write: { ...x.capabilities.crm_write, target_stage_id: id } } }))}
+              />
+            )}
+          </div>
         )}
         {meta.key === 'calendar' && (
           <div className="space-y-3">
