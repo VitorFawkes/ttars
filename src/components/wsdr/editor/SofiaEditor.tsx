@@ -122,6 +122,12 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
           <div className="space-y-3">
             <label className="flex items-center justify-between text-sm text-slate-700"><span>Responder em bolhas (mais humano)</span><Switch checked={c.capabilities.memory.bubbles_enabled} onCheckedChange={v => update(x => ({ ...x, capabilities: { ...x.capabilities, memory: { ...x.capabilities.memory, bubbles_enabled: v } } }))} className={c.capabilities.memory.bubbles_enabled ? 'bg-indigo-600' : ''} /></label>
             <Field label="Quantas mensagens lembrar"><Input type="number" value={c.capabilities.memory.window_messages} onChange={e => update(x => ({ ...x, capabilities: { ...x.capabilities, memory: { ...x.capabilities.memory, window_messages: Number(e.target.value) } } }))} /></Field>
+            <Field label="Tempo de espera por novas mensagens (segundos)" hint="Quanto ela espera pra ver se o casal manda mais mensagens antes de responder. Ajuste se o comportamento sair diferente do esperado.">
+              <Input type="number" value={Math.round((c.capabilities.memory.debounce_ms ?? 8000) / 1000)} onChange={e => update(x => ({ ...x, capabilities: { ...x.capabilities, memory: { ...x.capabilities.memory, debounce_ms: Math.max(1, Number(e.target.value)) * 1000 } } }))} />
+            </Field>
+            <Field label="Pausa entre as bolhas (segundos)" hint="O tempinho natural entre uma bolha e outra.">
+              <Input type="number" step={0.5} value={(c.capabilities.memory.bubble_delay_ms ?? 1500) / 1000} onChange={e => update(x => ({ ...x, capabilities: { ...x.capabilities, memory: { ...x.capabilities.memory, bubble_delay_ms: Math.max(0, Number(e.target.value)) * 1000 } } }))} />
+            </Field>
           </div>
         )}
         {meta.key === 'followup' && (
@@ -151,6 +157,12 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
               <Field label="Descrição da empresa" hint="A frase que a Sofia usa pra se apresentar e explicar o que vocês fazem. (A primeira mensagem fica na aba 'Como ela conversa'.)">
                 <Textarea value={c.identity.proposta} onChange={e => update(x => ({ ...x, identity: { ...x.identity, proposta: e.target.value } }))} className="min-h-[80px]" />
               </Field>
+              <Field label="Papel dela" hint="Como ela se apresenta na função. Já vem escrito; edite se quiser.">
+                <Input value={c.identity.role ?? ''} onChange={e => update(x => ({ ...x, identity: { ...x.identity, role: e.target.value } }))} placeholder="ex: especialista de casamentos" />
+              </Field>
+              <Field label="Missão em uma frase" hint="O que ela existe pra fazer. Opcional — ajuda a guiar o tom.">
+                <Input value={c.identity.mission_one_liner ?? ''} onChange={e => update(x => ({ ...x, identity: { ...x.identity, mission_one_liner: e.target.value } }))} placeholder="ex: entender o sonho do casal e conectar com a Wedding Planner" />
+              </Field>
             </EditorCard>
 
             <EditorCard accent="violet" icon={<Smile className="w-5 h-5" />} title="Tom de voz" desc="O jeito da Sofia falar com os noivos.">
@@ -172,6 +184,9 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
                   className="w-full accent-indigo-600" />
               </Field>
               <InfoBanner icon={<Info className="w-4 h-4" />}>Exemplo neste tom: <span className="italic text-slate-700">"{TOM_OPTIONS.find(t => t.value === c.voice.tom)?.exemplo}"</span></InfoBanner>
+              <Field label="Temperos de tom" hint="Adjetivos que afinam a voz dela. Escreva os seus (ex: elegante, paciente, direta).">
+                <StringListEditor items={c.voice.tone_tags ?? []} onChange={items => update(x => ({ ...x, voice: { ...x.voice, tone_tags: items } }))} placeholder="ex: elegante" />
+              </Field>
             </EditorCard>
 
             <EditorCard accent="violet" icon={<Languages className="w-5 h-5" />} title="Glossário de voz" desc="Palavras que a Sofia deve usar e palavras que deve evitar.">
@@ -180,6 +195,12 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
               </Field>
               <Field label="Palavras/expressões a EVITAR" hint="Ex: parceiro, experiência inesquecível, premium.">
                 <StringListEditor items={c.voice.glossary.proibida} onChange={items => update(x => ({ ...x, voice: { ...x.voice, glossary: { ...x.voice.glossary, proibida: items } } }))} placeholder="ex: parceiro" />
+              </Field>
+              <Field label="Regras de tom" hint="Jeitos de falar que ela sempre segue. Já vêm algumas; edite, adicione ou remova.">
+                <StringListEditor items={c.voice.rules ?? []} onChange={items => update(x => ({ ...x, voice: { ...x.voice, rules: items } }))} placeholder='ex: use "a gente", nunca "nós"' />
+              </Field>
+              <Field label="Frases típicas dela" hint="Frases que ela costuma usar, pra calibrar o jeito. Opcional.">
+                <StringListEditor items={c.voice.typical_phrases ?? []} onChange={items => update(x => ({ ...x, voice: { ...x.voice, typical_phrases: items } }))} placeholder="ex: que bom que vocês chamaram a gente" />
               </Field>
             </EditorCard>
           </>
@@ -259,6 +280,10 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
             <EditorCard accent="rose" icon={<ShieldAlert className="w-5 h-5" />} title="O que a Sofia nunca faz"
               desc="Em linguagem simples: comportamentos, promessas ou jeitos de falar que a Sofia deve evitar.">
               <StringListEditor items={c.boundaries.comportamentos} onChange={items => update(x => ({ ...x, boundaries: { ...x.boundaries, comportamentos: items } }))} placeholder="ex: não prometa data sem confirmar com a Planner" />
+            </EditorCard>
+            <EditorCard accent="rose" icon={<ShieldAlert className="w-5 h-5" />} title="Concorrentes a não citar"
+              desc="Nomes que a Sofia nunca deve mencionar ou recomendar. Deixe vazio se não houver.">
+              <StringListEditor items={c.boundaries.competitors_to_avoid ?? []} onChange={items => update(x => ({ ...x, boundaries: { ...x.boundaries, competitors_to_avoid: items } }))} placeholder="ex: nome de uma produtora concorrente" />
             </EditorCard>
           </>
         )}

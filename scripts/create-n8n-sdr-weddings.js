@@ -44,8 +44,9 @@ if (!API_KEY) { console.error('N8N_API_KEY obrigatório.'); process.exit(1); }
 // gates de convite, antipadrões, autochecagem) adaptada a casamentos. Tags XML p/
 // parsing inequívoco. Só os {{ }} são botões vindos da config (nó Monta).
 const SYSTEM_PROMPT = `<papel>
-Você é {{ $('Monta').item.json.persona }}, especialista de casamentos da {{ $('Monta').item.json.empresa }}, conversando por WhatsApp com um casal que chamou a gente depois de ver algo nosso. Seu tom é {{ $('Monta').item.json.tom_desc }}. Você é gente de verdade, nunca um robô ou formulário.
+Você é {{ $('Monta').item.json.persona }}, {{ $('Monta').item.json.funcao }} da {{ $('Monta').item.json.empresa }}, conversando por WhatsApp com um casal que chamou a gente depois de ver algo nosso. Seu tom é {{ $('Monta').item.json.tom_desc }}. Você é gente de verdade, nunca um robô ou formulário.
 {{ $('Monta').item.json.proposta_txt }}
+{{ $('Monta').item.json.missao_txt }}
 </papel>
 
 <objetivo>
@@ -108,6 +109,7 @@ Regras absolutas, nunca quebre:
 {{ $('Monta').item.json.cliche_rule_txt }}
 {{ $('Monta').item.json.dash_rule_txt }}
 {{ $('Monta').item.json.price_rule_txt }}
+{{ $('Monta').item.json.competitors_txt }}
 - {{ $('Monta').item.json.emoji_rule_txt }}
 {{ $('Monta').item.json.ai_mention_txt }}
 {{ $('Monta').item.json.fronteiras_txt }}
@@ -122,6 +124,9 @@ Sempre que falar de preço, contextualize com leveza que depende de escopo, dest
 <glossario>
 Palavras a USAR quando couber: {{ $('Monta').item.json.glossary_usar || '(nenhuma específica)' }}
 Palavras/expressões a EVITAR: {{ $('Monta').item.json.glossary_evitar || '(nenhuma específica)' }}
+Regras de tom (siga sempre):
+{{ $('Monta').item.json.regras_voz_txt || '(nenhuma específica)' }}
+{{ $('Monta').item.json.frases_tipicas_txt }}
 </glossario>
 
 <comportamentos_proibidos>
@@ -239,7 +244,10 @@ const ranges_txt = arr(pr.destination_ranges).map(r => {
   const tiers = arr(r.tiers).map(t => t.convidados + ' convidados a partir de ' + (t.a_partir!=null?t.a_partir:'') + ' ' + (r.moeda||'')).join('; ');
   return '- ' + (r.destino||'') + ': ' + tiers + (r.contexto ? ' (' + r.contexto + ')' : '');
 }).join('\\n');
-const pricing_txt = [assessoria_txt, (revealMap[pr.reveal_strategy] || revealMap.on_question), (pr.can_negotiate ? '' : 'NUNCA negocie nem dê desconto, você é SDR.'), (ranges_txt ? ('Faixas de casamento por destino (a partir de):\\n' + ranges_txt) : '')].filter(Boolean).join('\\n');
+const pushback_txt = (pr.tone_on_pushback === 'firm')
+  ? 'Se hesitarem pelo valor, reafirme com firmeza o valor e os diferenciais, sem agressividade.'
+  : 'Se hesitarem pelo valor, acolha com empatia, reconheça o momento e deixe a porta aberta.';
+const pricing_txt = [assessoria_txt, (revealMap[pr.reveal_strategy] || revealMap.on_question), (pr.can_negotiate ? '' : 'NUNCA negocie nem dê desconto, você é SDR.'), pushback_txt, (ranges_txt ? ('Faixas de casamento por destino (a partir de):\\n' + ranges_txt) : '')].filter(Boolean).join('\\n');
 const gl = vo.glossary || {};
 const glossary_usar = arr(gl.marca).map(g => g.palavra || g).filter(Boolean).join(', ');
 const glossary_evitar = arr(gl.proibida).map(g => (g.palavra||g) + (g.alternativa ? (' (prefira "' + g.alternativa + '")') : '')).filter(Boolean).join(', ');
@@ -261,6 +269,15 @@ const no_dash_enabled = (cu.no_dash !== false);
 // Proposta = identidade canônica da empresa (usada pra ela se apresentar em qualquer momento).
 const proposta_val = id.proposta || cfg.proposta || '';
 const proposta_txt = proposta_val ? ('Sobre a ' + (id.empresa || cfg.empresa || 'gente') + ': ' + proposta_val + '. Use isso pra se apresentar com naturalidade, sem decorar.') : '';
+// B2: papel/função (editável), missão, regras de tom, frases típicas, concorrentes, temperos de tom.
+const funcao = (id.role && String(id.role).trim()) ? id.role : 'especialista de casamentos';
+const missao_txt = (id.mission_one_liner && String(id.mission_one_liner).trim()) ? ('Sua missão: ' + id.mission_one_liner + '.') : '';
+const tone_tags_txt = arr(vo.tone_tags).filter(Boolean).join(', ');
+const regras_voz_txt = arr(vo.rules).filter(Boolean).map(r => '- ' + r).join('\\n');
+const frases_tipicas = arr(vo.typical_phrases).filter(Boolean);
+const frases_tipicas_txt = frases_tipicas.length ? ('Frases que você costuma usar (use como referência de tom, não copie sempre): ' + frases_tipicas.map(f => '"' + f + '"').join('; ')) : '';
+const competitors = arr(bo.competitors_to_avoid).filter(Boolean);
+const competitors_txt = competitors.length ? ('- Nunca cite nem recomende concorrentes (' + competitors.join(', ') + ').') : '';
 // Momentos: instruções editáveis pra situações específicas. O gatilho vira uma frase
 // "Quando X" + a instrução; o cérebro (GPT-5.5) avalia o gatilho com naturalidade.
 const momTrig = { always: 'Em qualquer momento', on_price_question: 'Quando o casal perguntar preço ou valor', on_price_hesitation: 'Quando o casal hesitar por causa do valor', on_family_mentioned: 'Quando o casal mencionar a família (pais, sogros)', on_destination_unclear: 'Quando o destino ainda não estiver claro', on_high_qualification: 'Quando o casal já estiver bem qualificado', on_low_qualification: 'Quando ainda faltar qualificar o casal', on_hesitation_timeout: 'Quando o casal hesitar ou disser que vai pensar', custom_condition: '' };
@@ -328,7 +345,12 @@ return [{ json: {
   proposta_txt: proposta_txt,
   emoji_rule_txt: emoji_rule_txt,
   ai_mention_txt: ai_mention_txt,
-  tom_desc: (tomMap[tom] || tom || 'acolhedor, caloroso e humano') + ', ' + formalidade_desc,
+  tom_desc: (tomMap[tom] || tom || 'acolhedor, caloroso e humano') + ', ' + formalidade_desc + (tone_tags_txt ? (', ' + tone_tags_txt) : ''),
+  funcao: funcao,
+  missao_txt: missao_txt,
+  regras_voz_txt: regras_voz_txt,
+  frases_tipicas_txt: frases_tipicas_txt,
+  competitors_txt: competitors_txt,
   abertura: vo.abertura || cfg.abertura || '',
   abertura_txt: abertura_txt,
   cliche_rule_txt: cliche_rule_txt,

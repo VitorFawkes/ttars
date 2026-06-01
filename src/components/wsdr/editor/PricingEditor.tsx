@@ -54,6 +54,25 @@ export function PricingEditor({ pricing, onChange }: { pricing: SofiaPricing; on
         <Switch checked={pricing.can_negotiate} onCheckedChange={v => set({ can_negotiate: v })} className={pricing.can_negotiate ? 'bg-indigo-600' : ''} />
       </label>
 
+      {/* Tom ao hesitar */}
+      <div>
+        <label className="block text-sm font-medium text-slate-900 mb-1.5">Se o casal hesitar pelo valor</label>
+        <div className="grid grid-cols-2 gap-2">
+          {([
+            { value: 'empathetic', label: 'Com empatia', hint: 'Acolhe, reconhece e deixa a porta aberta.' },
+            { value: 'firm', label: 'Com firmeza', hint: 'Reafirma o valor e os diferenciais, sem agressividade.' },
+          ] as const).map(opt => (
+            <label key={opt.value} className={cn('flex flex-col gap-0.5 p-2.5 rounded-lg border cursor-pointer', pricing.tone_on_pushback === opt.value ? 'border-indigo-300 bg-indigo-50/60' : 'border-slate-200 hover:border-slate-300')}>
+              <span className="flex items-center gap-2 text-sm font-medium text-slate-900">
+                <input type="radio" name="pushback" className="accent-indigo-600" checked={pricing.tone_on_pushback === opt.value} onChange={() => set({ tone_on_pushback: opt.value })} />
+                {opt.label}
+              </span>
+              <span className="text-xs text-slate-500 pl-6">{opt.hint}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
       {/* Catálogo por destino */}
       <div className="space-y-3">
         <p className="text-sm font-medium text-slate-900">Faixas de casamento por destino <span className="text-xs font-normal text-slate-400">(a partir de, por nº de convidados)</span></p>

@@ -208,6 +208,7 @@ export interface SofiaConfigV2 {
     comportamentos: string[]
     // v3
     escalation?: EscalationConfig
+    competitors_to_avoid?: string[]
   }
   capabilities: SofiaCapabilities
   pricing: SofiaPricing
@@ -312,7 +313,11 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
       glossary: { marca: [], proibida: [] },
       abertura_mode: 'literal',
       tone_tags: [],
-      rules: [],
+      rules: [
+        'Use "a gente", nunca "nós"',
+        'Trate o casal por "vocês"',
+        'Frases curtas, português natural',
+      ],
       typical_phrases: [],
       forbidden_phrases: [],
       listening: { echo_social: true, acknowledge_observations: true, handle_bursts: true, never_ignore: true },
@@ -359,6 +364,7 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
       custom: [],
       comportamentos: [],
       escalation: { enabled: false, max_turns: 12, message: 'Vou chamar a nossa Wedding Planner pra conversar com vocês, tá bom?' },
+      competitors_to_avoid: [],
     },
     capabilities: {
       crm_write: { enabled: false, writable_fields: [], protected_fields: [], stage_move_enabled: false, target_stage_id: null },
@@ -407,6 +413,7 @@ export function normalizeToV2(raw: unknown): SofiaConfigV2 {
         custom: c.boundaries?.custom || [],
         comportamentos: c.boundaries?.comportamentos || [],
         escalation: { ...def.boundaries.escalation!, ...(c.boundaries?.escalation || {}) },
+        competitors_to_avoid: c.boundaries?.competitors_to_avoid ?? def.boundaries.competitors_to_avoid,
       },
       capabilities: {
         crm_write: { ...def.capabilities.crm_write, ...(c.capabilities?.crm_write || {}) },
