@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  LineChart, Line, LabelList,
+  LineChart, Line, LabelList, Cell,
 } from 'recharts'
 import {
   Calendar, Users as UsersIcon, DollarSign, Loader2, ChevronDown,
@@ -16,13 +16,16 @@ import { useFilterProfilesWithRole } from '@/hooks/analytics/useFilterOptions'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
+import { forecastToDrillRows } from '@/hooks/analytics/forecastToDrillRows'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import { cn } from '@/lib/utils'
 
-type ViewMode = 'stacked' | 'grouped' | 'cumulative'
+// Dimensão = o que vai no eixo X. 'tempo' = linha do tempo (por dia/semana/mês);
+// 'planner'|'origem'|'stage' = uma barra por categoria (total previsto na janela).
+type Dimensao = 'tempo' | 'planner' | 'origem' | 'stage'
+type Categoria = Exclude<Dimensao, 'tempo'>
 type WindowPreset = 'this_week' | 'next_7d' | 'next_14d' | 'next_30d' | 'custom'
 type Granularity = 'day' | 'week' | 'month'
-type GroupBy = 'planner' | 'origem' | 'stage'
 
 const COLORS = [
   '#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981',
@@ -76,10 +79,23 @@ function windowLabel(p: WindowPreset): string {
   }
 }
 
+function dimensaoLabel(d: Dimensao): string {
+  switch (d) {
+    case 'tempo': return 'ao longo do tempo'
+    case 'planner': return 'por consultor'
+    case 'origem': return 'por origem'
+    case 'stage': return 'por etapa'
+  }
+}
+
 function formatCompact(v: number): string {
   if (v >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(1)}mi`
   if (v >= 1_000) return `R$ ${Math.round(v / 1_000)}k`
   return `R$ ${Math.round(v)}`
+}
+
+function truncate(s: string, n: number): string {
+  return s.length > n ? `${s.slice(0, n - 1)}…` : s
 }
 
 function bucketKey(dateStr: string, granularity: Granularity): { key: string; display: string; raw: string } {
@@ -107,27 +123,16 @@ function bucketKey(dateStr: string, granularity: Granularity): { key: string; di
   }
 }
 
-function categoryFor(card: ForecastCard, groupBy: GroupBy): { id: string; nome: string } {
-  switch (groupBy) {
+function categoryFor(card: ForecastCard, dim: Categoria): { id: string; nome: string } {
+  switch (dim) {
     case 'planner': return { id: card.planner_id, nome: card.planner_nome }
     case 'origem': return { id: card.origem, nome: ORIGEM_LABELS[card.origem] ?? card.origem }
     case 'stage': return { id: card.stage_id ?? 'sem_stage', nome: card.stage_nome ?? 'Sem etapa' }
   }
 }
 
-interface ChartPoint {
-  bucket: string
-  bucketRaw: string
-  total: number
-  [categoryId: string]: number | string
-}
-
-interface Category {
-  id: string
-  nome: string
-  color: string
-  total: number
-}
+interface TimePoint { bucket: string; bucketRaw: string; total: number }
+interface CatPoint { id: string; nome: string; valor: number; qtd: number; color: string }
 
 export default function PlannerForecastChart() {
   const drillDown = useDrillDownStore()
@@ -138,7 +143,7 @@ export default function PlannerForecastChart() {
   const allPlanners = useMemo(() => (profiles.data ?? []).filter(p => p.role === 'vendas'), [profiles.data])
   const allStages = useMemo(() => (stages.data ?? []).filter((s) => (s as { ativo?: boolean }).ativo !== false), [stages.data])
 
-  const [windowPreset, setWindowPreset] = useState<WindowPreset>('next_7d')
+  const [windowPreset, setWindowPreset] = useState<WindowPreset>('next_30d')
   const [customStart, setCustomStart] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [customEnd, setCustomEnd] = useState(format(addDays(new Date(), 30), 'yyyy-MM-dd'))
   const [selectedOwners, setSelectedOwners] = useState<string[]>([])
@@ -146,9 +151,9 @@ export default function PlannerForecastChart() {
   const [selectedStages, setSelectedStages] = useState<string[]>([])
   const [valueMin, setValueMin] = useState<string>('')
   const [valueMax, setValueMax] = useState<string>('')
-  const [viewMode, setViewMode] = useState<ViewMode>('stacked')
+  const [dimensao, setDimensao] = useState<Dimensao>('tempo')
   const [granularity, setGranularity] = useState<Granularity>('day')
-  const [groupBy, setGroupBy] = useState<GroupBy>('planner')
+  const [cumulative, setCumulative] = useState(false)
 
   const { start, end } = useMemo(
     () => windowDates(windowPreset, customStart, customEnd),
@@ -175,56 +180,78 @@ export default function PlannerForecastChart() {
     return Array.from(set).sort()
   }, [data])
 
-  const { chartData, categories, totalGeral, totalQtd } = useMemo(() => {
-    if (!data || data.length === 0) {
-      return { chartData: [] as ChartPoint[], categories: [] as Category[], totalGeral: 0, totalQtd: 0 }
-    }
+  const totalGeral = useMemo(() => (data ?? []).reduce((s, c) => s + c.valor, 0), [data])
+  const totalQtd = data?.length ?? 0
 
-    const catMap = new Map<string, { nome: string; total: number }>()
-    for (const card of data) {
-      const cat = categoryFor(card, groupBy)
-      const existing = catMap.get(cat.id)
-      if (existing) existing.total += card.valor
-      else catMap.set(cat.id, { nome: cat.nome, total: card.valor })
-    }
-    const categories: Category[] = Array.from(catMap.entries())
-      .map(([id, v], idx) => ({ id, nome: v.nome, color: colorFor(idx), total: v.total }))
-      .sort((a, b) => b.total - a.total)
-
-    const byBucket = new Map<string, ChartPoint>()
-    let totalGeral = 0
+  // Eixo = TEMPO (linha do tempo)
+  const timeData = useMemo(() => {
+    if (!data || data.length === 0) return [] as TimePoint[]
+    const byBucket = new Map<string, TimePoint>()
     for (const card of data) {
       const { key, display, raw } = bucketKey(card.data_prevista, granularity)
-      const cat = categoryFor(card, groupBy)
       const point = byBucket.get(key) ?? { bucket: display, bucketRaw: raw, total: 0 }
-      point[cat.id] = (point[cat.id] as number | undefined ?? 0) + card.valor
-      point.total = (point.total as number) + card.valor
+      point.total += card.valor
       byBucket.set(key, point)
-      totalGeral += card.valor
     }
-    const chartData = Array.from(byBucket.values()).sort((a, b) => a.bucketRaw.localeCompare(b.bucketRaw))
-
-    if (viewMode === 'cumulative') {
+    const arr = Array.from(byBucket.values()).sort((a, b) => a.bucketRaw.localeCompare(b.bucketRaw))
+    if (cumulative) {
       let acc = 0
-      for (const p of chartData) {
-        acc += p.total as number
-        p.total = acc
-      }
+      for (const p of arr) { acc += p.total; p.total = acc }
     }
+    return arr
+  }, [data, granularity, cumulative])
 
-    return { chartData, categories, totalGeral, totalQtd: data.length }
-  }, [data, groupBy, granularity, viewMode])
-
-  const openCards = (categoryId: string, categoryNome: string, bucketRaw: string) => {
-    const label = `${categoryNome} · ${bucketRaw}`
-    if (groupBy === 'planner') {
-      drillDown.open({ label, drillSource: 'current_stage', drillOwnerId: categoryId })
-    } else if (groupBy === 'stage' && categoryId !== 'sem_stage') {
-      drillDown.open({ label, drillSource: 'current_stage', drillStageId: categoryId })
-    } else {
-      drillDown.open({ label, drillSource: 'current_stage' })
+  // Eixo = CATEGORIA (uma barra por consultor / origem / etapa)
+  const catData = useMemo(() => {
+    if (!data || data.length === 0 || dimensao === 'tempo') return [] as CatPoint[]
+    const m = new Map<string, { id: string; nome: string; valor: number; qtd: number }>()
+    for (const card of data) {
+      const cat = categoryFor(card, dimensao)
+      const cur = m.get(cat.id) ?? { id: cat.id, nome: cat.nome, valor: 0, qtd: 0 }
+      cur.valor += card.valor; cur.qtd++
+      m.set(cat.id, cur)
     }
+    return Array.from(m.values())
+      .sort((a, b) => b.valor - a.valor)
+      .slice(0, 20)
+      .map((c, idx) => ({ ...c, color: colorFor(idx) }))
+  }, [data, dimensao])
+
+  const todayStr = useMemo(() => format(new Date(), 'yyyy-MM-dd'), [])
+
+  // Clique numa barra de categoria (pessoa/origem/etapa): abre os cards EXATOS daquela fatia.
+  const openCat = (id: string, nome: string) => {
+    if (dimensao === 'tempo') return
+    const cards = (data ?? []).filter(c => categoryFor(c, dimensao).id === id)
+    const rows = forecastToDrillRows(cards, todayStr)
+    const total = rows.reduce((s, r) => s + r.valor_display, 0)
+    drillDown.open({
+      label: nome,
+      variant: 'forecast',
+      contextIcon: dimensao === 'origem' ? '🔗' : dimensao === 'stage' ? '📊' : '👤',
+      presetRows: rows,
+      presetKey: `fc-${dimensao}-${id}`,
+      summary: `${formatCurrency(total)} previsto · ${rows.length} card${rows.length !== 1 ? 's' : ''}`,
+    })
   }
+
+  // Clique numa barra do tempo: abre os cards previstos para aquele dia/semana/mês.
+  const openBucket = (raw: string, display: string) => {
+    const cards = (data ?? []).filter(c => bucketKey(c.data_prevista, granularity).raw === raw)
+    const rows = forecastToDrillRows(cards, todayStr)
+    const total = rows.reduce((s, r) => s + r.valor_display, 0)
+    drillDown.open({
+      label: `Previsão · ${display}`,
+      variant: 'forecast',
+      contextIcon: '📅',
+      presetRows: rows,
+      presetKey: `fc-time-${raw}`,
+      summary: `${formatCurrency(total)} previsto · ${rows.length} card${rows.length !== 1 ? 's' : ''}`,
+    })
+  }
+
+  const isTempo = dimensao === 'tempo'
+  const hasData = isTempo ? timeData.length > 0 : catData.length > 0
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
@@ -232,75 +259,78 @@ export default function PlannerForecastChart() {
         <div>
           <h3 className="text-base font-semibold text-slate-900">Previsão de fechamento</h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            {totalQtd} cards · {formatCurrency(totalGeral)} previstos {windowLabel(windowPreset)}
-            {groupBy !== 'planner' && ` · agrupado por ${groupBy === 'origem' ? 'origem' : 'etapa atual'}`}
+            {totalQtd} cards · {formatCurrency(totalGeral)} previstos {windowLabel(windowPreset)} · {dimensaoLabel(dimensao)}
           </p>
         </div>
-        <div className="flex items-center gap-0.5 bg-slate-50 rounded-md p-0.5">
-          {([
-            ['stacked', 'Empilhado'],
-            ['grouped', 'Lado a lado'],
-            ['cumulative', 'Acumulado'],
-          ] as const).map(([v, label]) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => setViewMode(v)}
-              className={cn(
-                'px-2.5 py-1 text-xs font-medium rounded transition-colors',
-                viewMode === v ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700',
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        {isTempo && (
+          <div className="flex items-center gap-0.5 bg-slate-50 rounded-md p-0.5">
+            {([
+              [false, 'Total'],
+              [true, 'Acumulado'],
+            ] as const).map(([v, label]) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => setCumulative(v)}
+                className={cn(
+                  'px-2.5 py-1 text-xs font-medium rounded transition-colors',
+                  cumulative === v ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700',
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Linha 1: dimensões */}
+      {/* Linha 1: o que vai no eixo (dimensão) + granularidade (só no tempo) */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1.5 text-[10px] uppercase font-semibold text-slate-400 tracking-wider">
           <Sparkles className="w-3 h-3" />
-          Olhar
+          Ver
         </div>
         <div className="flex items-center gap-0.5 bg-slate-50 rounded-md p-0.5">
           {([
-            ['planner', 'Por Planner'],
+            ['tempo', 'Por Tempo'],
+            ['planner', 'Por Pessoa'],
             ['origem', 'Por Origem'],
             ['stage', 'Por Etapa'],
           ] as const).map(([v, label]) => (
             <button
               key={v}
               type="button"
-              onClick={() => setGroupBy(v)}
+              onClick={() => setDimensao(v)}
               className={cn(
                 'px-2.5 py-1 text-xs font-medium rounded transition-colors',
-                groupBy === v ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700',
+                dimensao === v ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700',
               )}
             >
               {label}
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-0.5 bg-slate-50 rounded-md p-0.5">
-          {([
-            ['day', 'Dia'],
-            ['week', 'Semana'],
-            ['month', 'Mês'],
-          ] as const).map(([v, label]) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => setGranularity(v)}
-              className={cn(
-                'px-2.5 py-1 text-xs font-medium rounded transition-colors',
-                granularity === v ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700',
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        {isTempo && (
+          <div className="flex items-center gap-0.5 bg-slate-50 rounded-md p-0.5">
+            {([
+              ['day', 'Dia'],
+              ['week', 'Semana'],
+              ['month', 'Mês'],
+            ] as const).map(([v, label]) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setGranularity(v)}
+                className={cn(
+                  'px-2.5 py-1 text-xs font-medium rounded transition-colors',
+                  granularity === v ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700',
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Linha 2: filtros */}
@@ -439,118 +469,70 @@ export default function PlannerForecastChart() {
         <div className="h-72 flex items-center justify-center text-slate-400">
           <Loader2 className="w-5 h-5 animate-spin" />
         </div>
-      ) : chartData.length === 0 ? (
+      ) : !hasData ? (
         <div className="h-48 flex items-center justify-center text-sm text-slate-400">
           Sem cards com data prevista nesse período/filtro.
         </div>
-      ) : viewMode === 'cumulative' ? (
-        <ResponsiveContainer width="100%" height={320}>
-          <LineChart data={chartData} margin={{ left: 0, right: 30, top: 20, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: '#64748b' }} />
-            <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={formatCompact} />
-            <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-            <Line type="monotone" dataKey="total" stroke="#6366f1" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }}>
-              <LabelList dataKey="total" position="top" formatter={formatCompact as never}
-                style={{ fontSize: 10, fontWeight: 600, fill: '#334155' }} />
-            </Line>
-          </LineChart>
-        </ResponsiveContainer>
+      ) : isTempo ? (
+        cumulative ? (
+          <ResponsiveContainer width="100%" height={320}>
+            <LineChart data={timeData} margin={{ left: 0, right: 30, top: 20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: '#64748b' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={formatCompact} />
+              <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+              <Line type="monotone" dataKey="total" name="Acumulado" stroke="#6366f1" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }}>
+                <LabelList dataKey="total" position="top" formatter={formatCompact as never}
+                  style={{ fontSize: 10, fontWeight: 600, fill: '#334155' }} />
+              </Line>
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <ResponsiveContainer width="100%" height={340}>
+            <BarChart data={timeData} margin={{ left: 0, right: 30, top: 30, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: '#64748b' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={formatCompact} />
+              <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+              <Bar dataKey="total" name="Previsto" fill="#6366f1" radius={[4, 4, 0, 0]} cursor="pointer"
+                onClick={(d: { payload?: TimePoint }) => { if (d?.payload?.bucketRaw) openBucket(d.payload.bucketRaw, d.payload.bucket) }}>
+                <LabelList dataKey="total" position="top" formatter={formatCompact as never}
+                  style={{ fontSize: 11, fontWeight: 700, fill: '#0f172a' }} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )
       ) : (
-        <ResponsiveContainer width="100%" height={340}>
-          <BarChart data={chartData} margin={{ left: 0, right: 30, top: 30, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: '#64748b' }} />
-            <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={formatCompact} />
-            <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-            {viewMode === 'stacked' ? (
-              <>
-                {categories.map((c, idx) => (
-                  <Bar
-                    key={c.id}
-                    dataKey={c.id}
-                    name={c.nome}
-                    stackId="a"
-                    fill={c.color}
-                    cursor="pointer"
-                    onClick={(d: { payload?: ChartPoint }) => { if (d?.payload) openCards(c.id, c.nome, d.payload.bucketRaw) }}
-                  >
-                    <LabelList
-                      dataKey={c.id}
-                      position="center"
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      content={(props: any) => {
-                        const { x, y, width, height, value } = props
-                        const v = Number(value)
-                        if (!v || v === 0 || height < 18) return null
-                        return (
-                          <text
-                            x={x + width / 2}
-                            y={y + height / 2}
-                            textAnchor="middle"
-                            dominantBaseline="middle"
-                            fontSize={10}
-                            fontWeight={600}
-                            fill="white"
-                            style={{ pointerEvents: 'none' }}
-                          >
-                            {formatCompact(v)}
-                          </text>
-                        )
-                      }}
-                    />
-                    {idx === categories.length - 1 && (
-                      <LabelList
-                        dataKey="total"
-                        position="top"
-                        formatter={formatCompact as never}
-                        style={{ fontSize: 11, fontWeight: 700, fill: '#0f172a' }}
-                      />
-                    )}
-                  </Bar>
-                ))}
-              </>
-            ) : (
-              <>
-                {categories.map(c => (
-                  <Bar
-                    key={c.id}
-                    dataKey={c.id}
-                    name={c.nome}
-                    fill={c.color}
-                    cursor="pointer"
-                    radius={[4, 4, 0, 0]}
-                    onClick={(d: { payload?: ChartPoint }) => { if (d?.payload) openCards(c.id, c.nome, d.payload.bucketRaw) }}
-                  >
-                    <LabelList dataKey={c.id} position="top" formatter={formatCompact as never}
-                      style={{ fontSize: 10, fontWeight: 600, fill: '#334155' }} />
-                  </Bar>
-                ))}
-              </>
-            )}
+        <ResponsiveContainer width="100%" height={Math.max(260, catData.length * 38 + 40)}>
+          <BarChart data={catData} layout="vertical" margin={{ left: 8, right: 56, top: 4, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+            <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={formatCompact} />
+            <YAxis
+              type="category"
+              dataKey="nome"
+              width={140}
+              tick={{ fontSize: 11, fill: '#334155' }}
+              tickFormatter={(s: string) => truncate(s, 18)}
+            />
+            <Tooltip
+              formatter={(v: number) => formatCurrency(v)}
+              labelFormatter={(l: string) => l}
+              contentStyle={{ fontSize: 12, borderRadius: 8 }}
+            />
+            <Bar dataKey="valor" name="Previsto" radius={[0, 4, 4, 0]} cursor="pointer"
+              onClick={(d: { payload?: CatPoint }) => { if (d?.payload) openCat(d.payload.id, d.payload.nome) }}>
+              {catData.map(c => <Cell key={c.id} fill={c.color} />)}
+              <LabelList dataKey="valor" position="right" formatter={formatCompact as never}
+                style={{ fontSize: 11, fontWeight: 600, fill: '#334155' }} />
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       )}
 
-      {/* Legenda rica com valores escritos */}
-      {categories.length > 0 && (
-        <div className="border-t border-slate-100 pt-3 flex flex-wrap gap-2">
-          {categories.slice(0, 12).map(c => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => openCards(c.id, c.nome, 'período')}
-              className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded-md border border-slate-200 hover:bg-slate-50"
-            >
-              <span className="w-2 h-2 rounded-full" style={{ background: c.color }} />
-              <span className="text-slate-700 max-w-[160px] truncate">{c.nome}</span>
-              <span className="text-slate-500 tabular-nums">{formatCurrency(c.total)}</span>
-              <span className="text-slate-400 text-[10px]">
-                {Math.round((c.total / totalGeral) * 100)}%
-              </span>
-            </button>
-          ))}
-        </div>
+      {!isTempo && hasData && (
+        <p className="text-[11px] text-slate-400 pt-1">
+          Cada barra é o total previsto {dimensaoLabel(dimensao)} na janela selecionada. Clique numa barra pra ver os cards.
+        </p>
       )}
     </div>
   )

@@ -7,10 +7,17 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-06-01
 > **Trigger:** ALWAYS ON
-> **Stats:** 230 tabelas | 215 paginas | 380 hooks | 28 views | 871 components
+<<<<<<< HEAD
+> **Stats:** 230 tabelas | 215 paginas | 382 hooks | 28 views | 872 components
 > **Last Updated:** 2026-06-01
 > **Trigger:** ALWAYS ON
-> **Stats:** 230 tabelas | 215 paginas | 380 hooks | 28 views | 871 components
+> **Stats:** 230 tabelas | 215 paginas | 382 hooks | 28 views | 872 components
+=======
+> **Stats:** 230 tabelas | 215 paginas | 382 hooks | 28 views | 872 components
+> **Last Updated:** 2026-06-01
+> **Trigger:** ALWAYS ON
+> **Stats:** 230 tabelas | 215 paginas | 382 hooks | 28 views | 872 components
+>>>>>>> origin/main
 
 ---
 
@@ -172,7 +179,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **380 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **382 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -208,6 +215,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useCasais()` | `useCasais.ts` |
 | `useCasais 2()` | `useCasais 2.ts` |
 | `useChatIA()` | `useChatIA.ts` |
+| `useCloseDetailsOnOutside()` | `useCloseDetailsOnOutside.ts` |
 | `useContactSearch()` | `useContactSearch.ts` |
 | `useDuffelFlightSearch()` | `useDuffelFlightSearch.ts` |
 | `useEmailNotificationPreferences()` | `useEmailNotificationPreferences.ts` |
@@ -279,6 +287,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | Hook | File |
 |------|------|
 | `displayedEtapa()` | `displayedEtapa.ts` |
+| `forecastToDrillRows()` | `forecastToDrillRows.ts` |
 | `mockHotel()` | `mockHotel.ts` |
 | `types()` | `types.ts` |
 | `types()` | `types.ts` |
