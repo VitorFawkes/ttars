@@ -61,6 +61,9 @@ export type MomentTrigger =
   | 'on_low_qualification' | 'on_high_qualification' | 'on_destination_unclear'
   | 'on_hesitation_timeout' | 'custom_condition'
 export interface SofiaMoment { label: string; instrucao: string; trigger_type: MomentTrigger; enabled: boolean }
+// Fases da conversa (espinha dorsal proativa): a ordem que a Sofia conduz.
+// nome = a fase; objetivo = o que fazer/ritmo (linguagem simples); avancar_quando = condição pra ir pra próxima.
+export interface SofiaPhase { nome: string; objetivo: string; avancar_quando: string }
 export const MOMENT_TRIGGERS: { value: MomentTrigger; label: string; exemplo: string }[] = [
   { value: 'always', label: 'Em qualquer momento', exemplo: 'Vale pra conversa toda' },
   { value: 'on_price_question', label: 'Quando perguntam preço', exemplo: '"quanto custa?", "qual o valor?"' },
@@ -97,6 +100,7 @@ export interface SofiaConfigV2 {
   capabilities: SofiaCapabilities
   pricing: SofiaPricing
   moments: SofiaMoment[]
+  phases: SofiaPhase[]
 }
 
 export const REVEAL_OPTIONS: { value: RevealStrategy; label: string; hint: string }[] = [
@@ -223,6 +227,12 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
       { label: 'Quando citam a família', instrucao: 'Acolha: casamento é coisa de família. Diga que a Planner está acostumada a conversar com pais e família junto, sem pressão.', trigger_type: 'on_family_mentioned', enabled: true },
       { label: 'Quando o destino ainda está indefinido', instrucao: 'Não trave. Pergunte se têm um lugar no coração ou se estão abertos a explorar, e cite regiões que a gente conhece bem (Nordeste, Trancoso, Caribe, Europa).', trigger_type: 'on_destination_unclear', enabled: true },
     ],
+    phases: [
+      { nome: 'Apresentação', objetivo: 'Só se apresente de leve e faça no máximo UMA pergunta aberta (o nome do casal ou o que imaginam pro casamento). Não despeje tudo de uma vez, não fale de preço nem de detalhes ainda.', avancar_quando: 'O casal responder e você souber o nome ou o que eles buscam.' },
+      { nome: 'Sondagem', objetivo: 'Entenda a visão do casal e o destino/região, uma pergunta aberta por vez, reagindo ao que disseram. Deixe o casal falar mais que você.', avancar_quando: 'Você já tem uma boa noção da visão e do destino/região.' },
+      { nome: 'Qualificação', objetivo: 'Entenda número de convidados (estimado), o orçamento do casal e a data/época pretendida. Com leveza, uma coisa de cada vez.', avancar_quando: 'Você tem o essencial: visão, destino, convidados, orçamento e algum sinal de data/intenção.' },
+      { nome: 'Convite', objetivo: 'Costure numa frase o que entendeu, com as palavras do casal, e convide pra uma conversa com a Wedding Planner. Pergunte o melhor período, sem inventar horário.', avancar_quando: 'O casal aceitar conversar com a Planner.' },
+    ],
   }
 }
 
@@ -272,6 +282,11 @@ export function humanPromptPreview(cfg: SofiaConfigV2): string {
   lines.push('')
   lines.push('No primeiro contato ela diz:')
   lines.push(`"${cfg.voice.abertura.slice(0, 220)}${cfg.voice.abertura.length > 220 ? '…' : ''}"`)
+  if (cfg.phases && cfg.phases.length) {
+    lines.push('')
+    lines.push('Ela conduz a conversa nestas fases, em ordem:')
+    cfg.phases.forEach((p, i) => lines.push(`  ${i + 1}. ${p.nome}: ${p.objetivo}`))
+  }
   lines.push('')
   lines.push('Ao longo da conversa ela vai entendendo, uma coisa de cada vez:')
   cfg.qualification.etapas.forEach((e, i) => lines.push(`  ${i + 1}. ${e}`))

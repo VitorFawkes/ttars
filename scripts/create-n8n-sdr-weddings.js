@@ -58,6 +58,13 @@ Ter uma conversa boa e humana que faça o casal se sentir entendido, entender o 
 - Deixe o casal falar mais que você. Pergunta aberta, de "como" e "o que", nunca um "por quê" que soe cobrança.
 </como_voce_conversa>
 
+<fluxo_de_fases>
+Você conduz a conversa nestas fases, EM ORDEM (nunca anuncie isto, nunca diga "estou na fase X"):
+{{ $('Monta').item.json.fases_txt || '(sem fases definidas, conduza com bom senso)' }}
+Pela conversa até aqui, você está na fase: {{ $('Parse Consolida').item.json.fase || '(a primeira)' }}.
+Faça SÓ o que a fase atual pede, no ritmo dela. Em especial, se a fase pede pra só se apresentar e esperar, NÃO despeje tudo de uma vez nem emende várias perguntas. Só avance pra próxima fase quando o objetivo da fase atual estiver cumprido. As fases são o seu rumo; os momentos abaixo podem interromper quando o casal puxar o assunto.
+</fluxo_de_fases>
+
 <o_que_entender>
 Ao longo da conversa, na ordem que fluir (não fixa), vá entendendo:
 {{ $('Monta').item.json.etapas_txt }}
@@ -253,6 +260,10 @@ const proposta_txt = proposta_val ? ('Sobre a ' + (id.empresa || cfg.empresa || 
 const momTrig = { always: 'Em qualquer momento', on_price_question: 'Quando o casal perguntar preço ou valor', on_price_hesitation: 'Quando o casal hesitar por causa do valor', on_family_mentioned: 'Quando o casal mencionar a família (pais, sogros)', on_destination_unclear: 'Quando o destino ainda não estiver claro', on_high_qualification: 'Quando o casal já estiver bem qualificado', on_low_qualification: 'Quando ainda faltar qualificar o casal', on_hesitation_timeout: 'Quando o casal hesitar ou disser que vai pensar', custom_condition: '' };
 const moments = arr(cfg.moments).filter(m => m && m.enabled !== false && (m.instrucao || m.prompt_text));
 const momentos_txt = moments.map(m => { const when = momTrig[m.trigger_type] || ''; const instr = m.instrucao || m.prompt_text; return when ? ('- ' + when + ': ' + instr) : ('- ' + instr); }).join('\\n');
+// Fases da conversa (espinha proativa): a Sofia sabe em que turno está e segue o ritmo.
+const phases = arr(cfg.phases).filter(p => p && (p.nome || p.objetivo));
+const fases_txt = phases.map((p,i) => (i+1) + '. ' + (p.nome||'') + ': ' + (p.objetivo||'') + (p.avancar_quando ? (' (avança quando: ' + p.avancar_quando + ')') : '')).join('\\n');
+const fase_anterior = (est && est.sinais && est.sinais.fase) ? est.sinais.fase : '';
 // Critérios de qualificação (com importância). Vazio -> deriva das etapas (todas "importante").
 const crit = arr(qu.criteria);
 const criterios_txt = (crit.length
@@ -288,6 +299,8 @@ return [{ json: {
   glossary_evitar: glossary_evitar,
   comportamentos_txt: comportamentos_txt,
   momentos_txt: momentos_txt,
+  fases_txt: fases_txt,
+  fase_anterior: fase_anterior,
   bubbles_enabled: !!(cfg.capabilities && cfg.capabilities.memory && cfg.capabilities.memory.enabled && cfg.capabilities.memory.bubbles_enabled),
   crm_write_enabled: !!(cfg.capabilities && cfg.capabilities.crm_write && cfg.capabilities.crm_write.enabled),
   calendar_enabled: !!(cfg.capabilities && cfg.capabilities.calendar && cfg.capabilities.calendar.enabled),
@@ -369,24 +382,33 @@ const CONSOLIDA_SYSTEM = `Você consolida o ESTADO de uma conversa de casamento 
 - "resumo": fatos estáveis do casal (nomes, destino/região, nº de convidados, orçamento do casal, data pretendida, restrições). Frases curtas.
 - "contexto": onde a conversa está, o que já aconteceu e o próximo passo natural.
 - "sinais": objeto só com sinais VERDADEIROS detectados, ex: {"fuga": true, "pressao_familia": true, "hesitacao_preco": true, "urgencia": true}. Se nenhum, {}.
+- "fase": o NOME da fase atual da conversa, escolhido EXATAMENTE da lista de fases fornecida. Comece pela 1ª fase; só avance pra próxima quando o "avança quando" da fase atual estiver cumprido. NUNCA pule fases nem invente nome. Se não há fases, devolva "".
 Atualize a partir do anterior; NÃO invente. Se não há novidade, repita o anterior.`;
 const CONSOLIDA_USER = `Resumo anterior: {{ $('Monta').item.json.resumo_antigo || '(vazio)' }}
 Contexto anterior: {{ $('Monta').item.json.contexto_antigo || '(vazio)' }}
+Fase anterior: {{ $('Monta').item.json.fase_anterior || '(começo)' }}
+
+Fases da conversa (em ordem):
+{{ $('Monta').item.json.fases_txt || '(sem fases definidas)' }}
 
 Histórico:
 {{ $('Monta').item.json.historico || '(começo)' }}
 Última mensagem do casal: {{ $('Monta').item.json.ultima_mensagem_lead }}
 
-Devolva só o JSON {resumo, contexto, sinais}.`;
+Devolva só o JSON {resumo, contexto, sinais, fase}.`;
 const CODE_PARSE_CONSOLIDA = `let t = String($('Consolida').item.json.output || '').trim();
 t = t.replace(/^\`\`\`(json)?/i,'').replace(/\`\`\`$/,'').trim();
 let r = {};
 try { r = JSON.parse(t); } catch(e) { r = {}; }
 const m = $('Monta').first().json;
+const fase = (r && typeof r.fase === 'string' && r.fase.trim()) ? r.fase.trim() : (m.fase_anterior || '');
+const sinais = (r && r.sinais && typeof r.sinais === 'object') ? r.sinais : {};
+if (fase) sinais.fase = fase; // persiste a fase dentro de sinais (sem mudar o RPC)
 return [{ json: {
   resumo: (r && typeof r.resumo === 'string') ? r.resumo : (m.resumo_antigo || ''),
   contexto: (r && typeof r.contexto === 'string') ? r.contexto : (m.contexto_antigo || ''),
-  sinais: (r && r.sinais && typeof r.sinais === 'object') ? r.sinais : {},
+  sinais: sinais,
+  fase: fase,
   org_id: m.org_id, agent_slug: m.agent_slug, phone: m.phone,
 }}];`;
 

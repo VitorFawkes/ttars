@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   User, MessageSquare, Wallet, Zap, ShieldAlert, ShieldCheck, Eye, Loader2, CheckCircle, AlertCircle,
-  Smile, Languages, Sparkles, Target, Coins, Palette, Info,
+  Smile, Languages, Sparkles, Target, Coins, Palette, Info, ListOrdered,
 } from 'lucide-react'
 import { PricingEditor } from '@/components/wsdr/editor/PricingEditor'
 import { CriteriaEditor } from '@/components/wsdr/editor/CriteriaEditor'
 import { MomentsEditor } from '@/components/wsdr/editor/MomentsEditor'
+import { PhasesEditor } from '@/components/wsdr/editor/PhasesEditor'
 import { WeddingPlannerPicker } from '@/components/wsdr/editor/WeddingPlannerPicker'
 import { AgentEditorLayout, type EditorTab } from '@/components/ai-agent/editor/AgentEditorLayout'
 import { StringListEditor } from '@/components/wsdr/StringListEditor'
@@ -174,8 +175,12 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
               desc="A primeira mensagem exata que a Sofia manda no primeiro contato.">
               <Textarea value={c.voice.abertura} onChange={e => update(x => ({ ...x, voice: { ...x.voice, abertura: e.target.value } }))} className="min-h-[140px]" />
             </EditorCard>
+            <EditorCard accent="sky" icon={<ListOrdered className="w-5 h-5" />} title="Fases da conversa"
+              desc="A ordem que a Sofia conduz (apresentar → sondar → qualificar → convidar). Em cada fase você explica o que ela faz e o ritmo. É a espinha da conversa.">
+              <PhasesEditor phases={c.phases} onChange={items => update(x => ({ ...x, phases: items }))} />
+            </EditorCard>
             <EditorCard accent="sky" icon={<Sparkles className="w-5 h-5" />} title="Momentos da conversa"
-              desc="Faça a Sofia falar ou agir de um jeito específico em certos momentos (ex: quando perguntam preço).">
+              desc="Reações que valem em QUALQUER fase (ex: quando perguntam preço, quando citam a família).">
               <MomentsEditor moments={c.moments} onChange={items => update(x => ({ ...x, moments: items }))} />
             </EditorCard>
             <EditorCard accent="amber" icon={<Target className="w-5 h-5" />} title="Qualificação do casal"
