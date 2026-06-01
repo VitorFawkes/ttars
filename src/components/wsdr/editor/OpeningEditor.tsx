@@ -1,6 +1,7 @@
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { type AberturaMode, ABERTURA_MODE_OPTIONS } from '@/components/wsdr/sofiaConfig'
+import { SuggestVariations } from '@/components/wsdr/editor/SuggestVariations'
 
 const VARIABLES: { token: string; desc: string }[] = [
   { token: '{{contact_name}}', desc: 'nome do casal' },
@@ -46,9 +47,12 @@ export function OpeningEditor({
         </p>
       ) : (
         <div>
-          <label className="block text-sm font-medium text-slate-900 mb-1.5">
-            {mode === 'literal' ? 'O texto exato da primeira mensagem' : 'A diretriz da abertura (o que ela deve fazer)'}
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-sm font-medium text-slate-900">
+              {mode === 'literal' ? 'O texto exato da primeira mensagem' : 'A diretriz da abertura (o que ela deve fazer)'}
+            </label>
+            <SuggestVariations text={abertura} fieldType={mode === 'literal' ? 'anchor_text' : 'custom'} onPick={t => onChange({ abertura: t })} />
+          </div>
           <Textarea
             value={abertura}
             onChange={e => onChange({ abertura: e.target.value })}

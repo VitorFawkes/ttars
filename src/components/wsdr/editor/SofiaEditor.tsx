@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import {
   User, MessageSquare, Wallet, Zap, ShieldAlert, Eye, Loader2, CheckCircle, AlertCircle,
   Smile, Languages, Sparkles, Target, Coins, Info, ListOrdered, Search, Gauge,
+  AlertTriangle, RotateCcw, Power, Code,
 } from 'lucide-react'
 import { PricingEditor } from '@/components/wsdr/editor/PricingEditor'
 import { MomentsEditor } from '@/components/wsdr/editor/MomentsEditor'
@@ -24,7 +25,7 @@ import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import {
   type SofiaConfigV2, type SofiaCapabilities, type Tom, type CapabilityKey, type AberturaMode,
-  TOM_OPTIONS, CAPABILITY_META, humanPromptPreview,
+  TOM_OPTIONS, CAPABILITY_META, humanPromptPreview, computeSofiaWarnings, assembleSofiaPromptPreview, defaultSofiaConfig,
 } from '@/components/wsdr/sofiaConfig'
 import { useSofiaConfig } from '@/hooks/wsdr/useSofiaConfig'
 
@@ -65,6 +66,16 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
   }
 
   const preview = useMemo(() => (config ? humanPromptPreview(config) : ''), [config])
+  const promptCru = useMemo(() => (config ? assembleSofiaPromptPreview(config) : ''), [config])
+  const warnings = useMemo(() => (config ? computeSofiaWarnings(config) : []), [config])
+  const [showCru, setShowCru] = useState(false)
+
+  // Restaurar uma parte ao recomendado (rede de segurança do controle total).
+  const restore = (key: keyof SofiaConfigV2) => {
+    if (!confirm('Restaurar esta parte ao recomendado? Suas mudanças nela serão perdidas.')) return
+    const def = defaultSofiaConfig()
+    update(x => ({ ...x, [key]: def[key] }))
+  }
 
   if (loading || !config) {
     return (
@@ -142,6 +153,20 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
 
   return (
     <div className="space-y-6 pb-24">
+      {warnings.length > 0 && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 mb-1.5">
+            <AlertTriangle className="w-4 h-4" />Avisos ({warnings.length})
+          </div>
+          <ul className="space-y-1 text-xs text-amber-800">
+            {warnings.map((w, i) => (
+              <li key={i} className="flex items-start gap-1.5">
+                <span className="mt-0.5">{w.kind === 'risco' ? '⚠️' : '•'}</span><span>{w.text}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <AgentEditorLayout tabs={TABS} activeTab={tab} onTabChange={setTab}>
         {tab === 'quem' && (
           <>
@@ -273,7 +298,8 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
         {tab === 'regras' && (
           <>
             <EditorCard accent="rose" icon={<ShieldAlert className="w-5 h-5" />} title="O que a Sofia pode e não pode fazer"
-              desc="Tudo é editável (controle total). As regras que protegem a qualidade mostram um aviso ao desligar, mas a decisão é sua.">
+              desc="Tudo é editável (controle total). As regras que protegem a qualidade mostram um aviso ao desligar, mas a decisão é sua."
+              aside={<button type="button" onClick={() => restore('boundaries')} className="flex items-center gap-1 text-xs text-slate-400 hover:text-indigo-600 shrink-0"><RotateCcw className="w-3.5 h-3.5" />Restaurar recomendado</button>}>
               <BoundariesEditor boundaries={c.boundaries} onChange={b => update(x => ({ ...x, boundaries: b }))} />
             </EditorCard>
             <EditorCard accent="rose" icon={<ShieldAlert className="w-5 h-5" />} title="O que a Sofia nunca faz"
@@ -288,10 +314,29 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
         )}
 
         {tab === 'avancado' && (
-          <EditorCard accent="slate" icon={<Eye className="w-5 h-5" />} title="O que a Sofia entende"
-            desc="Resumo, em linguagem simples, de como a Sofia vai se comportar com as configurações atuais. Atualiza ao vivo.">
-            <pre className="bg-slate-50/70 border border-slate-200 rounded-lg p-4 text-xs text-slate-700 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">{preview}</pre>
-          </EditorCard>
+          <>
+            <EditorCard accent="slate" icon={<Power className="w-5 h-5" />} title="Ligar / desligar a Sofia"
+              desc="Quando desligada, a Sofia não responde (mesmo recebendo mensagem). Hoje ela também está travada no seu número de teste.">
+              <label className="flex items-center justify-between text-sm text-slate-700">
+                <span>{(c.ativa ?? true) ? 'Sofia ligada' : 'Sofia desligada'}</span>
+                <Switch checked={c.ativa ?? true} onCheckedChange={v => update(x => ({ ...x, ativa: v }))} className={(c.ativa ?? true) ? 'bg-emerald-600' : ''} />
+              </label>
+            </EditorCard>
+
+            <EditorCard accent="slate" icon={<Eye className="w-5 h-5" />} title="O que a Sofia entende"
+              desc="Resumo, em linguagem simples, de como a Sofia vai se comportar com as configurações atuais. Atualiza ao vivo."
+              aside={<button type="button" onClick={() => setShowCru(s => !s)} className="flex items-center gap-1 text-xs text-slate-400 hover:text-indigo-600 shrink-0"><Code className="w-3.5 h-3.5" />{showCru ? 'Ver resumo simples' : 'Ver prompt técnico'}</button>}>
+              <pre className="bg-slate-50/70 border border-slate-200 rounded-lg p-4 text-xs text-slate-700 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">{showCru ? promptCru : preview}</pre>
+              {showCru && <p className="text-[11px] text-slate-400 mt-2">Prévia técnica da estrutura do cérebro com as suas configurações. Os blocos marcados FIXOS são o raciocínio da Camila e não mudam.</p>}
+            </EditorCard>
+
+            <EditorCard accent="slate" icon={<RotateCcw className="w-5 h-5" />} title="Restaurar tudo ao recomendado"
+              desc="Volta TODA a configuração da Sofia aos valores recomendados. Use se algo saiu do controle.">
+              <Button type="button" variant="outline" onClick={() => { if (confirm('Restaurar TODA a configuração ao recomendado? Suas mudanças serão perdidas.')) { update(() => defaultSofiaConfig()) } }}>
+                <RotateCcw className="w-4 h-4 mr-2" />Restaurar tudo
+              </Button>
+            </EditorCard>
+          </>
         )}
       </AgentEditorLayout>
 

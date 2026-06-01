@@ -585,6 +585,11 @@ function buildWorkflow() {
         options: { response: { response: { neverError: true } } },
       },
       credentials: { supabaseApi: SUPABASE_CREDENTIAL } },
+    // --- Ligar/desligar a Sofia: se config.ativa === false, responde vazio (não engaja).
+    //     Default (sem o campo) = ativa, então não muda o comportamento existente. ---
+    { id: 'ativagate', name: 'Sofia Ativa?', type: 'n8n-nodes-base.if', typeVersion: 2, position: [690, 200],
+      parameters: { conditions: { options: { caseSensitive: true, leftValue: '', typeValidation: 'loose' }, combinator: 'and',
+        conditions: [{ id: 'a1', leftValue: "={{ $('Carrega Config').first().json.ativa === false }}", rightValue: '', operator: { type: 'boolean', operation: 'true', singleValue: true } }] }, options: {} } },
     // --- M5 Debounce por silêncio (gated por capabilities.memory.enabled). OFF = flui direto. ---
     { id: 'debgate', name: 'Debounce?', type: 'n8n-nodes-base.if', typeVersion: 2, position: [740, 120],
       parameters: { conditions: { options: { caseSensitive: true, leftValue: '', typeValidation: 'loose' }, combinator: 'and',
@@ -697,7 +702,8 @@ function buildWorkflow() {
   const connections = {
     'Webhook SDR Weddings': { main: [[{ node: 'Prepara', type: 'main', index: 0 }]] },
     'Prepara': { main: [[{ node: 'Carrega Config', type: 'main', index: 0 }]] },
-    'Carrega Config': { main: [[{ node: 'Debounce?', type: 'main', index: 0 }]] },
+    'Carrega Config': { main: [[{ node: 'Sofia Ativa?', type: 'main', index: 0 }]] },
+    'Sofia Ativa?': { main: [[{ node: 'Responde Vazio', type: 'main', index: 0 }], [{ node: 'Debounce?', type: 'main', index: 0 }]] },
     'Debounce?': { main: [[{ node: 'Buffer Append', type: 'main', index: 0 }], [{ node: 'Carrega Estado', type: 'main', index: 0 }]] },
     'Buffer Append': { main: [[{ node: 'Espera', type: 'main', index: 0 }]] },
     'Espera': { main: [[{ node: 'Buffer Claim', type: 'main', index: 0 }]] },

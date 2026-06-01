@@ -386,6 +386,8 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
       { nome: 'Qualificação', objetivo: 'Entenda número de convidados (estimado), o orçamento do casal e a data/época pretendida. Com leveza, uma coisa de cada vez.', avancar_quando: 'Você tem o essencial: visão, destino, convidados, orçamento e algum sinal de data/intenção.' },
       { nome: 'Convite', objetivo: 'Costure numa frase o que entendeu, com as palavras do casal, e convide pra uma conversa com a Wedding Planner. Pergunte o melhor período, sem inventar horário.', avancar_quando: 'O casal aceitar conversar com a Planner.' },
     ],
+    interaction_mode: 'inbound',
+    ativa: true,
   }
 }
 
@@ -466,4 +468,91 @@ export function humanPromptPreview(cfg: SofiaConfigV2): string {
   lines.push('')
   lines.push(caps.length ? `Capacidades ligadas: ${caps.join(', ')}.` : 'Nenhuma capacidade extra ligada (ela só conversa, por enquanto).')
   return lines.join('\n')
+}
+
+// Avisos: rede de segurança do "controle total". Lista o que foi desligado e protege
+// qualidade, + o que está incompleto. O gestor decide; aqui só mostramos com clareza.
+export interface SofiaWarning { kind: 'risco' | 'incompleto'; text: string }
+export function computeSofiaWarnings(cfg: SofiaConfigV2): SofiaWarning[] {
+  const w: SofiaWarning[] = []
+  CURATED_BOUNDARIES.filter(b => b.protectsQuality).forEach(b => {
+    const on = cfg.boundaries.curadas?.[b.key] ?? b.defaultOn
+    if (!on) w.push({ kind: 'risco', text: `Você desligou uma proteção de qualidade: "${b.label}".` })
+  })
+  if (cfg.pricing?.can_negotiate) w.push({ kind: 'risco', text: 'A Sofia está autorizada a negociar/dar desconto (o recomendado é desligado).' })
+  const mode = cfg.voice.abertura_mode ?? 'literal'
+  if (mode !== 'free' && !cfg.voice.abertura?.trim()) w.push({ kind: 'incompleto', text: 'A mensagem de abertura está vazia.' })
+  if (!cfg.phases?.length) w.push({ kind: 'incompleto', text: 'Nenhuma etapa no roteiro da conversa.' })
+  if (!cfg.qualification.criteria?.length) w.push({ kind: 'incompleto', text: 'Nenhum critério de qualificação.' })
+  if (cfg.qualification.scoring_enabled && !(cfg.qualification.criteria || []).some(c => (c.rule_type ?? 'qualifier') === 'qualifier')) {
+    w.push({ kind: 'incompleto', text: 'Pontuação ligada, mas nenhum critério que "qualifica" (ninguém vai pontuar).' })
+  }
+  cfg.moments?.forEach(m => { if (m.enabled !== false && !m.instrucao?.trim()) w.push({ kind: 'incompleto', text: `O momento "${m.label || 'sem nome'}" está sem instrução.` }) })
+  if (cfg.capabilities.crm_write.enabled && cfg.capabilities.crm_write.stage_move_enabled && !cfg.capabilities.crm_write.target_stage_id) {
+    w.push({ kind: 'incompleto', text: '"Mover etapa" está ligado, mas sem etapa de destino escolhida.' })
+  }
+  if (cfg.capabilities.calendar.enabled && !cfg.capabilities.calendar.wedding_planner_profile_id) {
+    w.push({ kind: 'incompleto', text: 'Agenda ligada, mas sem Wedding Planner escolhida.' })
+  }
+  return w
+}
+
+// Prévia TÉCNICA (prompt cru) — reconstrói a estrutura do cérebro com as SUAS configs,
+// pra você caçar erro. Os blocos de raciocínio da Camila aparecem marcados como FIXOS.
+// É uma reconstrução fiel da estrutura (não a execução ao vivo, que tem o histórico real).
+export function assembleSofiaPromptPreview(cfg: SofiaConfigV2): string {
+  const v = cfg.voice, id = cfg.identity, b = cfg.boundaries
+  const tomMap: Record<string, string> = { acolhedor: 'acolhedor, caloroso e humano', formal: 'profissional e formal', direto: 'direto e objetivo' }
+  const fm = typeof v.formalidade === 'number' ? v.formalidade : 0.5
+  const formal = fm < 0.34 ? 'bem informal e leve' : fm > 0.66 ? 'mais formal e sóbrio' : 'natural'
+  const tomDesc = [(tomMap[v.tom] || v.tom), formal, ...(v.tone_tags ?? [])].filter(Boolean).join(', ')
+  const cur = b.curadas || {}
+  const on = (k: string, def = false) => cur[k] ?? def
+  const slots = cfg.qualification.discovery_slots ?? []
+  const prio: Record<string, string> = { critical: 'crítico', preferred: 'importante', nice_to_have: 'extra' }
+  const mode = v.abertura_mode ?? 'literal'
+  const out: string[] = []
+  out.push('<papel>')
+  out.push(`Você é ${id.persona_nome}, ${id.role || 'especialista de casamentos'} da ${id.empresa}. Seu tom é ${tomDesc}.`)
+  if (id.proposta) out.push(`Sobre a empresa: ${id.proposta}.`)
+  if (id.mission_one_liner) out.push(`Sua missão: ${id.mission_one_liner}.`)
+  out.push('</papel>')
+  out.push('<como_voce_conversa> (FIXO — raciocínio da Camila) </como_voce_conversa>')
+  out.push('<fluxo_de_fases>')
+  ;(cfg.phases ?? []).forEach((p, i) => out.push(`  ${i + 1}. ${p.nome}: ${p.objetivo}${p.avancar_quando ? ` (avança quando: ${p.avancar_quando})` : ''}`))
+  out.push('</fluxo_de_fases>')
+  out.push('<o_que_entender>')
+  if (slots.length) slots.forEach((s, i) => out.push(`  ${i + 1}. ${s.label} [${prio[s.priority] || 'importante'}]${(s.questions ?? []).filter(Boolean).length ? ` — perguntas: ${(s.questions).filter(Boolean).map(q => `"${q}"`).join(' / ')}` : ' (improvisa)'}`))
+  else cfg.qualification.etapas.forEach((e, i) => out.push(`  ${i + 1}. ${e}`))
+  if ((cfg.qualification.silent_signals ?? []).length) out.push(`  Percebe sozinha: ${(cfg.qualification.silent_signals as string[]).join('; ')}.`)
+  out.push('</o_que_entender>')
+  out.push('<matriz_de_decisao> · <spin_framework> · <gates_do_convite> · <convite_e_agenda> · <autochecagem> · <formato> (FIXOS — raciocínio da Camila)')
+  out.push('<politica_preco>')
+  if (cfg.pricing.mention_fee) out.push(`  Assessoria: R$ ${cfg.pricing.fee_min_brl} a R$ ${cfg.pricing.fee_max_brl}.`)
+  out.push(`  Quando revelar: ${REVEAL_OPTIONS.find(o => o.value === cfg.pricing.reveal_strategy)?.label}.`)
+  out.push(`  ${cfg.pricing.can_negotiate ? 'Pode negociar.' : 'NUNCA negocia.'} Ao hesitar: ${cfg.pricing.tone_on_pushback === 'firm' ? 'firmeza' : 'empatia'}.`)
+  out.push('</politica_preco>')
+  out.push('<glossario>')
+  if ((v.glossary.marca ?? []).length) out.push(`  Usar: ${v.glossary.marca.join(', ')}`)
+  if ((v.glossary.proibida ?? []).length) out.push(`  Evitar: ${v.glossary.proibida.join(', ')}`)
+  ;(v.rules ?? []).forEach(r => out.push(`  Regra de tom: ${r}`))
+  if ((v.typical_phrases ?? []).length) out.push(`  Frases típicas: ${(v.typical_phrases as string[]).map(f => `"${f}"`).join('; ')}`)
+  out.push('</glossario>')
+  out.push('<momentos>')
+  ;(cfg.moments ?? []).filter(m => m.enabled !== false).forEach(m => out.push(`  - ${m.trigger_type === 'custom_condition' && m.custom_condition_description ? `Quando ${m.custom_condition_description}` : m.label}: ${m.instrucao}`))
+  out.push('</momentos>')
+  out.push('<linhas_vermelhas>')
+  if (on('no_price', true)) out.push('  - Nunca dá preço fechado.')
+  if (on('no_invented_date', true)) out.push('  - Nunca inventa data ou horário.')
+  if (on('no_cliche', true)) out.push('  - Zero clichê.')
+  if (on('no_dash', true)) out.push('  - Zero travessão.')
+  if (on('no_first_emoji', true)) out.push('  - Sem emoji na 1ª mensagem.')
+  if (on('no_ai_mention')) out.push('  - Nunca diz que é IA.')
+  if ((b.competitors_to_avoid ?? []).length) out.push(`  - Nunca cita concorrentes: ${(b.competitors_to_avoid as string[]).join(', ')}.`)
+  ;(b.comportamentos ?? []).forEach(c => out.push(`  - ${c}`))
+  out.push('</linhas_vermelhas>')
+  out.push('<primeira_mensagem>')
+  out.push(mode === 'free' ? '  (a Sofia compõe sozinha)' : mode === 'directive' ? `  Diretriz: ${v.abertura}` : `  Exata: ${v.abertura}`)
+  out.push('</primeira_mensagem>')
+  return out.join('\n')
 }
