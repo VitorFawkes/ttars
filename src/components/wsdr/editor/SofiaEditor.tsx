@@ -45,7 +45,7 @@ const TABS: EditorTab[] = [
   { id: 'pontuacao', label: 'Pontuação', icon: Gauge },
   { id: 'preco', label: 'Preço e valores', icon: Wallet },
   { id: 'faz', label: 'O que ela faz', icon: Zap },
-  { id: 'regras', label: 'Regras e limites', icon: ShieldAlert },
+  { id: 'regras', label: 'Pode e não pode', icon: ShieldAlert },
   { id: 'avancado', label: 'Avançado', icon: Eye },
 ]
 
@@ -195,15 +195,17 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
                 onChange={patch => update(x => ({ ...x, voice: { ...x.voice, ...patch as { abertura_mode?: AberturaMode; abertura?: string } } }))}
               />
             </EditorCard>
-            <EditorCard accent="sky" icon={<ListOrdered className="w-5 h-5" />} title="Fases da conversa"
-              desc="A ordem que a Sofia conduz (apresentar → sondar → qualificar → convidar). Em cada fase você explica o que ela faz e o ritmo. É a espinha da conversa.">
+            <EditorCard accent="sky" icon={<ListOrdered className="w-5 h-5" />} title="Roteiro da conversa"
+              desc="A ORDEM que a Sofia conduz (apresentar → sondar → qualificar → convidar). Em cada etapa você explica o que ela faz e o ritmo. Arraste pra reordenar.">
               <PhasesEditor phases={c.phases} onChange={items => update(x => ({ ...x, phases: items }))} />
             </EditorCard>
-            <EditorCard accent="amber" icon={<Search className="w-5 h-5" />} title="Sondagem"
-              desc="O que a Sofia descobre na conversa, com prioridade e as perguntas que ela pode fazer.">
+            <EditorCard accent="amber" icon={<Search className="w-5 h-5" />} title="O que ela descobre"
+              desc="Os dados que ela coleta: o que ela PERGUNTA (com prioridade e perguntas) e o que ela PERCEBE sozinha. Alimenta a pontuação.">
               <DiscoverySlotsEditor
                 slots={c.qualification.discovery_slots ?? []}
-                onChange={slots => update(x => ({ ...x, qualification: { ...x.qualification, discovery_slots: slots } }))}
+                onSlotsChange={slots => update(x => ({ ...x, qualification: { ...x.qualification, discovery_slots: slots } }))}
+                signals={c.qualification.silent_signals ?? []}
+                onSignalsChange={sig => update(x => ({ ...x, qualification: { ...x.qualification, silent_signals: sig } }))}
               />
             </EditorCard>
             <EditorCard accent="sky" icon={<Sparkles className="w-5 h-5" />} title="Momentos da conversa"
@@ -250,8 +252,8 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
 
         {tab === 'regras' && (
           <>
-            <EditorCard accent="rose" icon={<ShieldAlert className="w-5 h-5" />} title="Linhas vermelhas"
-              desc="Tudo é editável (controle total). As que protegem a qualidade mostram um aviso ao desligar, mas a decisão é sua.">
+            <EditorCard accent="rose" icon={<ShieldAlert className="w-5 h-5" />} title="O que a Sofia pode e não pode fazer"
+              desc="Tudo é editável (controle total). As regras que protegem a qualidade mostram um aviso ao desligar, mas a decisão é sua.">
               <BoundariesEditor boundaries={c.boundaries} onChange={b => update(x => ({ ...x, boundaries: b }))} />
             </EditorCard>
             <EditorCard accent="rose" icon={<ShieldAlert className="w-5 h-5" />} title="O que a Sofia nunca faz"

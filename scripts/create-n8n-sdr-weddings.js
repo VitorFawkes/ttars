@@ -265,7 +265,12 @@ const proposta_txt = proposta_val ? ('Sobre a ' + (id.empresa || cfg.empresa || 
 // "Quando X" + a instrução; o cérebro (GPT-5.5) avalia o gatilho com naturalidade.
 const momTrig = { always: 'Em qualquer momento', on_price_question: 'Quando o casal perguntar preço ou valor', on_price_hesitation: 'Quando o casal hesitar por causa do valor', on_family_mentioned: 'Quando o casal mencionar a família (pais, sogros)', on_destination_unclear: 'Quando o destino ainda não estiver claro', on_high_qualification: 'Quando o casal já estiver bem qualificado', on_low_qualification: 'Quando ainda faltar qualificar o casal', on_hesitation_timeout: 'Quando o casal hesitar ou disser que vai pensar', custom_condition: '' };
 const moments = arr(cfg.moments).filter(m => m && m.enabled !== false && (m.instrucao || m.prompt_text));
-const momentos_txt = moments.map(m => { const when = momTrig[m.trigger_type] || ''; const instr = m.instrucao || m.prompt_text; return when ? ('- ' + when + ': ' + instr) : ('- ' + instr); }).join('\\n');
+const momentos_txt = moments.map(m => {
+  let when = momTrig[m.trigger_type] || '';
+  if (m.trigger_type === 'custom_condition' && m.custom_condition_description) when = 'Quando ' + m.custom_condition_description;
+  const instr = m.instrucao || m.prompt_text;
+  return when ? ('- ' + when + ': ' + instr) : ('- ' + instr);
+}).join('\\n');
 // Fases da conversa (espinha proativa): a Sofia sabe em que turno está e segue o ritmo.
 const phases = arr(cfg.phases).filter(p => p && (p.nome || p.objetivo));
 const fases_txt = phases.map((p,i) => (i+1) + '. ' + (p.nome||'') + ': ' + (p.objetivo||'') + (p.avancar_quando ? (' (avança quando: ' + p.avancar_quando + ')') : '')).join('\\n');
@@ -296,6 +301,9 @@ const sondagem_txt = slots.map((s,i) => {
   const cov = s.coverage_notes ? (' Precisão necessária: ' + s.coverage_notes + '.') : '';
   return (i+1) + '. ' + s.label + ' [' + (prioLabel[s.priority] || 'importante') + '].' + qPart + cov;
 }).join('\\n');
+// Sinais que ela percebe SOZINHA (sem perguntar) — entram no <o_que_entender>.
+const sinais_percebe = arr(qu.silent_signals).filter(Boolean);
+const sinais_txt = sinais_percebe.length ? ('\\nAlém disso, perceba sozinha, sem perguntar: ' + sinais_percebe.join('; ') + '.') : '';
 // Abertura: literal (texto exato), directive (diretriz, ela compõe), free (ela compõe sozinha).
 const abMode = vo.abertura_mode || 'literal';
 const abRaw = vo.abertura || cfg.abertura || '';
@@ -333,7 +341,7 @@ return [{ json: {
   sc_quente: sc_quente,
   sc_morno: sc_morno,
   sc_max_bonus: sc_max_bonus,
-  etapas_txt: slots.length ? sondagem_txt : (crit.length ? crit.map(c => c.label || c.criterio || c).filter(Boolean) : arr(etapas)).map((e,i) => (i+1) + '. ' + e).join('\\n'),
+  etapas_txt: (slots.length ? sondagem_txt : (crit.length ? crit.map(c => c.label || c.criterio || c).filter(Boolean) : arr(etapas)).map((e,i) => (i+1) + '. ' + e).join('\\n')) + sinais_txt,
   faixas_txt: arr(faixas).join('; '),
   fronteiras_txt: arr(fronteiras).map(f => '- ' + f).join('\\n'),
   historico: p.historico || '',

@@ -200,6 +200,7 @@ export interface SofiaConfigV2 {
     max_bonus_points?: number
     fallback_action?: FallbackAction
     discovery_slots?: DiscoverySlot[]
+    silent_signals?: string[]
   }
   boundaries: {
     curadas: Record<string, boolean>
@@ -346,6 +347,12 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
         { key: 'orcamento', label: 'Orçamento do casal', priority: 'critical', questions: [], crm_field_key: 'ww_orcamento_faixa' },
         { key: 'data', label: 'Data ou época pretendida', priority: 'nice_to_have', questions: [], crm_field_key: 'ww_data_casamento' },
       ],
+      silent_signals: [
+        'a família está ajudando a decidir',
+        'hesitação por causa do valor',
+        'urgência (data próxima ou pressa)',
+        'destino ainda indefinido',
+      ],
     },
     boundaries: {
       curadas,
@@ -393,6 +400,7 @@ export function normalizeToV2(raw: unknown): SofiaConfigV2 {
         ...def.qualification, ...c.qualification,
         bands: { ...def.qualification.bands!, ...(c.qualification?.bands || {}) },
         discovery_slots: c.qualification?.discovery_slots ?? def.qualification.discovery_slots,
+        silent_signals: c.qualification?.silent_signals ?? def.qualification.silent_signals,
       },
       boundaries: {
         curadas: { ...def.boundaries.curadas, ...(c.boundaries?.curadas || {}) },
