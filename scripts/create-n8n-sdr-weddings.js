@@ -180,7 +180,7 @@ Leitura de qualificação (SUGESTÃO de um colega; use ou ignore conforme o timi
 - Pergunta que poderia ajudar agora: {{ $('Parse Qualifica').item.json.proxima_pergunta_sugerida || '(nenhuma, melhor só acolher)' }}
 
 Base de conhecimento (se o casal perguntar algo coberto aqui, responda com base nisto, sem inventar; se não estiver aqui, não invente):
-{{ $('Monta').item.json.faqs_txt || '(sem base de conhecimento cadastrada)' }}
+{{ $('Busca Conhecimento').item.json.faqs_txt || $('Monta').item.json.faqs_txt || '(sem base de conhecimento cadastrada)' }}
 
 Escreva a próxima mensagem da {{ $('Monta').item.json.persona }} no WhatsApp. Seja a melhor SDR humana possível: entenda o casal, reaja ao que disseram e conduza com naturalidade rumo ao convite pra Wedding Planner quando fizer sentido. Se for o primeiro contato, use a mensagem de abertura. Respeite as linhas vermelhas, a política de preço (pode falar de valor, nunca negocia) e o glossário. Devolva só o texto pronto pro WhatsApp.`;
 
@@ -388,6 +388,8 @@ return [{ json: {
   bubbles_enabled: !!(cfg.capabilities && cfg.capabilities.memory && cfg.capabilities.memory.enabled && cfg.capabilities.memory.bubbles_enabled),
   crm_write_enabled: !!(cfg.capabilities && cfg.capabilities.crm_write && cfg.capabilities.crm_write.enabled),
   calendar_enabled: !!(cfg.capabilities && cfg.capabilities.calendar && cfg.capabilities.calendar.enabled),
+  kb_enabled: !!(kb && kb.enabled),
+  kb_top_k: (kb && typeof kb.top_k === 'number') ? kb.top_k : 4,
 }}];`;
 
 // Extrai Reuniao: detecta se o casal CONFIRMOU um horário específico + e-mail.
@@ -571,6 +573,18 @@ function buildWorkflow() {
       credentials: { supabaseApi: SUPABASE_CREDENTIAL } },
     { id: 'monta', name: 'Monta', type: 'n8n-nodes-base.code', typeVersion: 2, position: [840, 300],
       parameters: { jsCode: CODE_MONTA } },
+    // Conhecimento por BUSCA (RAG): chama a edge wsdr-knowledge (embute a msg + busca os
+    // trechos relevantes). neverError → se falhar, cai no fallback (faqs inline do Monta).
+    { id: 'buscakb', name: 'Busca Conhecimento', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [940, 160],
+      parameters: {
+        method: 'POST',
+        url: `${SUPABASE_URL}/functions/v1/wsdr-knowledge`,
+        authentication: 'predefinedCredentialType', nodeCredentialType: 'supabaseApi',
+        sendBody: true, specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({ action: 'search', agent_slug: $('Monta').item.json.agent_slug, org_id: $('Monta').item.json.org_id, message: ($('Monta').item.json.kb_enabled ? $('Monta').item.json.ultima_mensagem_lead : ''), top_k: $('Monta').item.json.kb_top_k }) }}`,
+        options: { response: { response: { neverError: true } } },
+      },
+      credentials: { supabaseApi: SUPABASE_CREDENTIAL } },
     // --- M5 Debounce por silêncio (gated por capabilities.memory.enabled). OFF = flui direto. ---
     { id: 'debgate', name: 'Debounce?', type: 'n8n-nodes-base.if', typeVersion: 2, position: [740, 120],
       parameters: { conditions: { options: { caseSensitive: true, leftValue: '', typeValidation: 'loose' }, combinator: 'and',
@@ -690,7 +704,8 @@ function buildWorkflow() {
     'Buffer Claim': { main: [[{ node: 'Reivindicou?', type: 'main', index: 0 }]] },
     'Reivindicou?': { main: [[{ node: 'Carrega Estado', type: 'main', index: 0 }], [{ node: 'Responde Vazio', type: 'main', index: 0 }]] },
     'Carrega Estado': { main: [[{ node: 'Monta', type: 'main', index: 0 }]] },
-    'Monta': { main: [[{ node: 'Consolida', type: 'main', index: 0 }]] },
+    'Monta': { main: [[{ node: 'Busca Conhecimento', type: 'main', index: 0 }]] },
+    'Busca Conhecimento': { main: [[{ node: 'Consolida', type: 'main', index: 0 }]] },
     'Modelo Consolida': { ai_languageModel: [[{ node: 'Consolida', type: 'ai_languageModel', index: 0 }]] },
     'Consolida': { main: [[{ node: 'Parse Consolida', type: 'main', index: 0 }]] },
     'Parse Consolida': { main: [[{ node: 'Salva Estado', type: 'main', index: 0 }]] },

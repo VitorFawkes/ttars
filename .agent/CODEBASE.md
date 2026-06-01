@@ -7,10 +7,10 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-06-01
 > **Trigger:** ALWAYS ON
-> **Stats:** 229 tabelas | 215 paginas | 379 hooks | 28 views | 870 components
+> **Stats:** 230 tabelas | 215 paginas | 380 hooks | 28 views | 870 components
 > **Last Updated:** 2026-06-01
 > **Trigger:** ALWAYS ON
-> **Stats:** 229 tabelas | 215 paginas | 379 hooks | 28 views | 870 components
+> **Stats:** 230 tabelas | 215 paginas | 380 hooks | 28 views | 870 components
 
 ---
 
@@ -172,7 +172,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **379 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **380 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -439,6 +439,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useSdrRpcs()` | `useSdrRpcs.ts` |
 | `useSofiaAgents()` | `useSofiaAgents.ts` |
 | `useSofiaConfig()` | `useSofiaConfig.ts` |
+| `useSofiaKnowledge()` | `useSofiaKnowledge.ts` |
 | `useTaskOutcomes()` | `useTaskOutcomes.ts` |
 | `useTasksList()` | `useTasksList.ts` |
 | `useTemplateUsages()` | `useTemplateUsages.ts` |

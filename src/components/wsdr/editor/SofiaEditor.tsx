@@ -134,8 +134,7 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
           <Field label="Horário padrão da retomada"><Input value={c.capabilities.followup.default_time} onChange={e => update(x => ({ ...x, capabilities: { ...x.capabilities, followup: { ...x.capabilities.followup, default_time: e.target.value } } }))} placeholder="ex: 10:30" /></Field>
         )}
         {meta.key === 'knowledge' && (
-          <KnowledgeFaqEditor faqs={c.capabilities.knowledge.faqs}
-            onChange={faqs => update(x => ({ ...x, capabilities: { ...x.capabilities, knowledge: { ...x.capabilities.knowledge, faqs } } }))} />
+          <KnowledgeFaqEditor agentSlug={slug} />
         )}
       </CapabilityCard>
     )
