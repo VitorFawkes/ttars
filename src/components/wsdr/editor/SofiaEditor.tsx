@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
-  User, MessageSquare, Wallet, Zap, ShieldAlert, ShieldCheck, Eye, Loader2, CheckCircle, AlertCircle,
-  Smile, Languages, Sparkles, Target, Coins, Palette, Info, ListOrdered,
+  User, MessageSquare, Wallet, Zap, ShieldAlert, Eye, Loader2, CheckCircle, AlertCircle,
+  Smile, Languages, Sparkles, Target, Coins, Info, ListOrdered, Search, Gauge,
 } from 'lucide-react'
 import { PricingEditor } from '@/components/wsdr/editor/PricingEditor'
-import { CriteriaEditor } from '@/components/wsdr/editor/CriteriaEditor'
 import { MomentsEditor } from '@/components/wsdr/editor/MomentsEditor'
 import { PhasesEditor } from '@/components/wsdr/editor/PhasesEditor'
+import { ScoringEditor } from '@/components/wsdr/editor/ScoringEditor'
+import { DiscoverySlotsEditor } from '@/components/wsdr/editor/DiscoverySlotsEditor'
+import { OpeningEditor } from '@/components/wsdr/editor/OpeningEditor'
+import { BoundariesEditor } from '@/components/wsdr/editor/BoundariesEditor'
 import { WeddingPlannerPicker } from '@/components/wsdr/editor/WeddingPlannerPicker'
 import { AgentEditorLayout, type EditorTab } from '@/components/ai-agent/editor/AgentEditorLayout'
 import { StringListEditor } from '@/components/wsdr/StringListEditor'
@@ -19,8 +22,8 @@ import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import {
-  type SofiaConfigV2, type SofiaCapabilities, type Tom, type CapabilityKey,
-  TOM_OPTIONS, CURATED_BOUNDARIES, CAPABILITY_META, humanPromptPreview,
+  type SofiaConfigV2, type SofiaCapabilities, type Tom, type CapabilityKey, type AberturaMode,
+  TOM_OPTIONS, CAPABILITY_META, humanPromptPreview,
 } from '@/components/wsdr/sofiaConfig'
 import { useSofiaConfig } from '@/hooks/wsdr/useSofiaConfig'
 
@@ -38,6 +41,7 @@ function setCapEnabled(x: SofiaConfigV2, key: CapabilityKey, enabled: boolean): 
 const TABS: EditorTab[] = [
   { id: 'quem', label: 'Quem é a Sofia', icon: User },
   { id: 'conversa', label: 'Como ela conversa', icon: MessageSquare },
+  { id: 'pontuacao', label: 'Pontuação', icon: Gauge },
   { id: 'preco', label: 'Preço e valores', icon: Wallet },
   { id: 'faz', label: 'O que ela faz', icon: Zap },
   { id: 'regras', label: 'Regras e limites', icon: ShieldAlert },
@@ -49,11 +53,14 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
   const [tab, setTab] = useState('quem')
   const [dirty, setDirty] = useState(false)
 
-  useEffect(() => { if (status === 'success') setDirty(false) }, [status])
-
   const update = (fn: (c: SofiaConfigV2) => SofiaConfigV2) => {
     setConfig(prev => (prev ? fn(prev) : prev))
     setDirty(true)
+  }
+
+  const handleSave = async (cfg: SofiaConfigV2) => {
+    const ok = await save(cfg)
+    if (ok) setDirty(false)
   }
 
   const preview = useMemo(() => (config ? humanPromptPreview(config) : ''), [config])
@@ -172,22 +179,36 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
         {tab === 'conversa' && (
           <>
             <EditorCard accent="sky" icon={<MessageSquare className="w-5 h-5" />} title="Mensagem de abertura"
-              desc="A primeira mensagem exata que a Sofia manda no primeiro contato.">
-              <Textarea value={c.voice.abertura} onChange={e => update(x => ({ ...x, voice: { ...x.voice, abertura: e.target.value } }))} className="min-h-[140px]" />
+              desc="A primeira coisa que a Sofia diz. Você escolhe se é um texto exato, só uma diretriz, ou se ela compõe sozinha.">
+              <OpeningEditor
+                mode={c.voice.abertura_mode ?? 'literal'}
+                abertura={c.voice.abertura}
+                onChange={patch => update(x => ({ ...x, voice: { ...x.voice, ...patch as { abertura_mode?: AberturaMode; abertura?: string } } }))}
+              />
             </EditorCard>
             <EditorCard accent="sky" icon={<ListOrdered className="w-5 h-5" />} title="Fases da conversa"
               desc="A ordem que a Sofia conduz (apresentar → sondar → qualificar → convidar). Em cada fase você explica o que ela faz e o ritmo. É a espinha da conversa.">
               <PhasesEditor phases={c.phases} onChange={items => update(x => ({ ...x, phases: items }))} />
             </EditorCard>
+            <EditorCard accent="amber" icon={<Search className="w-5 h-5" />} title="Sondagem"
+              desc="O que a Sofia descobre na conversa, com prioridade e as perguntas que ela pode fazer.">
+              <DiscoverySlotsEditor
+                slots={c.qualification.discovery_slots ?? []}
+                onChange={slots => update(x => ({ ...x, qualification: { ...x.qualification, discovery_slots: slots } }))}
+              />
+            </EditorCard>
             <EditorCard accent="sky" icon={<Sparkles className="w-5 h-5" />} title="Momentos da conversa"
               desc="Reações que valem em QUALQUER fase (ex: quando perguntam preço, quando citam a família).">
               <MomentsEditor moments={c.moments} onChange={items => update(x => ({ ...x, moments: items }))} />
             </EditorCard>
-            <EditorCard accent="amber" icon={<Target className="w-5 h-5" />} title="Qualificação do casal"
-              desc="O que a Sofia precisa descobrir do casal. Ela usa isto pra dar uma nota (0 a 100) e decidir o que ainda falta perguntar.">
-              <CriteriaEditor criteria={c.qualification.criteria} onChange={items => update(x => ({ ...x, qualification: { ...x.qualification, criteria: items } }))} />
-            </EditorCard>
           </>
+        )}
+
+        {tab === 'pontuacao' && (
+          <EditorCard accent="indigo" icon={<Target className="w-5 h-5" />} title="Pontuação do casal"
+            desc="Como a Sofia decide se o casal qualifica: pontos por critério, nota mínima e faixas. Ela usa isto como guia do julgamento, uma coisa de cada vez.">
+            <ScoringEditor qual={c.qualification} onChange={q => update(x => ({ ...x, qualification: q }))} />
+          </EditorCard>
         )}
 
         {tab === 'preco' && (
@@ -220,40 +241,13 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
 
         {tab === 'regras' && (
           <>
-            <EditorCard accent="rose" icon={<Palette className="w-5 h-5" />} title="Decisões de marca"
-              desc="Escolhas de estilo da sua marca. Ligue ou desligue como preferir, valem na próxima conversa.">
-              <div className="space-y-2">
-                {CURATED_BOUNDARIES.filter(b => b.editable).map(b => {
-                  const on = c.boundaries.curadas[b.key] ?? b.defaultOn
-                  return (
-                    <div key={b.key} className={cn('flex items-start justify-between gap-3 p-3 rounded-lg border transition-colors', on ? 'bg-rose-50/60 border-rose-200' : 'bg-white border-slate-200')}>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-900">{b.label}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">{b.hint}</p>
-                      </div>
-                      <Switch checked={on} onCheckedChange={v => update(x => ({ ...x, boundaries: { ...x.boundaries, curadas: { ...x.boundaries.curadas, [b.key]: v } } }))} className={on ? 'bg-rose-600' : ''} />
-                    </div>
-                  )
-                })}
-              </div>
+            <EditorCard accent="rose" icon={<ShieldAlert className="w-5 h-5" />} title="Linhas vermelhas"
+              desc="Tudo é editável (controle total). As que protegem a qualidade mostram um aviso ao desligar, mas a decisão é sua.">
+              <BoundariesEditor boundaries={c.boundaries} onChange={b => update(x => ({ ...x, boundaries: b }))} />
             </EditorCard>
             <EditorCard accent="rose" icon={<ShieldAlert className="w-5 h-5" />} title="O que a Sofia nunca faz"
               desc="Em linguagem simples: comportamentos, promessas ou jeitos de falar que a Sofia deve evitar.">
-              <StringListEditor items={c.boundaries.comportamentos} onChange={items => update(x => ({ ...x, boundaries: { ...x.boundaries, comportamentos: items } }))} placeholder="ex: nunca revele que somos uma IA; não prometa data sem confirmar" />
-            </EditorCard>
-            <EditorCard accent="emerald" icon={<ShieldCheck className="w-5 h-5" />} title="Garantias de qualidade"
-              desc="Regras que protegem a qualidade da conversa. Ficam sempre ativas (não dá pra desligar, e é de propósito).">
-              <div className="space-y-2">
-                {CURATED_BOUNDARIES.filter(b => !b.editable).map(b => (
-                  <div key={b.key} className="flex items-start justify-between gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50/60">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-900">{b.label}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">{b.hint}</p>
-                    </div>
-                    <span className="flex items-center gap-1 text-xs font-medium text-emerald-700 shrink-0"><ShieldCheck className="w-3.5 h-3.5" />Sempre ativa</span>
-                  </div>
-                ))}
-              </div>
+              <StringListEditor items={c.boundaries.comportamentos} onChange={items => update(x => ({ ...x, boundaries: { ...x.boundaries, comportamentos: items } }))} placeholder="ex: não prometa data sem confirmar com a Planner" />
             </EditorCard>
           </>
         )}
@@ -274,7 +268,7 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
             {status === 'error' && <span className="flex items-center gap-1.5 text-red-700"><AlertCircle className="w-4 h-4" />{error || 'Erro ao salvar'}</span>}
             {status !== 'success' && status !== 'error' && dirty && <span className="text-amber-600">• alterações não salvas</span>}
           </div>
-          <Button type="button" onClick={() => save(c)} disabled={status === 'saving' || !dirty} className="bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 active:scale-[0.98] transition-transform">
+          <Button type="button" onClick={() => handleSave(c)} disabled={status === 'saving' || !dirty} className="bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 active:scale-[0.98] transition-transform">
             {status === 'saving' ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</> : 'Salvar configuração'}
           </Button>
         </div>

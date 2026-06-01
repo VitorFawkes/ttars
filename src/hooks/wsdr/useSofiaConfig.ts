@@ -13,7 +13,9 @@ const db = supabase as unknown as SupabaseClient
 // qualification.criteria, boundaries.comportamentos, capabilities.memory.*). Sem isso,
 // salvar pela tela atual apagaria a config v3 gravada no banco.
 function mergePreservandoV3(raw: Record<string, unknown> | null | undefined, next: SofiaConfigV2): Record<string, unknown> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- merge tolerante a chaves v3 desconhecidas
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, any>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- idem
   const n = next as unknown as Record<string, any>
   return {
     ...r,
@@ -66,8 +68,8 @@ export function useSofiaConfig(slug = 'sofia-weddings') {
     return () => { alive = false }
   }, [orgId, slug])
 
-  const save = useCallback(async (next: SofiaConfigV2) => {
-    if (!orgId) return
+  const save = useCallback(async (next: SofiaConfigV2): Promise<boolean> => {
+    if (!orgId) return false
     setStatus('saving')
     setError('')
     const configToSave = mergePreservandoV3(rawRef.current, next)
@@ -78,12 +80,13 @@ export function useSofiaConfig(slug = 'sofia-weddings') {
       setStatus('error')
       setError(err.message)
       toast.error('Erro ao salvar', { description: err.message })
-      return
+      return false
     }
     rawRef.current = configToSave
     setStatus('success')
     toast.success('Configuração salva!')
     setTimeout(() => setStatus('idle'), 2500)
+    return true
   }, [orgId, slug])
 
   return { config, setConfig, loading, status, error, save }

@@ -60,7 +60,17 @@ export type MomentTrigger =
   | 'always' | 'on_price_question' | 'on_price_hesitation' | 'on_family_mentioned'
   | 'on_low_qualification' | 'on_high_qualification' | 'on_destination_unclear'
   | 'on_hesitation_timeout' | 'custom_condition'
-export interface SofiaMoment { label: string; instrucao: string; trigger_type: MomentTrigger; enabled: boolean }
+export interface MomentActions { tag?: string | null; stage_id?: string | null; notify?: boolean }
+export interface SofiaMoment {
+  label: string
+  instrucao: string
+  trigger_type: MomentTrigger
+  enabled: boolean
+  // v3: descrição em linguagem natural de QUANDO disparar (só quando trigger_type='custom_condition')
+  custom_condition_description?: string
+  // v3: ações automáticas opcionais quando o momento dispara
+  actions?: MomentActions
+}
 // Fases da conversa (espinha dorsal proativa): a ordem que a Sofia conduz.
 // nome = a fase; objetivo = o que fazer/ritmo (linguagem simples); avancar_quando = condição pra ir pra próxima.
 export interface SofiaPhase { nome: string; objetivo: string; avancar_quando: string }
@@ -77,7 +87,16 @@ export const MOMENT_TRIGGERS: { value: MomentTrigger; label: string; exemplo: st
 ]
 
 export type Importancia = 'desqualifica' | 'baixa' | 'media' | 'alta' | 'essencial'
-export interface QualCriterion { label: string; importancia: Importancia }
+// rule_type categoriza o critério no cálculo de nota (orientação ao Qualificador-LLM,
+// NÃO soma mecânica): qualifier soma, disqualifier derruba, bonus reforça (com teto).
+export type RuleType = 'qualifier' | 'disqualifier' | 'bonus'
+export interface QualCriterion {
+  label: string
+  importancia: Importancia
+  // v3: pontos do item (orientação ao julgamento) e tipo de regra. Opcionais (defaults no Monta).
+  weight?: number
+  rule_type?: RuleType
+}
 export const IMPORTANCIA_OPTIONS: { value: Importancia; label: string; hint: string; color: string }[] = [
   { value: 'essencial', label: 'Essencial', hint: 'Sem isso, o casal não qualifica', color: 'indigo' },
   { value: 'alta', label: 'Alta', hint: 'Pesa bastante na nota', color: 'sky' },
@@ -85,22 +104,117 @@ export const IMPORTANCIA_OPTIONS: { value: Importancia; label: string; hint: str
   { value: 'baixa', label: 'Baixa', hint: 'Conta pouco', color: 'slate' },
   { value: 'desqualifica', label: 'Desqualifica', hint: 'Se aparecer, derruba a nota', color: 'rose' },
 ]
+export const RULE_TYPE_OPTIONS: { value: RuleType; label: string; hint: string; color: string }[] = [
+  { value: 'qualifier', label: 'Qualifica', hint: 'Soma pontos quando o casal atende', color: 'indigo' },
+  { value: 'disqualifier', label: 'Desqualifica', hint: 'Se aparecer, derruba a nota direto', color: 'rose' },
+  { value: 'bonus', label: 'Bônus', hint: 'Reforça o caso (soma até o teto, não decide sozinho)', color: 'emerald' },
+]
+// Peso padrão por importância — usado quando o critério ainda não tem weight explícito.
+export const DEFAULT_WEIGHT_BY_IMPORTANCIA: Record<Importancia, number> = {
+  essencial: 10, alta: 5, media: 2, baixa: 1, desqualifica: 0,
+}
+export const WEIGHT_PRESETS: { label: string; value: number }[] = [
+  { label: 'Leve', value: 1 }, { label: 'Médio', value: 2 }, { label: 'Forte', value: 5 }, { label: 'Alto', value: 10 },
+]
+
+// O que a Sofia faz quando o casal NÃO atinge a nota mínima.
+export type FallbackAction = 'material_informativo' | 'encerrar_cordial' | 'nota_interna' | 'request_handoff'
+export const FALLBACK_OPTIONS: { value: FallbackAction; label: string; hint: string }[] = [
+  { value: 'material_informativo', label: 'Enviar material e encerrar', hint: 'Manda um material informativo e encerra com leveza.' },
+  { value: 'encerrar_cordial', label: 'Encerrar com gentileza', hint: 'Encerra a conversa de forma cordial, sem material.' },
+  { value: 'nota_interna', label: 'Registrar nota interna', hint: 'Anota internamente pro time, segue a conversa.' },
+  { value: 'request_handoff', label: 'Chamar uma pessoa', hint: 'Passa pra um humano do time decidir.' },
+]
+
+// Sondagem — cada "slot" é um dado que a Sofia coleta, com prioridade e perguntas.
+export type SlotPriority = 'critical' | 'preferred' | 'nice_to_have'
+export interface DiscoverySlot {
+  key: string
+  label: string
+  priority: SlotPriority
+  questions: string[]      // vazio = a Sofia improvisa a pergunta
+  coverage_notes?: string  // precisão necessária (ex: "data precisa de mês E ano")
+  crm_field_key?: string | null
+}
+export const SLOT_PRIORITY_OPTIONS: { value: SlotPriority; label: string; hint: string; tone: string }[] = [
+  { value: 'critical', label: 'Crítica', hint: 'Bloqueia o convite até ser preenchida', tone: 'rose' },
+  { value: 'preferred', label: 'Importante', hint: 'Pergunta enquanto não qualificou; pula se já qualificou', tone: 'amber' },
+  { value: 'nice_to_have', label: 'Extra', hint: 'Só pergunta se a conversa fluir natural', tone: 'slate' },
+]
+
+// Modo da mensagem de abertura: texto exato, diretriz (a IA compõe seguindo a orientação)
+// ou livre (a IA compõe só com persona/proposta). Espelha <primeira_mensagem> no cérebro.
+export type AberturaMode = 'literal' | 'directive' | 'free'
+export const ABERTURA_MODE_OPTIONS: { value: AberturaMode; label: string; hint: string }[] = [
+  { value: 'literal', label: 'Mensagem exata', hint: 'A Sofia manda exatamente este texto no primeiro contato.' },
+  { value: 'directive', label: 'Só uma diretriz', hint: 'Você dá a orientação (o que dizer/perguntar) e a Sofia compõe a abertura com naturalidade.' },
+  { value: 'free', label: 'Deixar a Sofia compor', hint: 'Sem texto fixo: ela abre sozinha seguindo a persona e a proposta da empresa.' },
+]
+
+// Reações naturais de escuta (toggles). Viram um bloco de CONTEÚDO no cérebro.
+export interface ListeningConfig {
+  echo_social: boolean            // responde a perguntas sociais ("e você, tudo bem?")
+  acknowledge_observations: boolean // reconhece o que o casal observou antes de seguir
+  handle_bursts: boolean          // junta uma rajada de mensagens em vez de responder uma a uma
+  never_ignore: boolean           // nunca ignora algo que o casal disse
+}
+
+// Escalação: passar pra um humano após N turnos sem avançar.
+export interface EscalationConfig { enabled: boolean; max_turns: number; message: string }
 
 export interface SofiaConfigV2 {
   config_version: number
-  identity: { persona_nome: string; empresa: string; proposta: string }
-  voice: { tom: Tom; formalidade: number; abertura: string; glossary: { marca: string[]; proibida: string[] } }
+  identity: {
+    persona_nome: string
+    empresa: string
+    proposta: string
+    // v3 (opcionais)
+    role?: string
+    role_custom?: string
+    mission_one_liner?: string
+    company_description_override?: string
+  }
+  voice: {
+    tom: Tom
+    formalidade: number
+    abertura: string
+    glossary: { marca: string[]; proibida: string[] }
+    // v3 (opcionais — defaults no normalize)
+    abertura_mode?: AberturaMode
+    tone_tags?: string[]
+    rules?: string[]
+    typical_phrases?: string[]
+    forbidden_phrases?: string[]
+    listening?: ListeningConfig
+    examples?: string[]
+  }
   qualification: {
     etapas: string[]
     faixas_orcamento: string[]
     criteria: QualCriterion[]
     gates: Record<string, unknown>
+    // v3 (opcionais)
+    scoring_enabled?: boolean
+    threshold?: number
+    bands?: { quente: number; morno: number }
+    max_bonus_points?: number
+    fallback_action?: FallbackAction
+    discovery_slots?: DiscoverySlot[]
   }
-  boundaries: { curadas: Record<string, boolean>; custom: string[]; comportamentos: string[] }
+  boundaries: {
+    curadas: Record<string, boolean>
+    custom: string[]
+    comportamentos: string[]
+    // v3
+    escalation?: EscalationConfig
+  }
   capabilities: SofiaCapabilities
   pricing: SofiaPricing
   moments: SofiaMoment[]
   phases: SofiaPhase[]
+  // v3 top-level (opcionais — Fase 3)
+  interaction_mode?: 'inbound' | 'outbound' | 'hybrid'
+  ativa?: boolean
 }
 
 export const REVEAL_OPTIONS: { value: RevealStrategy; label: string; hint: string }[] = [
@@ -133,26 +247,25 @@ export const TOM_OPTIONS: { value: Tom; label: string; emoji: string; exemplo: s
   { value: 'direto', label: 'Direto', emoji: '🎯', exemplo: 'Pra eu te ajudar certo: qual o destino e quantos convidados?' },
 ]
 
-// Linhas vermelhas curadas (decisões de marca). O texto da regra é fixo no código;
-// o admin só liga/desliga. As 3 primeiras vêm ligadas por padrão (e batem com o cérebro).
+// Linhas vermelhas curadas. CONTROLE TOTAL: todas editáveis (toggle real ligado ao cérebro).
+// protectsQuality=true → desligar reduz qualidade/segurança; a UI mostra aviso (mas o dono manda).
 export interface CuratedBoundary {
   key: string
   label: string
   hint: string
   defaultOn: boolean
-  // editable=true → decisão de marca, vira toggle real ligado ao cérebro.
-  // editable=false → garantia de qualidade/segurança, fixa no cérebro (mostrada só-leitura).
   editable: boolean
+  protectsQuality: boolean
 }
 export const CURATED_BOUNDARIES: CuratedBoundary[] = [
-  // Garantias de qualidade/segurança — sempre ativas, fixas no cérebro (read-only).
-  { key: 'no_price', label: 'Nunca dar preço fechado', hint: 'Remete o valor fechado à Wedding Planner. As faixas e a estratégia ficam na aba Preço.', defaultOn: true, editable: false },
-  { key: 'no_invented_date', label: 'Nunca inventar data ou horário', hint: 'Pergunta o melhor período e diz que reserva com a Planner.', defaultOn: true, editable: false },
-  { key: 'no_cliche', label: 'Nunca usar clichê', hint: '"casamento dos sonhos", "experiência premium", "pode deixar com a gente"…', defaultOn: true, editable: false },
-  { key: 'no_dash', label: 'Nunca usar travessão', hint: 'Usa vírgula, ponto ou reticências. Garantido também por uma trava automática.', defaultOn: true, editable: false },
-  // Decisões de marca — você escolhe.
-  { key: 'no_first_emoji', label: 'Sem emoji na 1ª mensagem', hint: 'Ligado: nada de emoji no primeiro contato. Desligado: ela pode usar emojis com leveza.', defaultOn: true, editable: true },
-  { key: 'no_ai_mention', label: 'Nunca dizer que é uma IA', hint: 'Ligado: atende como uma pessoa do time. Desligado: pode revelar que é uma assistente virtual.', defaultOn: false, editable: true },
+  // Protegem qualidade/segurança — editáveis, com aviso ao desligar.
+  { key: 'no_price', label: 'Nunca dar preço fechado', hint: 'Remete o valor fechado à Wedding Planner. As faixas e a estratégia ficam na aba Preço.', defaultOn: true, editable: true, protectsQuality: true },
+  { key: 'no_invented_date', label: 'Nunca inventar data ou horário', hint: 'Pergunta o melhor período e diz que reserva com a Planner.', defaultOn: true, editable: true, protectsQuality: true },
+  { key: 'no_cliche', label: 'Nunca usar clichê', hint: '"casamento dos sonhos", "experiência premium", "pode deixar com a gente"…', defaultOn: true, editable: true, protectsQuality: true },
+  { key: 'no_dash', label: 'Nunca usar travessão', hint: 'Usa vírgula, ponto ou reticências. Tem uma trava automática que acompanha este botão.', defaultOn: true, editable: true, protectsQuality: true },
+  // Decisões de marca — você escolhe, sem aviso.
+  { key: 'no_first_emoji', label: 'Sem emoji na 1ª mensagem', hint: 'Ligado: nada de emoji no primeiro contato. Desligado: ela pode usar emojis com leveza.', defaultOn: true, editable: true, protectsQuality: false },
+  { key: 'no_ai_mention', label: 'Nunca dizer que é uma IA', hint: 'Ligado: atende como uma pessoa do time. Desligado: pode revelar que é uma assistente virtual.', defaultOn: false, editable: true, protectsQuality: false },
 ]
 
 export type CapabilityKey = keyof SofiaCapabilities
@@ -182,17 +295,27 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
   const curadas: Record<string, boolean> = {}
   CURATED_BOUNDARIES.forEach(b => { curadas[b.key] = b.defaultOn })
   return {
-    config_version: 2,
+    config_version: 3,
     identity: {
       persona_nome: 'Sofia',
       empresa: 'Welcome Weddings',
       proposta: 'a gente faz destination wedding desde 2012 e já foi premiada como uma das melhores produtoras de destination wedding da América Latina',
+      role: 'SDR',
+      mission_one_liner: '',
+      company_description_override: '',
     },
     voice: {
       tom: 'acolhedor',
       formalidade: 0.5,
       abertura: 'Oi! Aqui é a Sofia, da Welcome Weddings, tudo bem? Como é o nome de vocês? A gente faz destination wedding desde 2012 e já foi premiada como uma das melhores produtoras de destination wedding da América Latina. A ideia aqui é uma conversa rápida pra eu entender o que vocês esperam, tirar dúvidas e, se fizer sentido, marcar um papo com a nossa Wedding Planner. Pra começar: o que é o casamento pra vocês, e como vocês imaginam ele?',
       glossary: { marca: [], proibida: [] },
+      abertura_mode: 'literal',
+      tone_tags: [],
+      rules: [],
+      typical_phrases: [],
+      forbidden_phrases: [],
+      listening: { echo_social: true, acknowledge_observations: true, handle_bursts: true, never_ignore: true },
+      examples: [],
     },
     qualification: {
       etapas: [
@@ -203,16 +326,33 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
       ],
       faixas_orcamento: ['R$ 80 a 150 mil', 'R$ 150 a 250 mil', 'R$ 250 a 400 mil', 'R$ 400 mil ou mais'],
       criteria: [
-        { label: 'Tem uma visão do casamento (o que significa pra eles + o estilo: praia, intimista, grande festa)', importancia: 'alta' },
-        { label: 'Tem destino ou região em mente, ou está aberto a explorar (Nordeste, Trancoso, Caribe, Europa…)', importancia: 'alta' },
-        { label: 'Tem ideia do número de convidados, mesmo aproximada', importancia: 'media' },
-        { label: 'Tem orçamento ou faixa de investimento realista pro casal', importancia: 'essencial' },
-        { label: 'Tem data ou época pretendida (o ano já vale)', importancia: 'media' },
-        { label: 'Só curiosidade, sem intenção real, ou "daqui a muitos anos"', importancia: 'desqualifica' },
+        { label: 'Tem uma visão do casamento (o que significa pra eles + o estilo: praia, intimista, grande festa)', importancia: 'alta', weight: 5, rule_type: 'qualifier' },
+        { label: 'Tem destino ou região em mente, ou está aberto a explorar (Nordeste, Trancoso, Caribe, Europa…)', importancia: 'alta', weight: 5, rule_type: 'qualifier' },
+        { label: 'Tem ideia do número de convidados, mesmo aproximada', importancia: 'media', weight: 2, rule_type: 'qualifier' },
+        { label: 'Tem orçamento ou faixa de investimento realista pro casal', importancia: 'essencial', weight: 10, rule_type: 'qualifier' },
+        { label: 'Tem data ou época pretendida (o ano já vale)', importancia: 'media', weight: 2, rule_type: 'qualifier' },
+        { label: 'Só curiosidade, sem intenção real, ou "daqui a muitos anos"', importancia: 'desqualifica', weight: 0, rule_type: 'disqualifier' },
       ],
       gates: {},
+      scoring_enabled: false,
+      threshold: 25,
+      bands: { quente: 70, morno: 40 },
+      max_bonus_points: 10,
+      fallback_action: 'material_informativo',
+      discovery_slots: [
+        { key: 'visao', label: 'Visão do casamento (estilo, o que significa)', priority: 'preferred', questions: [], crm_field_key: null },
+        { key: 'destino', label: 'Destino ou região', priority: 'critical', questions: [], crm_field_key: 'ww_destino' },
+        { key: 'convidados', label: 'Número de convidados (estimado)', priority: 'preferred', questions: [], crm_field_key: 'ww_num_convidados' },
+        { key: 'orcamento', label: 'Orçamento do casal', priority: 'critical', questions: [], crm_field_key: 'ww_orcamento_faixa' },
+        { key: 'data', label: 'Data ou época pretendida', priority: 'nice_to_have', questions: [], crm_field_key: 'ww_data_casamento' },
+      ],
     },
-    boundaries: { curadas, custom: [], comportamentos: [] },
+    boundaries: {
+      curadas,
+      custom: [],
+      comportamentos: [],
+      escalation: { enabled: false, max_turns: 12, message: 'Vou chamar a nossa Wedding Planner pra conversar com vocês, tá bom?' },
+    },
     capabilities: {
       crm_write: { enabled: false, writable_fields: [], protected_fields: [], stage_move_enabled: false, target_stage_id: null },
       calendar: { enabled: false, wedding_planner_profile_id: null, windows: [], slot_duration_minutes: 45, skip_weekends: true, max_slots: 4, search_window_days: 14 },
@@ -240,6 +380,7 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
 export function normalizeToV2(raw: unknown): SofiaConfigV2 {
   const def = defaultSofiaConfig()
   if (!raw || typeof raw !== 'object') return def
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- migração tolerante a formatos antigos
   const c = raw as Record<string, any>
   if ((c.config_version === 2 || c.config_version === 3) && c.identity && c.capabilities) {
     // mescla com defaults pra garantir todas as chaves (v2 e v3)
@@ -247,9 +388,18 @@ export function normalizeToV2(raw: unknown): SofiaConfigV2 {
       ...def,
       ...c,
       identity: { ...def.identity, ...c.identity },
-      voice: { ...def.voice, ...c.voice },
-      qualification: { ...def.qualification, ...c.qualification },
-      boundaries: { curadas: { ...def.boundaries.curadas, ...(c.boundaries?.curadas || {}) }, custom: c.boundaries?.custom || [], comportamentos: c.boundaries?.comportamentos || [] },
+      voice: { ...def.voice, ...c.voice, listening: { ...def.voice.listening!, ...(c.voice?.listening || {}) } },
+      qualification: {
+        ...def.qualification, ...c.qualification,
+        bands: { ...def.qualification.bands!, ...(c.qualification?.bands || {}) },
+        discovery_slots: c.qualification?.discovery_slots ?? def.qualification.discovery_slots,
+      },
+      boundaries: {
+        curadas: { ...def.boundaries.curadas, ...(c.boundaries?.curadas || {}) },
+        custom: c.boundaries?.custom || [],
+        comportamentos: c.boundaries?.comportamentos || [],
+        escalation: { ...def.boundaries.escalation!, ...(c.boundaries?.escalation || {}) },
+      },
       capabilities: {
         crm_write: { ...def.capabilities.crm_write, ...(c.capabilities?.crm_write || {}) },
         calendar: { ...def.capabilities.calendar, ...(c.capabilities?.calendar || {}) },
@@ -261,13 +411,13 @@ export function normalizeToV2(raw: unknown): SofiaConfigV2 {
       pricing: { ...def.pricing, ...(c.pricing || {}), destination_ranges: c.pricing?.destination_ranges ?? def.pricing.destination_ranges },
     }
   }
-  // v1 flat -> v2
+  // v1 flat -> v3 (preserva defaults v3 das sub-estruturas)
   return {
     ...def,
-    identity: { persona_nome: c.persona_nome || def.identity.persona_nome, empresa: c.empresa || def.identity.empresa, proposta: c.proposta || def.identity.proposta },
-    voice: { tom: (c.tom as Tom) || def.voice.tom, formalidade: def.voice.formalidade, abertura: c.abertura || def.voice.abertura, glossary: { marca: [], proibida: [] } },
-    qualification: { etapas: c.etapas || def.qualification.etapas, faixas_orcamento: c.faixas_orcamento || def.qualification.faixas_orcamento, criteria: def.qualification.criteria, gates: {} },
-    boundaries: { curadas: def.boundaries.curadas, custom: c.fronteiras || [], comportamentos: [] },
+    identity: { ...def.identity, persona_nome: c.persona_nome || def.identity.persona_nome, empresa: c.empresa || def.identity.empresa, proposta: c.proposta || def.identity.proposta },
+    voice: { ...def.voice, tom: (c.tom as Tom) || def.voice.tom, abertura: c.abertura || def.voice.abertura },
+    qualification: { ...def.qualification, etapas: c.etapas || def.qualification.etapas, faixas_orcamento: c.faixas_orcamento || def.qualification.faixas_orcamento },
+    boundaries: { ...def.boundaries, custom: c.fronteiras || [] },
   }
 }
 

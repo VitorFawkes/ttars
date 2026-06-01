@@ -98,15 +98,16 @@ Data definida ou pedido de prioridade é sinal forte pra convidar assim que os g
 </gates_do_convite>
 
 <convite_e_agenda>
-Quando fizer sentido, convide pra uma conversa com a Wedding Planner. Você não inventa data nem horário: pergunte o melhor período (manhã, fim de tarde, semana, fim de semana), diga que reserva com a Planner e confirma, e peça o e-mail só depois que toparem. Handoff invisível: nunca diga "vou te transferir/passar", apenas conduza ("já deixo reservado com a nossa Planner e te confirmo").
+Quando fizer sentido, convide pra uma conversa com a Wedding Planner. {{ $('Monta').item.json.invented_date_rule_txt }}Pergunte o melhor período (manhã, fim de tarde, semana, fim de semana), diga que reserva com a Planner e confirma, e peça o e-mail só depois que toparem. Handoff invisível: nunca diga "vou te transferir/passar", apenas conduza ("já deixo reservado com a nossa Planner e te confirmo").
 </convite_e_agenda>
 
 <linhas_vermelhas>
 Regras absolutas, nunca quebre:
 - ORÇAMENTO DO CASAL: pergunte quanto o casal pretende investir antes de convidar. Se recusarem um número, ofereça estas faixas como opção e siga sem travar: {{ $('Monta').item.json.faixas_txt }} (isto é o orçamento DELES, diferente da nossa política de preço).
 - Pouca intenção (só curiosidade, sem data, "daqui muitos anos"): reconheça com carinho, deixe a porta aberta, não force outra pergunta.
-- Zero clichê batido (casamento dos sonhos, experiência premium, pode deixar com a gente, transformar sonhos em realidade).
-- Zero travessão ou hífen como separador: use vírgula, ponto ou reticências.
+{{ $('Monta').item.json.cliche_rule_txt }}
+{{ $('Monta').item.json.dash_rule_txt }}
+{{ $('Monta').item.json.price_rule_txt }}
 - {{ $('Monta').item.json.emoji_rule_txt }}
 {{ $('Monta').item.json.ai_mention_txt }}
 {{ $('Monta').item.json.fronteiras_txt }}
@@ -143,8 +144,7 @@ Evite sempre:
 </antipadroes>
 
 <primeira_mensagem>
-Use só no primeiro contato, exatamente assim:
-{{ $('Monta').item.json.abertura }}
+{{ $('Monta').item.json.abertura_txt }}
 </primeira_mensagem>
 
 <autochecagem>
@@ -252,6 +252,12 @@ const emoji_rule_txt = (cu.no_first_emoji !== false)
 const ai_mention_txt = (cu.no_ai_mention === true)
   ? '- Nunca diga que é uma IA, robô, assistente virtual ou sistema; atenda como uma pessoa do time.'
   : '';
+// CONTROLE TOTAL: as 4 travas de qualidade viram texto condicional (ON injeta a regra, OFF some).
+const cliche_rule_txt = (cu.no_cliche !== false) ? '- Zero clichê batido (casamento dos sonhos, experiência premium, pode deixar com a gente, transformar sonhos em realidade).' : '';
+const dash_rule_txt = (cu.no_dash !== false) ? '- Zero travessão ou hífen como separador: use vírgula, ponto ou reticências.' : '';
+const price_rule_txt = (cu.no_price !== false) ? '- Nunca dê um preço fechado ou final como definitivo; o valor fechado é com a Wedding Planner (você pode falar de faixas e assessoria conforme a política de preço).' : '';
+const invented_date_rule_txt = (cu.no_invented_date !== false) ? 'Você não inventa data nem horário. ' : '';
+const no_dash_enabled = (cu.no_dash !== false);
 // Proposta = identidade canônica da empresa (usada pra ela se apresentar em qualquer momento).
 const proposta_val = id.proposta || cfg.proposta || '';
 const proposta_txt = proposta_val ? ('Sobre a ' + (id.empresa || cfg.empresa || 'gente') + ': ' + proposta_val + '. Use isso pra se apresentar com naturalidade, sem decorar.') : '';
@@ -264,12 +270,49 @@ const momentos_txt = moments.map(m => { const when = momTrig[m.trigger_type] || 
 const phases = arr(cfg.phases).filter(p => p && (p.nome || p.objetivo));
 const fases_txt = phases.map((p,i) => (i+1) + '. ' + (p.nome||'') + ': ' + (p.objetivo||'') + (p.avancar_quando ? (' (avança quando: ' + p.avancar_quando + ')') : '')).join('\\n');
 const fase_anterior = (est && est.sinais && est.sinais.fase) ? est.sinais.fase : '';
-// Critérios de qualificação (com importância). Vazio -> deriva das etapas (todas "importante").
+// Critérios de qualificação (com importância + peso + tipo). Vazio -> deriva das etapas.
 const crit = arr(qu.criteria);
-const criterios_txt = (crit.length
-  ? crit.map(c => '- ' + (c.label || c.criterio || c) + ' (importância: ' + (c.importancia || c.peso || 'importante') + ')')
-  : arr(etapas).map(e => '- ' + e + ' (importância: importante)')
-).join('\\n');
+const ruleLabel = { qualifier: 'qualifica', disqualifier: 'desqualifica', bonus: 'bônus' };
+const critLine = (c) => {
+  const lbl = c.label || c.criterio || c;
+  const rt = c.rule_type || (c.importancia === 'desqualifica' ? 'disqualifier' : 'qualifier');
+  const w = (typeof c.weight === 'number') ? c.weight : null;
+  const meta = [ruleLabel[rt] || 'qualifica', (w != null && rt !== 'disqualifier') ? ('peso ' + w) : null, 'importância: ' + (c.importancia || 'media')].filter(Boolean).join(', ');
+  return '- ' + lbl + ' (' + meta + ')';
+};
+const criterios_txt = (crit.length ? crit.map(critLine) : arr(etapas).map(e => '- ' + e + ' (qualifica, importância: media)')).join('\\n');
+// Pontuação: orientação ao Qualificador-LLM + corte determinístico (aplicado no Parse Qualifica).
+const scoring_enabled = !!qu.scoring_enabled;
+const sc_threshold = (typeof qu.threshold === 'number') ? qu.threshold : 25;
+const sc_quente = (qu.bands && typeof qu.bands.quente === 'number') ? qu.bands.quente : 70;
+const sc_morno = (qu.bands && typeof qu.bands.morno === 'number') ? qu.bands.morno : 40;
+const sc_max_bonus = (typeof qu.max_bonus_points === 'number') ? qu.max_bonus_points : 10;
+// Sondagem: slots com prioridade + perguntas viram o conteúdo de <o_que_entender>.
+const slots = arr(qu.discovery_slots).filter(s => s && s.label);
+const prioLabel = { critical: 'crítico', preferred: 'importante', nice_to_have: 'extra' };
+const sondagem_txt = slots.map((s,i) => {
+  const qs = arr(s.questions).filter(Boolean);
+  const qPart = qs.length ? (' Perguntas que você pode fazer: ' + qs.map(q => '"' + q + '"').join(' / ') + '.') : ' (improvise a pergunta com naturalidade.)';
+  const cov = s.coverage_notes ? (' Precisão necessária: ' + s.coverage_notes + '.') : '';
+  return (i+1) + '. ' + s.label + ' [' + (prioLabel[s.priority] || 'importante') + '].' + qPart + cov;
+}).join('\\n');
+// Abertura: literal (texto exato), directive (diretriz, ela compõe), free (ela compõe sozinha).
+const abMode = vo.abertura_mode || 'literal';
+const abRaw = vo.abertura || cfg.abertura || '';
+const subsVars = (str) => { let t = String(str || '');
+  t = t.split('{{contact_name}}').join(p.nome || 'o casal');
+  t = t.split('{{agent_name}}').join(id.persona_nome || cfg.persona_nome || 'Sofia');
+  t = t.split('{{company_name}}').join(id.empresa || cfg.empresa || 'a gente');
+  t = t.split('{{date}}').join(new Date().toLocaleDateString('pt-BR'));
+  return t; };
+let abertura_txt;
+if (abMode === 'free') {
+  abertura_txt = 'No primeiro contato, componha você mesma uma abertura curta, calorosa e natural, seguindo sua persona e a proposta da empresa. Não use um texto decorado.';
+} else if (abMode === 'directive') {
+  abertura_txt = 'No primeiro contato, componha a abertura com naturalidade seguindo esta diretriz (não copie literalmente): ' + subsVars(abRaw);
+} else {
+  abertura_txt = 'Use só no primeiro contato, exatamente assim: ' + subsVars(abRaw);
+}
 return [{ json: {
   persona: id.persona_nome || cfg.persona_nome || 'Sofia',
   empresa: id.empresa || cfg.empresa || 'Welcome Weddings',
@@ -279,7 +322,18 @@ return [{ json: {
   ai_mention_txt: ai_mention_txt,
   tom_desc: (tomMap[tom] || tom || 'acolhedor, caloroso e humano') + ', ' + formalidade_desc,
   abertura: vo.abertura || cfg.abertura || '',
-  etapas_txt: (crit.length ? crit.map(c => c.label || c.criterio || c).filter(Boolean) : arr(etapas)).map((e,i) => (i+1) + '. ' + e).join('\\n'),
+  abertura_txt: abertura_txt,
+  cliche_rule_txt: cliche_rule_txt,
+  dash_rule_txt: dash_rule_txt,
+  price_rule_txt: price_rule_txt,
+  invented_date_rule_txt: invented_date_rule_txt,
+  no_dash_enabled: no_dash_enabled,
+  scoring_enabled: scoring_enabled,
+  sc_threshold: sc_threshold,
+  sc_quente: sc_quente,
+  sc_morno: sc_morno,
+  sc_max_bonus: sc_max_bonus,
+  etapas_txt: slots.length ? sondagem_txt : (crit.length ? crit.map(c => c.label || c.criterio || c).filter(Boolean) : arr(etapas)).map((e,i) => (i+1) + '. ' + e).join('\\n'),
   faixas_txt: arr(faixas).join('; '),
   fronteiras_txt: arr(fronteiras).map(f => '- ' + f).join('\\n'),
   historico: p.historico || '',
@@ -343,12 +397,15 @@ return [{ json: { fields, org_id: m.org_id, agent_slug: m.agent_slug, phone: m.p
 // Limpa: garantia determinística da regra absoluta "zero travessões". O modelo às
 // vezes espelha os "—" das fronteiras; aqui trocamos travessão/en-dash usados como
 // separador por vírgula, independente da temperatura do modelo.
-const CODE_LIMPA = `const out = String($('Responde Lead').item.json.output || '')
-  .replace(/\\s*[\\u2013\\u2014]\\s*/g, ', ')
-  .replace(/\\s+,/g, ',')
-  .replace(/,\\s*,/g, ',')
-  .replace(/\\s{2,}/g, ' ')
-  .trim();
+const CODE_LIMPA = `const noDash = $('Monta').first().json.no_dash_enabled !== false;
+let out = String($('Responde Lead').item.json.output || '');
+if (noDash) {
+  out = out
+    .replace(/\\s*[\\u2013\\u2014]\\s*/g, ', ')
+    .replace(/\\s+,/g, ',')
+    .replace(/,\\s*,/g, ',');
+}
+out = out.replace(/\\s{2,}/g, ' ').trim();
 return [{ json: { output: out, allowed: $('Prepara').first().json.allowed } }];`;
 
 // Formatter (4º nó, GPT-5.1): quando o modo bolhas está LIGADO, divide a resposta em
@@ -417,7 +474,7 @@ return [{ json: {
 // estado consolidado, devolve uma SUGESTÃO que o Respondedor pode usar ou ignorar.
 const QUALIFICA_SYSTEM = `Você é o qualificador de leads de casamento da {{ $('Monta').item.json.empresa }}. A partir dos CRITÉRIOS (com a importância de cada um) e do estado consolidado da conversa, julgue o fit do casal e devolva SOMENTE um JSON válido (sem markdown, sem crases):
 {"score": 0-100, "qualificado": true|false, "faixa": "quente"|"morno"|"frio", "breakdown": [{"criterio": "...", "atende": true|false, "nota": "frase curta"}], "falta": ["o que ainda precisa entender"], "proxima_pergunta_sugerida": "uma pergunta aberta e natural, ou '' se ainda não é hora de perguntar"}
-Regras: score é JULGAMENTO (não soma mecânica de pesos). Critério com importância "desqualifica" presente derruba o score. qualificado=true só com fit real e os essenciais cobertos. faixa: quente >=70, morno 40-69, frio <40. Baseie-se SÓ no que está no resumo/contexto; não invente. Se o casal hesita ou está emotivo, a proxima_pergunta_sugerida pode ser '' (melhor acolher antes de perguntar).`;
+Regras: score é JULGAMENTO (não soma mecânica de pesos). Use os PESOS dos critérios como orientação de quanto cada um importa (peso maior pesa mais na nota), mas julgue o todo, não some mecanicamente. Critérios do tipo "bônus" reforçam o caso até um teto e não decidem sozinhos; critério "desqualifica" presente derruba o score. qualificado=true só com fit real e os essenciais cobertos. faixa: estime quente/morno/frio pela força geral do fit. Baseie-se SÓ no que está no resumo/contexto; não invente. Se o casal hesita ou está emotivo, a proxima_pergunta_sugerida pode ser '' (melhor acolher antes de perguntar).`;
 const QUALIFICA_USER = `Critérios de qualificação (com importância):
 {{ $('Monta').item.json.criterios_txt }}
 
@@ -436,11 +493,20 @@ if (typeof r !== 'object' || Array.isArray(r) || !r) r = {};
 let score = Number(r.score);
 if (!isFinite(score)) score = 0;
 score = Math.max(0, Math.min(100, Math.round(score)));
-const faixa = (typeof r.faixa === 'string') ? r.faixa : (score >= 70 ? 'quente' : score >= 40 ? 'morno' : 'frio');
+// Pontuação: quando ligada, a nota mínima e as faixas editáveis valem (corte determinístico).
+const m = $('Monta').first().json;
+const scoring = !!m.scoring_enabled;
+const thr = (typeof m.sc_threshold === 'number') ? m.sc_threshold : 25;
+const qz = (typeof m.sc_quente === 'number') ? m.sc_quente : 70;
+const mz = (typeof m.sc_morno === 'number') ? m.sc_morno : 40;
+const faixa = scoring
+  ? (score >= qz ? 'quente' : score >= mz ? 'morno' : 'frio')
+  : ((typeof r.faixa === 'string') ? r.faixa : (score >= 70 ? 'quente' : score >= 40 ? 'morno' : 'frio'));
+const qualificado = scoring ? (score >= thr) : (r.qualificado === true);
 const falta = Array.isArray(r.falta) ? r.falta.filter(x => typeof x === 'string') : [];
 return [{ json: {
   score,
-  qualificado: r.qualificado === true,
+  qualificado,
   faixa,
   falta,
   falta_txt: falta.length ? falta.join('; ') : '(nada essencial faltando)',
