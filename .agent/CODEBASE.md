@@ -7,10 +7,10 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-05-31
 > **Trigger:** ALWAYS ON
-> **Stats:** 227 tabelas | 215 paginas | 379 hooks | 28 views | 862 components
+> **Stats:** 227 tabelas | 215 paginas | 380 hooks | 28 views | 864 components
 > **Last Updated:** 2026-05-31
 > **Trigger:** ALWAYS ON
-> **Stats:** 227 tabelas | 215 paginas | 379 hooks | 28 views | 862 components
+> **Stats:** 227 tabelas | 215 paginas | 380 hooks | 28 views | 864 components
 
 ---
 
@@ -172,7 +172,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **379 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **380 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -279,6 +279,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | Hook | File |
 |------|------|
 | `displayedEtapa()` | `displayedEtapa.ts` |
+| `forecastToDrillRows()` | `forecastToDrillRows.ts` |
 | `mockHotel()` | `mockHotel.ts` |
 | `types()` | `types.ts` |
 | `types()` | `types.ts` |

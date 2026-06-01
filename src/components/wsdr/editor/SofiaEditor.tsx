@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
-  User, MessageSquare, Zap, ShieldAlert, ShieldCheck, Eye, Loader2, CheckCircle, AlertCircle, Sparkles, Wallet,
+  User, MessageSquare, Wallet, Zap, ShieldAlert, ShieldCheck, Eye, Loader2, CheckCircle, AlertCircle,
+  Smile, Languages, Sparkles, Target, Coins, Palette, Info,
 } from 'lucide-react'
 import { PricingEditor } from '@/components/wsdr/editor/PricingEditor'
 import { CriteriaEditor } from '@/components/wsdr/editor/CriteriaEditor'
@@ -10,6 +11,7 @@ import { AgentEditorLayout, type EditorTab } from '@/components/ai-agent/editor/
 import { StringListEditor } from '@/components/wsdr/StringListEditor'
 import { CapabilityCard } from '@/components/wsdr/editor/CapabilityCard'
 import { KnowledgeFaqEditor } from '@/components/wsdr/editor/KnowledgeFaqEditor'
+import { EditorCard, EditorSectionGroup, Field, InfoBanner } from '@/components/wsdr/editor/ui/primitives'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
@@ -35,51 +37,17 @@ function setCapEnabled(x: SofiaConfigV2, key: CapabilityKey, enabled: boolean): 
 const TABS: EditorTab[] = [
   { id: 'quem', label: 'Quem é a Sofia', icon: User },
   { id: 'conversa', label: 'Como ela conversa', icon: MessageSquare },
-  { id: 'preco', label: 'Preço', icon: Wallet },
+  { id: 'preco', label: 'Preço e valores', icon: Wallet },
   { id: 'faz', label: 'O que ela faz', icon: Zap },
-  { id: 'vermelhas', label: 'Linhas vermelhas', icon: ShieldAlert },
+  { id: 'regras', label: 'Regras e limites', icon: ShieldAlert },
   { id: 'avancado', label: 'Avançado', icon: Eye },
 ]
-
-function Card({ icon, title, desc, children }: { icon: ReactNode; title: string; desc: string; children: ReactNode }) {
-  return (
-    <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 space-y-4">
-      <div className="space-y-1">
-        <div className="flex items-center gap-2">
-          <span className="text-slate-400">{icon}</span>
-          <h3 className="text-base font-semibold text-slate-900 tracking-tight">{title}</h3>
-        </div>
-        <p className="text-sm text-slate-500">{desc}</p>
-      </div>
-      {children}
-    </div>
-  )
-}
-
-function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-slate-900 mb-1.5">{label}</label>
-      {children}
-      {hint && <p className="text-xs text-slate-400 mt-1">{hint}</p>}
-    </div>
-  )
-}
-
-function InfoBanner({ children }: { children: ReactNode }) {
-  return (
-    <div className="bg-slate-50/70 border border-slate-200 rounded-xl p-4 text-xs text-slate-600 leading-relaxed">
-      {children}
-    </div>
-  )
-}
 
 export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
   const { config, setConfig, loading, status, error, save } = useSofiaConfig(slug)
   const [tab, setTab] = useState('quem')
   const [dirty, setDirty] = useState(false)
 
-  // reset dirty quando carrega/salva
   useEffect(() => { if (status === 'success') setDirty(false) }, [status])
 
   const update = (fn: (c: SofiaConfigV2) => SofiaConfigV2) => {
@@ -100,31 +68,82 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
 
   const c = config
 
+  // capacidades separadas por status: prontas/em testes vs em breve (honestidade — nada finge)
+  const capDisponiveis = CAPABILITY_META.filter(m => m.status !== 'em_breve')
+  const capEmBreve = CAPABILITY_META.filter(m => m.status === 'em_breve')
+
+  const renderCap = (meta: typeof CAPABILITY_META[number]) => {
+    const cap = c.capabilities[meta.key]
+    return (
+      <CapabilityCard key={meta.key} icon={meta.icon} color={meta.color} title={meta.title} subtitle={meta.subtitle}
+        description={meta.description} status={meta.status} enabled={cap.enabled}
+        onToggle={v => update(x => setCapEnabled(x, meta.key, v))}>
+        {meta.key === 'crm_write' && (
+          <label className="flex items-center justify-between text-sm text-slate-700">
+            <span>Mover o card de etapa automaticamente</span>
+            <Switch checked={c.capabilities.crm_write.stage_move_enabled} onCheckedChange={v => update(x => ({ ...x, capabilities: { ...x.capabilities, crm_write: { ...x.capabilities.crm_write, stage_move_enabled: v } } }))} className={c.capabilities.crm_write.stage_move_enabled ? 'bg-indigo-600' : ''} />
+          </label>
+        )}
+        {meta.key === 'calendar' && (
+          <div className="space-y-3">
+            <WeddingPlannerPicker value={c.capabilities.calendar.wedding_planner_profile_id} onChange={id => update(x => ({ ...x, capabilities: { ...x.capabilities, calendar: { ...x.capabilities.calendar, wedding_planner_profile_id: id } } }))} />
+            <Field label="Duração da reunião (min)"><Input type="number" value={c.capabilities.calendar.slot_duration_minutes} onChange={e => update(x => ({ ...x, capabilities: { ...x.capabilities, calendar: { ...x.capabilities.calendar, slot_duration_minutes: Number(e.target.value) } } }))} /></Field>
+            <label className="flex items-center justify-between text-sm text-slate-700"><span>Pular fins de semana</span><Switch checked={c.capabilities.calendar.skip_weekends} onCheckedChange={v => update(x => ({ ...x, capabilities: { ...x.capabilities, calendar: { ...x.capabilities.calendar, skip_weekends: v } } }))} className={c.capabilities.calendar.skip_weekends ? 'bg-indigo-600' : ''} /></label>
+          </div>
+        )}
+        {meta.key === 'multimodal' && (
+          <div className="space-y-2">
+            {(['audio', 'image', 'pdf'] as const).map(k => (
+              <label key={k} className="flex items-center justify-between text-sm text-slate-700">
+                <span>{k === 'audio' ? 'Ouvir áudios' : k === 'image' ? 'Entender fotos' : 'Ler PDFs'}</span>
+                <Switch checked={c.capabilities.multimodal[k]} onCheckedChange={v => update(x => ({ ...x, capabilities: { ...x.capabilities, multimodal: { ...x.capabilities.multimodal, [k]: v } } }))} className={c.capabilities.multimodal[k] ? 'bg-indigo-600' : ''} />
+              </label>
+            ))}
+          </div>
+        )}
+        {meta.key === 'memory' && (
+          <div className="space-y-3">
+            <label className="flex items-center justify-between text-sm text-slate-700"><span>Responder em bolhas (mais humano)</span><Switch checked={c.capabilities.memory.bubbles_enabled} onCheckedChange={v => update(x => ({ ...x, capabilities: { ...x.capabilities, memory: { ...x.capabilities.memory, bubbles_enabled: v } } }))} className={c.capabilities.memory.bubbles_enabled ? 'bg-indigo-600' : ''} /></label>
+            <Field label="Quantas mensagens lembrar"><Input type="number" value={c.capabilities.memory.window_messages} onChange={e => update(x => ({ ...x, capabilities: { ...x.capabilities, memory: { ...x.capabilities.memory, window_messages: Number(e.target.value) } } }))} /></Field>
+          </div>
+        )}
+        {meta.key === 'followup' && (
+          <Field label="Horário padrão da retomada"><Input value={c.capabilities.followup.default_time} onChange={e => update(x => ({ ...x, capabilities: { ...x.capabilities, followup: { ...x.capabilities.followup, default_time: e.target.value } } }))} placeholder="ex: 10:30" /></Field>
+        )}
+        {meta.key === 'knowledge' && (
+          <KnowledgeFaqEditor faqs={c.capabilities.knowledge.faqs}
+            onChange={faqs => update(x => ({ ...x, capabilities: { ...x.capabilities, knowledge: { ...x.capabilities.knowledge, faqs } } }))} />
+        )}
+      </CapabilityCard>
+    )
+  }
+
   return (
     <div className="space-y-6 pb-24">
-      <AgentEditorLayout tabs={TABS.map(t => ({ ...t, dirty: dirty }))} activeTab={tab} onTabChange={setTab}>
+      <AgentEditorLayout tabs={TABS} activeTab={tab} onTabChange={setTab}>
         {tab === 'quem' && (
           <>
-            <Card icon={<User className="w-4 h-4" />} title="Identidade" desc="Quem é a Sofia: nome, marca e a proposta que ela leva pros noivos.">
+            <EditorCard accent="indigo" icon={<User className="w-5 h-5" />} title="Identidade"
+              desc="O nome da Sofia, a marca e como ela descreve a empresa durante a conversa.">
               <Field label="Nome da persona">
                 <Input value={c.identity.persona_nome} onChange={e => update(x => ({ ...x, identity: { ...x.identity, persona_nome: e.target.value } }))} placeholder="ex: Sofia" />
               </Field>
               <Field label="Empresa / marca">
                 <Input value={c.identity.empresa} onChange={e => update(x => ({ ...x, identity: { ...x.identity, empresa: e.target.value } }))} placeholder="ex: Welcome Weddings" />
               </Field>
-              <Field label="Proposta (1-2 frases)" hint="O que a empresa faz de especial. A Sofia usa isso pra se apresentar.">
+              <Field label="Descrição da empresa" hint="A frase que a Sofia usa pra se apresentar e explicar o que vocês fazem. (A primeira mensagem fica na aba 'Como ela conversa'.)">
                 <Textarea value={c.identity.proposta} onChange={e => update(x => ({ ...x, identity: { ...x.identity, proposta: e.target.value } }))} className="min-h-[80px]" />
               </Field>
-            </Card>
+            </EditorCard>
 
-            <Card icon={<Sparkles className="w-4 h-4" />} title="Tom de voz" desc="Como a Sofia fala com os noivos.">
+            <EditorCard accent="violet" icon={<Smile className="w-5 h-5" />} title="Tom de voz" desc="O jeito da Sofia falar com os noivos.">
               <div className="flex flex-wrap gap-2">
                 {TOM_OPTIONS.map(opt => {
                   const active = c.voice.tom === opt.value
                   return (
                     <button key={opt.value} type="button"
                       onClick={() => update(x => ({ ...x, voice: { ...x.voice, tom: opt.value as Tom } }))}
-                      className={cn('px-3 py-2 rounded-lg border text-sm transition-colors', active ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300')}>
+                      className={cn('px-3 py-2 rounded-lg border text-sm transition-all duration-150 active:scale-[0.97]', active ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300')}>
                       <span className="mr-1">{opt.emoji}</span>{opt.label}
                     </button>
                   )
@@ -135,107 +154,74 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
                   onChange={e => update(x => ({ ...x, voice: { ...x.voice, formalidade: Number(e.target.value) } }))}
                   className="w-full accent-indigo-600" />
               </Field>
-              <InfoBanner>Exemplo neste tom: <span className="italic text-slate-700">"{TOM_OPTIONS.find(t => t.value === c.voice.tom)?.exemplo}"</span></InfoBanner>
-            </Card>
+              <InfoBanner icon={<Info className="w-4 h-4" />}>Exemplo neste tom: <span className="italic text-slate-700">"{TOM_OPTIONS.find(t => t.value === c.voice.tom)?.exemplo}"</span></InfoBanner>
+            </EditorCard>
 
-            <Card icon={<Sparkles className="w-4 h-4" />} title="Glossário de voz" desc="Palavras que a Sofia deve usar e palavras que deve evitar.">
+            <EditorCard accent="violet" icon={<Languages className="w-5 h-5" />} title="Glossário de voz" desc="Palavras que a Sofia deve usar e palavras que deve evitar.">
               <Field label="Palavras a USAR" hint="Ex: noivos, vocês, a gente.">
                 <StringListEditor items={c.voice.glossary.marca} onChange={items => update(x => ({ ...x, voice: { ...x.voice, glossary: { ...x.voice.glossary, marca: items } } }))} placeholder="ex: noivos" />
               </Field>
               <Field label="Palavras/expressões a EVITAR" hint="Ex: parceiro, experiência inesquecível, premium.">
                 <StringListEditor items={c.voice.glossary.proibida} onChange={items => update(x => ({ ...x, voice: { ...x.voice, glossary: { ...x.voice.glossary, proibida: items } } }))} placeholder="ex: parceiro" />
               </Field>
-            </Card>
+            </EditorCard>
           </>
         )}
 
         {tab === 'conversa' && (
           <>
-            <Card icon={<MessageSquare className="w-4 h-4" />} title="Mensagem de abertura" desc="A primeira mensagem que a Sofia manda no primeiro contato.">
+            <EditorCard accent="sky" icon={<MessageSquare className="w-5 h-5" />} title="Mensagem de abertura"
+              desc="A primeira mensagem exata que a Sofia manda no primeiro contato.">
               <Textarea value={c.voice.abertura} onChange={e => update(x => ({ ...x, voice: { ...x.voice, abertura: e.target.value } }))} className="min-h-[140px]" />
-            </Card>
-            <Card icon={<MessageSquare className="w-4 h-4" />} title="Perguntas de qualificação" desc="Em ordem. A Sofia entende uma de cada vez, com naturalidade.">
-              <StringListEditor items={c.qualification.etapas} onChange={items => update(x => ({ ...x, qualification: { ...x.qualification, etapas: items } }))} placeholder="ex: Qual é a data pretendida?" allowReorder />
-            </Card>
-            <Card icon={<MessageSquare className="w-4 h-4" />} title="Critérios da nota do casal" desc="O que a Sofia avalia pra dar uma nota (0 a 100) e decidir o que ainda falta perguntar.">
-              <CriteriaEditor criteria={c.qualification.criteria} onChange={items => update(x => ({ ...x, qualification: { ...x.qualification, criteria: items } }))} />
-            </Card>
-            <Card icon={<MessageSquare className="w-4 h-4" />} title="Momentos da conversa" desc="Faça a Sofia falar ou agir de um jeito específico em certos momentos (ex: quando perguntam preço).">
+            </EditorCard>
+            <EditorCard accent="sky" icon={<Sparkles className="w-5 h-5" />} title="Momentos da conversa"
+              desc="Faça a Sofia falar ou agir de um jeito específico em certos momentos (ex: quando perguntam preço).">
               <MomentsEditor moments={c.moments} onChange={items => update(x => ({ ...x, moments: items }))} />
-            </Card>
-            <Card icon={<MessageSquare className="w-4 h-4" />} title="Faixas de orçamento" desc="A Sofia oferece estas faixas se o casal não quiser dizer um valor. Nunca pra falar quanto a gente cobra.">
-              <StringListEditor items={c.qualification.faixas_orcamento} onChange={items => update(x => ({ ...x, qualification: { ...x.qualification, faixas_orcamento: items } }))} placeholder="ex: R$ 80 a 150 mil" />
-            </Card>
+            </EditorCard>
+            <EditorCard accent="amber" icon={<Target className="w-5 h-5" />} title="Qualificação do casal"
+              desc="O que a Sofia precisa descobrir do casal. Ela usa isto pra dar uma nota (0 a 100) e decidir o que ainda falta perguntar.">
+              <CriteriaEditor criteria={c.qualification.criteria} onChange={items => update(x => ({ ...x, qualification: { ...x.qualification, criteria: items } }))} />
+            </EditorCard>
           </>
         )}
 
         {tab === 'preco' && (
-          <Card icon={<Wallet className="w-4 h-4" />} title="Preço e valor" desc="A Sofia pode falar de valor (assessoria + faixas por destino) e nunca negocia. Você decide quando e como ela revela.">
-            <PricingEditor pricing={c.pricing} onChange={p => update(x => ({ ...x, pricing: p }))} />
-          </Card>
+          <>
+            <EditorCard accent="emerald" icon={<Wallet className="w-5 h-5" />} title="Preço e valores"
+              desc="A Sofia pode falar de valor (assessoria + faixas por destino) e nunca negocia. Você decide quando e como ela revela.">
+              <PricingEditor pricing={c.pricing} onChange={p => update(x => ({ ...x, pricing: p }))} />
+            </EditorCard>
+            <EditorCard accent="emerald" icon={<Coins className="w-5 h-5" />} title="Orçamento do casal"
+              desc="Faixas que a Sofia oferece pro casal escolher quando ele não quer dizer um número. Isto é o orçamento DELES, não quanto a gente cobra.">
+              <StringListEditor items={c.qualification.faixas_orcamento} onChange={items => update(x => ({ ...x, qualification: { ...x.qualification, faixas_orcamento: items } }))} placeholder="ex: R$ 80 a 150 mil" />
+            </EditorCard>
+          </>
         )}
 
         {tab === 'faz' && (
           <>
-            <InfoBanner>
-              Ligue as capacidades que a Sofia pode usar. Quando desligadas, ela só conversa. Algumas estão <strong>ligando em breve</strong> — você já deixa configurado e elas entram no ar assim que a fiação ficar pronta.
+            <InfoBanner icon={<Info className="w-4 h-4" />}>
+              Ligue as capacidades que a Sofia pode usar. Quando desligadas, ela só conversa.
             </InfoBanner>
-            {CAPABILITY_META.map(meta => {
-              const cap = c.capabilities[meta.key]
-              return (
-                <CapabilityCard key={meta.key} icon={meta.icon} color={meta.color} title={meta.title} subtitle={meta.subtitle}
-                  description={meta.description} status={meta.status} enabled={cap.enabled}
-                  onToggle={v => update(x => setCapEnabled(x, meta.key, v))}>
-                  {meta.key === 'crm_write' && (
-                    <label className="flex items-center justify-between text-sm text-slate-700">
-                      <span>Mover o card de etapa automaticamente</span>
-                      <Switch checked={c.capabilities.crm_write.stage_move_enabled} onCheckedChange={v => update(x => ({ ...x, capabilities: { ...x.capabilities, crm_write: { ...x.capabilities.crm_write, stage_move_enabled: v } } }))} className={c.capabilities.crm_write.stage_move_enabled ? 'bg-indigo-600' : ''} />
-                    </label>
-                  )}
-                  {meta.key === 'calendar' && (
-                    <div className="space-y-3">
-                      <WeddingPlannerPicker value={c.capabilities.calendar.wedding_planner_profile_id} onChange={id => update(x => ({ ...x, capabilities: { ...x.capabilities, calendar: { ...x.capabilities.calendar, wedding_planner_profile_id: id } } }))} />
-                      <Field label="Duração da reunião (min)"><Input type="number" value={c.capabilities.calendar.slot_duration_minutes} onChange={e => update(x => ({ ...x, capabilities: { ...x.capabilities, calendar: { ...x.capabilities.calendar, slot_duration_minutes: Number(e.target.value) } } }))} /></Field>
-                      <label className="flex items-center justify-between text-sm text-slate-700"><span>Pular fins de semana</span><Switch checked={c.capabilities.calendar.skip_weekends} onCheckedChange={v => update(x => ({ ...x, capabilities: { ...x.capabilities, calendar: { ...x.capabilities.calendar, skip_weekends: v } } }))} className={c.capabilities.calendar.skip_weekends ? 'bg-indigo-600' : ''} /></label>
-                    </div>
-                  )}
-                  {meta.key === 'multimodal' && (
-                    <div className="space-y-2">
-                      {(['audio', 'image', 'pdf'] as const).map(k => (
-                        <label key={k} className="flex items-center justify-between text-sm text-slate-700">
-                          <span>{k === 'audio' ? 'Ouvir áudios' : k === 'image' ? 'Entender fotos' : 'Ler PDFs'}</span>
-                          <Switch checked={c.capabilities.multimodal[k]} onCheckedChange={v => update(x => ({ ...x, capabilities: { ...x.capabilities, multimodal: { ...x.capabilities.multimodal, [k]: v } } }))} className={c.capabilities.multimodal[k] ? 'bg-indigo-600' : ''} />
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                  {meta.key === 'memory' && (
-                    <div className="space-y-3">
-                      <label className="flex items-center justify-between text-sm text-slate-700"><span>Responder em bolhas (mais humano)</span><Switch checked={c.capabilities.memory.bubbles_enabled} onCheckedChange={v => update(x => ({ ...x, capabilities: { ...x.capabilities, memory: { ...x.capabilities.memory, bubbles_enabled: v } } }))} className={c.capabilities.memory.bubbles_enabled ? 'bg-indigo-600' : ''} /></label>
-                      <Field label="Quantas mensagens lembrar"><Input type="number" value={c.capabilities.memory.window_messages} onChange={e => update(x => ({ ...x, capabilities: { ...x.capabilities, memory: { ...x.capabilities.memory, window_messages: Number(e.target.value) } } }))} /></Field>
-                    </div>
-                  )}
-                  {meta.key === 'followup' && (
-                    <Field label="Horário padrão da retomada"><Input value={c.capabilities.followup.default_time} onChange={e => update(x => ({ ...x, capabilities: { ...x.capabilities, followup: { ...x.capabilities.followup, default_time: e.target.value } } }))} placeholder="ex: 10:30" /></Field>
-                  )}
-                  {meta.key === 'knowledge' && (
-                    <KnowledgeFaqEditor faqs={c.capabilities.knowledge.faqs}
-                      onChange={faqs => update(x => ({ ...x, capabilities: { ...x.capabilities, knowledge: { ...x.capabilities.knowledge, faqs } } }))} />
-                  )}
-                </CapabilityCard>
-              )
-            })}
+            <div className="space-y-3">{capDisponiveis.map(renderCap)}</div>
+            {capEmBreve.length > 0 && (
+              <EditorSectionGroup label="Em breve" count={capEmBreve.length} defaultOpen={false}>
+                <p className="text-xs text-slate-400 -mt-1 mb-1">Você já deixa configurado; entram no ar quando a fiação ficar pronta.</p>
+                {capEmBreve.map(renderCap)}
+              </EditorSectionGroup>
+            )}
           </>
         )}
 
-        {tab === 'vermelhas' && (
+        {tab === 'regras' && (
           <>
-            <Card icon={<ShieldAlert className="w-4 h-4" />} title="Decisões de marca" desc="Escolhas de estilo da sua marca. Ligue ou desligue como preferir, valem na próxima conversa.">
+            <EditorCard accent="rose" icon={<Palette className="w-5 h-5" />} title="Decisões de marca"
+              desc="Escolhas de estilo da sua marca. Ligue ou desligue como preferir, valem na próxima conversa.">
               <div className="space-y-2">
                 {CURATED_BOUNDARIES.filter(b => b.editable).map(b => {
                   const on = c.boundaries.curadas[b.key] ?? b.defaultOn
                   return (
-                    <div key={b.key} className={cn('flex items-start justify-between gap-3 p-3 rounded-lg border', on ? 'bg-rose-50/60 border-rose-200' : 'bg-white border-slate-200')}>
+                    <div key={b.key} className={cn('flex items-start justify-between gap-3 p-3 rounded-lg border transition-colors', on ? 'bg-rose-50/60 border-rose-200' : 'bg-white border-slate-200')}>
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-slate-900">{b.label}</p>
                         <p className="text-xs text-slate-500 mt-0.5">{b.hint}</p>
@@ -245,8 +231,13 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
                   )
                 })}
               </div>
-            </Card>
-            <Card icon={<ShieldCheck className="w-4 h-4" />} title="Garantias de qualidade" desc="Regras que protegem a qualidade da conversa. Ficam sempre ativas (não dá pra desligar, e é de propósito).">
+            </EditorCard>
+            <EditorCard accent="rose" icon={<ShieldAlert className="w-5 h-5" />} title="O que a Sofia nunca faz"
+              desc="Em linguagem simples: comportamentos, promessas ou jeitos de falar que a Sofia deve evitar.">
+              <StringListEditor items={c.boundaries.comportamentos} onChange={items => update(x => ({ ...x, boundaries: { ...x.boundaries, comportamentos: items } }))} placeholder="ex: nunca revele que somos uma IA; não prometa data sem confirmar" />
+            </EditorCard>
+            <EditorCard accent="emerald" icon={<ShieldCheck className="w-5 h-5" />} title="Garantias de qualidade"
+              desc="Regras que protegem a qualidade da conversa. Ficam sempre ativas (não dá pra desligar, e é de propósito).">
               <div className="space-y-2">
                 {CURATED_BOUNDARIES.filter(b => !b.editable).map(b => (
                   <div key={b.key} className="flex items-start justify-between gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50/60">
@@ -258,24 +249,19 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
                   </div>
                 ))}
               </div>
-            </Card>
-            <Card icon={<ShieldAlert className="w-4 h-4" />} title="Regras personalizadas" desc="Outras coisas específicas do seu negócio que a Sofia não pode fazer.">
-              <StringListEditor items={c.boundaries.custom} onChange={items => update(x => ({ ...x, boundaries: { ...x.boundaries, custom: items } }))} placeholder="ex: Nunca dar o contato direto da Planner sem permissão" />
-            </Card>
-            <Card icon={<ShieldAlert className="w-4 h-4" />} title="Comportamentos proibidos" desc="Em linguagem simples: o que a Sofia nunca deve fazer ou revelar, ou um jeito de falar a evitar.">
-              <StringListEditor items={c.boundaries.comportamentos} onChange={items => update(x => ({ ...x, boundaries: { ...x.boundaries, comportamentos: items } }))} placeholder="ex: nunca revele que somos uma IA; não prometa data sem confirmar" />
-            </Card>
+            </EditorCard>
           </>
         )}
 
         {tab === 'avancado' && (
-          <Card icon={<Eye className="w-4 h-4" />} title="O que a Sofia entende" desc="Resumo, em linguagem simples, de como a Sofia vai se comportar com as configurações atuais. Atualiza ao vivo.">
+          <EditorCard accent="slate" icon={<Eye className="w-5 h-5" />} title="O que a Sofia entende"
+            desc="Resumo, em linguagem simples, de como a Sofia vai se comportar com as configurações atuais. Atualiza ao vivo.">
             <pre className="bg-slate-50/70 border border-slate-200 rounded-lg p-4 text-xs text-slate-700 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">{preview}</pre>
-          </Card>
+          </EditorCard>
         )}
       </AgentEditorLayout>
 
-      {/* Barra de salvar fixa */}
+      {/* Barra de salvar fixa — único indicador de "não salvo" */}
       <div className="fixed bottom-0 inset-x-0 z-10 bg-white/90 backdrop-blur border-t border-slate-200">
         <div className="max-w-4xl mx-auto px-8 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm">
@@ -283,7 +269,7 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
             {status === 'error' && <span className="flex items-center gap-1.5 text-red-700"><AlertCircle className="w-4 h-4" />{error || 'Erro ao salvar'}</span>}
             {status !== 'success' && status !== 'error' && dirty && <span className="text-amber-600">• alterações não salvas</span>}
           </div>
-          <Button type="button" onClick={() => save(c)} disabled={status === 'saving' || !dirty} className="bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50">
+          <Button type="button" onClick={() => save(c)} disabled={status === 'saving' || !dirty} className="bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 active:scale-[0.98] transition-transform">
             {status === 'saving' ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</> : 'Salvar configuração'}
           </Button>
         </div>

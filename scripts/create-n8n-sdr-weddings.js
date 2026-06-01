@@ -268,7 +268,7 @@ return [{ json: {
   ai_mention_txt: ai_mention_txt,
   tom_desc: (tomMap[tom] || tom || 'acolhedor, caloroso e humano') + ', ' + formalidade_desc,
   abertura: vo.abertura || cfg.abertura || '',
-  etapas_txt: arr(etapas).map((e,i) => (i+1) + '. ' + e).join('\\n'),
+  etapas_txt: (crit.length ? crit.map(c => c.label || c.criterio || c).filter(Boolean) : arr(etapas)).map((e,i) => (i+1) + '. ' + e).join('\\n'),
   faixas_txt: arr(faixas).join('; '),
   fronteiras_txt: arr(fronteiras).map(f => '- ' + f).join('\\n'),
   historico: p.historico || '',
