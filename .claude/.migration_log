@@ -1116,3 +1116,13 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-05-30T23:51:25Z | supabase/migrations/20260530c_wsdr_persist_lead.sql | applied_to_prod
 2026-05-31T00:01:08Z | supabase/migrations/20260530d_wsdr_calendar.sql | applied_to_prod
 2026-05-31T16:46:58Z | supabase/migrations/20260531a_wsdr_config_v3.sql | applied_to_prod
+2026-05-31T17:31:27Z | supabase/migrations/20260531b_wsdr_persist_lead_qualificado.sql | applied_to_prod
+2026-05-31T17:40:13Z | supabase/migrations/20260531c_wsdr_sofia_seed_content.sql | applied_to_prod
+2026-05-31T17:54:20Z | supabase/migrations/20260531d_wsdr_sofia_seed_moments.sql | applied_to_prod
+2026-05-31T18:08:07Z | supabase/migrations/20260531e_wsdr_book_meeting_reschedule.sql | applied_to_prod
+2026-05-31T18:18:27Z | supabase/migrations/20260531f_wsdr_debounce_buffer.sql | applied_to_prod
+2026-05-31T19:25:03Z | supabase/migrations/20260601a_ww_funil_ranking_combo_marcos.sql | applied_to_prod
+2026-05-31T19:56:33Z | supabase/migrations/20260531g_wsdr_buffer_claim_delete.sql | applied_to_prod
+2026-06-01T01:20:55Z | supabase/migrations/20260601a_wsdr_sofia_dedup_boundaries.sql | applied_to_prod
+2026-06-01T13:46:25Z | supabase/migrations/20260601b_ww2_drill_down_v4_align.sql | applied_to_prod
+2026-06-01T13:47:51Z | supabase/migrations/20260601b_wsdr_sofia_phases_seed.sql | applied_to_prod
