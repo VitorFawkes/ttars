@@ -4,10 +4,14 @@ import AnalyticsSidebar from './AnalyticsSidebar'
 import AnalyticsDrillDownDrawer from '@/components/analytics/AnalyticsDrillDownDrawer'
 import { useProductContext } from '@/hooks/useProductContext'
 import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
+import { useCloseDetailsOnOutside } from '@/hooks/useCloseDetailsOnOutside'
 
 export default function AnalyticsLayout() {
   const { currentProduct } = useProductContext()
   const setProduct = useAnalyticsFilters(s => s.setProduct)
+
+  // Filtros do Analytics usam <details> — fecha ao clicar fora (nativo não fecha sozinho).
+  useCloseDetailsOnOutside()
 
   useEffect(() => {
     setProduct(currentProduct)
