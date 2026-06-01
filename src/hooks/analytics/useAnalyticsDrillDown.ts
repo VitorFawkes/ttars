@@ -27,6 +27,17 @@ export interface DrillDownContext {
     drillStatusArray?: string[]
     /** Sub-filtro de ganhos do Funil v3: 'sdr'|'planner'|'pos'. */
     drillGanhoFase?: 'sdr' | 'planner' | 'pos'
+    /** Ícone/cor de contexto pro header (opcional, override da derivação por drillSource). */
+    contextIcon?: string
+    /** Modo PRESET: linhas já calculadas no cliente (ex: Previsão). Quando presente, o drawer
+     *  NÃO chama a RPC — usa estas linhas direto. */
+    presetRows?: DrillDownCard[]
+    /** Chave estável do preset (pra queryKey/cache). */
+    presetKey?: string
+    /** Variante visual do drawer ('forecast' mostra data prevista + extra_label). */
+    variant?: 'forecast'
+    /** Resumo curto pro header (ex: "R$ 300 mil · 8 cards"). */
+    summary?: string
 }
 
 export interface DrillDownCard {
@@ -45,6 +56,9 @@ export interface DrillDownCard {
     pessoa_telefone: string | null
     total_count: number
     stage_entered_at: string | null
+    /** Forecast (modo preset): data prevista de fechamento + rótulo de contexto-tempo. */
+    data_prevista?: string | null
+    extra_label?: string | null
 }
 
 interface DrillDownState {
@@ -57,6 +71,7 @@ interface DrillDownState {
     close: () => void
     setPage: (p: number) => void
     toggleSort: (column: string) => void
+    setSort: (by: string, dir: 'asc' | 'desc') => void
 }
 
 // ── Zustand Store ──────────────────────────────────────
@@ -84,6 +99,7 @@ export const useDrillDownStore = create<DrillDownState>()((set, get) => ({
             set({ sortBy: column, sortDir: 'desc', page: 0 })
         }
     },
+    setSort: (by, dir) => set({ sortBy: by, sortDir: dir, page: 0 }),
 }))
 
 // ── React Query Hook ───────────────────────────────────
@@ -103,9 +119,22 @@ export function useAnalyticsDrillDownQuery() {
             context?.drillPeriodStart, context?.drillPeriodEnd, context?.drillDestino,
             context?.excludeTerminal, context?.drillDateRef,
             context?.drillRootStageId, context?.drillStatusArray, context?.drillGanhoFase,
-            sortBy, sortDir, page,
+            context?.presetKey, sortBy, sortDir, page,
         ],
         queryFn: async () => {
+            // Modo PRESET: linhas vindas do cliente (ex: Previsão). Ordena+pagina client-side, sem RPC.
+            if (context?.presetRows) {
+                const dirMul = sortDir === 'desc' ? -1 : 1
+                const sorted = [...context.presetRows].sort((a, b) => {
+                    if (sortBy === 'valor_display') return (a.valor_display - b.valor_display) * dirMul
+                    const av = new Date((a.data_prevista ?? a.created_at) || 0).getTime()
+                    const bv = new Date((b.data_prevista ?? b.created_at) || 0).getTime()
+                    return (av - bv) * dirMul
+                })
+                const start = page * PAGE_SIZE
+                const rows = sorted.slice(start, start + PAGE_SIZE).map(r => ({ ...r, total_count: sorted.length }))
+                return { rows, totalCount: sorted.length, totalPages: Math.ceil(sorted.length / PAGE_SIZE) }
+            }
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data, error } = await (supabase.rpc as any)('analytics_drill_down_cards', {
                 p_date_start: dateRange.start,

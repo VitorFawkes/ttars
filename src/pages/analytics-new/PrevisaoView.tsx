@@ -1,10 +1,12 @@
 import { useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { CalendarClock, TrendingUp, AlertTriangle, ListChecks, Loader2 } from 'lucide-react'
 import { format, addDays } from 'date-fns'
 import KpiCard from '@/components/analytics/KpiCard'
 import PlannerForecastChart from '@/components/analytics/PlannerForecastChart'
-import { usePlannerForecastByDono } from '@/hooks/analytics/usePlannerForecastByDono'
+import { usePlannerForecastByDono, type ForecastCard } from '@/hooks/analytics/usePlannerForecastByDono'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
+import { forecastToDrillRows } from '@/hooks/analytics/forecastToDrillRows'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
@@ -74,10 +76,10 @@ export default function PrevisaoView() {
     const maxAging = Math.max(...aging.map(a => a.valor), 1)
 
     // PREVISÃO por consultor (próximos 90d, abertos não-atrasados)
-    const byPlanner = new Map<string, { nome: string; valor: number; qtd: number }>()
+    const byPlanner = new Map<string, { id: string; nome: string; valor: number; qtd: number }>()
     for (const c of list) {
       if (!c.data_prevista || c.data_prevista < todayStr || c.data_prevista >= in90) continue
-      const cur = byPlanner.get(c.planner_id) ?? { nome: c.planner_nome, valor: 0, qtd: 0 }
+      const cur = byPlanner.get(c.planner_id) ?? { id: c.planner_id, nome: c.planner_nome, valor: 0, qtd: 0 }
       cur.valor += c.valor; cur.qtd++
       byPlanner.set(c.planner_id, cur)
     }
@@ -86,8 +88,29 @@ export default function PrevisaoView() {
     return { v30, c30, v90, c90, vOver, overdueCount: overdue.length, overdue, planners, maxPlanner, overduePlanners, maxOverdue, aging, maxAging, total: list.length }
   }, [cards, todayStr, today])
 
-  const openPlannerPipeline = (plannerId: string, plannerNome: string) => {
-    drillDown.open({ label: `Pipeline de ${plannerNome}`, drillSource: 'current_stage', drillOwnerId: plannerId })
+  const navigate = useNavigate()
+
+  // Abre o drawer com os cards EXATOS daquele recorte (modo preset — usa os dados já carregados).
+  const openPreset = (label: string, icon: string, subset: ForecastCard[], key: string) => {
+    const rows = forecastToDrillRows(subset, todayStr)
+    const total = rows.reduce((s, r) => s + r.valor_display, 0)
+    drillDown.open({
+      label, variant: 'forecast', contextIcon: icon, presetRows: rows, presetKey: key,
+      summary: `${formatCurrency(total)} · ${rows.length} card${rows.length !== 1 ? 's' : ''}`,
+    })
+  }
+  const openOverdueByPlanner = (id: string, nome: string) =>
+    openPreset(`Atrasados · ${nome}`, '⚠️', stats.overdue.filter(c => c.planner_id === id), `over-${id}`)
+  const openForecastByPlanner = (id: string, nome: string) => {
+    const in90 = format(addDays(today, 90), 'yyyy-MM-dd')
+    openPreset(`Previsão 90d · ${nome}`, '👤',
+      (cards ?? []).filter(c => c.planner_id === id && c.data_prevista >= todayStr && c.data_prevista < in90),
+      `fc90-${id}`)
+  }
+  const openAgingBucket = (key: string, label: string) => {
+    const inRange = (d: number) => key === 'le7' ? d <= 7 : key === 'd8_30' ? d > 7 && d <= 30 : key === 'd31_90' ? d > 30 && d <= 90 : d > 90
+    openPreset(`Atrasados · ${label}`, '⏰',
+      stats.overdue.filter(c => inRange(daysBetween(todayStr, c.data_prevista))), `aging-${key}`)
   }
 
   return (
@@ -141,7 +164,7 @@ export default function PrevisaoView() {
         {/* Atrasados por consultor — responde "de quem é" de relance */}
         <WidgetCard
           title="Atrasados por consultor"
-          subtitle="De quem são os cards vencidos. A barra é o R$ parado com cada consultor — clique pra ver o pipeline dele."
+          subtitle="De quem são os cards vencidos. A barra é o R$ parado com cada consultor — clique pra ver os cards atrasados dele."
           action={<AlertTriangle className="w-4 h-4 text-rose-300" />}
         >
           {isLoading ? (
@@ -153,7 +176,7 @@ export default function PrevisaoView() {
               {stats.overduePlanners.slice(0, 12).map(p => (
                 <button
                   key={p.id}
-                  onClick={() => openPlannerPipeline(p.id, p.nome)}
+                  onClick={() => openOverdueByPlanner(p.id, p.nome)}
                   className="w-full flex items-center gap-3 text-left group"
                 >
                   <span className="w-32 text-xs font-medium text-slate-700 truncate group-hover:text-rose-700" title={p.nome}>{p.nome}</span>
@@ -173,7 +196,7 @@ export default function PrevisaoView() {
         {/* Há quanto tempo estão atrasados — severidade de relance */}
         <WidgetCard
           title="Há quanto tempo estão atrasados"
-          subtitle="Quanto mais escuro, mais crítico: cards que estouraram a data prevista há mais tempo."
+          subtitle="Quanto mais escuro, mais crítico: cards que estouraram a data prevista há mais tempo. Clique numa faixa pra ver os cards."
         >
           {isLoading ? (
             <div className="h-40 flex items-center justify-center text-slate-400"><Loader2 className="w-5 h-5 animate-spin" /></div>
@@ -182,16 +205,17 @@ export default function PrevisaoView() {
           ) : (
             <div className="space-y-2.5">
               {stats.aging.map(a => (
-                <div key={a.key} className="flex items-center gap-3">
+                <button key={a.key} onClick={() => a.qtd > 0 && openAgingBucket(a.key, a.label)}
+                  className={cn('w-full flex items-center gap-3 text-left', a.qtd > 0 ? 'cursor-pointer group' : 'cursor-default')}>
                   <span className="w-28 text-xs font-medium text-slate-700">{a.label}</span>
                   <div className="flex-1 h-6 bg-slate-100 rounded overflow-hidden relative">
-                    <div className="h-full rounded transition-all" style={{ width: `${(a.valor / stats.maxAging) * 100}%`, backgroundColor: a.color }} />
+                    <div className="h-full rounded transition-all group-hover:opacity-80" style={{ width: `${(a.valor / stats.maxAging) * 100}%`, backgroundColor: a.color }} />
                     <span className="absolute inset-y-0 left-2 flex items-center text-[11px] text-slate-700 tabular-nums">
                       {a.qtd} card{a.qtd === 1 ? '' : 's'}
                     </span>
                   </div>
                   <span className="w-24 text-right text-sm font-semibold tabular-nums" style={{ color: a.color }}>{formatCurrency(a.valor)}</span>
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -221,7 +245,7 @@ export default function PrevisaoView() {
                 return (
                   <button
                     key={c.card_id}
-                    onClick={() => openPlannerPipeline(c.planner_id, c.planner_nome)}
+                    onClick={() => navigate(`/cards/${c.card_id}`)}
                     className="w-full flex items-center gap-3 px-2 py-2 rounded-md hover:bg-rose-50 transition-colors text-left group"
                   >
                     <span className="flex-1 min-w-0">
@@ -247,7 +271,7 @@ export default function PrevisaoView() {
         {/* Previsão por consultor (próximos 90d) */}
         <WidgetCard
           title="Previsão por consultor (próximos 90 dias)"
-          subtitle="Quanto cada consultor tem previsto pra fechar nos próximos 90 dias."
+          subtitle="Quanto cada consultor tem previsto pra fechar nos próximos 90 dias. Clique pra ver os cards."
         >
           {isLoading ? (
             <div className="h-40 flex items-center justify-center text-slate-400"><Loader2 className="w-5 h-5 animate-spin" /></div>
@@ -256,16 +280,17 @@ export default function PrevisaoView() {
           ) : (
             <div className="space-y-2.5">
               {stats.planners.slice(0, 12).map(p => (
-                <div key={p.nome} className="flex items-center gap-3">
-                  <span className="w-32 text-xs font-medium text-slate-700 truncate" title={p.nome}>{p.nome}</span>
+                <button key={p.id} onClick={() => openForecastByPlanner(p.id, p.nome)}
+                  className="w-full flex items-center gap-3 text-left group">
+                  <span className="w-32 text-xs font-medium text-slate-700 truncate group-hover:text-indigo-700" title={p.nome}>{p.nome}</span>
                   <div className="flex-1 h-6 bg-slate-100 rounded overflow-hidden relative">
-                    <div className="h-full bg-indigo-400" style={{ width: `${(p.valor / stats.maxPlanner) * 100}%` }} />
+                    <div className="h-full bg-indigo-400 group-hover:bg-indigo-500 transition-colors" style={{ width: `${(p.valor / stats.maxPlanner) * 100}%` }} />
                     <span className="absolute inset-y-0 left-2 flex items-center text-[11px] text-slate-700 tabular-nums">
                       {p.qtd} card{p.qtd > 1 ? 's' : ''}
                     </span>
                   </div>
                   <span className={cn('w-24 text-right text-sm font-semibold text-slate-800 tabular-nums')}>{formatCurrency(p.valor)}</span>
-                </div>
+                </button>
               ))}
             </div>
           )}

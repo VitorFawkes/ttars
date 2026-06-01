@@ -16,6 +16,7 @@ import { useFilterProfilesWithRole } from '@/hooks/analytics/useFilterOptions'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
+import { forecastToDrillRows } from '@/hooks/analytics/forecastToDrillRows'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import { cn } from '@/lib/utils'
 
@@ -216,14 +217,37 @@ export default function PlannerForecastChart() {
       .map((c, idx) => ({ ...c, color: colorFor(idx) }))
   }, [data, dimensao])
 
+  const todayStr = useMemo(() => format(new Date(), 'yyyy-MM-dd'), [])
+
+  // Clique numa barra de categoria (pessoa/origem/etapa): abre os cards EXATOS daquela fatia.
   const openCat = (id: string, nome: string) => {
-    if (dimensao === 'planner') {
-      drillDown.open({ label: nome, drillSource: 'current_stage', drillOwnerId: id })
-    } else if (dimensao === 'stage' && id !== 'sem_stage') {
-      drillDown.open({ label: nome, drillSource: 'current_stage', drillStageId: id })
-    } else {
-      drillDown.open({ label: nome, drillSource: 'current_stage' })
-    }
+    if (dimensao === 'tempo') return
+    const cards = (data ?? []).filter(c => categoryFor(c, dimensao).id === id)
+    const rows = forecastToDrillRows(cards, todayStr)
+    const total = rows.reduce((s, r) => s + r.valor_display, 0)
+    drillDown.open({
+      label: nome,
+      variant: 'forecast',
+      contextIcon: dimensao === 'origem' ? '🔗' : dimensao === 'stage' ? '📊' : '👤',
+      presetRows: rows,
+      presetKey: `fc-${dimensao}-${id}`,
+      summary: `${formatCurrency(total)} previsto · ${rows.length} card${rows.length !== 1 ? 's' : ''}`,
+    })
+  }
+
+  // Clique numa barra do tempo: abre os cards previstos para aquele dia/semana/mês.
+  const openBucket = (raw: string, display: string) => {
+    const cards = (data ?? []).filter(c => bucketKey(c.data_prevista, granularity).raw === raw)
+    const rows = forecastToDrillRows(cards, todayStr)
+    const total = rows.reduce((s, r) => s + r.valor_display, 0)
+    drillDown.open({
+      label: `Previsão · ${display}`,
+      variant: 'forecast',
+      contextIcon: '📅',
+      presetRows: rows,
+      presetKey: `fc-time-${raw}`,
+      summary: `${formatCurrency(total)} previsto · ${rows.length} card${rows.length !== 1 ? 's' : ''}`,
+    })
   }
 
   const isTempo = dimensao === 'tempo'
@@ -470,7 +494,8 @@ export default function PlannerForecastChart() {
               <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: '#64748b' }} />
               <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={formatCompact} />
               <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-              <Bar dataKey="total" name="Previsto" fill="#6366f1" radius={[4, 4, 0, 0]}>
+              <Bar dataKey="total" name="Previsto" fill="#6366f1" radius={[4, 4, 0, 0]} cursor="pointer"
+                onClick={(d: { payload?: TimePoint }) => { if (d?.payload?.bucketRaw) openBucket(d.payload.bucketRaw, d.payload.bucket) }}>
                 <LabelList dataKey="total" position="top" formatter={formatCompact as never}
                   style={{ fontSize: 11, fontWeight: 700, fill: '#0f172a' }} />
               </Bar>
