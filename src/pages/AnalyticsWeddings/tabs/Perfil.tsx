@@ -111,9 +111,9 @@ export function Perfil() {
           onCellClick={(x, y) => {
             // mapeia (x, y) → filtros do drill
             const ctx: DrillContext = { ...baseCtx, title: `Leads novos — ${x} + ${y}` }
-            if (cruz === 'faixa_x_convidados') ctx.faixa = x
+            if (cruz === 'faixa_x_convidados') { ctx.faixa = x; ctx.convidados = y }
             else if (cruz === 'faixa_x_destino') { ctx.faixa = x; ctx.destino = y }
-            else if (cruz === 'convidados_x_destino') ctx.destino = y
+            else if (cruz === 'convidados_x_destino') { ctx.convidados = x; ctx.destino = y }
             setDrill(ctx)
           }}
         />
@@ -132,7 +132,7 @@ export function Perfil() {
           subtitulo="Combos mais frequentes entre quem entrou no período atual."
           perfis={topAtual}
           accent="indigo"
-          onPerfilClick={(p) => setDrill({ ...baseCtx, faixa: p.faixa, destino: p.destino, title: `Leads novos — ${p.faixa} + ${p.destino} + ${p.convidados}` })}
+          onPerfilClick={(p) => setDrill({ ...baseCtx, faixa: p.faixa, destino: p.destino, convidados: p.convidados, title: `Leads novos — ${p.faixa} + ${p.destino} + ${p.convidados}` })}
         />
       </div>
 
@@ -148,7 +148,7 @@ export function Perfil() {
         subtitulo="Tamanho da celebração que o casal indicou no site."
         dim={dimConvidados}
         ordenarPor={CONV_ORDER}
-        onCategoriaClick={undefined}
+        onCategoriaClick={(cat) => setDrill({ ...baseCtx, convidados: cat, title: `Leads novos — convidados "${cat}"` })}
       />
       <ComparacaoDimensao
         titulo="🏝️ Destino declarado"

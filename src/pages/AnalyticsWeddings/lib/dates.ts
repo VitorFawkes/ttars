@@ -57,3 +57,49 @@ export function deltaPct(current: number, prev: number): { pct: number; sign: 'u
   const pct = Math.round(((current - prev) / prev) * 1000) / 10
   return { pct: Math.abs(pct), sign: pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat' }
 }
+
+// Janela de tempo (período A/B do funil comparado) + derivações.
+export type Janela = { dateStart: string; dateEnd: string }
+
+export function shiftYears(iso: string, years: number): string {
+  const d = new Date(iso)
+  d.setFullYear(d.getFullYear() + years)
+  return d.toISOString()
+}
+/** Mesma janela, 1 ano antes. */
+export function umAnoAntes(b: Janela): Janela {
+  return { dateStart: shiftYears(b.dateStart, -1), dateEnd: shiftYears(b.dateEnd, -1) }
+}
+/** Janela contígua de mesmo tamanho, imediatamente antes de B. */
+export function janelaAnterior(b: Janela): Janela {
+  const len = new Date(b.dateEnd).getTime() - new Date(b.dateStart).getTime()
+  const end = new Date(new Date(b.dateStart).getTime() - 1)
+  return { dateStart: new Date(end.getTime() - len).toISOString(), dateEnd: end.toISOString() }
+}
+
+function _dp(iso: string): string {
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+/** Janela de um ano-calendário (capada em hoje se for o ano corrente). */
+export function anoJanela(y: number): Janela {
+  const start = new Date(y, 0, 1, 0, 0, 0, 0)
+  const fim = new Date(y, 11, 31, 23, 59, 59, 999)
+  const agora = new Date()
+  return { dateStart: start.toISOString(), dateEnd: (fim > agora ? agora : fim).toISOString() }
+}
+/** Rótulo legível de um período ("Período todo", "Últimos 90 dias", "2024", ou range). */
+export function labelDoPeriodo(j: Janela): string {
+  const all = periodToDates('all')
+  if (_dp(j.dateStart) === _dp(all.dateStart) && _dp(j.dateEnd) === _dp(all.dateEnd)) return 'Período todo'
+  const anoAtual = new Date().getFullYear()
+  for (let y = 2024; y <= anoAtual; y++) {
+    const a = anoJanela(y)
+    if (_dp(j.dateStart) === _dp(a.dateStart) && _dp(j.dateEnd) === _dp(a.dateEnd)) return String(y)
+  }
+  const dias = Math.round((new Date(j.dateEnd).getTime() - new Date(j.dateStart).getTime()) / 86_400_000)
+  if (Math.abs(dias - 30) <= 3) return 'Últimos 30 dias'
+  if (Math.abs(dias - 90) <= 3) return 'Últimos 90 dias'
+  if (Math.abs(dias - 365) <= 5) return 'Últimos 12 meses'
+  return formatRange(j.dateStart, j.dateEnd)
+}

@@ -284,16 +284,17 @@ export function useWw2LossReasons(filters: Ww2Filters) {
 export type DrillFilters = {
   dateStart: string
   dateEnd: string
+  dateMode?: DateMode
   stageId?: string
   phaseSlug?: string
   status?: 'aberto' | 'ganho' | 'perdido' | 'fechado_efetivo'
   faixa?: string
   destino?: string
+  convidados?: string
   origem?: string
   consultorId?: string
   motivoPerda?: string
-  // Filtros para drill em cruzamentos das próximas ondas (filtragem client-side
-  // após o fetch — a RPC ww2_drill_down não conhece esses campos ainda):
+  // Filtrados client-side após o fetch (a RPC ww2_drill_down não conhece estes):
   tipo?: string
   campaign?: string
   medium?: string
@@ -309,12 +310,14 @@ export function useWw2DrillDown(filters: DrillFilters | null) {
       ? callRpc<Ww2DrillDown>('ww2_drill_down', {
           p_date_start: filters.dateStart,
           p_date_end: filters.dateEnd,
+          p_date_mode: filters.dateMode ?? 'cohort',
           p_org_id: orgId,
           p_stage_id: filters.stageId ?? null,
           p_phase_slug: filters.phaseSlug ?? null,
           p_status: filters.status ?? null,
           p_faixa: filters.faixa ?? null,
           p_destino: filters.destino ?? null,
+          p_convidados: filters.convidados ?? null,
           p_origem: filters.origem ?? null,
           p_consultor_id: filters.consultorId ?? null,
           p_motivo_perda: filters.motivoPerda ?? null,
@@ -1006,6 +1009,11 @@ export type WwFunilRankingRow = {
   destino: string | null
   label: string
   entrou: number
+  // contagens CUMULATIVAS (monotônicas): entrou ≥ marcou_sdr ≥ fez_sdr ≥ marcou_closer ≥ fez_closer ≥ ganho
+  marcou_sdr: number
+  fez_sdr: number
+  marcou_closer: number
+  fez_closer: number
   ganho: number
   taxa_pct: number | null
 }

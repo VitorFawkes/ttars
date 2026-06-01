@@ -17,7 +17,7 @@ export function EntradaRealidade() {
   const { data, isLoading, error } = useWwDriftVenda(filters)
   const { data: combos } = useWwDriftCombos(filters)
   const [drill, setDrill] = useState<DrillContext | null>(null)
-  const baseCtx = { dateStart: filters.dateStart, dateEnd: filters.dateEnd }
+  const baseCtx = { dateStart: filters.dateStart, dateEnd: filters.dateEnd, dateMode: filters.dateMode }
 
   if (isLoading) return <LoadingSkeleton rows={10} />
   if (error) return <ErrorBanner error={error as Error} />
@@ -41,7 +41,7 @@ export function EntradaRealidade() {
             yLabel="Convidados"
             xOrder={FAIXA_ORDER}
             yOrder={CONV_ORDER}
-            onCellClick={(faixa) => setDrill({ ...baseCtx, faixa, status: 'ganho', title: `Vendas — faixa ${faixa}` })}
+            onCellClick={(faixa, convidados) => setDrill({ ...baseCtx, faixa, convidados, status: 'ganho', title: `Vendas — ${faixa} · ${convidados} convidados` })}
           />
           <HeatmapTaxaConversao
             titulo="🔥 Onde a conversão acontece — Faixa × Destino"
@@ -59,7 +59,7 @@ export function EntradaRealidade() {
             xLabel="Convidados"
             yLabel="Destino"
             xOrder={CONV_ORDER}
-            onCellClick={(_conv, destino) => setDrill({ ...baseCtx, destino, status: 'ganho', title: `Vendas — destino ${destino}` })}
+            onCellClick={(convidados, destino) => setDrill({ ...baseCtx, convidados, destino, status: 'ganho', title: `Vendas — ${destino} · ${convidados} convidados` })}
           />
         </>
       )}
