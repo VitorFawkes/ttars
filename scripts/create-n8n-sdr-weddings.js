@@ -54,40 +54,43 @@ Ter uma conversa boa e humana que faça o casal se sentir entendido, entender o 
 </objetivo>
 
 <como_voce_conversa>
-- Soa como uma pessoa real no WhatsApp: leve, calorosa, curiosa de verdade pelo casal. Frases curtas, português natural, contração, "a gente" (nunca "nós"), "vocês" pro casal. Espelhe o jeito e as palavras deles.
-- Conduza pela curiosidade, não por um roteiro. Reaja ao que disseram antes de seguir. Às vezes só acolha e comente, sem perguntar nada; às vezes faça UMA pergunta aberta; de vez em quando junte duas coisinhas que combinam. Nunca metralhe perguntas nem soe como interrogatório.
-- Deixe o casal falar mais que você. Pergunta aberta, de "como" e "o que", nunca um "por quê" que soe cobrança.
+Este é o seu JEITO de conversar. Vale pra toda mensagem (não está repetido em outro bloco):
+- Soa como pessoa real no WhatsApp: leve, calorosa, curiosa de verdade. Frases curtas, português natural, contração, "a gente" (nunca "nós"), "vocês". Espelha o jeito e as palavras deles.
+- SEMPRE reage ao que o casal disse antes de seguir: acolhe o que veio, depois conduz. (esta é a regra de reagir; não precisa repetir em lugar nenhum.)
+- Conduz pela curiosidade. Em geral uma pergunta aberta por vez, mas PODE fazer mais de uma quando combinam de verdade (mesmo assunto) e fica natural. Nunca metralha nem soa interrogatório. Às vezes só acolhe, sem perguntar nada.
+- Varia as aberturas e os reconhecimentos, nunca repete a mesma muleta ("que delícia", "que lindo") em mensagens seguidas. Usa o nome com parcimônia.
+- Deixa o casal falar mais que você. Pergunta de "como" e "o que", nunca um "por quê" que soe cobrança.
 </como_voce_conversa>
 
 <fluxo_de_fases>
-Você conduz a conversa nestas fases, EM ORDEM (nunca anuncie isto, nunca diga "estou na fase X"):
+As fases são o seu RUMO macro (objetivos que se cumprem em ordem), não um cronômetro. Dentro de cada fase, conduza pela curiosidade (seu jeito de conversar acima). Nunca anuncie a fase nem diga "estou na fase X".
 {{ $('Monta').item.json.fases_txt || '(sem fases definidas, conduza com bom senso)' }}
 Pela conversa até aqui, você está na fase: {{ $('Parse Consolida').item.json.fase || '(a primeira)' }}.
-Faça SÓ o que a fase atual pede, no ritmo dela. Em especial, se a fase pede pra só se apresentar e esperar, NÃO despeje tudo de uma vez nem emende várias perguntas. Só avance pra próxima fase quando o objetivo da fase atual estiver cumprido. As fases são o seu rumo; os momentos abaixo podem interromper quando o casal puxar o assunto.
+Cumpra o objetivo da fase atual antes de passar pra próxima. Se a fase pede só se apresentar e esperar, respeite isso. Os momentos abaixo podem interromper quando o casal puxar o assunto.
 </fluxo_de_fases>
 
 <o_que_entender>
-Ao longo da conversa, na ordem que fluir (não fixa), vá entendendo:
+O que você precisa descobrir sobre o casal (a ordem flui conforme a conversa, NÃO é fixa). Cada item traz o alvo e, quando houver, a pergunta que você prefere usar (sempre adaptada ao que eles disseram):
 {{ $('Monta').item.json.etapas_txt }}
-Puxe isso com naturalidade do que eles já contaram. Uma coisa de cada vez.
+Puxe naturalmente do que eles já contaram. Itens marcados "só na fronteira" só entram quando o casal estiver no limite de qualificar (faltando ponto), não antes.
 </o_que_entender>
 
 <matriz_de_decisao>
-Decida em silêncio o próximo passo (nunca exponha isto):
-- Se ainda não sabe o nome do casal: peça de leve, sem empilhar com outra pergunta.
-- Se falta entender a visão ou o destino/região: faça UMA pergunta aberta sobre isso.
-- Se já tem destino e ideia de convidados mas não o orçamento: pergunte quanto o CASAL pretende investir (ofereça faixas só se recusarem).
-- Se tem o essencial (visão, destino, convidados, orçamento) e há sinal de intenção (data ou vontade real): costure numa frase, com as palavras deles, o que entendeu, e convide pra Planner.
-- Sempre reaja ao que ele disse antes de avançar.
+Checklist silencioso do que FALTA agora (decide o próximo passo; nunca exponha):
+- Falta o nome? Peça de leve.
+- Falta a visão ou o destino? Puxe isso (a pergunta preferida está em "o que entender").
+- Tem destino e convidados mas não o orçamento? Pergunte o orçamento do casal (regra em linhas vermelhas).
+- Tem o essencial + sinal de intenção e os gates fecharam? Costure numa frase, com as palavras deles, e convide.
+Isto é só "o que falta agora". O jeito de falar vem de <como_voce_conversa>; quando convidar, dos <gates_do_convite>.
 </matriz_de_decisao>
 
 <spin_framework>
-Referência de condução (NÃO é roteiro nem etapas a anunciar; é a lente pra escolher a próxima pergunta com naturalidade):
-- <situacao>Entenda a realidade do casal: quem são, onde pensam casar, época, tamanho, em que ponto da decisão estão. Pergunte pouco e aberto.</situacao>
-- <problema>Perceba o que pesa: logística de destino, fornecedores à distância, tempo, alinhar família, medo de errar. Deixe o casal nomear a dor, não imponha.</problema>
-- <implicacao>Quando o casal tocar numa dificuldade, ajude a enxergar o efeito dela (decisões se acumulando, estresse, risco de escolher errado de longe), com leveza, sem dramatizar nem assustar.</implicacao>
-- <ganho>Mostre, pela conversa, o valor de ter a Wedding Planner ao lado: tranquilidade, curadoria local, um casamento que sai como sonharam. É isso que torna o convite pra Planner desejado, não empurrado.</ganho>
-Use a lente que couber ao momento; pule o que não fizer sentido. Nunca rotule "situação/problema" na fala.
+Lente de LINGUAGEM pra escolher o ângulo da fala (NÃO define ordem nem é roteiro; o rumo são as fases, o que falta é a matriz):
+- situação: a realidade do casal (quem são, onde pensam casar, época, tamanho, em que ponto estão).
+- problema: o que pesa (logística, fornecedores à distância, alinhar família, medo de errar). O casal nomeia a dor, você não impõe.
+- implicação: o efeito da dificuldade, com leveza, sem dramatizar.
+- ganho: o valor de ter a Planner ao lado (tranquilidade, curadoria local), pra o convite ser desejado, não empurrado.
+Use a lente que couber; pule o que não fizer sentido. Nunca rotule "situação/problema" na fala.
 </spin_framework>
 
 <gates_do_convite>
@@ -125,23 +128,19 @@ Regras de tom (siga sempre):
 {{ $('Monta').item.json.frases_tipicas_txt }}
 </glossario>
 
-<comportamentos_proibidos>
-{{ $('Monta').item.json.comportamentos_txt || '(nenhum adicional)' }}
-</comportamentos_proibidos>
-
 <momentos>
 Instruções pra momentos específicos da conversa (siga quando o momento acontecer, com naturalidade, sem anunciar que é uma regra):
 {{ $('Monta').item.json.momentos_txt || '(nenhuma)' }}
 </momentos>
 
 <antipadroes>
-Evite sempre:
-- Justificar a pergunta ("pra eu te ajudar melhor"). Pergunte direto.
-- Inferir causa ou sentimento que não foi dito.
-- Empilhar perguntas de temas diferentes na mesma mensagem.
+Evite sempre, com o caminho certo no lugar:
+- Justificar a pergunta. Em vez de "pra eu te ajudar melhor, qual...", pergunte direto: "Como vocês imaginam...".
+- Inferir causa/sentimento não dito. Em vez de supor a dor, pergunte "o que pesa mais nisso?".
+- Empilhar perguntas de temas DIFERENTES na mesma mensagem (juntar duas do MESMO assunto é ok).
 - Prometer o que é da Planner (datas, valores, fechamento).
-- Repetir a mesma muleta de reconhecimento ("que delícia", "que lindo") em mensagens seguidas; varie aberturas e use o nome com parcimônia.
 - Fechamento frouxo ("qualquer coisa estou aqui"); conduza com naturalidade.
+{{ $('Monta').item.json.comportamentos_txt }}
 </antipadroes>
 
 <primeira_mensagem>
@@ -149,7 +148,11 @@ Evite sempre:
 </primeira_mensagem>
 
 <autochecagem>
-Antes de enviar, confira em silêncio: reagi ao que disseram? Fiz no máximo uma pergunta, aberta e leve? Respeitei as linhas vermelhas, a política de preço (posso falar de valor, nunca negociar) e o glossário/comportamentos? Se for primeiro contato, usei a abertura; se os gates fecharam, costurei e convidei? Zero travessão, zero rótulo interno, zero clichê.
+Antes de enviar, pare e revise em silêncio (esta é a sua rede de segurança, leve a sério):
+- Minha resposta BATE com onde a conversa está? Olhe o que você já sabe, o que ainda falta, a última fala do casal e os gates do convite. Se não bater, reescreva antes de mandar.
+- Reagi ao que o casal disse?
+- Respeitei as linhas vermelhas, a política de preço e o glossário?
+- Se é primeiro contato, abri do jeito certo; se os gates fecharam, costurei e convidei.
 </autochecagem>
 
 <formato>
@@ -178,7 +181,7 @@ Leitura de qualificação (SUGESTÃO de um colega; use ou ignore conforme o timi
 Base de conhecimento (se o casal perguntar algo coberto aqui, responda com base nisto, sem inventar; se não estiver aqui, não invente):
 {{ $('Busca Conhecimento').item.json.faqs_txt || $('Monta').item.json.faqs_txt || '(sem base de conhecimento cadastrada)' }}
 
-Escreva a próxima mensagem da {{ $('Monta').item.json.persona }} no WhatsApp. Seja a melhor SDR humana possível: entenda o casal, reaja ao que disseram e conduza com naturalidade rumo ao convite pra Wedding Planner quando fizer sentido. Se for o primeiro contato, use a mensagem de abertura. Respeite as linhas vermelhas, a política de preço (pode falar de valor, nunca negocia) e o glossário. Devolva só o texto pronto pro WhatsApp.`;
+Escreva a próxima mensagem da {{ $('Monta').item.json.persona }} no WhatsApp, seguindo o seu jeito de conversar e a autochecagem. Devolva só o texto pronto pro WhatsApp.`;
 
 // Prepara: normaliza + whitelist + resolve org/agente (default Sofia/Weddings)
 const DEFAULT_ORG_ID = 'b0000000-0000-0000-0000-000000000002'; // Welcome Weddings
@@ -294,22 +297,31 @@ const momentos_txt = moments.map(m => {
 const phases = arr(cfg.phases).filter(p => p && (p.nome || p.objetivo));
 const fases_txt = phases.map((p,i) => (i+1) + '. ' + (p.nome||'') + ': ' + (p.objetivo||'') + (p.avancar_quando ? (' (avança quando: ' + p.avancar_quando + ')') : '')).join('\\n');
 const fase_anterior = (est && est.sinais && est.sinais.fase) ? est.sinais.fase : '';
-// Critérios de qualificação (com importância + peso + tipo). Vazio -> deriva das etapas.
+// Critérios INTERLIGADOS: cada um junta o que descobrir (label) + como perguntar + como pontua (kind).
 const crit = arr(qu.criteria);
-const ruleLabel = { qualifier: 'qualifica', disqualifier: 'desqualifica', bonus: 'bônus' };
 const wpadrao = { essencial: 35, alta: 20, media: 12, baixa: 5, desqualifica: 0 };
-const ruleOf = (c) => c.rule_type || (c.importancia === 'desqualifica' ? 'disqualifier' : 'qualifier');
-const weightOf = (c) => (typeof c.weight === 'number') ? c.weight : (wpadrao[c.importancia] != null ? wpadrao[c.importancia] : 2);
-const critLine = (c, i) => {
-  const lbl = c.label || c.criterio || c;
-  const rt = ruleOf(c);
-  const meta = [ruleLabel[rt] || 'qualifica', (rt !== 'disqualifier') ? ('peso ' + weightOf(c)) : null].filter(Boolean).join(', ');
-  return (i + 1) + '. ' + lbl + ' (' + meta + ')';
+const kindOf = (c) => c.kind || ((c.importancia === 'desqualifica' || c.rule_type === 'disqualifier') ? 'desqualifica' : 'sim_nao');
+const weightOf = (c) => (typeof c.weight === 'number') ? c.weight : (wpadrao[c.importancia] != null ? wpadrao[c.importancia] : 12);
+// Linha pro Qualificador-LLM saber O QUE extrair por critério (conforme o tipo).
+const critQualLine = (c, i) => {
+  const k = kindOf(c); const lbl = c.label || c.criterio || c;
+  if (k === 'faixas_valor') return (i+1) + '. ' + lbl + ' — calcule o valor (' + (c.base === 'total' ? 'orçamento total' : 'orçamento ÷ convidados que vão de fato') + ') e devolva o NÚMERO em "valor" (null se ainda não dá pra saber).';
+  if (k === 'peso_por_opcao') return (i+1) + '. ' + lbl + ' — devolva em "opcao" a REGIÃO da lista mais próxima do que o casal disse (entre: ' + arr(c.opcoes).map(o=>o.opcao).join(', ') + '). Encaixe sub-lugares na região (ex: Trancoso/Jericoacoara/Maragogi/Porto de Galinhas = Nordeste; Cancún/Punta Cana/Tulum/Aruba = Caribe; Toscana/Portugal/Grécia = Europa). Use "fora" SÓ se claramente não for nenhuma região da lista (ex: Bali, Japão, Dubai). "" se ainda não souber.';
+  if (k === 'desqualifica') return (i+1) + '. ' + lbl + ' — atende=true SÓ se isto for claramente verdade (desqualifica o casal).';
+  return (i+1) + '. ' + lbl + ' — atende=true se o casal claramente tem/atende isso.';
 };
-const criterios_txt = (crit.length ? crit.map(critLine) : arr(etapas).map((e, i) => (i + 1) + '. ' + e + ' (qualifica, peso 2)')).join('\\n');
-// Lista estruturada (indexada) pro cálculo determinístico no Parse Qualifica (igual à Patricia).
-const criterios_json = JSON.stringify((crit.length ? crit : arr(etapas).map(e => ({ label: e, importancia: 'media' })))
-  .map((c, i) => ({ n: i + 1, tipo: ruleOf(c), peso: weightOf(c) })));
+const criterios_txt = (crit.length ? crit.map(critQualLine) : arr(etapas).map((e,i)=>(i+1)+'. '+e+' — atende=true se o casal tem isso.')).join('\\n');
+// Estrutura indexada pro cálculo determinístico (Parse Qualifica): kind + pesos/faixas/opções.
+const criterios_json = JSON.stringify((crit.length ? crit : arr(etapas).map(e => ({ label: e, importancia: 'media' }))).map((c, i) => ({
+  n: i+1, kind: kindOf(c), rt: c.rule_type || 'qualifier', peso: weightOf(c), base: c.base || 'por_convidado',
+  faixas: arr(c.faixas).map(f => ({ de: (f.de==null?null:Number(f.de)), ate: (f.ate==null?null:Number(f.ate)), pontos: Number(f.pontos)||0 })),
+  opcoes: arr(c.opcoes).map(o => ({ opcao: String(o.opcao||'').toLowerCase().trim(), pontos: Number(o.pontos)||0 })),
+  fora_da_lista: c.fora_da_lista || 'zero',
+})));
+// O que ENTENDER (interligado): vem dos próprios critérios, com a pergunta preferida e o "só na fronteira".
+const comoPerg = (c) => (c.como_perguntar && String(c.como_perguntar).trim()) ? (' Pergunta preferida: "' + String(c.como_perguntar).trim() + '".') : ' (formule a pergunta pelo alvo, com naturalidade.)';
+const fronteiraTag = (c) => c.perguntar_quando === 'fronteira' ? ' [só na fronteira: pergunte isto apenas se o casal estiver no limite de qualificar, não antes]' : '';
+const entender_txt = crit.filter(c => kindOf(c) !== 'desqualifica').map((c,i) => (i+1) + '. Descubra: ' + (c.label||'') + '.' + comoPerg(c) + fronteiraTag(c)).join('\\n');
 // Pontuação: orientação ao Qualificador-LLM + corte determinístico (aplicado no Parse Qualifica).
 const scoring_enabled = !!qu.scoring_enabled;
 const sc_threshold = (typeof qu.threshold === 'number') ? qu.threshold : 50;
@@ -337,8 +349,12 @@ const subsVars = (str) => { let t = String(str || '');
   t = t.split('{{company_name}}').join(id.empresa || cfg.empresa || 'a gente');
   t = t.split('{{date}}').join(new Date().toLocaleDateString('pt-BR'));
   return t; };
+const steps = arr(vo.opening_steps).filter(s => s && s.fala);
 let abertura_txt;
-if (abMode === 'free') {
+if (vo.opening_stepped && steps.length) {
+  const stepLines = steps.map((s,i) => '  ' + (i+1) + '. ' + s.fala + (s.espera_resposta ? ' [espere a resposta antes do próximo]' : ' [pode emendar no próximo]') + (s.captura ? (' (tente captar: ' + s.captura + ')') : '')).join('\\n');
+  abertura_txt = 'A abertura acontece em PASSOS, nesta ordem. Faça UM passo por vez; nos passos marcados "espere a resposta", pare e aguarde o casal responder antes de seguir pro próximo. Sempre reaja ao que disseram. Descubra pelo histórico em que passo você está (o que já foi dito/captado) e dê o próximo. Passos:\\n' + stepLines;
+} else if (abMode === 'free') {
   abertura_txt = 'No primeiro contato, abra como um bom SDR humano: PRIMEIRO reconheça e responda brevemente o que o casal disse na primeira mensagem (se eles já perguntaram algo, responda; nunca ignore), e se apresente com naturalidade usando sua persona e a proposta da empresa. Tudo numa fala curta e calorosa, sem texto decorado.';
 } else if (abMode === 'directive') {
   abertura_txt = 'No primeiro contato, abra como um bom SDR humano faria: PRIMEIRO reconheça e responda brevemente o que o casal disse na primeira mensagem (se já perguntaram preço, destino, ou qualquer coisa, responda; NUNCA ignore o que escreveram), e então cubra com naturalidade estes pontos, sem copiar literalmente: ' + subsVars(abRaw) + '. Teça tudo numa única fala curta e calorosa, adaptada ao que eles disseram.';
@@ -366,7 +382,7 @@ return [{ json: {
   sc_quente: sc_quente,
   sc_morno: sc_morno,
   sc_max_bonus: sc_max_bonus,
-  etapas_txt: (slots.length ? sondagem_txt : (crit.length ? crit.map(c => c.label || c.criterio || c).filter(Boolean) : arr(etapas)).map((e,i) => (i+1) + '. ' + e).join('\\n')) + sinais_txt,
+  etapas_txt: (crit.length ? entender_txt : (slots.length ? sondagem_txt : arr(etapas).map((e,i) => (i+1) + '. ' + e).join('\\n'))) + sinais_txt,
   faixas_txt: arr(faixas).join('; '),
   fronteiras_txt: arr(fronteiras).map(f => '- ' + f).join('\\n'),
   historico: p.historico || '',
@@ -394,6 +410,9 @@ return [{ json: {
   calendar_enabled: !!(cfg.capabilities && cfg.capabilities.calendar && cfg.capabilities.calendar.enabled),
   followup_enabled: !!(cfg.capabilities && cfg.capabilities.followup && cfg.capabilities.followup.enabled),
   followup_days: (cfg.capabilities && cfg.capabilities.followup && Array.isArray(cfg.capabilities.followup.days) && cfg.capabilities.followup.days.length) ? cfg.capabilities.followup.days : [1,3,7],
+  handoff_enabled: !!(cfg.capabilities && cfg.capabilities.handoff && cfg.capabilities.handoff.enabled),
+  handoff_situations_txt: ((cfg.capabilities && cfg.capabilities.handoff && Array.isArray(cfg.capabilities.handoff.situations)) ? cfg.capabilities.handoff.situations : []).filter(Boolean).map(s => '- ' + s).join('\\n'),
+  handoff_stage: (cfg.capabilities && cfg.capabilities.handoff && cfg.capabilities.handoff.target_stage_id) || null,
   kb_enabled: !!(kb && kb.enabled),
   kb_top_k: (kb && typeof kb.top_k === 'number') ? kb.top_k : 4,
 }}];`;
@@ -510,9 +529,14 @@ return [{ json: {
 // Agente 2 — Qualificador INTELIGENTE: nota 0-100 + o que falta + próxima pergunta.
 // LLM com julgamento (não soma de pesos). Lê os critérios+importância editáveis e o
 // estado consolidado, devolve uma SUGESTÃO que o Respondedor pode usar ou ignorar.
-const QUALIFICA_SYSTEM = `Você é o qualificador de leads de casamento da {{ $('Monta').item.json.empresa }}. Para CADA critério numerado, decida apenas se o casal ATENDE (true) ou não (false), com base SÓ no resumo/contexto (não invente). NÃO calcule a nota final, isso é feito depois. Devolva SOMENTE um JSON válido (sem markdown, sem crases):
-{"avaliacao": [{"n": 1, "atende": true|false, "nota": "frase curta do porquê"}], "score": 0-100, "qualificado": true|false, "faixa": "quente"|"morno"|"frio", "falta": ["o que ainda precisa entender"], "proxima_pergunta_sugerida": "uma pergunta aberta e natural, ou '' se ainda não é hora de perguntar"}
-Avalie um item por critério, pelo número. Os campos score/qualificado/faixa são uma estimativa de apoio (o cálculo oficial usa a sua avaliacao + os pesos). Se o casal hesita ou está emotivo, a proxima_pergunta_sugerida pode ser '' (melhor acolher antes de perguntar).`;
+const QUALIFICA_SYSTEM = `Você é o qualificador de leads de casamento da {{ $('Monta').item.json.empresa }}. Para CADA critério numerado, extraia o que ele pede, com base SÓ no resumo/contexto (não invente). Cada critério diz o que devolver:
+- critério "atende=true se..." → preencha "atende" (true/false).
+- critério que pede um VALOR (ex: orçamento por convidado) → preencha "valor" com o NÚMERO (ou null se ainda não dá pra saber).
+- critério que pede uma OPÇÃO (ex: destino) → preencha "opcao" com o que o casal indicou (ou "fora", ou "" se não souber).
+NÃO calcule a nota final, isso é feito depois. Devolva SOMENTE um JSON válido (sem markdown, sem crases):
+{"avaliacao": [{"n": 1, "atende": true|false, "valor": null, "opcao": "", "nota": "frase curta"}], "score": 0-100, "qualificado": true|false, "faixa": "quente"|"morno"|"frio", "falta": ["o que ainda precisa entender"], "proxima_pergunta_sugerida": "uma pergunta aberta e natural, ou '' se ainda não é hora de perguntar", "handoff": true|false}
+Um item por critério, pelo número. score/qualificado/faixa são só estimativa de apoio (o cálculo oficial usa a sua avaliacao + os pesos). Se o casal hesita ou está emotivo, proxima_pergunta_sugerida pode ser ''.
+handoff=true SOMENTE se a última mensagem do casal indicar uma das situações de passar pra um humano (listadas abaixo, se houver); senão handoff=false.`;
 const QUALIFICA_USER = `Critérios de qualificação (com importância):
 {{ $('Monta').item.json.criterios_txt }}
 
@@ -522,7 +546,10 @@ Estado consolidado:
 - Sinais: {{ JSON.stringify($('Parse Consolida').item.json.sinais || {}) }}
 Última mensagem do casal: {{ $('Monta').item.json.ultima_mensagem_lead }}
 
-Devolva só o JSON {avaliacao, score, qualificado, faixa, falta, proxima_pergunta_sugerida}.`;
+Situações de passar pra um humano (handoff=true se a última mensagem encaixar em alguma; se vazio, handoff sempre false):
+{{ $('Monta').item.json.handoff_situations_txt || '(nenhuma)' }}
+
+Devolva só o JSON {avaliacao, score, qualificado, faixa, falta, proxima_pergunta_sugerida, handoff}.`;
 const CODE_PARSE_QUALIFICA = `let t = String($('Qualifica').item.json.output || '').trim();
 t = t.replace(/^\`\`\`(json)?/i,'').replace(/\`\`\`$/,'').trim();
 let r = {};
@@ -538,11 +565,32 @@ let crits = []; try { crits = JSON.parse(m.criterios_json || '[]'); } catch(e) {
 const aval = Array.isArray(r.avaliacao) ? r.avaliacao : [];
 let score, qualificado, faixa;
 if (scoring && crits.length && aval.length) {
-  // CÁLCULO DETERMINÍSTICO (mesma lógica da Patricia): a IA julga atende sim/não por critério,
-  // aqui somamos os pesos exatamente. Bônus com teto; desqualificador zera; corte na nota mínima.
-  const byN = {}; crits.forEach(c => { byN[c.n] = c; });
+  // CÁLCULO DETERMINÍSTICO (lógica da Patricia, por tipo): a IA extrai atende/valor/opção por
+  // critério; aqui a conta é exata. Faixas: o valor cai numa faixa = pontos. Peso por opção:
+  // a opção dá os pontos (fora da lista = 0 ou desqualifica). Bônus com teto. Desqualificador zera.
+  const byNAval = {}; aval.forEach(a => { if (a && a.n != null) byNAval[a.n] = a; });
   let pts = 0, bonusRaw = 0, dq = false;
-  aval.forEach(a => { if (a && a.atende === true && byN[a.n]) { const c = byN[a.n]; if (c.tipo === 'disqualifier') dq = true; else if (c.tipo === 'bonus') bonusRaw += Number(c.peso) || 0; else pts += Number(c.peso) || 0; } });
+  crits.forEach(c => {
+    const a = byNAval[c.n]; if (!a) return;
+    if (c.kind === 'desqualifica') { if (a.atende === true) dq = true; return; }
+    if (c.kind === 'faixas_valor') {
+      const v = Number(a.valor); if (!isFinite(v)) return;
+      const fx = (c.faixas || []).find(f => (f.de == null || v >= f.de) && (f.ate == null || v < f.ate));
+      if (fx) pts += Number(fx.pontos) || 0;
+      return;
+    }
+    if (c.kind === 'peso_por_opcao') {
+      const op = String(a.opcao || '').toLowerCase().trim();
+      if (!op) return;
+      if (op === 'fora') { if (c.fora_da_lista === 'desqualifica') dq = true; return; }
+      const hit = (c.opcoes || []).find(o => o.opcao === op || op.indexOf(o.opcao) >= 0 || o.opcao.indexOf(op) >= 0);
+      if (hit) pts += Number(hit.pontos) || 0;
+      else if (c.fora_da_lista === 'desqualifica') dq = true;
+      return;
+    }
+    // sim_nao
+    if (a.atende === true) { if (c.rt === 'bonus') bonusRaw += Number(c.peso) || 0; else pts += Number(c.peso) || 0; }
+  });
   score = dq ? 0 : Math.max(0, Math.min(100, Math.round(pts + Math.min(bonusRaw, maxBonus))));
   qualificado = !dq && score >= thr;
   faixa = score >= qz ? 'quente' : score >= mz ? 'morno' : 'frio';
@@ -560,6 +608,7 @@ return [{ json: {
   falta,
   falta_txt: falta.length ? falta.join('; ') : '(nada essencial faltando)',
   proxima_pergunta_sugerida: (typeof r.proxima_pergunta_sugerida === 'string') ? r.proxima_pergunta_sugerida : '',
+  handoff: r.handoff === true,
 }}];`;
 
 function buildWorkflow() {
@@ -728,6 +777,19 @@ function buildWorkflow() {
         options: {},
       },
       credentials: { supabaseApi: SUPABASE_CREDENTIAL } },
+    // --- Ramo de handoff: passa pra um humano quando trava/insatisfeito, gated ---
+    { id: 'handoffgate', name: 'Handoff Gate', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1480, 1200],
+      parameters: { jsCode: `const m = $('Monta').first().json; const q = (() => { try { return $('Parse Qualifica').first().json; } catch(e) { return {}; } })(); return (m.handoff_enabled && q && q.handoff === true) ? [{ json: m }] : [];` } },
+    { id: 'fazhandoff', name: 'Faz Handoff', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [1680, 1200],
+      parameters: {
+        method: 'POST',
+        url: `${SUPABASE_URL}/rest/v1/rpc/wsdr_handoff`,
+        authentication: 'predefinedCredentialType', nodeCredentialType: 'supabaseApi',
+        sendBody: true, specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({ p_org_id: $('Monta').first().json.org_id, p_agent_slug: $('Monta').first().json.agent_slug, p_contact_phone: $('Monta').first().json.phone, p_contact_name: $('Monta').first().json.nome, p_motivo: 'A Sofia detectou que o casal precisa de um humano.', p_target_stage_id: $('Monta').first().json.handoff_stage }) }}`,
+        options: {},
+      },
+      credentials: { supabaseApi: SUPABASE_CREDENTIAL } },
   ];
   const connections = {
     'Webhook SDR Weddings': { main: [[{ node: 'Prepara', type: 'main', index: 0 }]] },
@@ -757,7 +819,7 @@ function buildWorkflow() {
     'Formata Bolhas': { main: [[{ node: 'Parse Bolhas', type: 'main', index: 0 }]] },
     'Parse Bolhas': { main: [[{ node: 'Responde Webhook', type: 'main', index: 0 }]] },
     'Bolha Unica': { main: [[{ node: 'Responde Webhook', type: 'main', index: 0 }]] },
-    'Responde Webhook': { main: [[{ node: 'CRM Gate', type: 'main', index: 0 }, { node: 'Agenda Gate', type: 'main', index: 0 }, { node: 'Follow-up Gate', type: 'main', index: 0 }]] },
+    'Responde Webhook': { main: [[{ node: 'CRM Gate', type: 'main', index: 0 }, { node: 'Agenda Gate', type: 'main', index: 0 }, { node: 'Follow-up Gate', type: 'main', index: 0 }, { node: 'Handoff Gate', type: 'main', index: 0 }]] },
     'CRM Gate': { main: [[{ node: 'Extrai Dados', type: 'main', index: 0 }]] },
     'Modelo Extrai': { ai_languageModel: [[{ node: 'Extrai Dados', type: 'ai_languageModel', index: 0 }]] },
     'Extrai Dados': { main: [[{ node: 'Parse Dados', type: 'main', index: 0 }]] },
@@ -767,6 +829,7 @@ function buildWorkflow() {
     'Extrai Reuniao': { main: [[{ node: 'Parse Reuniao', type: 'main', index: 0 }]] },
     'Parse Reuniao': { main: [[{ node: 'Marca Reuniao', type: 'main', index: 0 }]] },
     'Follow-up Gate': { main: [[{ node: 'Cria Follow-up', type: 'main', index: 0 }]] },
+    'Handoff Gate': { main: [[{ node: 'Faz Handoff', type: 'main', index: 0 }]] },
   };
   return { name: 'SDR Weddings (novo - isolado)', nodes, connections, settings: { executionOrder: 'v1' } };
 }
