@@ -461,13 +461,20 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
             value = briefingData?.[fieldId]
         }
 
-        // Data Viagem Completa (epoca_viagem) — fonte única para data da viagem no Kanban.
-        // Também usada quando o campo configurado é data_exata_da_viagem.
+        // Data da viagem no Kanban — prioridade explícita:
+        //   1) Data da viagem completa (epoca_viagem);
+        //   2) se vazia, Data da viagem com a Welcome (data_exata_da_viagem);
+        //   3) fallback legado (data_viagem_inicio).
+        // Ambos os fieldIds caem aqui (qualquer um pode estar configurado no card).
         if (fieldId === 'epoca_viagem' || fieldId === 'data_exata_da_viagem') {
             const produtoData = card.produto_data as any
-            const ev = produtoData?.epoca_viagem ?? (card as any).epoca_viagem
+            const epoca = produtoData?.epoca_viagem ?? (card as any).epoca_viagem
+            const comWelcome = produtoData?.data_exata_da_viagem ?? (card as any).data_exata_da_viagem
 
-            const label = renderTripDate(ev, (card as any).data_viagem_inicio)
+            const label =
+                renderTripDate(epoca) ??
+                renderTripDate(comWelcome) ??
+                renderTripDate(null, (card as any).data_viagem_inicio)
             if (!label) return null
 
             const expectedStage = calculateExpectedPosVendaStage(produtoData, card.pipeline_id)
