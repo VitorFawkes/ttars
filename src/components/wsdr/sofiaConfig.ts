@@ -20,12 +20,16 @@ export interface SofiaCapabilities {
   }
   calendar: {
     enabled: boolean
-    wedding_planner_profile_id: string | null
-    windows: CalendarWindow[]
-    slot_duration_minutes: number
+    wedding_planner_profile_id: string | null // legado (1 planner); use closer_ids
+    closer_ids: string[]            // v4: closers (Wedding Planners) que podem receber reunião
+    windows: CalendarWindow[]       // dias úteis + faixas de horário
+    slot_duration_minutes: number   // duração da reunião
+    slot_interval_minutes: number   // granularidade dos horários oferecidos (ex: 30 → 14h, 14h30)
+    slots_per_day: number           // máximo de horários por dia
+    min_lead_hours: number          // antecedência mínima (ex: 1 = pode hoje, ≥ agora+1h)
     skip_weekends: boolean
-    max_slots: number
-    search_window_days: number
+    max_slots: number               // total de horários a oferecer (abrange alguns dias)
+    search_window_days: number      // dias à frente, no máximo
   }
   knowledge: { enabled: boolean; top_k: number; faqs: { q: string; a: string }[] }
   followup: { enabled: boolean; default_time: string; days: number[] }
@@ -36,6 +40,15 @@ export interface SofiaCapabilities {
     debounce_ms: number
     bubbles_enabled: boolean
     bubble_delay_ms: number
+  }
+  // v4: passar pra um humano quando ela trava ou o casal fica insatisfeito / pede gente.
+  handoff: {
+    enabled: boolean
+    situations: string[]        // quando passar (editável): "pede falar com humano", "repetiu que não entendeu", "demonstra insatisfação"
+    max_turns_stuck: number     // travou: nº de trocas sem avançar antes de passar
+    target_stage_id: string | null // etapa pra onde mover o card ao passar
+    notify: boolean             // avisa o time
+    transition_message: string  // o que ela diz ao passar (humano, sem prometer prazo)
   }
 }
 
@@ -59,6 +72,7 @@ export interface SofiaPricing {
 export type MomentTrigger =
   | 'always' | 'on_price_question' | 'on_price_hesitation' | 'on_family_mentioned'
   | 'on_low_qualification' | 'on_high_qualification' | 'on_destination_unclear'
+  | 'on_destination_off_catalog' | 'on_honeymoon' | 'on_closing_signal'
   | 'on_hesitation_timeout' | 'custom_condition'
 export interface MomentActions { tag?: string | null; stage_id?: string | null; notify?: boolean }
 export interface SofiaMoment {
@@ -80,6 +94,9 @@ export const MOMENT_TRIGGERS: { value: MomentTrigger; label: string; exemplo: st
   { value: 'on_price_hesitation', label: 'Quando hesitam pelo valor', exemplo: '"tá caro", "vou ver se cabe"' },
   { value: 'on_family_mentioned', label: 'Quando citam a família', exemplo: '"meus pais", "minha sogra quer opinar"' },
   { value: 'on_destination_unclear', label: 'Quando o destino está indefinido', exemplo: '"ainda não sabemos onde"' },
+  { value: 'on_destination_off_catalog', label: 'Quando o destino está fora do catálogo', exemplo: '"tem que ser Bali", Ásia, lugares que a gente não opera' },
+  { value: 'on_honeymoon', label: 'Quando falam em lua de mel', exemplo: '"queremos já emendar a viagem"' },
+  { value: 'on_closing_signal', label: 'Quando o casal está encerrando', exemplo: '"ok", "blz", "obrigado", "depois eu vejo"' },
   { value: 'on_high_qualification', label: 'Quando o casal está bem qualificado', exemplo: 'já tem destino, data, convidados e orçamento' },
   { value: 'on_low_qualification', label: 'Quando ainda falta qualificar', exemplo: 'faltam dados essenciais' },
   { value: 'on_hesitation_timeout', label: 'Quando hesitam ou querem pensar', exemplo: '"vou pensar", "depois eu vejo"' },
@@ -90,13 +107,41 @@ export type Importancia = 'desqualifica' | 'baixa' | 'media' | 'alta' | 'essenci
 // rule_type categoriza o critério no cálculo de nota (orientação ao Qualificador-LLM,
 // NÃO soma mecânica): qualifier soma, disqualifier derruba, bonus reforça (com teto).
 export type RuleType = 'qualifier' | 'disqualifier' | 'bonus'
+
+// v4 — CRITÉRIO INTERLIGADO: cada critério junta O QUE descobrir (label) + COMO perguntar
+// (como_perguntar; vazio = a Sofia improvisa, mas sabe o alvo pelo label) + COMO pontua (kind):
+//   • sim_nao        → a IA julga "atende?"; soma `weight` se sim.
+//   • faixas_valor   → calcula um valor (ex: R$ por convidado) e a faixa que ele cai dá os pontos.
+//   • peso_por_opcao → cada opção (ex: destino) vale X pontos; fora da lista = 0 ou desqualifica.
+//   • desqualifica   → se "atende", zera a nota (hard-stop).
+// perguntar_quando: 'sempre' ou 'fronteira' (aprofundamento — só puxa quando o casal está no limite).
+export type CriterionKind = 'sim_nao' | 'faixas_valor' | 'peso_por_opcao' | 'desqualifica'
+export type PerguntarQuando = 'sempre' | 'fronteira'
+export interface CriterionFaixa { de?: number | null; ate?: number | null; pontos: number; rotulo?: string }
+export interface CriterionOpcao { opcao: string; pontos: number }
 export interface QualCriterion {
-  label: string
+  label: string                  // o que descobrir (o alvo — também o que a IA usa pra improvisar a pergunta)
   importancia: Importancia
-  // v3: pontos do item (orientação ao julgamento) e tipo de regra. Opcionais (defaults no Monta).
-  weight?: number
-  rule_type?: RuleType
+  weight?: number                // pontos (sim_nao). Defaults vêm de DEFAULT_WEIGHT_BY_IMPORTANCIA.
+  rule_type?: RuleType           // compat; derivado de kind quando ausente
+  // v4 interligado (todos opcionais — normalize/Monta dão defaults):
+  kind?: CriterionKind           // default 'sim_nao' (ou 'desqualifica' se importancia='desqualifica')
+  como_perguntar?: string        // pergunta literal (vazio = improvisa pelo label)
+  perguntar_quando?: PerguntarQuando // 'sempre' (default) | 'fronteira' (aprofundamento)
+  crm_field_key?: string | null  // fixa onde guardar na ficha (opcional)
+  // faixas_valor:
+  base?: 'por_convidado' | 'total' // como calcular o valor antes de cair na faixa
+  faixas?: CriterionFaixa[]
+  // peso_por_opcao:
+  opcoes?: CriterionOpcao[]
+  fora_da_lista?: 'zero' | 'desqualifica' // comportamento quando a opção não está na lista
 }
+export const CRITERION_KIND_OPTIONS: { value: CriterionKind; label: string; hint: string }[] = [
+  { value: 'sim_nao', label: 'Tem ou não tem', hint: 'A Sofia julga se o casal atende e soma os pontos (ex: tem visão, tem data).' },
+  { value: 'faixas_valor', label: 'Faixa de valor', hint: 'Calcula um número (ex: R$ por convidado) e a faixa em que cai dá os pontos.' },
+  { value: 'peso_por_opcao', label: 'Peso por opção', hint: 'Cada opção vale um tanto (ex: Caribe 20, Europa 5). Fora da lista pode zerar ou desqualificar.' },
+  { value: 'desqualifica', label: 'Desqualifica', hint: 'Se aparecer, derruba a nota na hora (ex: só curiosidade).' },
+]
 export const IMPORTANCIA_OPTIONS: { value: Importancia; label: string; hint: string; color: string }[] = [
   { value: 'essencial', label: 'Essencial', hint: 'Sem isso, o casal não qualifica', color: 'indigo' },
   { value: 'alta', label: 'Alta', hint: 'Pesa bastante na nota', color: 'sky' },
@@ -155,6 +200,16 @@ export const ABERTURA_MODE_OPTIONS: { value: AberturaMode; label: string; hint: 
   { value: 'free', label: 'Deixar a Sofia compor', hint: 'Sem pontos definidos: ela abre sozinha, respondendo o que disseram + persona e proposta.' },
 ]
 
+// Abertura em PASSOS: sequência editável. Cada passo é uma fala + se ela ESPERA a resposta
+// + o que CAPTURA ali (nome hoje, qualquer coisa amanhã). Modo 'stepped' usa isto; 'single'
+// usa o texto único de voice.abertura (compat). A IA sempre reage ao que o casal disse (traço
+// global em <como_voce_conversa>), então o passo carrega só a fala + a pausa + a captura.
+export interface OpeningStep {
+  fala: string            // o que ela diz neste passo (diretriz, não precisa ser literal)
+  espera_resposta: boolean // pausa e espera o casal responder antes do próximo passo?
+  captura?: string | null  // o que tentar captar aqui (ex: "nome"); null = nada específico
+}
+
 // Reações naturais de escuta (toggles). Viram um bloco de CONTEÚDO no cérebro.
 export interface ListeningConfig {
   echo_social: boolean            // responde a perguntas sociais ("e você, tudo bem?")
@@ -185,6 +240,9 @@ export interface SofiaConfigV2 {
     glossary: { marca: string[]; proibida: string[] }
     // v3 (opcionais — defaults no normalize)
     abertura_mode?: AberturaMode
+    // v4: abertura em passos. opening_stepped=true usa opening_steps; senão usa o texto único.
+    opening_stepped?: boolean
+    opening_steps?: OpeningStep[]
     tone_tags?: string[]
     rules?: string[]
     typical_phrases?: string[]
@@ -324,6 +382,7 @@ export const CAPABILITY_META: CapabilityMeta[] = [
   { key: 'followup', title: 'Follow-up', subtitle: 'Cria tarefas de retomada', description: 'Quando há interesse mas sem horário marcado, a Sofia agenda uma tarefa de retomar a conversa (dia 1, 3, 7).', icon: 'BellRing', color: 'violet', status: 'em_testes' },
   { key: 'multimodal', title: 'Áudio, foto e PDF', subtitle: 'Entende mensagens além de texto', description: 'A Sofia transcreve áudios, entende fotos de inspiração e lê PDFs que o casal mandar.', icon: 'Mic', color: 'rose', status: 'em_testes' },
   { key: 'memory', title: 'Memória e entrega humana', subtitle: 'Lembra da conversa e responde em bolhas', description: 'A Sofia junta mensagens rápidas, lembra o contexto e responde em pequenas bolhas com um delay natural.', icon: 'Sparkles', color: 'indigo', status: 'em_testes' },
+  { key: 'handoff', title: 'Passar pra um humano', subtitle: 'Quando trava ou o casal quer gente', description: 'Quando a Sofia trava (o casal repete que não entendeu, pede falar com alguém ou demonstra insatisfação), ela para de insistir e passa pra uma pessoa do time, marcando o card e avisando.', icon: 'UserRoundCheck', color: 'orange', status: 'em_testes' },
 ]
 
 export function defaultSofiaConfig(): SofiaConfigV2 {
@@ -344,7 +403,13 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
       formalidade: 0.5,
       abertura: 'Oi! Aqui é a Sofia, da Welcome Weddings, tudo bem? Como é o nome de vocês? A gente faz destination wedding desde 2012 e já foi premiada como uma das melhores produtoras de destination wedding da América Latina. A ideia aqui é uma conversa rápida pra eu entender o que vocês esperam, tirar dúvidas e, se fizer sentido, marcar um papo com a nossa Wedding Planner. Pra começar: o que é o casamento pra vocês, e como vocês imaginam ele?',
       glossary: { marca: [], proibida: [] },
-      abertura_mode: 'literal',
+      abertura_mode: 'directive',
+      opening_stepped: false,
+      opening_steps: [
+        { fala: 'Cumprimenta de leve e pergunta o nome do casal.', espera_resposta: true, captura: 'nome' },
+        { fala: 'Conta em uma linha que a Welcome faz destination wedding desde 2012, premiada; e que a ideia é uma conversa rápida pra entender o que esperam e, se fizer sentido, marcar com a Wedding Planner.', espera_resposta: false, captura: null },
+        { fala: 'Pergunta: o que é o casamento pra vocês, e como vocês imaginam ele?', espera_resposta: true, captura: 'visao' },
+      ],
       tone_tags: [],
       rules: [
         'Use "a gente", nunca "nós"',
@@ -365,12 +430,65 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
       ],
       faixas_orcamento: ['R$ 80 a 150 mil', 'R$ 150 a 250 mil', 'R$ 250 a 400 mil', 'R$ 400 mil ou mais'],
       criteria: [
-        { label: 'Tem uma visão do casamento (o que significa pra eles + o estilo: praia, intimista, grande festa)', importancia: 'alta', weight: 20, rule_type: 'qualifier' },
-        { label: 'Tem destino ou região em mente, ou está aberto a explorar (Nordeste, Trancoso, Caribe, Europa…)', importancia: 'alta', weight: 20, rule_type: 'qualifier' },
-        { label: 'Tem ideia do número de convidados, mesmo aproximada', importancia: 'media', weight: 12, rule_type: 'qualifier' },
-        { label: 'Tem orçamento ou faixa de investimento realista pro casal', importancia: 'essencial', weight: 35, rule_type: 'qualifier' },
-        { label: 'Tem data ou época pretendida (o ano já vale)', importancia: 'media', weight: 12, rule_type: 'qualifier' },
-        { label: 'Só curiosidade, sem intenção real, ou "daqui a muitos anos"', importancia: 'desqualifica', weight: 0, rule_type: 'disqualifier' },
+        {
+          label: 'Visão do casamento (o que significa + o estilo: praia, intimista, grande festa)',
+          importancia: 'alta', kind: 'sim_nao', weight: 20, rule_type: 'qualifier',
+          como_perguntar: '', perguntar_quando: 'sempre', crm_field_key: null,
+        },
+        {
+          label: 'Destino ou região', importancia: 'alta', kind: 'peso_por_opcao', rule_type: 'qualifier',
+          como_perguntar: 'Já têm um lugar em mente, ou estão abertos a explorar?',
+          perguntar_quando: 'sempre', crm_field_key: 'ww_destino', fora_da_lista: 'zero',
+          opcoes: [
+            { opcao: 'Caribe', pontos: 20 },
+            { opcao: 'Nordeste', pontos: 15 },
+            { opcao: 'Mendoza', pontos: 10 },
+            { opcao: 'Maldivas', pontos: 5 },
+            { opcao: 'Europa', pontos: 5 },
+          ],
+        },
+        {
+          label: 'Número de convidados que vão de fato (não a lista de convites)',
+          importancia: 'media', kind: 'sim_nao', weight: 12, rule_type: 'qualifier',
+          como_perguntar: 'Dos convidados, quantos vocês acham que vão de fato? Destination wedding costuma ter presença diferente.',
+          perguntar_quando: 'sempre', crm_field_key: 'ww_num_convidados',
+        },
+        {
+          label: 'Orçamento por convidado (quanto investem ÷ quantos vão)',
+          importancia: 'essencial', kind: 'faixas_valor', base: 'por_convidado', rule_type: 'qualifier',
+          como_perguntar: 'Quanto vocês pensam em investir no casamento em si?',
+          perguntar_quando: 'sempre', crm_field_key: 'ww_orcamento_faixa',
+          faixas: [
+            { de: 3000, ate: null, pontos: 25, rotulo: 'R$ 3.000+ por convidado' },
+            { de: 2500, ate: 3000, pontos: 20, rotulo: 'R$ 2.500 a 3.000' },
+            { de: 2000, ate: 2500, pontos: 15, rotulo: 'R$ 2.000 a 2.500' },
+            { de: 1500, ate: 2000, pontos: 10, rotulo: 'R$ 1.500 a 2.000' },
+            { de: 1000, ate: 1500, pontos: 5, rotulo: 'R$ 1.000 a 1.500' },
+            { de: null, ate: 1000, pontos: 0, rotulo: 'abaixo de R$ 1.000' },
+          ],
+        },
+        {
+          label: 'Data ou época pretendida (o ano já vale)',
+          importancia: 'media', kind: 'sim_nao', weight: 12, rule_type: 'qualifier',
+          como_perguntar: '', perguntar_quando: 'sempre', crm_field_key: 'ww_data_casamento',
+        },
+        {
+          label: 'A família ajuda no investimento',
+          importancia: 'media', kind: 'sim_nao', weight: 10, rule_type: 'qualifier',
+          como_perguntar: 'Em alguns casamentos a família entra ajudando. No caso de vocês também vai ser assim?',
+          perguntar_quando: 'fronteira', crm_field_key: 'ww_sdr_ajuda_familia',
+        },
+        {
+          label: 'Viajaram pro exterior nos últimos 12 meses',
+          importancia: 'media', kind: 'sim_nao', weight: 10, rule_type: 'qualifier',
+          como_perguntar: 'Rolou alguma viagem internacional nos últimos meses? Pra onde foram?',
+          perguntar_quando: 'fronteira', crm_field_key: 'ww_sdr_perfil_viagem_internacional',
+        },
+        {
+          label: 'Só curiosidade, sem intenção real, ou "daqui a muitos anos"',
+          importancia: 'desqualifica', kind: 'desqualifica', weight: 0, rule_type: 'disqualifier',
+          como_perguntar: '', perguntar_quando: 'sempre',
+        },
       ],
       gates: {},
       scoring_enabled: false,
@@ -402,17 +520,29 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
     },
     capabilities: {
       crm_write: { enabled: false, writable_fields: [], protected_fields: [], stage_move_enabled: false, target_stage_id: null },
-      calendar: { enabled: false, wedding_planner_profile_id: null, windows: [], slot_duration_minutes: 45, skip_weekends: true, max_slots: 4, search_window_days: 14 },
+      calendar: { enabled: false, wedding_planner_profile_id: null, closer_ids: [], windows: [{ dias: [1, 2, 3, 4, 5], inicio: '10:00', fim: '17:00' }], slot_duration_minutes: 45, slot_interval_minutes: 30, slots_per_day: 6, min_lead_hours: 1, skip_weekends: true, max_slots: 18, search_window_days: 14 },
       knowledge: { enabled: false, top_k: 4, faqs: [] },
       followup: { enabled: false, default_time: '10:30', days: [1, 3, 7] },
       multimodal: { enabled: false, audio: true, image: true, pdf: true },
       memory: { enabled: false, window_messages: 10, debounce_ms: 8000, bubbles_enabled: true, bubble_delay_ms: 1500 },
+      handoff: {
+        enabled: false,
+        situations: ['o casal pede pra falar com uma pessoa', 'o casal repetiu que não entendeu', 'o casal demonstra insatisfação ou irritação'],
+        max_turns_stuck: 4,
+        target_stage_id: null,
+        notify: true,
+        transition_message: 'Deixa eu chamar alguém do nosso time pra falar com vocês, tá? Já já entram em contato.',
+      },
     },
     pricing: defaultPricing(),
     moments: [
       { label: 'Quando perguntam preço', instrucao: 'Fale da assessoria com leveza (R$ 4 a 18 mil conforme escopo), contextualize que depende de destino, época e formato, e diga que a Wedding Planner detalha tudo na conversa. Não negocie.', trigger_type: 'on_price_question', enabled: true },
       { label: 'Quando citam a família', instrucao: 'Acolha: casamento é coisa de família. Diga que a Planner está acostumada a conversar com pais e família junto, sem pressão.', trigger_type: 'on_family_mentioned', enabled: true },
       { label: 'Quando o destino ainda está indefinido', instrucao: 'Não trave. Pergunte se têm um lugar no coração ou se estão abertos a explorar, e cite regiões que a gente conhece bem (Nordeste, Trancoso, Caribe, Europa).', trigger_type: 'on_destination_unclear', enabled: true },
+      { label: 'Quando o destino está fora do que a gente opera', instrucao: 'Sonde a flexibilidade com leveza: a gente trabalha Caribe, Nordeste, Mendoza, Maldivas e Europa. Se toparem explorar, ótimo. Se forem inflexíveis num lugar fora disso (ex: Bali, Ásia), seja transparente que a gente não opera lá com a qualidade que promete, sem prometer, e encerre com elegância.', trigger_type: 'on_destination_off_catalog', enabled: true },
+      { label: 'Quando falam em lua de mel', instrucao: 'A lua de mel é com o time de Travel Planner da Welcome Trips. Diga que conecta vocês em paralelo, sem misturar com o orçamento do casamento. Nunca prometa entregar a viagem você mesma.', trigger_type: 'on_honeymoon', enabled: true },
+      { label: 'Quando dizem que vão pensar', instrucao: 'Acolha sem pressionar, é decisão grande. Pergunte de leve o que pesa mais (o destino, o investimento, ou conversar entre vocês), aceite a resposta e deixe a porta aberta.', trigger_type: 'on_hesitation_timeout', enabled: true },
+      { label: 'Quando o casal sinaliza fim da conversa', instrucao: 'Quando vier ok/blz/obrigado/depois eu vejo, responda com UMA frase curta e calorosa de despedida e ENCERRE. Não ofereça ajuda de novo nem repita o que já falou.', trigger_type: 'on_closing_signal', enabled: true },
     ],
     phases: [
       { nome: 'Apresentação', objetivo: 'Só se apresente de leve e faça no máximo UMA pergunta aberta (o nome do casal ou o que imaginam pro casamento). Não despeje tudo de uma vez, não fale de preço nem de detalhes ainda.', avancar_quando: 'O casal responder e você souber o nome ou o que eles buscam.' },
@@ -437,7 +567,11 @@ export function normalizeToV2(raw: unknown): SofiaConfigV2 {
       ...def,
       ...c,
       identity: { ...def.identity, ...c.identity },
-      voice: { ...def.voice, ...c.voice, listening: { ...def.voice.listening!, ...(c.voice?.listening || {}) } },
+      voice: {
+        ...def.voice, ...c.voice,
+        listening: { ...def.voice.listening!, ...(c.voice?.listening || {}) },
+        opening_steps: Array.isArray(c.voice?.opening_steps) && c.voice.opening_steps.length ? c.voice.opening_steps : def.voice.opening_steps,
+      },
       qualification: {
         ...def.qualification, ...c.qualification,
         bands: { ...def.qualification.bands!, ...(c.qualification?.bands || {}) },
@@ -456,11 +590,20 @@ export function normalizeToV2(raw: unknown): SofiaConfigV2 {
       },
       capabilities: {
         crm_write: { ...def.capabilities.crm_write, ...(c.capabilities?.crm_write || {}) },
-        calendar: { ...def.capabilities.calendar, ...(c.capabilities?.calendar || {}) },
+        calendar: (() => {
+          const cal = { ...def.capabilities.calendar, ...(c.capabilities?.calendar || {}) }
+          // migra config antiga (1 planner) -> closer_ids
+          if ((!Array.isArray(cal.closer_ids) || !cal.closer_ids.length) && cal.wedding_planner_profile_id) {
+            cal.closer_ids = [cal.wedding_planner_profile_id]
+          }
+          if (!Array.isArray(cal.closer_ids)) cal.closer_ids = []
+          return cal
+        })(),
         knowledge: { ...def.capabilities.knowledge, ...(c.capabilities?.knowledge || {}) },
         followup: { ...def.capabilities.followup, ...(c.capabilities?.followup || {}) },
         multimodal: { ...def.capabilities.multimodal, ...(c.capabilities?.multimodal || {}) },
         memory: { ...def.capabilities.memory, ...(c.capabilities?.memory || {}) },
+        handoff: { ...def.capabilities.handoff, ...(c.capabilities?.handoff || {}) },
       },
       pricing: { ...def.pricing, ...(c.pricing || {}), destination_ranges: c.pricing?.destination_ranges ?? def.pricing.destination_ranges },
     }
