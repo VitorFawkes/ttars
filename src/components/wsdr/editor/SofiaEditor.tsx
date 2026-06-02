@@ -13,7 +13,7 @@ import { OpeningEditor } from '@/components/wsdr/editor/OpeningEditor'
 import { BoundariesEditor } from '@/components/wsdr/editor/BoundariesEditor'
 import { WeddingPlannerPicker } from '@/components/wsdr/editor/WeddingPlannerPicker'
 import { StagePicker } from '@/components/wsdr/editor/StagePicker'
-import { AgentEditorLayout, type EditorTab } from '@/components/ai-agent/editor/AgentEditorLayout'
+import { SofiaLayout, type SofiaTab } from '@/components/wsdr/editor/ui/SofiaLayout'
 import { StringListEditor } from '@/components/wsdr/StringListEditor'
 import { CapabilityCard } from '@/components/wsdr/editor/CapabilityCard'
 import { KnowledgeFaqEditor } from '@/components/wsdr/editor/KnowledgeFaqEditor'
@@ -40,7 +40,7 @@ function setCapEnabled(x: SofiaConfigV2, key: CapabilityKey, enabled: boolean): 
   }
 }
 
-const TABS: EditorTab[] = [
+const TABS: SofiaTab[] = [
   { id: 'quem', label: 'Quem é a Sofia', icon: User },
   { id: 'conversa', label: 'Como ela conversa', icon: MessageSquare },
   { id: 'pontuacao', label: 'Pontuação', icon: Gauge },
@@ -167,7 +167,7 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
           </ul>
         </div>
       )}
-      <AgentEditorLayout tabs={TABS} activeTab={tab} onTabChange={setTab}>
+      <SofiaLayout tabs={TABS} activeTab={tab} onTabChange={setTab}>
         {tab === 'quem' && (
           <>
             <EditorCard accent="indigo" icon={<User className="w-5 h-5" />} title="Identidade"
@@ -302,10 +302,6 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
               aside={<button type="button" onClick={() => restore('boundaries')} className="flex items-center gap-1 text-xs text-slate-400 hover:text-indigo-600 shrink-0"><RotateCcw className="w-3.5 h-3.5" />Restaurar recomendado</button>}>
               <BoundariesEditor boundaries={c.boundaries} onChange={b => update(x => ({ ...x, boundaries: b }))} />
             </EditorCard>
-            <EditorCard accent="rose" icon={<ShieldAlert className="w-5 h-5" />} title="O que a Sofia nunca faz"
-              desc="Em linguagem simples: comportamentos, promessas ou jeitos de falar que a Sofia deve evitar.">
-              <StringListEditor items={c.boundaries.comportamentos} onChange={items => update(x => ({ ...x, boundaries: { ...x.boundaries, comportamentos: items } }))} placeholder="ex: não prometa data sem confirmar com a Planner" />
-            </EditorCard>
             <EditorCard accent="rose" icon={<ShieldAlert className="w-5 h-5" />} title="Concorrentes a não citar"
               desc="Nomes que a Sofia nunca deve mencionar ou recomendar. Deixe vazio se não houver.">
               <StringListEditor items={c.boundaries.competitors_to_avoid ?? []} onChange={items => update(x => ({ ...x, boundaries: { ...x.boundaries, competitors_to_avoid: items } }))} placeholder="ex: nome de uma produtora concorrente" />
@@ -338,7 +334,7 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
             </EditorCard>
           </>
         )}
-      </AgentEditorLayout>
+      </SofiaLayout>
 
       {/* Barra de salvar fixa — único indicador de "não salvo" */}
       <div className="fixed bottom-0 inset-x-0 z-10 bg-white/90 backdrop-blur border-t border-slate-200">

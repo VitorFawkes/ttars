@@ -209,6 +209,8 @@ export interface SofiaConfigV2 {
     // v3
     escalation?: EscalationConfig
     competitors_to_avoid?: string[]
+    // v3.1: lista unificada e editável de regras (substitui curadas+comportamentos na UI)
+    regras?: SofiaRule[]
   }
   capabilities: SofiaCapabilities
   pricing: SofiaPricing
@@ -269,6 +271,33 @@ export const CURATED_BOUNDARIES: CuratedBoundary[] = [
   { key: 'no_first_emoji', label: 'Sem emoji na 1ª mensagem', hint: 'Ligado: nada de emoji no primeiro contato. Desligado: ela pode usar emojis com leveza.', defaultOn: true, editable: true, protectsQuality: false },
   { key: 'no_ai_mention', label: 'Nunca dizer que é uma IA', hint: 'Ligado: atende como uma pessoa do time. Desligado: pode revelar que é uma assistente virtual.', defaultOn: false, editable: true, protectsQuality: false },
 ]
+
+// Regra editável de conduta (unifica as curadas + as customizadas). O dono edita o TEXTO,
+// liga/desliga, adiciona e remove. id presente = regra "de fábrica" com fiação especial
+// (ex: no_dash gera a trava automática de travessão); sem id = regra própria do dono.
+export interface SofiaRule { id?: string; texto: string; ativa: boolean; protege: boolean }
+
+// Texto padrão (editável) de cada regra de fábrica — o que entra no cérebro quando ligada.
+export const CURATED_RULE_TEXT: Record<string, string> = {
+  no_price: 'Nunca dê um preço fechado ou final como definitivo; o valor fechado é com a Wedding Planner (você pode falar de faixas e da assessoria).',
+  no_invented_date: 'Nunca invente data nem horário; pergunte o melhor período e diga que reserva com a Planner.',
+  no_cliche: 'Zero clichê batido (casamento dos sonhos, experiência premium, pode deixar com a gente, transformar sonhos em realidade).',
+  no_dash: 'Zero travessão ou hífen como separador; use vírgula, ponto ou reticências.',
+  no_first_emoji: 'Zero emoji na primeira mensagem; depois no máximo um, só se o casal usar primeiro.',
+  no_ai_mention: 'Nunca diga que é uma IA, robô, assistente virtual ou sistema; atenda como uma pessoa do time.',
+}
+
+// Constrói a lista de regras a partir do estado legado (curadas on/off + comportamentos livres).
+export function buildRegrasFromLegacy(curadas: Record<string, boolean>, comportamentos: string[]): SofiaRule[] {
+  const fromCurated: SofiaRule[] = CURATED_BOUNDARIES.map(b => ({
+    id: b.key,
+    texto: CURATED_RULE_TEXT[b.key] || b.label,
+    ativa: curadas?.[b.key] ?? b.defaultOn,
+    protege: b.protectsQuality,
+  }))
+  const fromCustom: SofiaRule[] = (comportamentos || []).filter(Boolean).map(t => ({ texto: t, ativa: true, protege: false }))
+  return [...fromCurated, ...fromCustom]
+}
 
 export type CapabilityKey = keyof SofiaCapabilities
 export type CapStatus = 'pronto' | 'em_testes' | 'em_breve'
@@ -365,6 +394,7 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
       comportamentos: [],
       escalation: { enabled: false, max_turns: 12, message: 'Vou chamar a nossa Wedding Planner pra conversar com vocês, tá bom?' },
       competitors_to_avoid: [],
+      regras: buildRegrasFromLegacy(curadas, []),
     },
     capabilities: {
       crm_write: { enabled: false, writable_fields: [], protected_fields: [], stage_move_enabled: false, target_stage_id: null },
@@ -416,6 +446,9 @@ export function normalizeToV2(raw: unknown): SofiaConfigV2 {
         comportamentos: c.boundaries?.comportamentos || [],
         escalation: { ...def.boundaries.escalation!, ...(c.boundaries?.escalation || {}) },
         competitors_to_avoid: c.boundaries?.competitors_to_avoid ?? def.boundaries.competitors_to_avoid,
+        regras: Array.isArray(c.boundaries?.regras) && c.boundaries.regras.length
+          ? c.boundaries.regras
+          : buildRegrasFromLegacy({ ...def.boundaries.curadas, ...(c.boundaries?.curadas || {}) }, c.boundaries?.comportamentos || []),
       },
       capabilities: {
         crm_write: { ...def.capabilities.crm_write, ...(c.capabilities?.crm_write || {}) },
@@ -475,9 +508,11 @@ export function humanPromptPreview(cfg: SofiaConfigV2): string {
 export interface SofiaWarning { kind: 'risco' | 'incompleto'; text: string }
 export function computeSofiaWarnings(cfg: SofiaConfigV2): SofiaWarning[] {
   const w: SofiaWarning[] = []
-  CURATED_BOUNDARIES.filter(b => b.protectsQuality).forEach(b => {
-    const on = cfg.boundaries.curadas?.[b.key] ?? b.defaultOn
-    if (!on) w.push({ kind: 'risco', text: `Você desligou uma proteção de qualidade: "${b.label}".` })
+  const regras = (cfg.boundaries.regras && cfg.boundaries.regras.length)
+    ? cfg.boundaries.regras
+    : buildRegrasFromLegacy(cfg.boundaries.curadas || {}, cfg.boundaries.comportamentos || [])
+  regras.filter(r => r.protege && !r.ativa).forEach(r => {
+    w.push({ kind: 'risco', text: `Você desligou uma regra que protege a qualidade: "${r.texto.slice(0, 60)}".` })
   })
   if (cfg.pricing?.can_negotiate) w.push({ kind: 'risco', text: 'A Sofia está autorizada a negociar/dar desconto (o recomendado é desligado).' })
   const mode = cfg.voice.abertura_mode ?? 'literal'
@@ -500,37 +535,62 @@ export function computeSofiaWarnings(cfg: SofiaConfigV2): SofiaWarning[] {
 // Prévia TÉCNICA (prompt cru) — reconstrói a estrutura do cérebro com as SUAS configs,
 // pra você caçar erro. Os blocos de raciocínio da Camila aparecem marcados como FIXOS.
 // É uma reconstrução fiel da estrutura (não a execução ao vivo, que tem o histórico real).
+// Blocos FIXOS (o raciocínio da Camila) — texto verbatim do cérebro, mostrado por inteiro
+// pra o Vitor caçar erro. NÃO são editáveis (é a inteligência), mas aparecem completos.
+const FIXED_OBJETIVO = `Ter uma conversa boa e humana que faça o casal se sentir entendido, entender o que sonham pro casamento, qualificar com leveza (visão, destino/região, nº de convidados, orçamento do casal, data) e, quando fizer sentido, convidar pra uma conversa com a Wedding Planner. Acolhe, entende e abre a porta pra Planner. Não fecha venda nem negocia, mas PODE falar de valor (assessoria e faixas) conforme a política de preço.`
+const FIXED_COMO_CONVERSA = `- Soa como pessoa real no WhatsApp: leve, calorosa, curiosa. Frases curtas, "a gente" (nunca "nós"), "vocês". Espelha o jeito deles.\n- Conduz pela curiosidade, não por roteiro. Reage ao que disseram antes de seguir. Às vezes só acolhe; às vezes UMA pergunta aberta. Nunca metralha perguntas.\n- Deixa o casal falar mais que ela. Pergunta de "como"/"o que", nunca "por quê" que soe cobrança.`
+const FIXED_MATRIZ = `Decide em silêncio o próximo passo (nunca expõe):\n- Se não sabe o nome: pede de leve.\n- Se falta visão ou destino: UMA pergunta aberta sobre isso.\n- Se tem destino+convidados mas não orçamento: pergunta quanto o CASAL pretende investir.\n- Se tem o essencial + sinal de intenção: costura numa frase, com as palavras deles, e convida pra Planner.\n- Sempre reage ao que disse antes de avançar.`
+const FIXED_SPIN = `Lente (NÃO roteiro): situação (realidade do casal) · problema (o que pesa: logística, distância, alinhar família) · implicação (efeito da dificuldade, com leveza) · ganho (valor de ter a Planner ao lado). Usa o que couber; nunca rotula "situação/problema" na fala.`
+const FIXED_GATES = `Só convida pra Planner quando TUDO for verdade: sabe o nome · entende destino/região + ideia de convidados + já perguntou o orçamento · há data pretendida ou vontade real. Data definida = sinal forte pra convidar assim que os gates fecharem.`
+const FIXED_CONVITE = (inventedDateOn: boolean) => `Quando fizer sentido, convida pra conversa com a Wedding Planner. ${inventedDateOn ? 'Não inventa data nem horário. ' : ''}Pergunta o melhor período, diz que reserva com a Planner e confirma, pede o e-mail só depois que toparem. Handoff invisível: nunca diz "vou te transferir", apenas conduz ("já deixo reservado com a nossa Planner e te confirmo").`
+const FIXED_ANTIPADROES = `Evita sempre: justificar a pergunta ("pra eu te ajudar melhor"); inferir causa/sentimento não dito; empilhar perguntas de temas diferentes; prometer o que é da Planner; repetir muleta ("que delícia") em mensagens seguidas; fechamento frouxo ("qualquer coisa estou aqui").`
+const FIXED_AUTOCHECAGEM = `Antes de enviar confere em silêncio: reagi ao que disseram? Fiz no máximo 1 pergunta aberta e leve? Respeitei as linhas vermelhas, a política de preço e o glossário? Se 1º contato, abri certo; se os gates fecharam, costurei e convidei? Zero travessão, zero rótulo interno, zero clichê.`
+const FIXED_FORMATO = `Devolve só a mensagem que o casal vai ler no WhatsApp: 1 a 3 frases curtas, um objetivo por mensagem. Nunca escreve rótulos internos, nunca explica a estrutura, nunca oferece variações.`
+
 export function assembleSofiaPromptPreview(cfg: SofiaConfigV2): string {
   const v = cfg.voice, id = cfg.identity, b = cfg.boundaries
   const tomMap: Record<string, string> = { acolhedor: 'acolhedor, caloroso e humano', formal: 'profissional e formal', direto: 'direto e objetivo' }
   const fm = typeof v.formalidade === 'number' ? v.formalidade : 0.5
   const formal = fm < 0.34 ? 'bem informal e leve' : fm > 0.66 ? 'mais formal e sóbrio' : 'natural'
   const tomDesc = [(tomMap[v.tom] || v.tom), formal, ...(v.tone_tags ?? [])].filter(Boolean).join(', ')
-  const cur = b.curadas || {}
-  const on = (k: string, def = false) => cur[k] ?? def
+  const regras = (b.regras && b.regras.length) ? b.regras : buildRegrasFromLegacy(b.curadas || {}, b.comportamentos || [])
+  const ativas = regras.filter(r => r.ativa !== false)
+  const noInventedDate = ativas.some(r => r.id === 'no_invented_date')
   const slots = cfg.qualification.discovery_slots ?? []
   const prio: Record<string, string> = { critical: 'crítico', preferred: 'importante', nice_to_have: 'extra' }
   const mode = v.abertura_mode ?? 'literal'
+  const FIX = (tag: string, body: string) => `<${tag}> [FIXO — raciocínio da Camila]\n${body}\n</${tag}>`
   const out: string[] = []
   out.push('<papel>')
-  out.push(`Você é ${id.persona_nome}, ${id.role || 'especialista de casamentos'} da ${id.empresa}. Seu tom é ${tomDesc}.`)
+  out.push(`Você é ${id.persona_nome}, ${id.role || 'especialista de casamentos'} da ${id.empresa}, no WhatsApp. Tom: ${tomDesc}.`)
   if (id.proposta) out.push(`Sobre a empresa: ${id.proposta}.`)
   if (id.mission_one_liner) out.push(`Sua missão: ${id.mission_one_liner}.`)
   out.push('</papel>')
-  out.push('<como_voce_conversa> (FIXO — raciocínio da Camila) </como_voce_conversa>')
+  out.push(FIX('objetivo', FIXED_OBJETIVO))
+  out.push(FIX('como_voce_conversa', FIXED_COMO_CONVERSA))
   out.push('<fluxo_de_fases>')
   ;(cfg.phases ?? []).forEach((p, i) => out.push(`  ${i + 1}. ${p.nome}: ${p.objetivo}${p.avancar_quando ? ` (avança quando: ${p.avancar_quando})` : ''}`))
   out.push('</fluxo_de_fases>')
   out.push('<o_que_entender>')
   if (slots.length) slots.forEach((s, i) => out.push(`  ${i + 1}. ${s.label} [${prio[s.priority] || 'importante'}]${(s.questions ?? []).filter(Boolean).length ? ` — perguntas: ${(s.questions).filter(Boolean).map(q => `"${q}"`).join(' / ')}` : ' (improvisa)'}`))
   else cfg.qualification.etapas.forEach((e, i) => out.push(`  ${i + 1}. ${e}`))
-  if ((cfg.qualification.silent_signals ?? []).length) out.push(`  Percebe sozinha: ${(cfg.qualification.silent_signals as string[]).join('; ')}.`)
+  if ((cfg.qualification.silent_signals ?? []).length) out.push(`  Percebe sozinha (sem perguntar): ${(cfg.qualification.silent_signals as string[]).join('; ')}.`)
   out.push('</o_que_entender>')
-  out.push('<matriz_de_decisao> · <spin_framework> · <gates_do_convite> · <convite_e_agenda> · <autochecagem> · <formato> (FIXOS — raciocínio da Camila)')
+  out.push(FIX('matriz_de_decisao', FIXED_MATRIZ))
+  out.push(FIX('spin_framework', FIXED_SPIN))
+  out.push(FIX('gates_do_convite', FIXED_GATES))
+  out.push(FIX('convite_e_agenda', FIXED_CONVITE(noInventedDate)))
+  out.push('<linhas_vermelhas>')
+  out.push('  - ORÇAMENTO DO CASAL: pergunte quanto pretendem investir antes de convidar (faixas como opção, sem travar).')
+  out.push('  - Pouca intenção (só curiosidade, "daqui muitos anos"): reconhece com carinho, deixa a porta aberta.')
+  ativas.forEach(r => out.push(`  - ${r.texto}`))
+  if ((b.competitors_to_avoid ?? []).length) out.push(`  - Nunca cita concorrentes: ${(b.competitors_to_avoid as string[]).join(', ')}.`)
+  out.push('</linhas_vermelhas>')
   out.push('<politica_preco>')
-  if (cfg.pricing.mention_fee) out.push(`  Assessoria: R$ ${cfg.pricing.fee_min_brl} a R$ ${cfg.pricing.fee_max_brl}.`)
+  if (cfg.pricing.mention_fee) out.push(`  Assessoria: R$ ${cfg.pricing.fee_min_brl} a R$ ${cfg.pricing.fee_max_brl}, conforme escopo.`)
   out.push(`  Quando revelar: ${REVEAL_OPTIONS.find(o => o.value === cfg.pricing.reveal_strategy)?.label}.`)
   out.push(`  ${cfg.pricing.can_negotiate ? 'Pode negociar.' : 'NUNCA negocia.'} Ao hesitar: ${cfg.pricing.tone_on_pushback === 'firm' ? 'firmeza' : 'empatia'}.`)
+  ;(cfg.pricing.destination_ranges ?? []).forEach(r => out.push(`  ${r.destino}: ${(r.tiers ?? []).map(t => `${t.convidados} conv. a partir de ${t.a_partir} ${r.moeda}`).join('; ')}`))
   out.push('</politica_preco>')
   out.push('<glossario>')
   if ((v.glossary.marca ?? []).length) out.push(`  Usar: ${v.glossary.marca.join(', ')}`)
@@ -541,18 +601,13 @@ export function assembleSofiaPromptPreview(cfg: SofiaConfigV2): string {
   out.push('<momentos>')
   ;(cfg.moments ?? []).filter(m => m.enabled !== false).forEach(m => out.push(`  - ${m.trigger_type === 'custom_condition' && m.custom_condition_description ? `Quando ${m.custom_condition_description}` : m.label}: ${m.instrucao}`))
   out.push('</momentos>')
-  out.push('<linhas_vermelhas>')
-  if (on('no_price', true)) out.push('  - Nunca dá preço fechado.')
-  if (on('no_invented_date', true)) out.push('  - Nunca inventa data ou horário.')
-  if (on('no_cliche', true)) out.push('  - Zero clichê.')
-  if (on('no_dash', true)) out.push('  - Zero travessão.')
-  if (on('no_first_emoji', true)) out.push('  - Sem emoji na 1ª mensagem.')
-  if (on('no_ai_mention')) out.push('  - Nunca diz que é IA.')
-  if ((b.competitors_to_avoid ?? []).length) out.push(`  - Nunca cita concorrentes: ${(b.competitors_to_avoid as string[]).join(', ')}.`)
-  ;(b.comportamentos ?? []).forEach(c => out.push(`  - ${c}`))
-  out.push('</linhas_vermelhas>')
+  out.push(FIX('antipadroes', FIXED_ANTIPADROES))
   out.push('<primeira_mensagem>')
-  out.push(mode === 'free' ? '  (a Sofia compõe sozinha)' : mode === 'directive' ? `  Diretriz: ${v.abertura}` : `  Exata: ${v.abertura}`)
+  out.push(mode === 'free' ? '  Componha sozinha, reconhecendo o que o casal disse + persona/proposta.'
+    : mode === 'directive' ? `  Diretriz (reconhece a 1ª msg + cobre): ${v.abertura}`
+    : `  Exata: ${v.abertura}`)
   out.push('</primeira_mensagem>')
+  out.push(FIX('autochecagem', FIXED_AUTOCHECAGEM))
+  out.push(FIX('formato', FIXED_FORMATO))
   return out.join('\n')
 }

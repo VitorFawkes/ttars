@@ -106,12 +106,8 @@ Quando fizer sentido, convide pra uma conversa com a Wedding Planner. {{ $('Mont
 Regras absolutas, nunca quebre:
 - ORÇAMENTO DO CASAL: pergunte quanto o casal pretende investir antes de convidar. Se recusarem um número, ofereça estas faixas como opção e siga sem travar: {{ $('Monta').item.json.faixas_txt }} (isto é o orçamento DELES, diferente da nossa política de preço).
 - Pouca intenção (só curiosidade, sem data, "daqui muitos anos"): reconheça com carinho, deixe a porta aberta, não force outra pergunta.
-{{ $('Monta').item.json.cliche_rule_txt }}
-{{ $('Monta').item.json.dash_rule_txt }}
-{{ $('Monta').item.json.price_rule_txt }}
+{{ $('Monta').item.json.regras_txt }}
 {{ $('Monta').item.json.competitors_txt }}
-- {{ $('Monta').item.json.emoji_rule_txt }}
-{{ $('Monta').item.json.ai_mention_txt }}
 {{ $('Monta').item.json.fronteiras_txt }}
 </linhas_vermelhas>
 
@@ -251,21 +247,27 @@ const pricing_txt = [assessoria_txt, (revealMap[pr.reveal_strategy] || revealMap
 const gl = vo.glossary || {};
 const glossary_usar = arr(gl.marca).map(g => g.palavra || g).filter(Boolean).join(', ');
 const glossary_evitar = arr(gl.proibida).map(g => (g.palavra||g) + (g.alternativa ? (' (prefira "' + g.alternativa + '")') : '')).filter(Boolean).join(', ');
-const comportamentos_txt = arr(bo.comportamentos).map(c => '- ' + c).join('\\n');
-// Decisões de marca (curadas editáveis) que entram no cérebro de verdade.
+// Regras de conduta: lista unificada e editável (bo.regras). Fallback p/ legado (curadas+comportamentos).
+const CURATED_RULE_TEXT = {
+  no_price: 'Nunca dê um preço fechado ou final como definitivo; o valor fechado é com a Wedding Planner (você pode falar de faixas e da assessoria).',
+  no_invented_date: 'Nunca invente data nem horário; pergunte o melhor período e diga que reserva com a Planner.',
+  no_cliche: 'Zero clichê batido (casamento dos sonhos, experiência premium, pode deixar com a gente, transformar sonhos em realidade).',
+  no_dash: 'Zero travessão ou hífen como separador; use vírgula, ponto ou reticências.',
+  no_first_emoji: 'Zero emoji na primeira mensagem; depois no máximo um, só se o casal usar primeiro.',
+  no_ai_mention: 'Nunca diga que é uma IA, robô, assistente virtual ou sistema; atenda como uma pessoa do time.'
+};
 const cu = bo.curadas || {};
-const emoji_rule_txt = (cu.no_first_emoji !== false)
-  ? 'Zero emoji na primeira mensagem; depois no máximo um, só se o casal usar primeiro.'
-  : 'Pode usar emojis com leveza e moderação, espelhando o casal.';
-const ai_mention_txt = (cu.no_ai_mention === true)
-  ? '- Nunca diga que é uma IA, robô, assistente virtual ou sistema; atenda como uma pessoa do time.'
-  : '';
-// CONTROLE TOTAL: as 4 travas de qualidade viram texto condicional (ON injeta a regra, OFF some).
-const cliche_rule_txt = (cu.no_cliche !== false) ? '- Zero clichê batido (casamento dos sonhos, experiência premium, pode deixar com a gente, transformar sonhos em realidade).' : '';
-const dash_rule_txt = (cu.no_dash !== false) ? '- Zero travessão ou hífen como separador: use vírgula, ponto ou reticências.' : '';
-const price_rule_txt = (cu.no_price !== false) ? '- Nunca dê um preço fechado ou final como definitivo; o valor fechado é com a Wedding Planner (você pode falar de faixas e assessoria conforme a política de preço).' : '';
-const invented_date_rule_txt = (cu.no_invented_date !== false) ? 'Você não inventa data nem horário. ' : '';
-const no_dash_enabled = (cu.no_dash !== false);
+let regras = Array.isArray(bo.regras) ? bo.regras.filter(r => r && r.texto) : [];
+if (!regras.length) {
+  const defOn = { no_price: true, no_invented_date: true, no_cliche: true, no_dash: true, no_first_emoji: true, no_ai_mention: false };
+  regras = Object.keys(CURATED_RULE_TEXT).map(k => ({ id: k, texto: CURATED_RULE_TEXT[k], ativa: (cu[k] !== undefined ? !!cu[k] : defOn[k]) }))
+    .concat(arr(bo.comportamentos).filter(Boolean).map(t => ({ texto: t, ativa: true })));
+}
+const ativas = regras.filter(r => r.ativa !== false);
+const regras_txt = ativas.map(r => '- ' + r.texto).join('\\n');
+const no_dash_enabled = ativas.some(r => r.id === 'no_dash');
+const invented_date_rule_txt = ativas.some(r => r.id === 'no_invented_date') ? 'Você não inventa data nem horário. ' : '';
+const comportamentos_txt = '';
 // Proposta = identidade canônica da empresa (usada pra ela se apresentar em qualquer momento).
 const proposta_val = id.proposta || cfg.proposta || '';
 const proposta_txt = proposta_val ? ('Sobre a ' + (id.empresa || cfg.empresa || 'gente') + ': ' + proposta_val + '. Use isso pra se apresentar com naturalidade, sem decorar.') : '';
@@ -343,8 +345,7 @@ return [{ json: {
   empresa: id.empresa || cfg.empresa || 'Welcome Weddings',
   proposta: id.proposta || cfg.proposta || '',
   proposta_txt: proposta_txt,
-  emoji_rule_txt: emoji_rule_txt,
-  ai_mention_txt: ai_mention_txt,
+  regras_txt: regras_txt,
   tom_desc: (tomMap[tom] || tom || 'acolhedor, caloroso e humano') + ', ' + formalidade_desc + (tone_tags_txt ? (', ' + tone_tags_txt) : ''),
   funcao: funcao,
   missao_txt: missao_txt,
@@ -353,9 +354,6 @@ return [{ json: {
   competitors_txt: competitors_txt,
   abertura: vo.abertura || cfg.abertura || '',
   abertura_txt: abertura_txt,
-  cliche_rule_txt: cliche_rule_txt,
-  dash_rule_txt: dash_rule_txt,
-  price_rule_txt: price_rule_txt,
   invented_date_rule_txt: invented_date_rule_txt,
   no_dash_enabled: no_dash_enabled,
   scoring_enabled: scoring_enabled,
