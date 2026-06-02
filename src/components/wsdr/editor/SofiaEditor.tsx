@@ -12,6 +12,8 @@ import { OpeningEditor } from '@/components/wsdr/editor/OpeningEditor'
 import { OpeningStepsEditor } from '@/components/wsdr/editor/OpeningStepsEditor'
 import { BoundariesEditor } from '@/components/wsdr/editor/BoundariesEditor'
 import { ClosersPicker } from '@/components/wsdr/editor/WeddingPlannerPicker'
+import { CrmFieldsPicker } from '@/components/wsdr/editor/CrmFieldsPicker'
+import { DaysField } from '@/components/wsdr/editor/DaysField'
 import { StagePicker } from '@/components/wsdr/editor/StagePicker'
 import { SofiaLayout, type SofiaTab } from '@/components/wsdr/editor/ui/SofiaLayout'
 import { StringListEditor } from '@/components/wsdr/StringListEditor'
@@ -100,7 +102,10 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
         onToggle={v => update(x => setCapEnabled(x, meta.key, v))}>
         {meta.key === 'crm_write' && (
           <div className="space-y-3">
-            <label className="flex items-center justify-between text-sm text-slate-700">
+            <Field label="Campos que ela preenche no CRM" hint="Conforme o casal vai contando, a Sofia guarda essas informações no card. Marque só o que ela pode preencher.">
+              <CrmFieldsPicker value={c.capabilities.crm_write.writable_fields} onChange={keys => update(x => ({ ...x, capabilities: { ...x.capabilities, crm_write: { ...x.capabilities.crm_write, writable_fields: keys } } }))} />
+            </Field>
+            <label className="flex items-center justify-between text-sm text-slate-700 pt-1 border-t border-slate-100">
               <span>Mover o card de etapa automaticamente</span>
               <Switch checked={c.capabilities.crm_write.stage_move_enabled} onCheckedChange={v => update(x => ({ ...x, capabilities: { ...x.capabilities, crm_write: { ...x.capabilities.crm_write, stage_move_enabled: v } } }))} className={c.capabilities.crm_write.stage_move_enabled ? 'bg-indigo-600' : ''} />
             </label>
@@ -157,7 +162,12 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
           </div>
         )}
         {meta.key === 'followup' && (
-          <Field label="Horário padrão da retomada"><Input value={c.capabilities.followup.default_time} onChange={e => update(x => ({ ...x, capabilities: { ...x.capabilities, followup: { ...x.capabilities.followup, default_time: e.target.value } } }))} placeholder="ex: 10:30" /></Field>
+          <div className="space-y-3">
+            <Field label="Quando retomar" hint="Depois de quantos dias sem resposta a Sofia tenta de novo. Pode ser mais de um momento.">
+              <DaysField value={c.capabilities.followup.days ?? []} onChange={days => update(x => ({ ...x, capabilities: { ...x.capabilities, followup: { ...x.capabilities.followup, days } } }))} />
+            </Field>
+            <Field label="Horário padrão da retomada"><Input value={c.capabilities.followup.default_time} onChange={e => update(x => ({ ...x, capabilities: { ...x.capabilities, followup: { ...x.capabilities.followup, default_time: e.target.value } } }))} placeholder="ex: 10:30" /></Field>
+          </div>
         )}
         {meta.key === 'knowledge' && (
           <KnowledgeFaqEditor agentSlug={slug} />
@@ -291,10 +301,16 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
         )}
 
         {tab === 'pontuacao' && (
-          <EditorCard accent="indigo" icon={<Target className="w-5 h-5" />} title="Pontuação do casal"
-            desc="Como a Sofia decide se o casal qualifica: pontos por critério, nota mínima e faixas. Ela usa isto como guia do julgamento, uma coisa de cada vez.">
-            <ScoringEditor qual={c.qualification} onChange={q => update(x => ({ ...x, qualification: q }))} />
-          </EditorCard>
+          <>
+            <EditorCard accent="indigo" icon={<Target className="w-5 h-5" />} title="Pontuação do casal"
+              desc="Como a Sofia decide se o casal qualifica: pontos por critério, nota mínima e faixas. Ela usa isto como guia do julgamento, uma coisa de cada vez.">
+              <ScoringEditor qual={c.qualification} onChange={q => update(x => ({ ...x, qualification: q }))} />
+            </EditorCard>
+            <EditorCard accent="violet" icon={<Eye className="w-5 h-5" />} title="Sinais que ela percebe sozinha"
+              desc="Coisas que a Sofia capta no que o casal diz, sem precisar perguntar (ex: a família está ajudando a decidir, hesitação por valor). Ela leva isso em conta no julgamento e na hora de conduzir.">
+              <StringListEditor items={c.qualification.silent_signals ?? []} onChange={items => update(x => ({ ...x, qualification: { ...x.qualification, silent_signals: items } }))} placeholder="ex: a família está ajudando a decidir" />
+            </EditorCard>
+          </>
         )}
 
         {tab === 'preco' && (

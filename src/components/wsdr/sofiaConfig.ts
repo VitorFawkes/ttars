@@ -218,9 +218,6 @@ export interface ListeningConfig {
   never_ignore: boolean           // nunca ignora algo que o casal disse
 }
 
-// Escalação: passar pra um humano após N turnos sem avançar.
-export interface EscalationConfig { enabled: boolean; max_turns: number; message: string }
-
 export interface SofiaConfigV2 {
   config_version: number
   identity: {
@@ -269,7 +266,6 @@ export interface SofiaConfigV2 {
     custom: string[]
     comportamentos: string[]
     // v3
-    escalation?: EscalationConfig
     competitors_to_avoid?: string[]
     // v3.1: lista unificada e editável de regras (substitui curadas+comportamentos na UI)
     regras?: SofiaRule[]
@@ -514,7 +510,6 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
       curadas,
       custom: [],
       comportamentos: [],
-      escalation: { enabled: false, max_turns: 12, message: 'Vou chamar a nossa Wedding Planner pra conversar com vocês, tá bom?' },
       competitors_to_avoid: [],
       regras: buildRegrasFromLegacy(curadas, []),
     },
@@ -582,7 +577,6 @@ export function normalizeToV2(raw: unknown): SofiaConfigV2 {
         curadas: { ...def.boundaries.curadas, ...(c.boundaries?.curadas || {}) },
         custom: c.boundaries?.custom || [],
         comportamentos: c.boundaries?.comportamentos || [],
-        escalation: { ...def.boundaries.escalation!, ...(c.boundaries?.escalation || {}) },
         competitors_to_avoid: c.boundaries?.competitors_to_avoid ?? def.boundaries.competitors_to_avoid,
         regras: Array.isArray(c.boundaries?.regras) && c.boundaries.regras.length
           ? c.boundaries.regras
@@ -673,8 +667,8 @@ export function computeSofiaWarnings(cfg: SofiaConfigV2): SofiaWarning[] {
   if (cfg.capabilities.crm_write.enabled && cfg.capabilities.crm_write.stage_move_enabled && !cfg.capabilities.crm_write.target_stage_id) {
     w.push({ kind: 'incompleto', text: '"Mover etapa" está ligado, mas sem etapa de destino escolhida.' })
   }
-  if (cfg.capabilities.calendar.enabled && !cfg.capabilities.calendar.wedding_planner_profile_id) {
-    w.push({ kind: 'incompleto', text: 'Agenda ligada, mas sem Wedding Planner escolhida.' })
+  if (cfg.capabilities.calendar.enabled && !(cfg.capabilities.calendar.closer_ids?.length || cfg.capabilities.calendar.wedding_planner_profile_id)) {
+    w.push({ kind: 'incompleto', text: 'Agenda ligada, mas sem nenhum closer (Wedding Planner) escolhido.' })
   }
   return w
 }
