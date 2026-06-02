@@ -32,7 +32,9 @@ export function SofiaLayout({
                 type="button"
                 onClick={() => onTabChange(t.id)}
                 className={cn(
-                  'group relative flex items-center gap-3 pl-4 pr-3 py-2.5 rounded-xl text-sm text-left transition-all duration-150',
+                  'group relative flex items-center gap-3 pl-4 pr-3 py-2.5 rounded-xl text-sm text-left',
+                  'transition-[background-color,color] duration-150 ease-out active:scale-[0.98]',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40',
                   active ? 'bg-indigo-50 text-indigo-900 font-semibold' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
                 )}
               >
@@ -56,7 +58,8 @@ export function SofiaLayout({
                 type="button"
                 onClick={() => onTabChange(t.id)}
                 className={cn(
-                  'flex items-center gap-1.5 px-3 py-2 rounded-full text-xs whitespace-nowrap border transition-colors shrink-0',
+                  'flex items-center gap-1.5 px-3 py-2 rounded-full text-xs whitespace-nowrap border shrink-0',
+                  'transition-[background-color,color,border-color] duration-150 ease-out active:scale-[0.96]',
                   active ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200',
                 )}
               >

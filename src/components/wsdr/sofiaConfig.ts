@@ -218,9 +218,6 @@ export interface ListeningConfig {
   never_ignore: boolean           // nunca ignora algo que o casal disse
 }
 
-// Escalação: passar pra um humano após N turnos sem avançar.
-export interface EscalationConfig { enabled: boolean; max_turns: number; message: string }
-
 export interface SofiaConfigV2 {
   config_version: number
   identity: {
@@ -269,7 +266,6 @@ export interface SofiaConfigV2 {
     custom: string[]
     comportamentos: string[]
     // v3
-    escalation?: EscalationConfig
     competitors_to_avoid?: string[]
     // v3.1: lista unificada e editável de regras (substitui curadas+comportamentos na UI)
     regras?: SofiaRule[]
@@ -514,12 +510,11 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
       curadas,
       custom: [],
       comportamentos: [],
-      escalation: { enabled: false, max_turns: 12, message: 'Vou chamar a nossa Wedding Planner pra conversar com vocês, tá bom?' },
       competitors_to_avoid: [],
       regras: buildRegrasFromLegacy(curadas, []),
     },
     capabilities: {
-      crm_write: { enabled: false, writable_fields: [], protected_fields: [], stage_move_enabled: false, target_stage_id: null },
+      crm_write: { enabled: false, writable_fields: ['ww_destino', 'ww_num_convidados', 'ww_orcamento_faixa', 'ww_data_casamento', 'ww_nome_parceiro', 'ww_tipo_casamento', 'ww_mkt_como_conheceu', 'ww_sdr_ajuda_familia', 'ww_sdr_perfil_viagem_internacional'], protected_fields: [], stage_move_enabled: false, target_stage_id: null },
       calendar: { enabled: false, wedding_planner_profile_id: null, closer_ids: [], windows: [{ dias: [1, 2, 3, 4, 5], inicio: '10:00', fim: '17:00' }], slot_duration_minutes: 45, slot_interval_minutes: 30, slots_per_day: 6, min_lead_hours: 1, skip_weekends: true, max_slots: 18, search_window_days: 14 },
       knowledge: { enabled: false, top_k: 4, faqs: [] },
       followup: { enabled: false, default_time: '10:30', days: [1, 3, 7] },
@@ -582,7 +577,6 @@ export function normalizeToV2(raw: unknown): SofiaConfigV2 {
         curadas: { ...def.boundaries.curadas, ...(c.boundaries?.curadas || {}) },
         custom: c.boundaries?.custom || [],
         comportamentos: c.boundaries?.comportamentos || [],
-        escalation: { ...def.boundaries.escalation!, ...(c.boundaries?.escalation || {}) },
         competitors_to_avoid: c.boundaries?.competitors_to_avoid ?? def.boundaries.competitors_to_avoid,
         regras: Array.isArray(c.boundaries?.regras) && c.boundaries.regras.length
           ? c.boundaries.regras
@@ -673,8 +667,8 @@ export function computeSofiaWarnings(cfg: SofiaConfigV2): SofiaWarning[] {
   if (cfg.capabilities.crm_write.enabled && cfg.capabilities.crm_write.stage_move_enabled && !cfg.capabilities.crm_write.target_stage_id) {
     w.push({ kind: 'incompleto', text: '"Mover etapa" está ligado, mas sem etapa de destino escolhida.' })
   }
-  if (cfg.capabilities.calendar.enabled && !cfg.capabilities.calendar.wedding_planner_profile_id) {
-    w.push({ kind: 'incompleto', text: 'Agenda ligada, mas sem Wedding Planner escolhida.' })
+  if (cfg.capabilities.calendar.enabled && !(cfg.capabilities.calendar.closer_ids?.length || cfg.capabilities.calendar.wedding_planner_profile_id)) {
+    w.push({ kind: 'incompleto', text: 'Agenda ligada, mas sem nenhum closer (Wedding Planner) escolhido.' })
   }
   return w
 }

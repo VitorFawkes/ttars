@@ -4,9 +4,8 @@ import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import { Field } from '@/components/wsdr/editor/ui/primitives'
 import { SortableList } from '@/components/wsdr/editor/SortableList'
-import { type SofiaConfigV2, type SofiaRule, type EscalationConfig, buildRegrasFromLegacy } from '@/components/wsdr/sofiaConfig'
+import { type SofiaConfigV2, type SofiaRule, buildRegrasFromLegacy } from '@/components/wsdr/sofiaConfig'
 
 type Boundaries = SofiaConfigV2['boundaries']
 
@@ -17,7 +16,6 @@ export function BoundariesEditor({ boundaries, onChange }: { boundaries: Boundar
   const regras: SofiaRule[] = boundaries.regras && boundaries.regras.length
     ? boundaries.regras
     : buildRegrasFromLegacy(boundaries.curadas || {}, boundaries.comportamentos || [])
-  const escalation: EscalationConfig = boundaries.escalation ?? { enabled: false, max_turns: 12, message: '' }
   const [novo, setNovo] = useState('')
   const [editing, setEditing] = useState<number | null>(null)
   const [editVal, setEditVal] = useState('')
@@ -26,7 +24,6 @@ export function BoundariesEditor({ boundaries, onChange }: { boundaries: Boundar
   const patch = (i: number, p: Partial<SofiaRule>) => setRegras(regras.map((r, idx) => (idx === i ? { ...r, ...p } : r)))
   const remove = (i: number) => setRegras(regras.filter((_, idx) => idx !== i))
   const add = () => { if (novo.trim()) { setRegras([...regras, { texto: novo.trim(), ativa: true, protege: false }]); setNovo('') } }
-  const setEsc = (p: Partial<EscalationConfig>) => onChange({ ...boundaries, escalation: { ...escalation, ...p } })
 
   const renderRow = (r: SofiaRule, i: number) => {
     const warn = r.protege && !r.ativa
@@ -66,23 +63,10 @@ export function BoundariesEditor({ boundaries, onChange }: { boundaries: Boundar
         <button type="button" onClick={add} className="shrink-0 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white flex items-center"><Plus className="w-4 h-4" /></button>
       </div>
       <SortableList items={regras} onReorder={setRegras} renderItem={renderRow} />
-
-      {/* Escalação */}
-      <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-3">
-        <label className="flex items-center justify-between">
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-slate-900">Chamar uma pessoa se a conversa travar</p>
-            <p className="text-xs text-slate-500 mt-0.5">Depois de muitas mensagens sem avançar, a Sofia passa pra um humano.</p>
-          </div>
-          <Switch checked={escalation.enabled} onCheckedChange={v => setEsc({ enabled: v })} className={escalation.enabled ? 'bg-indigo-600' : ''} />
-        </label>
-        {escalation.enabled && (
-          <div className="grid sm:grid-cols-2 gap-3 pt-1">
-            <Field label="Máximo de mensagens antes de escalar"><Input type="number" value={escalation.max_turns} onChange={e => setEsc({ max_turns: Number(e.target.value) })} /></Field>
-            <Field label="Mensagem ao escalar"><Textarea value={escalation.message} onChange={e => setEsc({ message: e.target.value })} className="min-h-[44px]" placeholder="Ex: Vou chamar a nossa Wedding Planner pra conversar com vocês." /></Field>
-          </div>
-        )}
-      </div>
+      <p className="text-[11px] text-slate-400">
+        Pra ela chamar uma pessoa quando a conversa trava ou o casal pede atendimento humano, use
+        <strong> Passar pra um humano</strong> na aba “O que ela faz”.
+      </p>
     </div>
   )
 }
