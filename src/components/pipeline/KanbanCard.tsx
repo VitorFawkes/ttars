@@ -59,8 +59,10 @@ function renderTripDate(ev: any, fallbackStart?: string | null): string | null {
 
     if (ev && typeof ev === 'object') {
         if (typeof ev.display === 'string' && ev.display.trim()) preformatted = ev.display.trim()
-        startStr = ev.data_inicio || ev.start || ev.inicio || null
-        endStr = ev.data_fim || ev.end || ev.fim || null
+        // Ordem canônica (igual UniversalFieldRenderer): {start,end} é o formato atual do date picker;
+        // data_inicio/data_fim são legado e às vezes guardam o mês inteiro (placeholder). Preferir o preciso.
+        startStr = ev.start || ev.inicio || ev.data_inicio || null
+        endStr = ev.end || ev.fim || ev.data_fim || null
     } else if (typeof ev === 'string') {
         const range = ev.match(/(\d{4}-\d{2}-\d{2}).*?(\d{4}-\d{2}-\d{2})/)
         if (range) { startStr = range[1]; endStr = range[2] }
