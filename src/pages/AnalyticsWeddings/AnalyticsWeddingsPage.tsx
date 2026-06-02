@@ -5,20 +5,18 @@ import { FilterBar, useFilterParams } from './components/FilterBar'
 import { VisaoGeral } from './tabs/VisaoGeral'
 import { FunilComparado } from './tabs/FunilComparado'
 import { EntradaRealidade } from './tabs/EntradaRealidade'
-import { Equipe } from './tabs/Equipe'
 import { Qualidade } from './tabs/Qualidade'
 import { Perfil } from './tabs/Perfil'
 import { Marketing } from './tabs/Marketing'
 import { Perdas } from './tabs/Perdas'
 import { formatRange } from './lib/dates'
 
-type Tab = 'visao' | 'funil-comparado' | 'entrada-realidade' | 'equipe' | 'qualidade' | 'perfil' | 'marketing' | 'perdas'
+type Tab = 'visao' | 'funil-comparado' | 'entrada-realidade' | 'qualidade' | 'perfil' | 'marketing' | 'perdas'
 
 const TABS: { id: Tab; label: string; icon: string; description: string }[] = [
   { id: 'visao', label: 'Visão geral', icon: '📊', description: 'KPIs, funil, conversões, alertas' },
   { id: 'funil-comparado', label: 'Funil comparado', icon: '🔍', description: 'Comparar a conversão de um perfil entre dois períodos' },
   { id: 'entrada-realidade', label: 'Entrada × Realidade', icon: '🔄', description: 'O que disse no site × o que virou' },
-  { id: 'equipe', label: 'Equipe', icon: '👥', description: 'Performance SDR, Closer, Planner' },
   { id: 'qualidade', label: 'Qualidade do lead', icon: '🎯', description: 'Faixa, convidados, local, cruzamentos' },
   { id: 'perfil', label: 'Lead ideal × Pipeline', icon: '📈', description: 'Perfil de quem fechou × leads novos' },
   { id: 'marketing', label: 'Marketing', icon: '📣', description: 'Origens, campanhas, atribuição' },
@@ -54,7 +52,6 @@ export default function AnalyticsWeddingsPage() {
             {activeTab === 'visao' && <VisaoGeral />}
             {activeTab === 'funil-comparado' && <FunilComparado />}
             {activeTab === 'entrada-realidade' && <EntradaRealidade />}
-            {activeTab === 'equipe' && <Equipe />}
             {activeTab === 'qualidade' && <Qualidade />}
             {activeTab === 'perfil' && <Perfil />}
             {activeTab === 'marketing' && <Marketing />}
