@@ -5,9 +5,10 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useOrg } from '../../contexts/OrgContext'
 import { normalizePhone } from '../../utils/normalizePhone'
 import { sbAny } from './_supabaseUntyped'
-import type { GuestInput, GuestUpdate } from './types'
+import { STATUS_RSVP_LIST } from './types'
+import type { GuestInput, GuestUpdate, StatusRSVP } from './types'
 
-const statusEnum = z.enum(['ativo', 'confirmado', 'recusado', 'removido'])
+const statusEnum = z.enum(STATUS_RSVP_LIST as [StatusRSVP, ...StatusRSVP[]])
 
 const guestInputSchema = z.object({
   card_id: z.string().uuid('card_id inválido'),
@@ -145,7 +146,11 @@ export function useCreateGuest() {
 
   return useMutation<void, Error, GuestInput>({
     mutationFn: async (input) => {
-      const parsed = guestInputSchema.parse(input)
+      const result = guestInputSchema.safeParse(input)
+      if (!result.success) {
+        throw new Error(result.error.issues[0]?.message ?? 'Dados inválidos')
+      }
+      const parsed = result.data
       if (!org?.id) throw new Error('Sem organização ativa')
 
       const email = normalizeEmpty(parsed.email ?? null)
@@ -195,7 +200,11 @@ export function useUpdateGuest() {
 
   return useMutation<void, Error, { id: string; contatoId: string; patch: GuestUpdate }>({
     mutationFn: async ({ id, contatoId, patch }) => {
-      const parsed = guestUpdateSchema.parse(patch)
+      const result = guestUpdateSchema.safeParse(patch)
+      if (!result.success) {
+        throw new Error(result.error.issues[0]?.message ?? 'Dados inválidos')
+      }
+      const parsed = result.data
 
       // Campos do CONTATO (telefone_normalizado é gerada — não escrever)
       const contatoPatch: Record<string, unknown> = {}
