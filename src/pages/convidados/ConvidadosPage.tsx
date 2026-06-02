@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Heart, Users, Settings, CalendarDays, Send, FileUp, MailPlus, Link2, Sparkles } from 'lucide-react'
+import { Heart, Users, Settings, CalendarDays, Send, FileUp, MailPlus, Link2, Sparkles, Megaphone } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { cn } from '../../lib/utils'
 import { useConvidadosPreferences } from '../../hooks/convidados/useConvidadosPreferences'
@@ -11,6 +11,7 @@ import { FiltersBar } from '../../components/convidados/lista/FiltersBar'
 import { ImportarCasamentoModal } from '../../components/convidados/import/ImportarCasamentoModal'
 import { CasaisAdminBoard } from '../../components/convidados/casais/CasaisAdminBoard'
 import { ExtrasKanbanBoard } from '../../components/convidados/extras/ExtrasKanbanBoard'
+import { DisparosBoard } from '../../components/disparo/DisparosBoard'
 
 export default function ConvidadosPage() {
   const { prefs, setPref } = useConvidadosPreferences()
@@ -44,6 +45,12 @@ export default function ConvidadosPage() {
             icon={<MailPlus className="w-3.5 h-3.5" />}
             label="Envio específico"
             onClick={() => setPref('modo', 'envio_especifico')}
+          />
+          <ModeButton
+            active={prefs.modo === 'disparo'}
+            icon={<Megaphone className="w-3.5 h-3.5" />}
+            label="Disparo"
+            onClick={() => setPref('modo', 'disparo')}
           />
           <ModeButton
             active={prefs.modo === 'casais'}
@@ -98,6 +105,7 @@ export default function ConvidadosPage() {
       )}
       {prefs.modo === 'envios_hoje' && <EnviosDoDiaBoard />}
       {prefs.modo === 'envio_especifico' && <EnvioEspecificoBoard />}
+      {prefs.modo === 'disparo' && <DisparosBoard />}
       {prefs.modo === 'casais' && <CasaisAdminBoard />}
       {prefs.modo === 'extras' && <ExtrasKanbanBoard />}
 
