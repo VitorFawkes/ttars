@@ -60,3 +60,18 @@ export function guessColumns(headers: string[]): { telCol: string | null; nomeCo
     headers.find((h) => /^nome$|nome_completo|primeiro_nome|name|contato/.test(norm(h))) ?? null
   return { telCol, nomeCol }
 }
+
+/** Baixa um .xlsx modelo: colunas telefone/nome + uma coluna extra de exemplo
+ *  (que vira variável {{cidade}}). O usuário pode renomear/adicionar colunas. */
+export function baixarModeloPlanilha() {
+  const linhas = [
+    ['telefone', 'nome', 'cidade'],
+    ['11999999999', 'Maria Silva', 'São Paulo'],
+    ['21988887777', 'João Souza', 'Rio de Janeiro'],
+  ]
+  const ws = XLSX.utils.aoa_to_sheet(linhas)
+  ws['!cols'] = [{ wch: 16 }, { wch: 22 }, { wch: 18 }]
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Contatos')
+  XLSX.writeFile(wb, 'modelo-disparo.xlsx')
+}

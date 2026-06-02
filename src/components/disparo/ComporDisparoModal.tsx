@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { X, Send, Upload, ClipboardPaste, AlertTriangle, Loader2, Heart, Users, CheckCircle2, Plus, Ban } from 'lucide-react'
+import { X, Send, Upload, ClipboardPaste, AlertTriangle, Loader2, Heart, Users, CheckCircle2, Plus, Ban, Download } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useWhatsAppLinhas, isOfficialMetaLine } from '../../hooks/useWhatsAppLinhas'
 import { useWeddingsWithGuestCounts } from '../../hooks/convidados/useWeddingsWithGuestCounts'
@@ -11,6 +11,7 @@ import {
   parseFileLista,
   guessColumns,
   slugifyHeader,
+  baixarModeloPlanilha,
   type ParsedLista,
 } from './parseListaDisparo'
 
@@ -312,10 +313,19 @@ export function ComporDisparoModal({ open, onClose }: Props) {
                     placeholder={'Cole sua planilha aqui (com cabeçalho).\nEx:\ntelefone\tnome\tdata\n11999999999\tAna\t20/12'}
                     className="h-28 px-3 py-2 text-sm font-mono border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-400 resize-none"
                   />
-                  <label className="inline-flex items-center gap-1.5 self-start text-xs font-medium text-indigo-600 hover:text-indigo-700 cursor-pointer">
-                    <Upload className="w-3.5 h-3.5" /> ou subir arquivo (.xlsx/.csv)
-                    <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
-                  </label>
+                  <div className="flex items-center gap-4">
+                    <label className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700 cursor-pointer">
+                      <Upload className="w-3.5 h-3.5" /> ou subir arquivo (.xlsx/.csv)
+                      <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={baixarModeloPlanilha}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-900"
+                    >
+                      <Download className="w-3.5 h-3.5" /> Baixar modelo de planilha
+                    </button>
+                  </div>
 
                   {parsed.headers.length > 0 && (
                     <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2">
