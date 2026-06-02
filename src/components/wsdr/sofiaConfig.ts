@@ -519,7 +519,7 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
       regras: buildRegrasFromLegacy(curadas, []),
     },
     capabilities: {
-      crm_write: { enabled: false, writable_fields: [], protected_fields: [], stage_move_enabled: false, target_stage_id: null },
+      crm_write: { enabled: false, writable_fields: ['ww_destino', 'ww_num_convidados', 'ww_orcamento_faixa', 'ww_data_casamento', 'ww_nome_parceiro', 'ww_tipo_casamento', 'ww_mkt_como_conheceu', 'ww_sdr_ajuda_familia', 'ww_sdr_perfil_viagem_internacional'], protected_fields: [], stage_move_enabled: false, target_stage_id: null },
       calendar: { enabled: false, wedding_planner_profile_id: null, closer_ids: [], windows: [{ dias: [1, 2, 3, 4, 5], inicio: '10:00', fim: '17:00' }], slot_duration_minutes: 45, slot_interval_minutes: 30, slots_per_day: 6, min_lead_hours: 1, skip_weekends: true, max_slots: 18, search_window_days: 14 },
       knowledge: { enabled: false, top_k: 4, faqs: [] },
       followup: { enabled: false, default_time: '10:30', days: [1, 3, 7] },
