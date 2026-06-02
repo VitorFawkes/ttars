@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/textarea'
-import { Loader2, Send, AlertCircle, RotateCcw } from 'lucide-react'
+import { Loader2, Send, AlertCircle, RotateCcw, MessageCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 
@@ -93,12 +93,16 @@ export function ConversationTester() {
       {/* Histórico de mensagens */}
       <div
         ref={scrollRef}
-        className="bg-slate-50 rounded-lg p-4 h-80 overflow-y-auto space-y-3 border border-slate-200"
+        className="bg-slate-50 rounded-lg p-4 h-80 xl:h-[24rem] overflow-y-auto space-y-3 border border-slate-200"
       >
         {messages.length === 0 ? (
-          <p className="text-sm text-slate-400 text-center py-12">
-            Mande a primeira mensagem para começar a conversa.
-          </p>
+          <div className="flex flex-col items-center justify-center text-center h-full px-4">
+            <span className="flex items-center justify-center w-11 h-11 rounded-full bg-white border border-slate-200 text-slate-300 mb-3">
+              <MessageCircle className="w-5 h-5" />
+            </span>
+            <p className="text-sm font-medium text-slate-600">Converse com a Sofia aqui</p>
+            <p className="text-xs text-slate-400 mt-1 leading-relaxed">Escreva como se fosse um noivo e veja como ela responde com a configuração atual.</p>
+          </div>
         ) : (
           messages.map((msg, idx) => (
             <div key={idx} className={cn('flex', msg.type === 'user' ? 'justify-end' : 'justify-start')}>
