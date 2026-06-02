@@ -80,6 +80,12 @@ export function validateNode(type: WorkflowNodeType, config: Record<string, unkn
         case 'action.update_field':
             error = requireKey(config, 'field_key')
             break
+        case 'action.update_contact_field':
+            error = requireKey(config, 'field_key') || requireKey(config, 'value')
+            break
+        case 'action.assign_owner':
+            error = requireKey(config, 'user_id')
+            break
         case 'action.notify_internal':
             error = requireKey(config, 'body')
             break
@@ -95,6 +101,9 @@ export function validateNode(type: WorkflowNodeType, config: Record<string, unkn
             if (!config.phone_number_id) error = 'Escolha a linha WhatsApp'
             else if (!config.media_url) error = 'Defina a URL da mídia'
             else if (!config.mime_type) error = 'Defina o tipo do arquivo'
+            break
+        case 'action.send_email':
+            error = requireKey(config, 'subject') || requireKey(config, 'corpo')
             break
 
         case 'action.echo_assign':

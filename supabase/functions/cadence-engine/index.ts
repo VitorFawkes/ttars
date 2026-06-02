@@ -22,7 +22,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { addMinutes, isWeekend, setHours, setMinutes, isAfter, isBefore, addDays, format } from "npm:date-fns@2.30.0";
+import { addMinutes, isWeekend, setHours, setMinutes, setSeconds, isAfter, isBefore, addDays, format } from "npm:date-fns@2.30.0";
 import { utcToZonedTime, zonedTimeToUtc } from "npm:date-fns-tz@2.0.0";
 
 const TIMEZONE = "America/Sao_Paulo";
@@ -596,8 +596,10 @@ async function processQueue(supabaseClient: SupabaseClient) {
                     .eq("id", item.id);
 
             } else {
-                // Retry com backoff exponencial
-                const retryDelay = Math.pow(2, item.attempts) * 60 * 1000; // 1min, 2min, 4min...
+                // Retry com backoff exponencial, com teto de 1h (evita delays
+                // gigantes / overflow quando attempts cresce).
+                const MAX_RETRY_DELAY_MS = 60 * 60 * 1000; // 1h
+                const retryDelay = Math.min(Math.pow(2, item.attempts) * 60 * 1000, MAX_RETRY_DELAY_MS); // 1min, 2min, 4min... ≤1h
                 await supabaseClient
                     .from("cadence_queue")
                     .update({
@@ -1909,6 +1911,88 @@ const UPDATE_FIELD_WHITELIST: Record<string, 'string' | 'number' | 'boolean' | '
     codigo_projeto_erp: 'string',
     taxa_status: 'string',
     moeda: 'string',
+    data_viagem_inicio: 'date',
+    data_viagem_fim: 'date',
+};
+
+// Todas as colunas nativas de `cards` (snapshot schema 2026-06-02). Usada para
+// detectar quando um system_field é coluna nativa: se for nativa e NÃO estiver
+// em UPDATE_FIELD_WHITELIST, a automação a rejeita (protege sistema/ownership/FK
+// e evita gravar chave-fantasma em produto_data). Espelha
+// src/lib/automationCardFields.ts (manter em sincronia).
+const CARD_NATIVE_COLUMNS = new Set<string>([
+    'ai_contexto', 'ai_pause_config', 'ai_responsavel', 'ai_resumo', 'archived_at', 'archived_by',
+    'briefing_inicial', 'campaign_id', 'card_type', 'cliente_recorrente', 'codigo_cliente_erp',
+    'codigo_projeto_erp', 'concierge_owner_id', 'condicoes_pagamento', 'created_at', 'created_by',
+    'data_fechamento', 'data_pronto_erp', 'data_viagem_fim', 'data_viagem_inicio', 'deleted_at',
+    'deleted_by', 'dono_atual_id', 'duracao_dias_max', 'duracao_dias_min', 'epoca_ano',
+    'epoca_mes_fim', 'epoca_mes_inicio', 'epoca_tipo', 'estado_operacional', 'external_id',
+    'external_source', 'first_response_at', 'forma_pagamento', 'ganho_planner', 'ganho_planner_at',
+    'ganho_pos', 'ganho_pos_at', 'ganho_sdr', 'ganho_sdr_at', 'group_capacity', 'group_total_pax',
+    'group_total_revenue', 'id', 'indicado_por_id', 'is_critical', 'is_group_parent',
+    'lead_entry_path', 'locked_fields', 'marketing_data', 'merge_config', 'merge_metadata',
+    'merged_at', 'merged_by', 'mkt_buscando_para_viagem', 'moeda', 'motivo_perda_comentario',
+    'motivo_perda_id', 'org_id', 'origem', 'origem_lead', 'parent_card_id', 'pessoa_principal_id',
+    'pipeline_id', 'pipeline_stage_id', 'pos_owner_id', 'prioridade', 'produto', 'produto_data',
+    'pronto_para_contrato', 'pronto_para_erp', 'quality_score_pct', 'receita', 'receita_source',
+    'sdr_owner_id', 'sdr_qualification_score_latest', 'skip_pos_venda', 'stage_changed_at',
+    'stage_entered_at', 'status_comercial', 'sub_card_agregado_em', 'sub_card_category',
+    'sub_card_mode', 'sub_card_status', 'taxa_alterado_por', 'taxa_ativa', 'taxa_codigo_transacao',
+    'taxa_data_status', 'taxa_meio_pagamento', 'taxa_status', 'taxa_valor', 'test_agent_id',
+    'titulo', 'titulo_locked_at', 'updated_at', 'updated_by', 'utm_campaign', 'utm_content',
+    'utm_medium', 'utm_source', 'utm_term', 'valor_estimado', 'valor_final', 'valor_proprio',
+    'vendas_owner_id',
+]);
+
+// Coerção de valor para campo gravado em produto_data, baseada no system_fields.type.
+function coerceProdutoDataValue(
+    fieldType: string,
+    rawValue: unknown
+): { ok: true; value: unknown } | { ok: false; error: string } {
+    if (rawValue === null || rawValue === '') return { ok: true, value: null };
+    switch (fieldType) {
+        case 'number':
+        case 'currency':
+        case 'percentage': {
+            const n = typeof rawValue === 'number' ? rawValue : Number(rawValue);
+            if (Number.isNaN(n)) return { ok: false, error: `esperado número (${fieldType})` };
+            return { ok: true, value: n };
+        }
+        case 'boolean': {
+            if (typeof rawValue === 'boolean') return { ok: true, value: rawValue };
+            const s = String(rawValue).toLowerCase();
+            if (['true', '1', 'sim'].includes(s)) return { ok: true, value: true };
+            if (['false', '0', 'nao', 'não'].includes(s)) return { ok: true, value: false };
+            return { ok: false, error: 'esperado sim/não' };
+        }
+        case 'multiselect':
+        case 'checklist': {
+            if (Array.isArray(rawValue)) return { ok: true, value: rawValue };
+            return { ok: true, value: String(rawValue).split(',').map((s) => s.trim()).filter(Boolean) };
+        }
+        case 'json':
+        case 'date_range':
+        case 'flexible_date':
+        case 'flexible_duration':
+        case 'currency_range':
+        case 'smart_budget': {
+            if (typeof rawValue === 'object') return { ok: true, value: rawValue };
+            try { return { ok: true, value: JSON.parse(String(rawValue)) }; }
+            catch { return { ok: false, error: `esperado JSON (${fieldType})` }; }
+        }
+        default: // text, textarea, select, date, datetime, ...
+            return { ok: true, value: String(rawValue) };
+    }
+}
+
+// Whitelist de campos do CONTATO que automações podem atualizar. Separada da do
+// card. Bate com CONTACT_FIELD_WHITELIST do editor (CardActionEditors.tsx).
+// NÃO inclui: org_id, FKs, telefone_normalizado (derivado), datas de sistema.
+const CONTACT_UPDATE_FIELD_WHITELIST: Record<string, 'string'> = {
+    email: 'string',
+    telefone: 'string',
+    nome: 'string',
+    sobrenome: 'string',
 };
 
 function coerceFieldValue(
@@ -1958,64 +2042,303 @@ async function executeUpdateFieldAction(
         return { skipped: true, reason: 'no_field_key' };
     }
 
-    // Substitui variáveis se o valor for string (ex: usar {{trigger.event_start_time_iso}} em data_reuniao)
+    // Substitui variáveis se o valor for string (ex: {{card.titulo}}, {{contact.nome}})
     if (typeof rawValue === 'string') {
         rawValue = renderTriggerVars(rawValue, eventData, null, null);
     }
 
-    const coerced = coerceFieldValue(fieldKey, rawValue);
+    // Decide destino: coluna nativa segura, coluna nativa bloqueada, ou produto_data.
+    const isNativeWritable = fieldKey in UPDATE_FIELD_WHITELIST;
+    const isNativeBlocked = !isNativeWritable && CARD_NATIVE_COLUMNS.has(fieldKey);
+
+    if (isNativeBlocked) {
+        throw new Error(`update_field: campo "${fieldKey}" não é editável por automação (coluna de sistema/ownership)`);
+    }
+
+    // ── Caminho 1: coluna nativa segura ──────────────────────────────────────
+    if (isNativeWritable) {
+        const coerced = coerceFieldValue(fieldKey, rawValue);
+        if (!coerced.ok) {
+            throw new Error(`update_field: ${coerced.error}`);
+        }
+
+        const { data: card } = await supabaseClient
+            .from("cards").select(`id, ${fieldKey}`).eq("id", cardId).single();
+        if (!card) throw new Error(`Card not found: ${cardId}`);
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const currentValue = (card as any)[fieldKey];
+        if (currentValue === coerced.value) {
+            return { skipped: true, reason: 'same_value' };
+        }
+
+        const { error: updErr } = await supabaseClient
+            .from("cards")
+            .update({ [fieldKey]: coerced.value, updated_at: new Date().toISOString() })
+            .eq("id", cardId);
+        if (updErr) throw new Error(`update_field failed: ${updErr.message}`);
+
+        await supabaseClient.from("cadence_event_log").insert({
+            card_id: cardId, org_id: orgId,
+            event_type: 'entry_rule_field_updated', event_source: 'entry_trigger',
+            event_data: {
+                trigger_id: trigger.id, trigger_name: trigger.name,
+                field_key: fieldKey, storage: 'column',
+                old_value: currentValue, new_value: coerced.value,
+            },
+            action_taken: 'update_field', action_result: { field_key: fieldKey },
+        });
+        return { updated: true, field_key: fieldKey, old_value: currentValue, new_value: coerced.value };
+    }
+
+    // ── Caminho 2: campo dinâmico em produto_data (catálogo system_fields) ────
+    const { data: sf } = await supabaseClient
+        .from('system_fields')
+        .select('type, active')
+        .eq('org_id', orgId)
+        .eq('key', fieldKey)
+        .maybeSingle();
+    if (!sf || (sf as any).active === false) {
+        throw new Error(`update_field: campo "${fieldKey}" não está no catálogo deste workspace`);
+    }
+
+    const coerced = coerceProdutoDataValue((sf as any).type as string, rawValue);
     if (!coerced.ok) {
-        throw new Error(`update_field: ${coerced.error}`);
+        throw new Error(`update_field: ${fieldKey} — ${coerced.error}`);
     }
 
     const { data: card } = await supabaseClient
-        .from("cards")
-        .select(`id, ${fieldKey}`)
-        .eq("id", cardId)
-        .single();
+        .from('cards').select('produto_data').eq('id', cardId).single();
+    if (!card) throw new Error(`Card not found: ${cardId}`);
 
-    if (!card) {
-        throw new Error(`Card not found: ${cardId}`);
-    }
-
-    // Dedup: se já está com o valor, pular
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const currentValue = (card as any)[fieldKey];
-    if (currentValue === coerced.value) {
+    const pd = ((card as any).produto_data || {}) as Record<string, unknown>;
+    const currentValue = pd[fieldKey] ?? null;
+    if (JSON.stringify(currentValue) === JSON.stringify(coerced.value ?? null)) {
         return { skipped: true, reason: 'same_value' };
     }
 
-    const updatePayload: Record<string, unknown> = {
-        [fieldKey]: coerced.value,
-        updated_at: new Date().toISOString(),
-    };
-
     const { error: updErr } = await supabaseClient
-        .from("cards")
-        .update(updatePayload)
-        .eq("id", cardId);
+        .from('cards')
+        .update({ produto_data: { ...pd, [fieldKey]: coerced.value }, updated_at: new Date().toISOString() })
+        .eq('id', cardId);
+    if (updErr) throw new Error(`update_field (produto_data) failed: ${updErr.message}`);
 
-    if (updErr) {
-        throw new Error(`update_field failed: ${updErr.message}`);
+    await supabaseClient.from('cadence_event_log').insert({
+        card_id: cardId, org_id: orgId,
+        event_type: 'entry_rule_field_updated', event_source: 'entry_trigger',
+        event_data: {
+            trigger_id: trigger.id, trigger_name: trigger.name,
+            field_key: fieldKey, storage: 'produto_data',
+            old_value: currentValue, new_value: coerced.value,
+        },
+        action_taken: 'update_field', action_result: { field_key: fieldKey },
+    });
+    return { updated: true, field_key: fieldKey, old_value: currentValue, new_value: coerced.value };
+}
+
+// Atualiza um campo do CONTATO principal do card (whitelist própria).
+async function executeUpdateContactFieldAction(
+    supabaseClient: SupabaseClient,
+    cardId: string,
+    trigger: any,
+    orgId: string,
+    eventData?: Record<string, any>
+) {
+    const config = trigger.action_config || {};
+    const fieldKey: string | undefined = config.field_key;
+    let rawValue: unknown = config.value;
+
+    if (!fieldKey) {
+        return { skipped: true, reason: 'no_field_key' };
+    }
+    if (!CONTACT_UPDATE_FIELD_WHITELIST[fieldKey]) {
+        throw new Error(`update_contact_field: campo não permitido "${fieldKey}"`);
     }
 
-    await supabaseClient.from("cadence_event_log").insert({
+    const contato = await resolveCardContact(supabaseClient, cardId);
+    if (!contato?.id) {
+        return { skipped: true, reason: 'no_contact' };
+    }
+
+    // Renderiza variáveis ({{contact.nome}}, {{card.titulo}}, ...) se string
+    if (typeof rawValue === 'string') {
+        const { data: card } = await supabaseClient
+            .from('cards')
+            .select('titulo, produto_data, briefing_inicial')
+            .eq('id', cardId)
+            .maybeSingle();
+        rawValue = renderTriggerVars(rawValue, eventData, { nome: contato.nome }, card as any);
+    }
+    const newValue = rawValue === '' ? null : String(rawValue);
+
+    // Lê valor atual pra dedup
+    const { data: current } = await supabaseClient
+        .from('contatos')
+        .select(`id, ${fieldKey}`)
+        .eq('id', contato.id)
+        .maybeSingle();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const currentValue = (current as any)?.[fieldKey] ?? null;
+    if (currentValue === newValue) {
+        return { skipped: true, reason: 'same_value' };
+    }
+
+    const { error: updErr } = await supabaseClient
+        .from('contatos')
+        .update({ [fieldKey]: newValue, updated_at: new Date().toISOString() })
+        .eq('id', contato.id);
+    if (updErr) {
+        throw new Error(`update_contact_field failed: ${updErr.message}`);
+    }
+
+    await supabaseClient.from('cadence_event_log').insert({
         card_id: cardId,
         org_id: orgId,
-        event_type: 'entry_rule_field_updated',
+        event_type: 'entry_rule_contact_field_updated',
         event_source: 'entry_trigger',
         event_data: {
             trigger_id: trigger.id,
             trigger_name: trigger.name,
+            contato_id: contato.id,
             field_key: fieldKey,
             old_value: currentValue,
-            new_value: coerced.value
+            new_value: newValue,
         },
-        action_taken: 'update_field',
-        action_result: { field_key: fieldKey }
+        action_taken: 'update_contact_field',
+        action_result: { field_key: fieldKey },
     });
 
-    return { updated: true, field_key: fieldKey, old_value: currentValue, new_value: coerced.value };
+    return { updated: true, field_key: fieldKey, old_value: currentValue, new_value: newValue };
+}
+
+// Atribui uma pessoa fixa a um dos papéis de dono do card.
+// O card tem vários donos: dono atual (responsável ativo), SDR, Planner (TP) e
+// Pós-venda. role escolhe a coluna; user_id é a pessoa. only_if_empty (default
+// true): só atribui se aquele papel estiver vazio. Setar dono_atual_id dispara o
+// trigger de notificação de atribuição já existente.
+const OWNER_ROLE_COLUMN: Record<string, string> = {
+    sdr: 'sdr_owner_id',
+    planner: 'vendas_owner_id',
+    pos: 'pos_owner_id',
+    concierge: 'concierge_owner_id',
+};
+
+async function executeAssignOwnerAction(
+    supabaseClient: SupabaseClient,
+    cardId: string,
+    trigger: any,
+    orgId: string
+) {
+    const config = trigger.action_config || {};
+    const role: string = config.role || 'sdr';
+    const userId: string | null = config.user_id || null;
+    const onlyIfEmpty: boolean = config.only_if_empty !== false;
+
+    const column = OWNER_ROLE_COLUMN[role];
+    if (!column) throw new Error(`assign_owner: papel desconhecido "${role}"`);
+    if (!userId) return { skipped: true, reason: 'no_user' };
+
+    const { data: cardRow } = await supabaseClient
+        .from('cards').select(`id, ${column}`).eq('id', cardId).single();
+    if (!cardRow) throw new Error(`Card not found: ${cardId}`);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const currentOwner: string | null = (cardRow as any)[column] ?? null;
+    if (onlyIfEmpty && currentOwner) {
+        return { skipped: true, reason: 'role_already_set', role };
+    }
+    if (currentOwner === userId) {
+        return { skipped: true, reason: 'same_owner', role };
+    }
+
+    const { error: updErr } = await supabaseClient
+        .from('cards')
+        .update({ [column]: userId, updated_at: new Date().toISOString() })
+        .eq('id', cardId);
+    if (updErr) throw new Error(`assign_owner failed: ${updErr.message}`);
+
+    await supabaseClient.from('cadence_event_log').insert({
+        card_id: cardId, org_id: orgId,
+        event_type: 'entry_rule_owner_assigned', event_source: 'entry_trigger',
+        event_data: {
+            trigger_id: trigger.id, trigger_name: trigger.name,
+            role, column, old_owner: currentOwner, new_owner: userId,
+        },
+        action_taken: 'assign_owner', action_result: { role, new_owner: userId },
+    });
+
+    return { assigned: true, role, old_owner: currentOwner, new_owner: userId };
+}
+
+// Envia e-mail via edge function `send-email` (Resend). Destinatário = email do
+// contato principal do card. Assunto/corpo suportam variáveis do card/contato.
+async function executeSendEmailAction(
+    supabaseClient: SupabaseClient,
+    cardId: string,
+    trigger: any,
+    orgId: string,
+    eventData?: Record<string, any>
+) {
+    const config = trigger.action_config || {};
+    const subjectRaw: string | undefined = config.subject;
+    const corpoRaw: string | undefined = config.corpo;
+
+    if (!subjectRaw || !corpoRaw) {
+        return { skipped: true, reason: 'missing_subject_or_body' };
+    }
+
+    const contato = await resolveCardContact(supabaseClient, cardId);
+    // resolveCardContact não traz email — buscar direto
+    let email: string | null = null;
+    let nome: string | null = contato?.nome ?? null;
+    if (contato?.id) {
+        const { data: c } = await supabaseClient
+            .from('contatos').select('email, nome').eq('id', contato.id).maybeSingle();
+        email = (c as any)?.email ?? null;
+        nome = nome ?? (c as any)?.nome ?? null;
+    }
+    if (!email) {
+        await supabaseClient.from('cadence_event_log').insert({
+            card_id: cardId, org_id: orgId,
+            event_type: 'entry_rule_email_skipped', event_source: 'entry_trigger',
+            event_data: { trigger_id: trigger.id, reason: 'no_contact_email' },
+            action_taken: 'send_email', action_result: 'skipped',
+        });
+        return { skipped: true, reason: 'no_contact_email' };
+    }
+
+    const { data: card } = await supabaseClient
+        .from('cards').select('titulo, produto_data, briefing_inicial').eq('id', cardId).maybeSingle();
+    const subject = renderTriggerVars(subjectRaw, eventData, { nome }, card as any);
+    const html = renderTriggerVars(corpoRaw, eventData, { nome }, card as any);
+
+    const fnUrl = `${Deno.env.get('SUPABASE_URL') ?? ''}/functions/v1/send-email`;
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const resp = await fetch(fnUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceKey}` },
+        body: JSON.stringify({ to: email, subject, html, org_id: orgId }),
+    });
+    const result = await resp.json().catch(() => ({}));
+    // send-email já loga em email_log. Se RESEND_API_KEY ausente, volta dry_run.
+    const ok = resp.ok;
+
+    await supabaseClient.from('cadence_event_log').insert({
+        card_id: cardId, org_id: orgId,
+        event_type: ok ? 'entry_rule_email_sent' : 'entry_rule_email_failed',
+        event_source: 'entry_trigger',
+        event_data: {
+            trigger_id: trigger.id, trigger_name: trigger.name,
+            to: email, subject, dry_run: !!result?.dry_run,
+        },
+        action_taken: 'send_email',
+        action_result: ok ? (result?.dry_run ? 'dry_run' : 'sent') : (result?.error || 'failed'),
+    });
+
+    if (!ok) {
+        throw new Error(`send_email failed: ${result?.error || resp.status}`);
+    }
+    return { sent: true, to: email, dry_run: !!result?.dry_run };
 }
 
 async function executeTriggerN8nWebhookAction(
@@ -2400,7 +2723,20 @@ async function executeStep(supabaseClient: SupabaseClient, queueItem: any) {
             return await executeCardActionStep(supabaseClient, instance, step, card);
 
         default:
-            throw new Error(`Unknown step type: ${step.step_type}`);
+            // Tipo de passo desconhecido (ex: schema novo + engine ainda não
+            // atualizado). Não trava a instância: loga e avança como no-op.
+            console.warn(`[CadenceEngine] Unknown step type '${step.step_type}' — no-op + advance`);
+            await logEvent(supabaseClient, {
+                instance_id: instance.id,
+                card_id: card.id,
+                event_type: 'unknown_step_type',
+                event_source: 'cadence_engine',
+                event_data: { step_key: step.step_key, step_type: step.step_type },
+                action_taken: 'skip',
+                action_result: 'noop'
+            });
+            await advanceLinearStep(supabaseClient, instance, step);
+            return { skipped: true, reason: 'unknown_step_type' };
     }
 }
 
@@ -2678,6 +3014,22 @@ async function executeTaskStep(
         if (atdError) {
             console.error(`[CadenceEngine] Falha ao criar atendimento_concierge:`, atdError);
             // Não falha a tarefa — só loga. Tarefa já está criada e funcionará normalmente.
+            // Mas registra trilha em cadence_event_log para não quebrar concierge em silêncio.
+            await logEvent(supabaseClient, {
+                instance_id: instance.id,
+                card_id: card.id,
+                event_type: 'concierge_failed',
+                event_source: 'cadence_engine',
+                event_data: {
+                    step_key: step.step_key,
+                    task_id: task.id,
+                    tipo_concierge: step.tipo_concierge,
+                    categoria_concierge: step.categoria_concierge,
+                    error: atdError.message ?? String(atdError)
+                },
+                action_taken: 'create_concierge',
+                action_result: 'concierge_failed'
+            });
         }
     }
 
@@ -3495,6 +3847,15 @@ async function executeCardActionStep(
             case 'update_field':
                 actionResult = await executeUpdateFieldAction(supabaseClient, card.id, virtualTrigger, orgId);
                 break;
+            case 'update_contact_field':
+                actionResult = await executeUpdateContactFieldAction(supabaseClient, card.id, virtualTrigger, orgId);
+                break;
+            case 'assign_owner':
+                actionResult = await executeAssignOwnerAction(supabaseClient, card.id, virtualTrigger, orgId);
+                break;
+            case 'send_email':
+                actionResult = await executeSendEmailAction(supabaseClient, card.id, virtualTrigger, orgId);
+                break;
             case 'notify_internal':
                 actionResult = await executeNotifyInternalAction(supabaseClient, card.id, virtualTrigger, orgId);
                 break;
@@ -3876,6 +4237,17 @@ async function handleTaskOutcome(supabaseClient: SupabaseClient, body: any) {
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // Persistir o último outcome no context da instância ANTES de avançar.
+    // O nó Decisão (executeBranchStep → evaluateCondition) com condition_type
+    // 'task_outcome' lê instance.context.last_outcome; sem isso a condição
+    // sempre resolvia false. Gravar aqui cobre os dois modos (blocks e linear),
+    // pois o passo de Decisão seguinte recarrega a instância do banco.
+    const mergedContext = { ...(instance.context || {}), last_outcome: outcome };
+    await supabaseClient.from("cadence_instances")
+        .update({ context: mergedContext })
+        .eq("id", instanceId);
+    instance.context = mergedContext;
+
     const executionMode = instance.template?.execution_mode || 'linear';
 
     // =========================================================================
@@ -4048,13 +4420,23 @@ async function scheduleNextStep(
         return;
     }
 
-    const scheduledAt = executeAt || addMinutes(new Date(), delayMinutes);
+    let scheduledAt = executeAt || addMinutes(new Date(), delayMinutes);
+
+    // time_of_day_minutes: passo deve rodar numa hora-do-dia fixa (minutos desde
+    // 00:00 em horário de Brasília, ex: 540 = 09:00). Ancora execute_at nessa
+    // hora; se já passou hoje, rola para o próximo dia permitido.
+    if (step.time_of_day_minutes != null) {
+        scheduledAt = anchorToTimeOfDay(scheduledAt, step.time_of_day_minutes, instance.template);
+    }
 
     await supabaseClient.from("cadence_queue").insert({
         instance_id: instance.id,
         step_id: step.id,
         execute_at: scheduledAt.toISOString(),
-        priority: 5
+        priority: 5,
+        // Defensivo: trigger auto_set_cadence_queue_org_id força = instance.org_id;
+        // setar aqui evita round-trip de UPDATE quando a instância já traz org_id.
+        org_id: instance.org_id
     });
 
     console.log(`[CadenceEngine] Scheduled step ${stepKey} for ${scheduledAt.toISOString()}`);
@@ -4146,6 +4528,30 @@ function isAllowedWeekday(date: Date, allowedWeekdays: number[]): boolean {
     const jsDay = date.getDay();
     const ourDay = jsDay === 0 ? 7 : jsDay; // Converter 0 (Dom) para 7
     return allowedWeekdays.includes(ourDay);
+}
+
+// Ancora uma data UTC numa hora-do-dia fixa (minutesOfDay = minutos desde 00:00
+// em horário de Brasília). Se o horário-alvo já passou em relação a fromDate,
+// rola para o dia seguinte. Respeita allowed_weekdays do template.
+function anchorToTimeOfDay(fromDate: Date, minutesOfDay: number, template?: any): Date {
+    const allowedWeekdays = template?.allowed_weekdays ?? [1, 2, 3, 4, 5];
+    const hours = Math.floor(minutesOfDay / 60);
+    const mins = minutesOfDay % 60;
+
+    const local = utcToZonedTime(fromDate, TIMEZONE);
+    let result = setSeconds(setMinutes(setHours(local, hours), mins), 0);
+
+    // Se o horário-alvo de hoje já passou, vai pro próximo dia
+    if (isBefore(result, local)) {
+        result = setSeconds(setMinutes(setHours(addDays(local, 1), hours), mins), 0);
+    }
+
+    // Respeitar dias permitidos
+    while (!isAllowedWeekday(result, allowedWeekdays)) {
+        result = addDays(result, 1);
+    }
+
+    return zonedTimeToUtc(result, TIMEZONE);
 }
 
 function calculateBusinessTime(

@@ -14,7 +14,7 @@ import type { NodeCategory, NodeTypeMeta } from '../types'
 import { EchoBadge } from '@/components/automations/EchoBadge'
 
 const CATEGORY_ORDER: NodeCategory[] = [
-    'trigger', 'echo', 'card', 'flow', 'integration',
+    'trigger', 'echo', 'message', 'card', 'flow', 'integration',
 ]
 
 const resolveIcon = (name: string): LucideIcon => {

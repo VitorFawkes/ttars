@@ -135,6 +135,27 @@ export function summarizeConfig(
             const vs = v === null || v === undefined || v === '' ? '(vazio)' : truncate(String(v), 16)
             return `${f} = ${vs}`
         }
+        case 'action.update_contact_field': {
+            const f = config.field_key as string | undefined
+            const v = config.value
+            if (!f) return null
+            const vs = v === null || v === undefined || v === '' ? '(vazio)' : truncate(String(v), 16)
+            return `contato.${f} = ${vs}`
+        }
+        case 'action.send_email': {
+            const subject = config.subject as string | undefined
+            return subject ? `✉ ${truncate(subject, 30)}` : 'E-mail (sem assunto)'
+        }
+        case 'action.assign_owner': {
+            const u = config.user_id as string | undefined
+            const role = (config.role as string) || 'sdr'
+            const roleLabel = role === 'planner' ? 'Planner'
+                : role === 'pos' ? 'Pós'
+                : role === 'concierge' ? 'Concierge'
+                : 'SDR'
+            if (!u) return `${roleLabel}: (pessoa não escolhida)`
+            return `${roleLabel} → ${resolveOr(labels, 'userById', u, '...')}`
+        }
         case 'action.notify_internal': {
             const mode = (config.recipient_mode as string) || 'card_owner'
             const title = config.title as string | undefined

@@ -14,6 +14,7 @@ import { useCardTags } from '@/hooks/useCardTags'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { useProductContext } from '@/hooks/useProductContext'
 import { useUsers } from '@/hooks/useUsers'
+import { useUpdatableCardFields } from '@/hooks/useUpdatableCardFields'
 import { useWorkflowStore } from '../store/useWorkflowStore'
 import { OUTCOME_LABELS } from '@/components/tasks/taskTypeConfig'
 
@@ -38,15 +39,13 @@ const PRIORITIES = [
     { value: 'low',    label: 'Baixa' },
 ]
 
-const FIELD_WHITELIST = [
-    { value: 'status_comercial',    label: 'Status comercial' },
-    { value: 'prioridade',          label: 'Prioridade' },
-    { value: 'valor_estimado',      label: 'Valor estimado' },
-    { value: 'valor_final',         label: 'Valor final' },
-    { value: 'condicoes_pagamento', label: 'Condições de pagamento' },
-    { value: 'data_viagem_inicio',  label: 'Data de início da viagem' },
-    { value: 'data_viagem_fim',     label: 'Data de fim da viagem' },
-    { value: 'destino',             label: 'Destino' },
+// Campos do CONTATO que a automação pode atualizar. Whitelist separada da do
+// card — o motor (executeUpdateContactFieldAction) valida contra esta mesma lista.
+const CONTACT_FIELD_WHITELIST = [
+    { value: 'email',     label: 'E-mail' },
+    { value: 'telefone',  label: 'Telefone' },
+    { value: 'nome',      label: 'Nome' },
+    { value: 'sobrenome', label: 'Sobrenome' },
 ]
 
 // ─── create_task ─────────────────────────────────────────────────────────────
@@ -215,28 +214,101 @@ export const CardTagEditor: React.FC<ConfigEditorProps> = ({ config, onChange })
 }
 
 // ─── update_field ────────────────────────────────────────────────────────────
+//
+// Lista TODOS os campos do card atualizáveis (catálogo system_fields do produto),
+// não mais uma whitelist curta fixa. O motor grava na coluna nativa ou em
+// produto_data conforme a regra em src/lib/automationCardFields.ts.
+const SEM_SECAO = 'Outros'
+
+const optionLabel = (o: unknown): { value: string; label: string } => {
+    if (typeof o === 'string') return { value: o, label: o }
+    const obj = (o ?? {}) as Record<string, unknown>
+    const value = String(obj.value ?? obj.key ?? '')
+    return { value, label: String(obj.label ?? obj.value ?? value) }
+}
+
 export const UpdateFieldEditor: React.FC<ConfigEditorProps> = ({ config, onChange }) => {
     const set = (patch: Record<string, unknown>) => onChange({ ...config, ...patch })
+    const { data: fields = [], isLoading } = useUpdatableCardFields()
+
+    const selected = fields.find((f) => f.key === (config.field_key as string))
+    const fieldType = selected?.type
+    const selectOptions = Array.isArray(selected?.options)
+        ? (selected!.options as unknown[]).map(optionLabel)
+        : []
+
+    // Passo 1: seção. Passo 2: campo dentro da seção. Evita um dropdown único
+    // gigante com "campo · seção" concatenado (UX ruim).
+    const sectionOf = (s: string | null) => s || SEM_SECAO
+    // Nome de exibição já resolvido no hook (igual ao card; fallback amigável p/
+    // chaves legadas sem linha em `sections`).
+    const labelBySectionKey = new Map(fields.map((f) => [sectionOf(f.section), f.sectionLabel]))
+    const sectionDisplay = (key: string) => labelBySectionKey.get(key) || key
+    const sections = Array.from(new Set(fields.map((f) => sectionOf(f.section))))
+        .sort((a, b) => sectionDisplay(a).localeCompare(sectionDisplay(b)))
+    const [section, setSection] = React.useState<string>(() => sectionOf(selected?.section ?? null))
+    // Ao abrir um nó já configurado, os campos chegam async — sincroniza a seção
+    // com a do campo selecionado quando ele resolve. Não dispara em troca manual
+    // de seção (que limpa field_key → selected fica undefined).
+    React.useEffect(() => {
+        if (selected) setSection(sectionOf(selected.section ?? null))
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selected?.key])
+    const fieldsInSection = fields.filter((f) => sectionOf(f.section) === section)
+
     return (
         <div className="space-y-3">
+            <div className="space-y-2">
+                <Label className="text-xs">Seção</Label>
+                <CustomSelect
+                    value={section}
+                    onChange={(v) => { setSection(v); set({ field_key: null, value: '' }) }}
+                    options={[
+                        ...(sections.length === 0 ? [{ value: section, label: isLoading ? 'Carregando...' : 'Sem campos' }] : []),
+                        ...sections.map((s) => ({ value: s, label: sectionDisplay(s) })),
+                    ]}
+                />
+            </div>
             <div className="space-y-2">
                 <Label className="text-xs">Campo</Label>
                 <CustomSelect
                     value={(config.field_key as string) || ''}
-                    onChange={(v) => set({ field_key: v || null })}
+                    onChange={(v) => set({ field_key: v || null, value: '' })}
                     options={[
                         { value: '', label: 'Selecionar campo...' },
-                        ...FIELD_WHITELIST,
+                        ...fieldsInSection.map((f) => ({ value: f.key, label: f.label })),
                     ]}
                 />
             </div>
             <div className="space-y-2">
                 <Label className="text-xs">Novo valor</Label>
-                <Input
-                    value={(config.value as string) ?? ''}
-                    onChange={(e) => set({ value: e.target.value })}
-                    placeholder="Ex: ganho"
-                />
+                {fieldType === 'boolean' ? (
+                    <CustomSelect
+                        value={String(config.value ?? '')}
+                        onChange={(v) => set({ value: v })}
+                        options={[
+                            { value: '', label: 'Selecionar...' },
+                            { value: 'true', label: 'Sim' },
+                            { value: 'false', label: 'Não' },
+                        ]}
+                    />
+                ) : (fieldType === 'select' && selectOptions.length > 0) ? (
+                    <CustomSelect
+                        value={(config.value as string) ?? ''}
+                        onChange={(v) => set({ value: v })}
+                        options={[{ value: '', label: 'Selecionar...' }, ...selectOptions]}
+                    />
+                ) : (
+                    <Input
+                        value={(config.value as string) ?? ''}
+                        onChange={(e) => set({ value: e.target.value })}
+                        placeholder={fieldType === 'number' || fieldType === 'currency' ? 'Ex: 1500' : fieldType === 'date' ? 'AAAA-MM-DD' : 'Valor'}
+                    />
+                )}
+                <p className="text-[11px] text-slate-500">
+                    Suporta {`{{contact.nome}}`}, {`{{card.titulo}}`}. Campos de sistema (datas
+                    automáticas, dono, FKs) não aparecem aqui — não são editáveis por automação.
+                </p>
             </div>
         </div>
     )
@@ -390,6 +462,156 @@ export const N8nWebhookEditor: React.FC<ConfigEditorProps> = ({ config, onChange
             </div>
             <p className="text-xs text-slate-500">
                 Faz POST com payload <code className="bg-slate-100 px-1 rounded">{`{ card, contact }`}</code>.
+            </p>
+        </div>
+    )
+}
+
+// ─── update_contact_field ────────────────────────────────────────────────────
+export const UpdateContactFieldEditor: React.FC<ConfigEditorProps> = ({ config, onChange }) => {
+    const set = (patch: Record<string, unknown>) => onChange({ ...config, ...patch })
+    return (
+        <div className="space-y-3">
+            <div className="space-y-2">
+                <Label className="text-xs">Campo do contato</Label>
+                <CustomSelect
+                    value={(config.field_key as string) || ''}
+                    onChange={(v) => set({ field_key: v || null })}
+                    options={[
+                        { value: '', label: 'Selecionar campo...' },
+                        ...CONTACT_FIELD_WHITELIST,
+                    ]}
+                />
+            </div>
+            <div className="space-y-2">
+                <Label className="text-xs">Novo valor</Label>
+                <Input
+                    value={(config.value as string) ?? ''}
+                    onChange={(e) => set({ value: e.target.value })}
+                    placeholder="Ex: novo@email.com"
+                />
+                <p className="text-[11px] text-slate-500">
+                    Atualiza o contato principal do card. Suporta {`{{contact.nome}}`}, {`{{card.titulo}}`}.
+                </p>
+            </div>
+        </div>
+    )
+}
+
+// ─── send_email ──────────────────────────────────────────────────────────────
+//
+// Envia e-mail via edge function `send-email` (Resend). Modo texto/HTML livre.
+// O destinatário é resolvido em runtime: contato.email do card.
+export const SendEmailEditor: React.FC<ConfigEditorProps> = ({ config, onChange }) => {
+    const set = (patch: Record<string, unknown>) => onChange({ ...config, ...patch })
+    const subject = (config.subject as string) || ''
+    const corpo = (config.corpo as string) || ''
+    return (
+        <div className="space-y-3">
+            {/* Modo teste: sem chave de envio (Resend) configurada, e-mails não
+                saem de verdade — a automação registra como "teste" (dry-run). */}
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                <span className="font-medium">Envio em modo teste.</span> Ainda não há chave de
+                envio (Resend) configurada — os e-mails não saem de verdade, mas o fluxo registra
+                o disparo. Assim que a chave for ativada, passam a ser enviados normalmente.
+            </div>
+
+            <div className="space-y-2">
+                <Label className="text-xs">Assunto</Label>
+                <Input
+                    value={subject}
+                    onChange={(e) => set({ subject: e.target.value })}
+                    placeholder="Ex: Sua viagem para {{card.destino}}"
+                />
+            </div>
+            <div className="space-y-2">
+                <Label className="text-xs">Corpo do e-mail</Label>
+                <Textarea
+                    value={corpo}
+                    onChange={(e) => set({ corpo: e.target.value })}
+                    rows={6}
+                    placeholder={'Olá {{contact.nome}},\n\nTudo certo com sua viagem...'}
+                />
+                <p className="text-[11px] text-slate-500">
+                    Aceita HTML simples. Suporta {`{{contact.nome}}`}, {`{{card.titulo}}`}, {`{{now}}`}.
+                    O destinatário é o e-mail do contato principal do card.
+                </p>
+            </div>
+
+            {/* Prévia do e-mail */}
+            <div className="space-y-1.5">
+                <Label className="text-xs">Prévia</Label>
+                <div className="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
+                    <div className="border-b border-slate-100 bg-slate-50 px-3 py-2">
+                        <div className="text-[10px] uppercase tracking-wide text-slate-400">Assunto</div>
+                        <div className="text-sm font-medium text-slate-900">
+                            {subject || <span className="text-slate-400 font-normal italic">(sem assunto)</span>}
+                        </div>
+                    </div>
+                    <div className="px-3 py-2.5 text-sm text-slate-700 max-h-48 overflow-auto">
+                        {corpo
+                            ? <div style={{ whiteSpace: 'pre-wrap' }} dangerouslySetInnerHTML={{ __html: corpo }} />
+                            : <span className="text-slate-400 italic">(corpo vazio)</span>}
+                    </div>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                    Variáveis como {`{{contact.nome}}`} aparecem como texto aqui e são preenchidas no envio.
+                </p>
+            </div>
+        </div>
+    )
+}
+
+// ─── assign_owner ──────────────────────────────────────────────────────────────
+//
+// Define um dono fixo do card. O card tem vários donos por papel — SDR, Planner,
+// Pós e Concierge. O nó escolhe QUAL papel preencher e com QUEM.
+const OWNER_ROLES = [
+    { value: 'sdr',       label: 'SDR' },
+    { value: 'planner',   label: 'Planner' },
+    { value: 'pos',       label: 'Pós' },
+    { value: 'concierge', label: 'Concierge' },
+] as const
+
+export const AssignOwnerEditor: React.FC<ConfigEditorProps> = ({ config, onChange }) => {
+    const set = (patch: Record<string, unknown>) => onChange({ ...config, ...patch })
+    const { users } = useUsers()
+    const role = (config.role as string) || 'sdr'
+    const onlyIfEmpty = config.only_if_empty !== false // default: true
+    const userOptions = (users || [])
+        .filter((u) => u.active)
+        .map((u) => ({ value: u.id, label: u.nome || u.email }))
+
+    return (
+        <div className="space-y-3">
+            <div className="space-y-2">
+                <Label className="text-xs">Qual dono</Label>
+                <CustomSelect
+                    value={role}
+                    onChange={(v) => set({ role: v })}
+                    options={[...OWNER_ROLES]}
+                />
+            </div>
+            <div className="space-y-2">
+                <Label className="text-xs">Pessoa</Label>
+                <CustomSelect
+                    value={(config.user_id as string) || ''}
+                    onChange={(v) => set({ user_id: v || null })}
+                    options={[{ value: '', label: 'Selecionar...' }, ...userOptions]}
+                />
+            </div>
+
+            <label className="flex items-center gap-2 cursor-pointer pt-1">
+                <input
+                    type="checkbox"
+                    checked={onlyIfEmpty}
+                    onChange={(e) => set({ only_if_empty: e.target.checked })}
+                    className="w-4 h-4"
+                />
+                <span className="text-sm">Só atribuir se esse papel estiver vazio</span>
+            </label>
+            <p className="text-[11px] text-slate-500 -mt-1 ml-6">
+                Desmarque para sobrescrever mesmo se já houver alguém nesse papel.
             </p>
         </div>
     )

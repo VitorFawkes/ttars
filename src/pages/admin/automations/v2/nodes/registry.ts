@@ -45,6 +45,10 @@ export const NODE_REGISTRY: NodeTypeMeta[] = [
       label: 'Remover tag do card',   description: 'Remove uma tag do card' },
     { type: 'action.update_field',    category: 'card', iconName: 'Edit',    isTrigger: false,
       label: 'Atualizar campo',       description: 'Atualiza um campo do card (whitelist)' },
+    { type: 'action.update_contact_field', category: 'card', iconName: 'UserCog', isTrigger: false,
+      label: 'Atualizar campo do contato', description: 'Atualiza um campo do contato do card (e-mail, telefone, nome)' },
+    { type: 'action.assign_owner', category: 'card', iconName: 'UserPlus', isTrigger: false,
+      label: 'Atribuir dono',     description: 'Define o dono do card: rodízio justo, menor carga ou pessoa fixa' },
     { type: 'action.notify_internal', category: 'card', iconName: 'Bell',    isTrigger: false,
       label: 'Notificar time',        description: 'Cria notificação interna pra alguém do time' },
 
@@ -70,17 +74,16 @@ export const NODE_REGISTRY: NodeTypeMeta[] = [
     { type: 'action.echo_remove_co_owner', category: 'echo', iconName: 'Users',     isTrigger: false,
       label: 'Remover co-owner',           description: 'Remove um co-proprietário da conversa' },
 
+    // ─── E-mail (canal próprio, fora do Echo) ────────────────────────────────
+    { type: 'action.send_email',   category: 'message', iconName: 'Mail',        isTrigger: false,
+      label: 'Enviar e-mail',      description: 'E-mail via Resend (texto/HTML, com variáveis do card/contato)' },
+
     // ─── Fluxo ───────────────────────────────────────────────────────────────
     { type: 'action.wait',          category: 'flow', iconName: 'Hourglass', isTrigger: false,
       label: 'Esperar',             description: 'Pausa antes do próximo passo (minutos / horas / dias)' },
     { type: 'action.branch',        category: 'flow', iconName: 'GitBranch', isTrigger: false,
       label: 'Decisão (if/else)',   description: 'Bifurca o fluxo conforme uma condição',
       hasMultipleOutputs: true },
-    { type: 'action.end',           category: 'flow', iconName: 'Flag',      isTrigger: false,
-      label: 'Fim',                 description: 'Encerra a cadência (com sucesso / falha / ghosting)',
-      isTerminal: true },
-    { type: 'action.start_cadence', category: 'flow', iconName: 'Layers',    isTrigger: false,
-      label: 'Iniciar sub-cadência',description: 'Dispara outra cadência salva' },
 
     // ─── Integração ──────────────────────────────────────────────────────────
     { type: 'action.trigger_n8n_webhook', category: 'integration', iconName: 'Webhook', isTrigger: false,
@@ -102,7 +105,7 @@ export const NODES_BY_CATEGORY: Record<NodeCategory, NodeTypeMeta[]> = {
 export const CATEGORY_LABEL: Record<NodeCategory, string> = {
     trigger:     'Gatilhos',
     card:        'Ações no card',
-    message:     'Mensagens',  // legado, sem itens — mantido pra evitar breaking type
+    message:     'E-mail',
     echo:        'Echo',
     flow:        'Fluxo',
     integration: 'Integrações',
