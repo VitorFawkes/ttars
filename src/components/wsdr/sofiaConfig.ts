@@ -110,11 +110,15 @@ export const RULE_TYPE_OPTIONS: { value: RuleType; label: string; hint: string; 
   { value: 'bonus', label: 'Bônus', hint: 'Reforça o caso (soma até o teto, não decide sozinho)', color: 'emerald' },
 ]
 // Peso padrão por importância — usado quando o critério ainda não tem weight explícito.
+// Escala calibrada pra somar ~100 quando o casal atende tudo — a nota se lê como
+// "de 0 a 100", igual à da IA quando a pontuação está desligada. Mantém a MESMA lógica
+// determinística da Patricia (soma de pesos), só com uma escala que faz a nota mínima e
+// as faixas baterem com o que é alcançável.
 export const DEFAULT_WEIGHT_BY_IMPORTANCIA: Record<Importancia, number> = {
-  essencial: 10, alta: 5, media: 2, baixa: 1, desqualifica: 0,
+  essencial: 35, alta: 20, media: 12, baixa: 5, desqualifica: 0,
 }
 export const WEIGHT_PRESETS: { label: string; value: number }[] = [
-  { label: 'Leve', value: 1 }, { label: 'Médio', value: 2 }, { label: 'Forte', value: 5 }, { label: 'Alto', value: 10 },
+  { label: 'Leve', value: 5 }, { label: 'Médio', value: 12 }, { label: 'Forte', value: 20 }, { label: 'Essencial', value: 35 },
 ]
 
 // O que a Sofia faz quando o casal NÃO atinge a nota mínima.
@@ -317,9 +321,9 @@ export const CAPABILITY_META: CapabilityMeta[] = [
   { key: 'crm_write', title: 'Registrar no CRM', subtitle: 'Grava o casal e o progresso no funil', description: 'Quando ligado, a Sofia cria o card do casal e atualiza os dados (destino, convidados, orçamento, data) conforme a conversa.', icon: 'Database', color: 'amber', status: 'em_testes' },
   { key: 'calendar', title: 'Marcar reunião', subtitle: 'Usa o calendário do próprio CRM', description: 'A Sofia marca a reunião de verdade no calendário do CRM quando o casal confirma um horário. O card avança sozinho pra "Reunião Agendada". Configure a Wedding Planner e os horários disponíveis.', icon: 'CalendarClock', color: 'sky', status: 'em_testes' },
   { key: 'knowledge', title: 'Base de conhecimento', subtitle: 'Responde dúvidas com as suas FAQs', description: 'A Sofia consulta as perguntas e respostas que você cadastrar antes de responder dúvidas do casal (e não inventa o que não está aqui).', icon: 'BookOpen', color: 'emerald', status: 'em_testes' },
-  { key: 'followup', title: 'Follow-up', subtitle: 'Cria tarefas de retomada', description: 'Quando há interesse mas sem horário marcado, a Sofia agenda uma tarefa de retomar a conversa (dia 1, 3, 7).', icon: 'BellRing', color: 'violet', status: 'em_breve' },
-  { key: 'multimodal', title: 'Áudio, foto e PDF', subtitle: 'Entende mensagens além de texto', description: 'A Sofia transcreve áudios, entende fotos de inspiração e lê PDFs que o casal mandar.', icon: 'Mic', color: 'rose', status: 'em_breve' },
-  { key: 'memory', title: 'Memória e entrega humana', subtitle: 'Lembra da conversa e responde em bolhas', description: 'A Sofia junta mensagens rápidas, lembra o contexto e responde em pequenas bolhas com um delay natural.', icon: 'Sparkles', color: 'indigo', status: 'em_breve' },
+  { key: 'followup', title: 'Follow-up', subtitle: 'Cria tarefas de retomada', description: 'Quando há interesse mas sem horário marcado, a Sofia agenda uma tarefa de retomar a conversa (dia 1, 3, 7).', icon: 'BellRing', color: 'violet', status: 'em_testes' },
+  { key: 'multimodal', title: 'Áudio, foto e PDF', subtitle: 'Entende mensagens além de texto', description: 'A Sofia transcreve áudios, entende fotos de inspiração e lê PDFs que o casal mandar.', icon: 'Mic', color: 'rose', status: 'em_testes' },
+  { key: 'memory', title: 'Memória e entrega humana', subtitle: 'Lembra da conversa e responde em bolhas', description: 'A Sofia junta mensagens rápidas, lembra o contexto e responde em pequenas bolhas com um delay natural.', icon: 'Sparkles', color: 'indigo', status: 'em_testes' },
 ]
 
 export function defaultSofiaConfig(): SofiaConfigV2 {
@@ -361,17 +365,17 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
       ],
       faixas_orcamento: ['R$ 80 a 150 mil', 'R$ 150 a 250 mil', 'R$ 250 a 400 mil', 'R$ 400 mil ou mais'],
       criteria: [
-        { label: 'Tem uma visão do casamento (o que significa pra eles + o estilo: praia, intimista, grande festa)', importancia: 'alta', weight: 5, rule_type: 'qualifier' },
-        { label: 'Tem destino ou região em mente, ou está aberto a explorar (Nordeste, Trancoso, Caribe, Europa…)', importancia: 'alta', weight: 5, rule_type: 'qualifier' },
-        { label: 'Tem ideia do número de convidados, mesmo aproximada', importancia: 'media', weight: 2, rule_type: 'qualifier' },
-        { label: 'Tem orçamento ou faixa de investimento realista pro casal', importancia: 'essencial', weight: 10, rule_type: 'qualifier' },
-        { label: 'Tem data ou época pretendida (o ano já vale)', importancia: 'media', weight: 2, rule_type: 'qualifier' },
+        { label: 'Tem uma visão do casamento (o que significa pra eles + o estilo: praia, intimista, grande festa)', importancia: 'alta', weight: 20, rule_type: 'qualifier' },
+        { label: 'Tem destino ou região em mente, ou está aberto a explorar (Nordeste, Trancoso, Caribe, Europa…)', importancia: 'alta', weight: 20, rule_type: 'qualifier' },
+        { label: 'Tem ideia do número de convidados, mesmo aproximada', importancia: 'media', weight: 12, rule_type: 'qualifier' },
+        { label: 'Tem orçamento ou faixa de investimento realista pro casal', importancia: 'essencial', weight: 35, rule_type: 'qualifier' },
+        { label: 'Tem data ou época pretendida (o ano já vale)', importancia: 'media', weight: 12, rule_type: 'qualifier' },
         { label: 'Só curiosidade, sem intenção real, ou "daqui a muitos anos"', importancia: 'desqualifica', weight: 0, rule_type: 'disqualifier' },
       ],
       gates: {},
       scoring_enabled: false,
-      threshold: 25,
-      bands: { quente: 70, morno: 40 },
+      threshold: 50,
+      bands: { quente: 80, morno: 50 },
       max_bonus_points: 10,
       fallback_action: 'material_informativo',
       discovery_slots: [

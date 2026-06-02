@@ -15,15 +15,16 @@ type Qual = SofiaConfigV2['qualification']
 const ruleOf = (c: QualCriterion): RuleType => c.rule_type ?? (c.importancia === 'desqualifica' ? 'disqualifier' : 'qualifier')
 const weightOf = (c: QualCriterion): number => c.weight ?? DEFAULT_WEIGHT_BY_IMPORTANCIA[c.importancia]
 
-// Aba Pontuação. Os controles (pesos, nota mínima, faixas, bônus) viram ORIENTAÇÃO pro
-// Qualificador-LLM da Sofia + corte determinístico da nota mínima. NÃO é soma mecânica
-// (isso mudaria o cérebro da Camila) — é o julgamento da IA guiado pelos seus números.
+// Aba Pontuação. Mesma lógica determinística da Patricia: a IA julga, critério a critério,
+// se o casal ATENDE ou não; aqui a conta é exata — soma os pesos dos que atende, aplica o
+// teto dos bônus, zera se bater um desqualificador e compara com a nota mínima. O cérebro da
+// Camila (escolher a próxima fala) não muda; só a forma de fechar a NOTA fica numérica.
 export function ScoringEditor({ qual, onChange }: { qual: Qual; onChange: (q: Qual) => void }) {
   const enabled = qual.scoring_enabled ?? false
-  const threshold = qual.threshold ?? 25
+  const threshold = qual.threshold ?? 50
   const maxBonus = qual.max_bonus_points ?? 10
-  const quente = qual.bands?.quente ?? 70
-  const morno = qual.bands?.morno ?? 40
+  const quente = qual.bands?.quente ?? 80
+  const morno = qual.bands?.morno ?? 50
   const fallback = qual.fallback_action ?? 'material_informativo'
   const set = (patch: Partial<Qual>) => onChange({ ...qual, ...patch })
 
@@ -36,6 +37,16 @@ export function ScoringEditor({ qual, onChange }: { qual: Qual; onChange: (q: Qu
     }
   }, [qual.criteria])
 
+  // Nota máxima que o casal consegue alcançar (soma dos pesos que qualificam + teto do bônus).
+  // Serve pra avisar quando a nota mínima ou as faixas ficam acima do que é possível atingir.
+  const maxScore = useMemo(() => {
+    const qSum = buckets.qualify.reduce((s, c) => s + weightOf(c), 0)
+    const bSum = Math.min(buckets.bonus.reduce((s, c) => s + weightOf(c), 0), maxBonus)
+    return Math.min(100, qSum + bSum)
+  }, [buckets, maxBonus])
+  const thresholdTooHigh = threshold > maxScore
+  const quenteUnreachable = quente > maxScore
+
   return (
     <div className="space-y-5">
       {/* Toggle + explicação honesta */}
@@ -43,8 +54,8 @@ export function ScoringEditor({ qual, onChange }: { qual: Qual; onChange: (q: Qu
         <div className="min-w-0">
           <p className="text-sm font-medium text-slate-900">Usar pontuação numérica</p>
           <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-            Ligado: a Sofia considera os pesos abaixo e só marca o casal como <strong>qualificado</strong> a partir da nota mínima.
-            Desligado: ela julga o fit livremente (sem nota mínima fixa). A nota continua sendo um <em>julgamento</em> da IA, guiado pelos seus números, não uma soma de planilha.
+            Ligado: a Sofia <strong>soma os pesos</strong> dos critérios que o casal atende e só marca como <strong>qualificado</strong> a partir da nota mínima — a conta é exata (a mesma lógica da Patricia).
+            Desligado: ela julga o fit livremente, sem nota mínima fixa.
           </p>
         </div>
         <Switch checked={enabled} onCheckedChange={v => set({ scoring_enabled: v })} className={enabled ? 'bg-indigo-600' : ''} />
@@ -52,16 +63,22 @@ export function ScoringEditor({ qual, onChange }: { qual: Qual; onChange: (q: Qu
 
       {enabled && (
         <>
+          {/* Nota máxima alcançável — referência pra calibrar nota mínima e faixas */}
+          <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg bg-indigo-50/60 border border-indigo-100">
+            <span className="text-xs text-slate-600">Com os critérios de hoje, a nota máxima que um casal alcança é</span>
+            <span className="text-sm font-bold text-indigo-700">{maxScore} pontos</span>
+          </div>
+
           {/* Config geral */}
           <div className="grid sm:grid-cols-2 gap-4">
-            <Field label="Nota mínima pra qualificar" hint="A partir dessa nota, o casal é considerado qualificado.">
-              <Input type="number" value={threshold} onChange={e => set({ threshold: Number(e.target.value) })} />
+            <Field label="Nota mínima pra qualificar" hint={thresholdTooHigh ? `⚠️ Acima da nota máxima possível (${maxScore}) — ninguém vai qualificar. Baixe pra ${maxScore} ou menos.` : 'A partir dessa nota, o casal é considerado qualificado.'}>
+              <Input type="number" value={threshold} onChange={e => set({ threshold: Number(e.target.value) })} className={thresholdTooHigh ? 'border-amber-400 focus-visible:ring-amber-400' : ''} />
             </Field>
             <Field label="Teto dos bônus" hint="Quanto os sinais de bônus podem somar juntos, no máximo.">
               <Input type="number" value={maxBonus} onChange={e => set({ max_bonus_points: Number(e.target.value) })} />
             </Field>
-            <Field label="Faixa “quente” a partir de" hint="Nota igual ou acima = casal quente.">
-              <Input type="number" value={quente} onChange={e => set({ bands: { quente: Number(e.target.value), morno } })} />
+            <Field label="Faixa “quente” a partir de" hint={quenteUnreachable ? `⚠️ Acima da nota máxima (${maxScore}) — nenhum casal vai chegar a “quente”.` : 'Nota igual ou acima = casal quente.'}>
+              <Input type="number" value={quente} onChange={e => set({ bands: { quente: Number(e.target.value), morno } })} className={quenteUnreachable ? 'border-amber-400 focus-visible:ring-amber-400' : ''} />
             </Field>
             <Field label="Faixa “morno” a partir de" hint="Entre morno e quente = morno; abaixo = frio.">
               <Input type="number" value={morno} onChange={e => set({ bands: { quente, morno: Number(e.target.value) } })} />

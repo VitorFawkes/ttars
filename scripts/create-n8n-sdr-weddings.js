@@ -297,19 +297,24 @@ const fase_anterior = (est && est.sinais && est.sinais.fase) ? est.sinais.fase :
 // Critérios de qualificação (com importância + peso + tipo). Vazio -> deriva das etapas.
 const crit = arr(qu.criteria);
 const ruleLabel = { qualifier: 'qualifica', disqualifier: 'desqualifica', bonus: 'bônus' };
-const critLine = (c) => {
+const wpadrao = { essencial: 35, alta: 20, media: 12, baixa: 5, desqualifica: 0 };
+const ruleOf = (c) => c.rule_type || (c.importancia === 'desqualifica' ? 'disqualifier' : 'qualifier');
+const weightOf = (c) => (typeof c.weight === 'number') ? c.weight : (wpadrao[c.importancia] != null ? wpadrao[c.importancia] : 2);
+const critLine = (c, i) => {
   const lbl = c.label || c.criterio || c;
-  const rt = c.rule_type || (c.importancia === 'desqualifica' ? 'disqualifier' : 'qualifier');
-  const w = (typeof c.weight === 'number') ? c.weight : null;
-  const meta = [ruleLabel[rt] || 'qualifica', (w != null && rt !== 'disqualifier') ? ('peso ' + w) : null, 'importância: ' + (c.importancia || 'media')].filter(Boolean).join(', ');
-  return '- ' + lbl + ' (' + meta + ')';
+  const rt = ruleOf(c);
+  const meta = [ruleLabel[rt] || 'qualifica', (rt !== 'disqualifier') ? ('peso ' + weightOf(c)) : null].filter(Boolean).join(', ');
+  return (i + 1) + '. ' + lbl + ' (' + meta + ')';
 };
-const criterios_txt = (crit.length ? crit.map(critLine) : arr(etapas).map(e => '- ' + e + ' (qualifica, importância: media)')).join('\\n');
+const criterios_txt = (crit.length ? crit.map(critLine) : arr(etapas).map((e, i) => (i + 1) + '. ' + e + ' (qualifica, peso 2)')).join('\\n');
+// Lista estruturada (indexada) pro cálculo determinístico no Parse Qualifica (igual à Patricia).
+const criterios_json = JSON.stringify((crit.length ? crit : arr(etapas).map(e => ({ label: e, importancia: 'media' })))
+  .map((c, i) => ({ n: i + 1, tipo: ruleOf(c), peso: weightOf(c) })));
 // Pontuação: orientação ao Qualificador-LLM + corte determinístico (aplicado no Parse Qualifica).
 const scoring_enabled = !!qu.scoring_enabled;
-const sc_threshold = (typeof qu.threshold === 'number') ? qu.threshold : 25;
-const sc_quente = (qu.bands && typeof qu.bands.quente === 'number') ? qu.bands.quente : 70;
-const sc_morno = (qu.bands && typeof qu.bands.morno === 'number') ? qu.bands.morno : 40;
+const sc_threshold = (typeof qu.threshold === 'number') ? qu.threshold : 50;
+const sc_quente = (qu.bands && typeof qu.bands.quente === 'number') ? qu.bands.quente : 80;
+const sc_morno = (qu.bands && typeof qu.bands.morno === 'number') ? qu.bands.morno : 50;
 const sc_max_bonus = (typeof qu.max_bonus_points === 'number') ? qu.max_bonus_points : 10;
 // Sondagem: slots com prioridade + perguntas viram o conteúdo de <o_que_entender>.
 const slots = arr(qu.discovery_slots).filter(s => s && s.label);
@@ -375,6 +380,7 @@ return [{ json: {
   resumo_antigo: est.resumo || '',
   contexto_antigo: est.contexto || '',
   criterios_txt: criterios_txt,
+  criterios_json: criterios_json,
   faqs_txt: faqs_txt,
   pricing_txt: pricing_txt,
   glossary_usar: glossary_usar,
@@ -386,6 +392,8 @@ return [{ json: {
   bubbles_enabled: !!(cfg.capabilities && cfg.capabilities.memory && cfg.capabilities.memory.enabled && cfg.capabilities.memory.bubbles_enabled),
   crm_write_enabled: !!(cfg.capabilities && cfg.capabilities.crm_write && cfg.capabilities.crm_write.enabled),
   calendar_enabled: !!(cfg.capabilities && cfg.capabilities.calendar && cfg.capabilities.calendar.enabled),
+  followup_enabled: !!(cfg.capabilities && cfg.capabilities.followup && cfg.capabilities.followup.enabled),
+  followup_days: (cfg.capabilities && cfg.capabilities.followup && Array.isArray(cfg.capabilities.followup.days) && cfg.capabilities.followup.days.length) ? cfg.capabilities.followup.days : [1,3,7],
   kb_enabled: !!(kb && kb.enabled),
   kb_top_k: (kb && typeof kb.top_k === 'number') ? kb.top_k : 4,
 }}];`;
@@ -502,9 +510,9 @@ return [{ json: {
 // Agente 2 — Qualificador INTELIGENTE: nota 0-100 + o que falta + próxima pergunta.
 // LLM com julgamento (não soma de pesos). Lê os critérios+importância editáveis e o
 // estado consolidado, devolve uma SUGESTÃO que o Respondedor pode usar ou ignorar.
-const QUALIFICA_SYSTEM = `Você é o qualificador de leads de casamento da {{ $('Monta').item.json.empresa }}. A partir dos CRITÉRIOS (com a importância de cada um) e do estado consolidado da conversa, julgue o fit do casal e devolva SOMENTE um JSON válido (sem markdown, sem crases):
-{"score": 0-100, "qualificado": true|false, "faixa": "quente"|"morno"|"frio", "breakdown": [{"criterio": "...", "atende": true|false, "nota": "frase curta"}], "falta": ["o que ainda precisa entender"], "proxima_pergunta_sugerida": "uma pergunta aberta e natural, ou '' se ainda não é hora de perguntar"}
-Regras: score é JULGAMENTO (não soma mecânica de pesos). Use os PESOS dos critérios como orientação de quanto cada um importa (peso maior pesa mais na nota), mas julgue o todo, não some mecanicamente. Critérios do tipo "bônus" reforçam o caso até um teto e não decidem sozinhos; critério "desqualifica" presente derruba o score. qualificado=true só com fit real e os essenciais cobertos. faixa: estime quente/morno/frio pela força geral do fit. Baseie-se SÓ no que está no resumo/contexto; não invente. Se o casal hesita ou está emotivo, a proxima_pergunta_sugerida pode ser '' (melhor acolher antes de perguntar).`;
+const QUALIFICA_SYSTEM = `Você é o qualificador de leads de casamento da {{ $('Monta').item.json.empresa }}. Para CADA critério numerado, decida apenas se o casal ATENDE (true) ou não (false), com base SÓ no resumo/contexto (não invente). NÃO calcule a nota final, isso é feito depois. Devolva SOMENTE um JSON válido (sem markdown, sem crases):
+{"avaliacao": [{"n": 1, "atende": true|false, "nota": "frase curta do porquê"}], "score": 0-100, "qualificado": true|false, "faixa": "quente"|"morno"|"frio", "falta": ["o que ainda precisa entender"], "proxima_pergunta_sugerida": "uma pergunta aberta e natural, ou '' se ainda não é hora de perguntar"}
+Avalie um item por critério, pelo número. Os campos score/qualificado/faixa são uma estimativa de apoio (o cálculo oficial usa a sua avaliacao + os pesos). Se o casal hesita ou está emotivo, a proxima_pergunta_sugerida pode ser '' (melhor acolher antes de perguntar).`;
 const QUALIFICA_USER = `Critérios de qualificação (com importância):
 {{ $('Monta').item.json.criterios_txt }}
 
@@ -514,25 +522,36 @@ Estado consolidado:
 - Sinais: {{ JSON.stringify($('Parse Consolida').item.json.sinais || {}) }}
 Última mensagem do casal: {{ $('Monta').item.json.ultima_mensagem_lead }}
 
-Devolva só o JSON {score, qualificado, faixa, breakdown, falta, proxima_pergunta_sugerida}.`;
+Devolva só o JSON {avaliacao, score, qualificado, faixa, falta, proxima_pergunta_sugerida}.`;
 const CODE_PARSE_QUALIFICA = `let t = String($('Qualifica').item.json.output || '').trim();
 t = t.replace(/^\`\`\`(json)?/i,'').replace(/\`\`\`$/,'').trim();
 let r = {};
 try { r = JSON.parse(t); } catch(e) { r = {}; }
 if (typeof r !== 'object' || Array.isArray(r) || !r) r = {};
-let score = Number(r.score);
-if (!isFinite(score)) score = 0;
-score = Math.max(0, Math.min(100, Math.round(score)));
-// Pontuação: quando ligada, a nota mínima e as faixas editáveis valem (corte determinístico).
 const m = $('Monta').first().json;
 const scoring = !!m.scoring_enabled;
-const thr = (typeof m.sc_threshold === 'number') ? m.sc_threshold : 25;
-const qz = (typeof m.sc_quente === 'number') ? m.sc_quente : 70;
-const mz = (typeof m.sc_morno === 'number') ? m.sc_morno : 40;
-const faixa = scoring
-  ? (score >= qz ? 'quente' : score >= mz ? 'morno' : 'frio')
-  : ((typeof r.faixa === 'string') ? r.faixa : (score >= 70 ? 'quente' : score >= 40 ? 'morno' : 'frio'));
-const qualificado = scoring ? (score >= thr) : (r.qualificado === true);
+const thr = (typeof m.sc_threshold === 'number') ? m.sc_threshold : 50;
+const qz = (typeof m.sc_quente === 'number') ? m.sc_quente : 80;
+const mz = (typeof m.sc_morno === 'number') ? m.sc_morno : 50;
+const maxBonus = (typeof m.sc_max_bonus === 'number') ? m.sc_max_bonus : 10;
+let crits = []; try { crits = JSON.parse(m.criterios_json || '[]'); } catch(e) { crits = []; }
+const aval = Array.isArray(r.avaliacao) ? r.avaliacao : [];
+let score, qualificado, faixa;
+if (scoring && crits.length && aval.length) {
+  // CÁLCULO DETERMINÍSTICO (mesma lógica da Patricia): a IA julga atende sim/não por critério,
+  // aqui somamos os pesos exatamente. Bônus com teto; desqualificador zera; corte na nota mínima.
+  const byN = {}; crits.forEach(c => { byN[c.n] = c; });
+  let pts = 0, bonusRaw = 0, dq = false;
+  aval.forEach(a => { if (a && a.atende === true && byN[a.n]) { const c = byN[a.n]; if (c.tipo === 'disqualifier') dq = true; else if (c.tipo === 'bonus') bonusRaw += Number(c.peso) || 0; else pts += Number(c.peso) || 0; } });
+  score = dq ? 0 : Math.max(0, Math.min(100, Math.round(pts + Math.min(bonusRaw, maxBonus))));
+  qualificado = !dq && score >= thr;
+  faixa = score >= qz ? 'quente' : score >= mz ? 'morno' : 'frio';
+} else {
+  // Pontuação desligada (ou sem dados): julgamento livre da IA.
+  score = Number(r.score); if (!isFinite(score)) score = 0; score = Math.max(0, Math.min(100, Math.round(score)));
+  faixa = (typeof r.faixa === 'string') ? r.faixa : (score >= 70 ? 'quente' : score >= 40 ? 'morno' : 'frio');
+  qualificado = r.qualificado === true;
+}
 const falta = Array.isArray(r.falta) ? r.falta.filter(x => typeof x === 'string') : [];
 return [{ json: {
   score,
@@ -696,6 +715,19 @@ function buildWorkflow() {
         options: {},
       },
       credentials: { supabaseApi: SUPABASE_CREDENTIAL } },
+    // --- Ramo de follow-up: cria tarefa de retomada quando há interesse mas sem reunião, gated ---
+    { id: 'followupgate', name: 'Follow-up Gate', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1480, 1000],
+      parameters: { jsCode: `const m = $('Monta').first().json; const q = (() => { try { return $('Parse Qualifica').first().json; } catch(e) { return {}; } })(); return (m.followup_enabled && q && q.qualificado) ? [{ json: m }] : [];` } },
+    { id: 'criafollowup', name: 'Cria Follow-up', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [1680, 1000],
+      parameters: {
+        method: 'POST',
+        url: `${SUPABASE_URL}/rest/v1/rpc/wsdr_create_followup`,
+        authentication: 'predefinedCredentialType', nodeCredentialType: 'supabaseApi',
+        sendBody: true, specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({ p_org_id: $('Monta').first().json.org_id, p_agent_slug: $('Monta').first().json.agent_slug, p_contact_phone: $('Monta').first().json.phone, p_contact_name: $('Monta').first().json.nome, p_days: $('Monta').first().json.followup_days }) }}`,
+        options: {},
+      },
+      credentials: { supabaseApi: SUPABASE_CREDENTIAL } },
   ];
   const connections = {
     'Webhook SDR Weddings': { main: [[{ node: 'Prepara', type: 'main', index: 0 }]] },
@@ -725,7 +757,7 @@ function buildWorkflow() {
     'Formata Bolhas': { main: [[{ node: 'Parse Bolhas', type: 'main', index: 0 }]] },
     'Parse Bolhas': { main: [[{ node: 'Responde Webhook', type: 'main', index: 0 }]] },
     'Bolha Unica': { main: [[{ node: 'Responde Webhook', type: 'main', index: 0 }]] },
-    'Responde Webhook': { main: [[{ node: 'CRM Gate', type: 'main', index: 0 }, { node: 'Agenda Gate', type: 'main', index: 0 }]] },
+    'Responde Webhook': { main: [[{ node: 'CRM Gate', type: 'main', index: 0 }, { node: 'Agenda Gate', type: 'main', index: 0 }, { node: 'Follow-up Gate', type: 'main', index: 0 }]] },
     'CRM Gate': { main: [[{ node: 'Extrai Dados', type: 'main', index: 0 }]] },
     'Modelo Extrai': { ai_languageModel: [[{ node: 'Extrai Dados', type: 'ai_languageModel', index: 0 }]] },
     'Extrai Dados': { main: [[{ node: 'Parse Dados', type: 'main', index: 0 }]] },
@@ -734,6 +766,7 @@ function buildWorkflow() {
     'Modelo Reuniao': { ai_languageModel: [[{ node: 'Extrai Reuniao', type: 'ai_languageModel', index: 0 }]] },
     'Extrai Reuniao': { main: [[{ node: 'Parse Reuniao', type: 'main', index: 0 }]] },
     'Parse Reuniao': { main: [[{ node: 'Marca Reuniao', type: 'main', index: 0 }]] },
+    'Follow-up Gate': { main: [[{ node: 'Cria Follow-up', type: 'main', index: 0 }]] },
   };
   return { name: 'SDR Weddings (novo - isolado)', nodes, connections, settings: { executionOrder: 'v1' } };
 }
