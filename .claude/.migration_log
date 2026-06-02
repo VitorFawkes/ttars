@@ -1143,3 +1143,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-06-02T19:50:18Z | supabase/migrations/20260602i_ww_funil_casal.sql | applied_to_prod
 2026-06-02T19:52:32Z | supabase/migrations/20260602j_refresh_ww_funil_casal.sql | applied_to_prod
 2026-06-02T20:16:57Z | supabase/migrations/20260602k_fix_fez_sdr_reagendamento.sql | applied_to_prod
+2026-06-02T20:30:06Z | supabase/migrations/20260602l_ww_funil_casal_dims.sql | applied_to_prod
+2026-06-02T20:33:12Z | supabase/migrations/20260602m_funil_rpcs_from_casal.sql | applied_to_prod
