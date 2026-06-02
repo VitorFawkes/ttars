@@ -31,7 +31,7 @@ export function SofiaAgentSwitcher({ selectedSlug, onSelect }: Props) {
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3">
+    <div className="inline-flex flex-col w-fit max-w-full bg-white border border-slate-200 rounded-xl shadow-sm p-2">
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs font-medium text-slate-400 px-1">Agente:</span>
         {agents.map(a => {
@@ -56,7 +56,7 @@ export function SofiaAgentSwitcher({ selectedSlug, onSelect }: Props) {
         <div className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3">
           <Input autoFocus value={name} onChange={e => setName(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') handleCreate() }}
-            placeholder="Nome do novo agente (ex: Helena)" className="flex-1" />
+            placeholder="Nome do novo agente (ex: Helena)" className="flex-1 min-w-[240px]" />
           <Button type="button" onClick={handleCreate} disabled={creating || !name.trim()} className="bg-indigo-600 hover:bg-indigo-700 text-white">
             {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Criar a partir da Sofia'}
           </Button>

@@ -210,21 +210,25 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
           <>
             <EditorCard accent="indigo" icon={<User className="w-5 h-5" />} title="Identidade"
               desc="O nome da Sofia, a marca e como ela descreve a empresa durante a conversa.">
-              <Field label="Nome da persona">
-                <Input value={c.identity.persona_nome} onChange={e => update(x => ({ ...x, identity: { ...x.identity, persona_nome: e.target.value } }))} placeholder="ex: Sofia" />
-              </Field>
-              <Field label="Empresa / marca">
-                <Input value={c.identity.empresa} onChange={e => update(x => ({ ...x, identity: { ...x.identity, empresa: e.target.value } }))} placeholder="ex: Welcome Weddings" />
-              </Field>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Field label="Nome da persona">
+                  <Input value={c.identity.persona_nome} onChange={e => update(x => ({ ...x, identity: { ...x.identity, persona_nome: e.target.value } }))} placeholder="ex: Sofia" />
+                </Field>
+                <Field label="Empresa / marca">
+                  <Input value={c.identity.empresa} onChange={e => update(x => ({ ...x, identity: { ...x.identity, empresa: e.target.value } }))} placeholder="ex: Welcome Weddings" />
+                </Field>
+              </div>
               <Field label="Descrição da empresa" hint="A frase que a Sofia usa pra se apresentar e explicar o que vocês fazem. (A primeira mensagem fica na aba 'Como ela conversa'.)">
                 <Textarea value={c.identity.proposta} onChange={e => update(x => ({ ...x, identity: { ...x.identity, proposta: e.target.value } }))} className="min-h-[80px]" />
               </Field>
-              <Field label="Papel dela" hint="Como ela se apresenta na função. Já vem escrito; edite se quiser.">
-                <Input value={c.identity.role ?? ''} onChange={e => update(x => ({ ...x, identity: { ...x.identity, role: e.target.value } }))} placeholder="ex: especialista de casamentos" />
-              </Field>
-              <Field label="Missão em uma frase" hint="O que ela existe pra fazer. Opcional — ajuda a guiar o tom.">
-                <Input value={c.identity.mission_one_liner ?? ''} onChange={e => update(x => ({ ...x, identity: { ...x.identity, mission_one_liner: e.target.value } }))} placeholder="ex: entender o sonho do casal e conectar com a Wedding Planner" />
-              </Field>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Field label="Papel dela" hint="Como ela se apresenta na função. Já vem escrito; edite se quiser.">
+                  <Input value={c.identity.role ?? ''} onChange={e => update(x => ({ ...x, identity: { ...x.identity, role: e.target.value } }))} placeholder="ex: especialista de casamentos" />
+                </Field>
+                <Field label="Missão em uma frase" hint="O que ela existe pra fazer. Opcional — ajuda a guiar o tom.">
+                  <Input value={c.identity.mission_one_liner ?? ''} onChange={e => update(x => ({ ...x, identity: { ...x.identity, mission_one_liner: e.target.value } }))} placeholder="ex: entender o sonho do casal e conectar com a Wedding Planner" />
+                </Field>
+              </div>
             </EditorCard>
 
             <EditorCard accent="violet" icon={<Smile className="w-5 h-5" />} title="Tom de voz" desc="O jeito da Sofia falar com os noivos.">
@@ -383,14 +387,16 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
       </SofiaLayout>
 
       {/* Barra de salvar fixa — único indicador de "não salvo" */}
-      <div className="fixed bottom-0 inset-x-0 z-10 bg-white/90 backdrop-blur border-t border-slate-200">
-        <div className="max-w-4xl mx-auto px-8 py-3 flex items-center justify-between">
+      <div className="fixed bottom-0 inset-x-0 z-10 bg-white/90 backdrop-blur border-t border-slate-200 shadow-[0_-1px_8px_rgba(15,23,42,0.05)]">
+        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-sm">
             {status === 'success' && <span className="flex items-center gap-1.5 text-emerald-700"><CheckCircle className="w-4 h-4" />Salvo</span>}
             {status === 'error' && <span className="flex items-center gap-1.5 text-red-700"><AlertCircle className="w-4 h-4" />{error || 'Erro ao salvar'}</span>}
-            {status !== 'success' && status !== 'error' && dirty && <span className="text-amber-600">• alterações não salvas</span>}
+            {status !== 'success' && status !== 'error' && (dirty
+              ? <span className="flex items-center gap-1.5 text-amber-600"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" />Alterações não salvas</span>
+              : <span className="flex items-center gap-1.5 text-slate-400"><CheckCircle className="w-4 h-4" />Tudo salvo</span>)}
           </div>
-          <Button type="button" onClick={() => handleSave(c)} disabled={status === 'saving' || !dirty} className="bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 active:scale-[0.98] transition-transform">
+          <Button type="button" onClick={() => handleSave(c)} disabled={status === 'saving' || !dirty} className="bg-indigo-600 hover:bg-indigo-700 text-white disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none shadow-sm active:scale-[0.98] transition-transform">
             {status === 'saving' ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</> : 'Salvar configuração'}
           </Button>
         </div>
