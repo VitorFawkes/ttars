@@ -430,7 +430,7 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
         {
           label: 'Destino ou região', importancia: 'alta', kind: 'peso_por_opcao', rule_type: 'qualifier',
           como_perguntar: 'Já têm um lugar em mente, ou estão abertos a explorar?',
-          perguntar_quando: 'sempre', crm_field_key: 'ww_destino', fora_da_lista: 'desqualifica',
+          perguntar_quando: 'sempre', crm_field_key: 'ww_destino', fora_da_lista: 'zero',
           opcoes: [
             { opcao: 'Caribe', pontos: 20 },
             { opcao: 'Nordeste', pontos: 15 },
