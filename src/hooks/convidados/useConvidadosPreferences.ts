@@ -7,6 +7,7 @@ export type ConvidadosModo =
   | 'convidados'
   | 'envios_hoje'
   | 'envio_especifico'
+  | 'disparo'
   | 'casais'
   | 'extras'
 
@@ -55,6 +56,7 @@ function readPrefs(key: string | null): ConvidadosPreferences {
         parsed.modo === 'convidados' ? 'convidados'
         : parsed.modo === 'envios_hoje' ? 'envios_hoje'
         : parsed.modo === 'envio_especifico' ? 'envio_especifico'
+        : parsed.modo === 'disparo' ? 'disparo'
         : parsed.modo === 'casais' ? 'casais'
         : parsed.modo === 'extras' ? 'extras'
         : 'casamentos',

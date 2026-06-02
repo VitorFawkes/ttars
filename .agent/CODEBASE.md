@@ -7,9 +7,9 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-06-02
 > **Trigger:** ALWAYS ON
-> **Stats:** 230 tabelas | 205 paginas | 352 hooks | 28 views | 837 components
-> **Stats:** 230 tabelas | 215 paginas | 383 hooks | 28 views | 877 components
-> **Stats:** 230 tabelas | 215 paginas | 383 hooks | 28 views | 877 components
+> **Stats:** 210 tabelas | 205 paginas | 355 hooks | 23 views | 844 components
+> **Stats:** 210 tabelas | 205 paginas | 355 hooks | 23 views | 844 components
+> **Stats:** 210 tabelas | 205 paginas | 355 hooks | 23 views | 844 components
 
 ---
 
@@ -171,8 +171,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **352 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
-> **383 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **355 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -274,6 +273,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `mockHotel()` | `mockHotel.ts` |
 | `types()` | `types.ts` |
 | `types()` | `types.ts` |
+| `types()` | `types.ts` |
 | `useACBaseUrl()` | `useACBaseUrl.ts` |
 | `useAgentBoundaries()` | `useAgentBoundaries.ts` |
 | `useAgentBoundaries()` | `useAgentBoundaries.ts` |
@@ -341,6 +341,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useCurrentProductMeta()` | `useCurrentProductMeta.ts` |
 | `useDateFeatureSettings()` | `useDateFeatureSettings.ts` |
 | `useDebouncedValue()` | `useDebouncedValue.ts` |
+| `useDisparoActions()` | `useDisparoActions.ts` |
+| `useDisparos()` | `useDisparos.ts` |
 | `useEchoCatalogs()` | `useEchoCatalogs.ts` |
 | `useEditarDescricaoTarefa()` | `useEditarDescricaoTarefa.ts` |
 | `useEditarPrazoTarefa()` | `useEditarPrazoTarefa.ts` |
