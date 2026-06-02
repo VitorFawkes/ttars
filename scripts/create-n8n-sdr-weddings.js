@@ -102,13 +102,16 @@ Data definida ou pedido de prioridade é sinal forte pra convidar assim que os g
 </gates_do_convite>
 
 <convite_e_agenda>
-Quando fizer sentido, convide pra uma conversa com a Wedding Planner. {{ $('Monta').item.json.invented_date_rule_txt }}Pergunte o melhor período (manhã, fim de tarde, semana, fim de semana), diga que reserva com a Planner e confirma, e peça o e-mail só depois que toparem. Handoff invisível: nunca diga "vou te transferir/passar", apenas conduza ("já deixo reservado com a nossa Planner e te confirmo").
+A reunião é entre o casal e a nossa Wedding Planner. Você NÃO participa da reunião nem é a Planner; você só AGENDA. Quando fizer sentido, convide. {{ $('Monta').item.json.invented_date_rule_txt }}Se houver horários livres abaixo, ofereça ALGUNS deles agrupados por dia (poucos por vez, como um humano faria) e peça pra escolherem um. Se não houver horários carregados, pergunte o melhor período. Peça o e-mail só DEPOIS que escolherem o horário. Handoff invisível: nunca diga "vou te transferir/passar" ("já deixo reservado com a nossa Planner e te confirmo").
+Horários livres da agenda da Planner (já dentro das regras, só ofereça destes):
+{{ $('Parse Agenda').item.json.slots_txt || '(nenhum horário carregado; pergunte o melhor período)' }}
 </convite_e_agenda>
 
 <linhas_vermelhas>
 Regras absolutas, nunca quebre:
 - ORÇAMENTO DO CASAL: pergunte quanto o casal pretende investir antes de convidar. Se recusarem um número, ofereça estas faixas como opção e siga sem travar: {{ $('Monta').item.json.faixas_txt }} (isto é o orçamento DELES, diferente da nossa política de preço).
 - Pouca intenção (só curiosidade, sem data, "daqui muitos anos"): reconheça com carinho, deixe a porta aberta, não force outra pergunta.
+- Nunca invente dado sobre destino, prazo, política ou pacote. Se não está na base de conhecimento nem o casal disse, não afirme: diga que confirma com a Planner ou pergunte.
 {{ $('Monta').item.json.regras_txt }}
 {{ $('Monta').item.json.competitors_txt }}
 {{ $('Monta').item.json.fronteiras_txt }}
@@ -140,6 +143,8 @@ Evite sempre, com o caminho certo no lugar:
 - Empilhar perguntas de temas DIFERENTES na mesma mensagem (juntar duas do MESMO assunto é ok).
 - Prometer o que é da Planner (datas, valores, fechamento).
 - Fechamento frouxo ("qualquer coisa estou aqui"); conduza com naturalidade.
+- Comentar que está anotando ("anotei aqui", "vou marcar", "registrado"); receba o dado e siga.
+- Entusiasmo forçado ("LINDO!!!", "que amor!!!", "😍😍"); elegância contida, sem exclamação dobrada.
 {{ $('Monta').item.json.comportamentos_txt }}
 </antipadroes>
 
@@ -285,7 +290,7 @@ const competitors = arr(bo.competitors_to_avoid).filter(Boolean);
 const competitors_txt = competitors.length ? ('- Nunca cite nem recomende concorrentes (' + competitors.join(', ') + ').') : '';
 // Momentos: instruções editáveis pra situações específicas. O gatilho vira uma frase
 // "Quando X" + a instrução; o cérebro (GPT-5.5) avalia o gatilho com naturalidade.
-const momTrig = { always: 'Em qualquer momento', on_price_question: 'Quando o casal perguntar preço ou valor', on_price_hesitation: 'Quando o casal hesitar por causa do valor', on_family_mentioned: 'Quando o casal mencionar a família (pais, sogros)', on_destination_unclear: 'Quando o destino ainda não estiver claro', on_high_qualification: 'Quando o casal já estiver bem qualificado', on_low_qualification: 'Quando ainda faltar qualificar o casal', on_hesitation_timeout: 'Quando o casal hesitar ou disser que vai pensar', custom_condition: '' };
+const momTrig = { always: 'Em qualquer momento', on_price_question: 'Quando o casal perguntar preço ou valor', on_price_hesitation: 'Quando o casal hesitar por causa do valor', on_family_mentioned: 'Quando o casal mencionar a família (pais, sogros)', on_destination_unclear: 'Quando o destino ainda não estiver claro', on_destination_off_catalog: 'Quando o casal quiser um destino fora do que a gente opera (ex: Ásia, Bali)', on_honeymoon: 'Quando o casal mencionar lua de mel ou viagem pós-casamento', on_closing_signal: 'Quando o casal sinalizar fim da conversa (ok, blz, obrigado, depois eu vejo)', on_high_qualification: 'Quando o casal já estiver bem qualificado', on_low_qualification: 'Quando ainda faltar qualificar o casal', on_hesitation_timeout: 'Quando o casal hesitar ou disser que vai pensar', custom_condition: '' };
 const moments = arr(cfg.moments).filter(m => m && m.enabled !== false && (m.instrucao || m.prompt_text));
 const momentos_txt = moments.map(m => {
   let when = momTrig[m.trigger_type] || '';
@@ -431,6 +436,15 @@ const ok = r && r.confirmou === true && typeof r.iso === 'string' && r.iso.lengt
 if (!ok) return [];
 return [{ json: { iso: r.iso, org_id: m.org_id, agent_slug: m.agent_slug, phone: m.phone, nome: m.nome } }];`;
 
+// Parse Agenda: pega os horários livres (wsdr_check_availability) e monta o texto agrupado
+// por dia que o cérebro oferece no convite ("- 02/06: 13h, 13h30, 14h"). Vazio = sem agenda.
+const CODE_PARSE_AGENDA = `const r = (() => { try { return $('Verifica Agenda').item.json || {}; } catch(e) { return {}; } })();
+const slots = Array.isArray(r.slots) ? r.slots : [];
+const byDay = {};
+for (const s of slots) { const p = String(s.label||'').split(' '); const d = p[0]; (byDay[d] = byDay[d] || []).push(p.slice(1).join(' ')); }
+const lines = Object.keys(byDay).map(d => '- ' + d + ': ' + byDay[d].join(', '));
+return [{ json: { slots_txt: lines.join('\\n'), slots_json: JSON.stringify(slots), has_slots: slots.length > 0 } }];`;
+
 // Extrai Dados (Agente 2 da Camila — "Atualiza dados"): lê a conversa e devolve SÓ
 // um JSON com os campos ww_* ditos EXPLICITAMENTE pelo casal. Nada de inventar.
 const EXTRACT_SYSTEM = `Você é um extrator de dados de uma conversa de casamento. Leia a conversa e devolva SOMENTE um JSON (sem texto, sem markdown, sem crases) com as chaves que o casal disse EXPLICITAMENTE. Chaves possíveis: ww_destino (cidade/região do casamento), ww_num_convidados (número, só dígitos), ww_orcamento_faixa (faixa ou valor que o CASAL pretende investir), ww_data_casamento (data YYYY-MM-DD se houver), ww_nome_parceiro (nome do parceiro/segunda pessoa do casal). Omita chaves não ditas. Se nada foi dito, devolva {}.`;
@@ -536,7 +550,7 @@ const QUALIFICA_SYSTEM = `Você é o qualificador de leads de casamento da {{ $(
 NÃO calcule a nota final, isso é feito depois. Devolva SOMENTE um JSON válido (sem markdown, sem crases):
 {"avaliacao": [{"n": 1, "atende": true|false, "valor": null, "opcao": "", "nota": "frase curta"}], "score": 0-100, "qualificado": true|false, "faixa": "quente"|"morno"|"frio", "falta": ["o que ainda precisa entender"], "proxima_pergunta_sugerida": "uma pergunta aberta e natural, ou '' se ainda não é hora de perguntar", "handoff": true|false}
 Um item por critério, pelo número. score/qualificado/faixa são só estimativa de apoio (o cálculo oficial usa a sua avaliacao + os pesos). Se o casal hesita ou está emotivo, proxima_pergunta_sugerida pode ser ''.
-handoff=true SOMENTE se a última mensagem do casal indicar uma das situações de passar pra um humano (listadas abaixo, se houver); senão handoff=false.`;
+handoff=true SOMENTE se a última mensagem do casal indicar uma das situações de passar pra um humano (listadas abaixo, se houver); senão handoff=false. ATENÇÃO: topar/marcar a reunião com a Wedding Planner ("pode marcar", "como agenda?", "bora") NÃO é handoff — é o objetivo; handoff=false nesses casos.`;
 const QUALIFICA_USER = `Critérios de qualificação (com importância):
 {{ $('Monta').item.json.criterios_txt }}
 
@@ -790,6 +804,19 @@ function buildWorkflow() {
         options: {},
       },
       credentials: { supabaseApi: SUPABASE_CREDENTIAL } },
+    // --- Verifica Agenda: horários livres dos closers (entram no convite). Roda todo turno; barato. ---
+    { id: 'verificaagenda', name: 'Verifica Agenda', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [1800, 380],
+      parameters: {
+        method: 'POST',
+        url: `${SUPABASE_URL}/rest/v1/rpc/wsdr_check_availability`,
+        authentication: 'predefinedCredentialType', nodeCredentialType: 'supabaseApi',
+        sendBody: true, specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({ p_org_id: $('Monta').item.json.org_id, p_agent_slug: $('Monta').item.json.agent_slug }) }}`,
+        options: {},
+      },
+      credentials: { supabaseApi: SUPABASE_CREDENTIAL } },
+    { id: 'parseagenda', name: 'Parse Agenda', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1870, 380],
+      parameters: { jsCode: CODE_PARSE_AGENDA } },
   ];
   const connections = {
     'Webhook SDR Weddings': { main: [[{ node: 'Prepara', type: 'main', index: 0 }]] },
@@ -810,7 +837,9 @@ function buildWorkflow() {
     'Salva Estado': { main: [[{ node: 'Qualifica', type: 'main', index: 0 }]] },
     'Modelo Qualifica': { ai_languageModel: [[{ node: 'Qualifica', type: 'ai_languageModel', index: 0 }]] },
     'Qualifica': { main: [[{ node: 'Parse Qualifica', type: 'main', index: 0 }]] },
-    'Parse Qualifica': { main: [[{ node: 'Responde Lead', type: 'main', index: 0 }]] },
+    'Parse Qualifica': { main: [[{ node: 'Verifica Agenda', type: 'main', index: 0 }]] },
+    'Verifica Agenda': { main: [[{ node: 'Parse Agenda', type: 'main', index: 0 }]] },
+    'Parse Agenda': { main: [[{ node: 'Responde Lead', type: 'main', index: 0 }]] },
     'OpenAI Chat Model': { ai_languageModel: [[{ node: 'Responde Lead', type: 'ai_languageModel', index: 0 }]] },
     'Responde Lead': { main: [[{ node: 'Limpa Travessao', type: 'main', index: 0 }]] },
     'Limpa Travessao': { main: [[{ node: 'Modo Bolhas?', type: 'main', index: 0 }]] },

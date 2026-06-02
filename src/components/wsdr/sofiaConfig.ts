@@ -20,12 +20,16 @@ export interface SofiaCapabilities {
   }
   calendar: {
     enabled: boolean
-    wedding_planner_profile_id: string | null
-    windows: CalendarWindow[]
-    slot_duration_minutes: number
+    wedding_planner_profile_id: string | null // legado (1 planner); use closer_ids
+    closer_ids: string[]            // v4: closers (Wedding Planners) que podem receber reunião
+    windows: CalendarWindow[]       // dias úteis + faixas de horário
+    slot_duration_minutes: number   // duração da reunião
+    slot_interval_minutes: number   // granularidade dos horários oferecidos (ex: 30 → 14h, 14h30)
+    slots_per_day: number           // máximo de horários por dia
+    min_lead_hours: number          // antecedência mínima (ex: 1 = pode hoje, ≥ agora+1h)
     skip_weekends: boolean
-    max_slots: number
-    search_window_days: number
+    max_slots: number               // total de horários a oferecer (abrange alguns dias)
+    search_window_days: number      // dias à frente, no máximo
   }
   knowledge: { enabled: boolean; top_k: number; faqs: { q: string; a: string }[] }
   followup: { enabled: boolean; default_time: string; days: number[] }
@@ -68,6 +72,7 @@ export interface SofiaPricing {
 export type MomentTrigger =
   | 'always' | 'on_price_question' | 'on_price_hesitation' | 'on_family_mentioned'
   | 'on_low_qualification' | 'on_high_qualification' | 'on_destination_unclear'
+  | 'on_destination_off_catalog' | 'on_honeymoon' | 'on_closing_signal'
   | 'on_hesitation_timeout' | 'custom_condition'
 export interface MomentActions { tag?: string | null; stage_id?: string | null; notify?: boolean }
 export interface SofiaMoment {
@@ -89,6 +94,9 @@ export const MOMENT_TRIGGERS: { value: MomentTrigger; label: string; exemplo: st
   { value: 'on_price_hesitation', label: 'Quando hesitam pelo valor', exemplo: '"tá caro", "vou ver se cabe"' },
   { value: 'on_family_mentioned', label: 'Quando citam a família', exemplo: '"meus pais", "minha sogra quer opinar"' },
   { value: 'on_destination_unclear', label: 'Quando o destino está indefinido', exemplo: '"ainda não sabemos onde"' },
+  { value: 'on_destination_off_catalog', label: 'Quando o destino está fora do catálogo', exemplo: '"tem que ser Bali", Ásia, lugares que a gente não opera' },
+  { value: 'on_honeymoon', label: 'Quando falam em lua de mel', exemplo: '"queremos já emendar a viagem"' },
+  { value: 'on_closing_signal', label: 'Quando o casal está encerrando', exemplo: '"ok", "blz", "obrigado", "depois eu vejo"' },
   { value: 'on_high_qualification', label: 'Quando o casal está bem qualificado', exemplo: 'já tem destino, data, convidados e orçamento' },
   { value: 'on_low_qualification', label: 'Quando ainda falta qualificar', exemplo: 'faltam dados essenciais' },
   { value: 'on_hesitation_timeout', label: 'Quando hesitam ou querem pensar', exemplo: '"vou pensar", "depois eu vejo"' },
@@ -512,7 +520,7 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
     },
     capabilities: {
       crm_write: { enabled: false, writable_fields: [], protected_fields: [], stage_move_enabled: false, target_stage_id: null },
-      calendar: { enabled: false, wedding_planner_profile_id: null, windows: [], slot_duration_minutes: 45, skip_weekends: true, max_slots: 4, search_window_days: 14 },
+      calendar: { enabled: false, wedding_planner_profile_id: null, closer_ids: [], windows: [{ dias: [1, 2, 3, 4, 5], inicio: '10:00', fim: '17:00' }], slot_duration_minutes: 45, slot_interval_minutes: 30, slots_per_day: 6, min_lead_hours: 1, skip_weekends: true, max_slots: 18, search_window_days: 14 },
       knowledge: { enabled: false, top_k: 4, faqs: [] },
       followup: { enabled: false, default_time: '10:30', days: [1, 3, 7] },
       multimodal: { enabled: false, audio: true, image: true, pdf: true },
@@ -531,6 +539,10 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
       { label: 'Quando perguntam preço', instrucao: 'Fale da assessoria com leveza (R$ 4 a 18 mil conforme escopo), contextualize que depende de destino, época e formato, e diga que a Wedding Planner detalha tudo na conversa. Não negocie.', trigger_type: 'on_price_question', enabled: true },
       { label: 'Quando citam a família', instrucao: 'Acolha: casamento é coisa de família. Diga que a Planner está acostumada a conversar com pais e família junto, sem pressão.', trigger_type: 'on_family_mentioned', enabled: true },
       { label: 'Quando o destino ainda está indefinido', instrucao: 'Não trave. Pergunte se têm um lugar no coração ou se estão abertos a explorar, e cite regiões que a gente conhece bem (Nordeste, Trancoso, Caribe, Europa).', trigger_type: 'on_destination_unclear', enabled: true },
+      { label: 'Quando o destino está fora do que a gente opera', instrucao: 'Sonde a flexibilidade com leveza: a gente trabalha Caribe, Nordeste, Mendoza, Maldivas e Europa. Se toparem explorar, ótimo. Se forem inflexíveis num lugar fora disso (ex: Bali, Ásia), seja transparente que a gente não opera lá com a qualidade que promete, sem prometer, e encerre com elegância.', trigger_type: 'on_destination_off_catalog', enabled: true },
+      { label: 'Quando falam em lua de mel', instrucao: 'A lua de mel é com o time de Travel Planner da Welcome Trips. Diga que conecta vocês em paralelo, sem misturar com o orçamento do casamento. Nunca prometa entregar a viagem você mesma.', trigger_type: 'on_honeymoon', enabled: true },
+      { label: 'Quando dizem que vão pensar', instrucao: 'Acolha sem pressionar, é decisão grande. Pergunte de leve o que pesa mais (o destino, o investimento, ou conversar entre vocês), aceite a resposta e deixe a porta aberta.', trigger_type: 'on_hesitation_timeout', enabled: true },
+      { label: 'Quando o casal sinaliza fim da conversa', instrucao: 'Quando vier ok/blz/obrigado/depois eu vejo, responda com UMA frase curta e calorosa de despedida e ENCERRE. Não ofereça ajuda de novo nem repita o que já falou.', trigger_type: 'on_closing_signal', enabled: true },
     ],
     phases: [
       { nome: 'Apresentação', objetivo: 'Só se apresente de leve e faça no máximo UMA pergunta aberta (o nome do casal ou o que imaginam pro casamento). Não despeje tudo de uma vez, não fale de preço nem de detalhes ainda.', avancar_quando: 'O casal responder e você souber o nome ou o que eles buscam.' },
@@ -578,7 +590,15 @@ export function normalizeToV2(raw: unknown): SofiaConfigV2 {
       },
       capabilities: {
         crm_write: { ...def.capabilities.crm_write, ...(c.capabilities?.crm_write || {}) },
-        calendar: { ...def.capabilities.calendar, ...(c.capabilities?.calendar || {}) },
+        calendar: (() => {
+          const cal = { ...def.capabilities.calendar, ...(c.capabilities?.calendar || {}) }
+          // migra config antiga (1 planner) -> closer_ids
+          if ((!Array.isArray(cal.closer_ids) || !cal.closer_ids.length) && cal.wedding_planner_profile_id) {
+            cal.closer_ids = [cal.wedding_planner_profile_id]
+          }
+          if (!Array.isArray(cal.closer_ids)) cal.closer_ids = []
+          return cal
+        })(),
         knowledge: { ...def.capabilities.knowledge, ...(c.capabilities?.knowledge || {}) },
         followup: { ...def.capabilities.followup, ...(c.capabilities?.followup || {}) },
         multimodal: { ...def.capabilities.multimodal, ...(c.capabilities?.multimodal || {}) },

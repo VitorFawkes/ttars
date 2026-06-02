@@ -11,7 +11,7 @@ import { ScoringEditor } from '@/components/wsdr/editor/ScoringEditor'
 import { OpeningEditor } from '@/components/wsdr/editor/OpeningEditor'
 import { OpeningStepsEditor } from '@/components/wsdr/editor/OpeningStepsEditor'
 import { BoundariesEditor } from '@/components/wsdr/editor/BoundariesEditor'
-import { WeddingPlannerPicker } from '@/components/wsdr/editor/WeddingPlannerPicker'
+import { ClosersPicker } from '@/components/wsdr/editor/WeddingPlannerPicker'
 import { StagePicker } from '@/components/wsdr/editor/StagePicker'
 import { SofiaLayout, type SofiaTab } from '@/components/wsdr/editor/ui/SofiaLayout'
 import { StringListEditor } from '@/components/wsdr/StringListEditor'
@@ -112,13 +112,28 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
             )}
           </div>
         )}
-        {meta.key === 'calendar' && (
-          <div className="space-y-3">
-            <WeddingPlannerPicker value={c.capabilities.calendar.wedding_planner_profile_id} onChange={id => update(x => ({ ...x, capabilities: { ...x.capabilities, calendar: { ...x.capabilities.calendar, wedding_planner_profile_id: id } } }))} />
-            <Field label="Duração da reunião (min)"><Input type="number" value={c.capabilities.calendar.slot_duration_minutes} onChange={e => update(x => ({ ...x, capabilities: { ...x.capabilities, calendar: { ...x.capabilities.calendar, slot_duration_minutes: Number(e.target.value) } } }))} /></Field>
-            <label className="flex items-center justify-between text-sm text-slate-700"><span>Pular fins de semana</span><Switch checked={c.capabilities.calendar.skip_weekends} onCheckedChange={v => update(x => ({ ...x, capabilities: { ...x.capabilities, calendar: { ...x.capabilities.calendar, skip_weekends: v } } }))} className={c.capabilities.calendar.skip_weekends ? 'bg-indigo-600' : ''} /></label>
-          </div>
-        )}
+        {meta.key === 'calendar' && (() => {
+          const cal = c.capabilities.calendar
+          const updCal = (patch: Partial<typeof cal>) => update(x => ({ ...x, capabilities: { ...x.capabilities, calendar: { ...x.capabilities.calendar, ...patch } } }))
+          const win = cal.windows?.[0] || { dias: [1, 2, 3, 4, 5], inicio: '10:00', fim: '17:00' }
+          const updWin = (p: Partial<typeof win>) => updCal({ windows: [{ ...win, ...p }] })
+          return (
+            <div className="space-y-3">
+              <ClosersPicker value={cal.closer_ids ?? []} onChange={ids => updCal({ closer_ids: ids })} />
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Horário de início" hint="dias úteis"><Input value={win.inicio} onChange={e => updWin({ inicio: e.target.value })} placeholder="10:00" /></Field>
+                <Field label="Horário de fim"><Input value={win.fim} onChange={e => updWin({ fim: e.target.value })} placeholder="17:00" /></Field>
+                <Field label="Duração da reunião (min)"><Input type="number" value={cal.slot_duration_minutes} onChange={e => updCal({ slot_duration_minutes: Number(e.target.value) })} /></Field>
+                <Field label="Intervalo (min)" hint="ex: 30 → 14h, 14h30"><Input type="number" value={cal.slot_interval_minutes ?? 30} onChange={e => updCal({ slot_interval_minutes: Number(e.target.value) })} /></Field>
+                <Field label="Horários por dia (máx)"><Input type="number" value={cal.slots_per_day ?? 6} onChange={e => updCal({ slots_per_day: Number(e.target.value) })} /></Field>
+                <Field label="Antecedência mínima (h)" hint="1 = pode hoje, ≥ agora+1h"><Input type="number" value={cal.min_lead_hours ?? 1} onChange={e => updCal({ min_lead_hours: Number(e.target.value) })} /></Field>
+                <Field label="Dias à frente (máx)"><Input type="number" value={cal.search_window_days} onChange={e => updCal({ search_window_days: Number(e.target.value) })} /></Field>
+                <Field label="Total de horários a oferecer"><Input type="number" value={cal.max_slots} onChange={e => updCal({ max_slots: Number(e.target.value) })} /></Field>
+              </div>
+              <label className="flex items-center justify-between text-sm text-slate-700"><span>Pular fins de semana</span><Switch checked={cal.skip_weekends} onCheckedChange={v => updCal({ skip_weekends: v })} className={cal.skip_weekends ? 'bg-indigo-600' : ''} /></label>
+            </div>
+          )
+        })()}
         {meta.key === 'multimodal' && (
           <div className="space-y-2">
             {(['audio', 'image', 'pdf'] as const).map(k => (
