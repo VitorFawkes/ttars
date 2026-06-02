@@ -1,15 +1,23 @@
 import { useState } from 'react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useWw2Marketing, useWwMarketingQualidade, type WwMarketingQualidade } from '@/hooks/analyticsWeddings/useWw2'
-import { useFilterParams } from '../components/FilterBar'
+import { FilterBar, type TabProps, type AppliedFilters } from '../components/FilterBar'
 import { SectionCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
 import { DrillDrawer, type DrillContext } from '../components/DrillDrawer'
 import { LiftBadge } from '../components/LiftBadge'
 import { ClickableRow } from '../components/ClickableRow'
 import { formatCurrency, formatNumber } from '../lib/format'
 
-export function Marketing() {
-  const filters = useFilterParams()
+export function Marketing({ filters, onFiltersChange }: TabProps) {
+  return (
+    <div className="space-y-4">
+      <FilterBar value={filters} onChange={onFiltersChange} />
+      <MarketingContent filters={filters} />
+    </div>
+  )
+}
+
+function MarketingContent({ filters }: { filters: AppliedFilters }) {
   const { data, isLoading, error } = useWw2Marketing(filters)
   const { data: qualidade } = useWwMarketingQualidade(filters, 2)
   const [drill, setDrill] = useState<DrillContext | null>(null)
