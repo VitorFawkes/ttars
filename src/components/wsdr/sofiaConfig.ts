@@ -147,8 +147,8 @@ export const SLOT_PRIORITY_OPTIONS: { value: SlotPriority; label: string; hint: 
 export type AberturaMode = 'literal' | 'directive' | 'free'
 export const ABERTURA_MODE_OPTIONS: { value: AberturaMode; label: string; hint: string }[] = [
   { value: 'literal', label: 'Mensagem exata', hint: 'A Sofia manda exatamente este texto no primeiro contato.' },
-  { value: 'directive', label: 'Só uma diretriz', hint: 'Você dá a orientação (o que dizer/perguntar) e a Sofia compõe a abertura com naturalidade.' },
-  { value: 'free', label: 'Deixar a Sofia compor', hint: 'Sem texto fixo: ela abre sozinha seguindo a persona e a proposta da empresa.' },
+  { value: 'directive', label: 'Diretriz (recomendado)', hint: 'Você diz os PONTOS que ela deve cobrir; ela compõe a abertura E responde ao que o casal escreveu, como um SDR humano (não ignora a pergunta deles).' },
+  { value: 'free', label: 'Deixar a Sofia compor', hint: 'Sem pontos definidos: ela abre sozinha, respondendo o que disseram + persona e proposta.' },
 ]
 
 // Reações naturais de escuta (toggles). Viram um bloco de CONTEÚDO no cérebro.

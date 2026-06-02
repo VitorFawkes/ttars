@@ -63,8 +63,8 @@ export function OpeningEditor({
           />
           <p className="text-xs text-slate-400 mt-1">
             {mode === 'literal'
-              ? 'A Sofia manda exatamente isto no primeiro contato.'
-              : 'A Sofia usa isto como orientação e compõe a abertura com naturalidade (não copia palavra por palavra).'}
+              ? 'A Sofia manda exatamente isto no primeiro contato (ignora o que o casal escreveu).'
+              : 'A Sofia cobre estes pontos E responde ao que o casal escreveu na 1ª mensagem, como um SDR humano. Não copia palavra por palavra.'}
           </p>
         </div>
       )}

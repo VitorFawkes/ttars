@@ -332,9 +332,9 @@ const subsVars = (str) => { let t = String(str || '');
   return t; };
 let abertura_txt;
 if (abMode === 'free') {
-  abertura_txt = 'No primeiro contato, componha você mesma uma abertura curta, calorosa e natural, seguindo sua persona e a proposta da empresa. Não use um texto decorado.';
+  abertura_txt = 'No primeiro contato, abra como um bom SDR humano: PRIMEIRO reconheça e responda brevemente o que o casal disse na primeira mensagem (se eles já perguntaram algo, responda; nunca ignore), e se apresente com naturalidade usando sua persona e a proposta da empresa. Tudo numa fala curta e calorosa, sem texto decorado.';
 } else if (abMode === 'directive') {
-  abertura_txt = 'No primeiro contato, componha a abertura com naturalidade seguindo esta diretriz (não copie literalmente): ' + subsVars(abRaw);
+  abertura_txt = 'No primeiro contato, abra como um bom SDR humano faria: PRIMEIRO reconheça e responda brevemente o que o casal disse na primeira mensagem (se já perguntaram preço, destino, ou qualquer coisa, responda; NUNCA ignore o que escreveram), e então cubra com naturalidade estes pontos, sem copiar literalmente: ' + subsVars(abRaw) + '. Teça tudo numa única fala curta e calorosa, adaptada ao que eles disseram.';
 } else {
   abertura_txt = 'Use só no primeiro contato, exatamente assim: ' + subsVars(abRaw);
 }
