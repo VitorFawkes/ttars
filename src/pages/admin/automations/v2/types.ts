@@ -42,10 +42,13 @@ export type ActionNodeType =
     | 'action.add_tag'
     | 'action.remove_tag'
     | 'action.update_field'
+    | 'action.update_contact_field'
+    | 'action.assign_owner'
     | 'action.notify_internal'
     // message
     | 'action.send_message'
     | 'action.send_media'
+    | 'action.send_email'
     // echo
     | 'action.echo_assign'
     | 'action.echo_release'

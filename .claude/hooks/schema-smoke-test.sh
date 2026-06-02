@@ -336,6 +336,28 @@ if [ "$STAGING_MODE" = "false" ]; then
     FAILED=$((FAILED + 1))
   fi
 
+  # ── Isolamento das filas de cadência por workspace (20260602) ──
+  # Conta linhas em cadence_queue com org_id divergente da instância +
+  # cadence_instances com org_id divergente do card. Esperado: 0 (triggers
+  # auto_set_cadence_queue_org_id / auto_set_cadence_instances_org_id forçam).
+  TOTAL=$((TOTAL + 1))
+  CADENCE_QUEUE_CROSS=$(curl -s \
+    -X POST \
+    "${URL}/rest/v1/rpc/cadence_queue_cross_org_count" \
+    -H "apikey: ${ANON}" \
+    -H "Authorization: Bearer ${KEY}" \
+    -H "Content-Type: application/json" \
+    -d '{}' \
+    --max-time 10)
+
+  if [ -z "$CADENCE_QUEUE_CROSS" ] || ! echo "$CADENCE_QUEUE_CROSS" | grep -qE '^[0-9]+$'; then
+    echo "  FAIL: cadence_queue_cross_org_count → resposta inesperada: $CADENCE_QUEUE_CROSS" >&2
+    FAILED=$((FAILED + 1))
+  elif [ "$CADENCE_QUEUE_CROSS" != "0" ]; then
+    echo "  FAIL: $CADENCE_QUEUE_CROSS linhas de fila/instância de cadência com org_id divergente do pai" >&2
+    FAILED=$((FAILED + 1))
+  fi
+
   # ── Hierarquia de cards (parent_card_id) consistente ──
   # Conta cards onde parent.org_id != child.org_id, ou produto/pipeline divergente,
   # ou pai é sub_card. Esperado: 0 após migration 20260507a (trigger fn_validate_parent_card_link).

@@ -281,7 +281,7 @@ async function matchContactAndCard(
       const { data: card } = await supabase
         .from("cards")
         .select("id, org_id")
-        .eq("contato_id", contatoId)
+        .eq("pessoa_principal_id", contatoId)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(1)

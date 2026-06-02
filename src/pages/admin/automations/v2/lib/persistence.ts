@@ -51,9 +51,12 @@ const NODE_TO_STEP_TYPE: Partial<Record<ActionNodeType, string>> = {
     'action.add_tag':             'card_action',
     'action.remove_tag':          'card_action',
     'action.update_field':        'card_action',
+    'action.update_contact_field':'card_action',
+    'action.assign_owner':        'card_action',
     'action.notify_internal':     'card_action',
     'action.start_cadence':       'card_action',
     'action.trigger_n8n_webhook': 'card_action',
+    'action.send_email':          'card_action',
 }
 
 /** Sub-action de cada node do tipo card_action. */
@@ -63,9 +66,12 @@ const NODE_TO_CARD_SUB_ACTION: Partial<Record<ActionNodeType, string>> = {
     'action.add_tag':             'add_tag',
     'action.remove_tag':          'remove_tag',
     'action.update_field':        'update_field',
+    'action.update_contact_field':'update_contact_field',
+    'action.assign_owner':        'assign_owner',
     'action.notify_internal':     'notify_internal',
     'action.start_cadence':       'start_cadence',
     'action.trigger_n8n_webhook': 'trigger_n8n_webhook',
+    'action.send_email':          'send_email',
 }
 
 /** trigger.<x> → event_type Echo. */
@@ -121,9 +127,12 @@ const STEP_TYPE_TO_NODE = (step: {
                 case 'add_tag':             return 'action.add_tag'
                 case 'remove_tag':          return 'action.remove_tag'
                 case 'update_field':        return 'action.update_field'
+                case 'update_contact_field':return 'action.update_contact_field'
+                case 'assign_owner':        return 'action.assign_owner'
                 case 'notify_internal':     return 'action.notify_internal'
                 case 'start_cadence':       return 'action.start_cadence'
                 case 'trigger_n8n_webhook': return 'action.trigger_n8n_webhook'
+                case 'send_email':          return 'action.send_email'
                 default:                    return 'action.change_stage'
             }
         }
@@ -174,6 +183,22 @@ export async function saveWorkflow(payload: SavePayload): Promise<SaveResult> {
         return {
             success: false,
             error: `Tipo desconhecido: "${names}". Atualize o app.`,
+        }
+    }
+
+    // Validar que todo nó Decisão (branch) tem AMBAS as saídas conectadas.
+    // Sem isso, em runtime a condição cai numa alça sem destino e o fluxo trava
+    // em silêncio (o motor não usa next_step_key como fallback em branch).
+    const branchNodes = payload.nodes.filter((n) => n.type === 'action.branch')
+    for (const b of branchNodes) {
+        const handles = new Set(
+            payload.edges.filter((e) => e.source === b.id).map((e) => e.sourceHandle),
+        )
+        if (!handles.has('true') || !handles.has('false')) {
+            return {
+                success: false,
+                error: `A Decisão "${b.data.label || 'sem nome'}" precisa ter as duas saídas (verdadeiro e falso) conectadas.`,
+            }
         }
     }
 
