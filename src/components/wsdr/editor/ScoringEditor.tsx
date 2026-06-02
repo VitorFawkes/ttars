@@ -1,19 +1,28 @@
-import { useMemo, useState } from 'react'
-import { ShieldAlert, TrendingUp, Sparkles, FlaskConical } from 'lucide-react'
+import { useMemo } from 'react'
+import { ShieldAlert, TrendingUp, Sparkles } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
-import { CriteriaEditor } from '@/components/wsdr/editor/CriteriaEditor'
+import { CriterionInterligadoEditor } from '@/components/wsdr/editor/CriterionInterligadoEditor'
 import { Field } from '@/components/wsdr/editor/ui/primitives'
 import {
-  type SofiaConfigV2, type QualCriterion, type RuleType,
+  type SofiaConfigV2, type QualCriterion, type RuleType, type CriterionKind,
   FALLBACK_OPTIONS, DEFAULT_WEIGHT_BY_IMPORTANCIA,
 } from '@/components/wsdr/sofiaConfig'
 
 type Qual = SofiaConfigV2['qualification']
 
 const ruleOf = (c: QualCriterion): RuleType => c.rule_type ?? (c.importancia === 'desqualifica' ? 'disqualifier' : 'qualifier')
+const kindOf = (c: QualCriterion): CriterionKind => c.kind ?? ((c.importancia === 'desqualifica' || c.rule_type === 'disqualifier') ? 'desqualifica' : 'sim_nao')
 const weightOf = (c: QualCriterion): number => c.weight ?? DEFAULT_WEIGHT_BY_IMPORTANCIA[c.importancia]
+// Pontos máximos que um critério pode dar, por tipo (sim_nao=peso; faixas/opção=maior valor; desqualifica=0).
+const critMax = (c: QualCriterion): number => {
+  const k = kindOf(c)
+  if (k === 'desqualifica') return 0
+  if (k === 'faixas_valor') return Math.max(0, ...(c.faixas ?? []).map(f => f.pontos))
+  if (k === 'peso_por_opcao') return Math.max(0, ...(c.opcoes ?? []).map(o => o.pontos))
+  return weightOf(c)
+}
 
 // Aba Pontuação. Mesma lógica determinística da Patricia: a IA julga, critério a critério,
 // se o casal ATENDE ou não; aqui a conta é exata — soma os pesos dos que atende, aplica o
@@ -40,8 +49,8 @@ export function ScoringEditor({ qual, onChange }: { qual: Qual; onChange: (q: Qu
   // Nota máxima que o casal consegue alcançar (soma dos pesos que qualificam + teto do bônus).
   // Serve pra avisar quando a nota mínima ou as faixas ficam acima do que é possível atingir.
   const maxScore = useMemo(() => {
-    const qSum = buckets.qualify.reduce((s, c) => s + weightOf(c), 0)
-    const bSum = Math.min(buckets.bonus.reduce((s, c) => s + weightOf(c), 0), maxBonus)
+    const qSum = buckets.qualify.reduce((s, c) => s + critMax(c), 0)
+    const bSum = Math.min(buckets.bonus.reduce((s, c) => s + critMax(c), 0), maxBonus)
     return Math.min(100, qSum + bSum)
   }, [buckets, maxBonus])
   const thresholdTooHigh = threshold > maxScore
@@ -100,14 +109,11 @@ export function ScoringEditor({ qual, onChange }: { qual: Qual; onChange: (q: Qu
         </>
       )}
 
-      {/* Critérios com pontos */}
+      {/* Critérios interligados (o que descobrir + como perguntar + como pontua) */}
       <div>
-        <p className="text-sm font-medium text-slate-900 mb-2">Critérios e pontos</p>
-        <CriteriaEditor criteria={qual.criteria} onChange={criteria => set({ criteria })} showScoring />
+        <p className="text-sm font-medium text-slate-900 mb-2">Critérios</p>
+        <CriterionInterligadoEditor criteria={qual.criteria} onChange={criteria => set({ criteria })} />
       </div>
-
-      {/* Simulador */}
-      {enabled && <Simulator criteria={qual.criteria} threshold={threshold} maxBonus={maxBonus} quente={quente} morno={morno} />}
     </div>
   )
 }
@@ -135,53 +141,6 @@ function ScoringExplainer({ disqualify, qualify, bonus, threshold, maxBonus }: {
         <ExplainerCard n={1} tone="red" icon={<ShieldAlert className="w-4 h-4 text-red-600" />} title="Desqualifica" body={`Se um dos ${disqualify} alertas vermelhos bater, o casal cai direto, sem somar pontos.`} />
         <ExplainerCard n={2} tone="indigo" icon={<TrendingUp className="w-4 h-4 text-indigo-600" />} title="Soma pontos" body={`Os ${qualify} critérios que qualificam somam pontos. Ao atingir ${threshold}, o casal qualifica.`} />
         <ExplainerCard n={3} tone="emerald" icon={<Sparkles className="w-4 h-4 text-emerald-600" />} title="Bônus" body={`Os ${bonus} sinais de bônus reforçam, somando até ${maxBonus} no total. Não decidem sozinhos.`} />
-      </div>
-    </div>
-  )
-}
-
-function Simulator({ criteria, threshold, maxBonus, quente, morno }: { criteria: QualCriterion[]; threshold: number; maxBonus: number; quente: number; morno: number }) {
-  const [on, setOn] = useState<Set<number>>(new Set())
-  const toggle = (i: number) => setOn(prev => { const n = new Set(prev); if (n.has(i)) n.delete(i); else n.add(i); return n })
-
-  const result = useMemo(() => {
-    let score = 0, bonusRaw = 0, dq = false
-    criteria.forEach((c, i) => {
-      if (!on.has(i)) return
-      const rt = ruleOf(c)
-      if (rt === 'disqualifier') dq = true
-      else if (rt === 'bonus') bonusRaw += weightOf(c)
-      else score += weightOf(c)
-    })
-    if (dq) return { score: 0, dq: true, faixa: 'frio' as const, qualificado: false }
-    const total = Math.min(100, score + Math.min(bonusRaw, maxBonus))
-    const faixa = total >= quente ? 'quente' : total >= morno ? 'morno' : 'frio'
-    return { score: total, dq: false, faixa, qualificado: total >= threshold }
-  }, [criteria, on, maxBonus, quente, morno, threshold])
-
-  const faixaColor = result.faixa === 'quente' ? 'text-rose-600' : result.faixa === 'morno' ? 'text-amber-600' : 'text-slate-500'
-
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="flex items-center gap-2 mb-2">
-        <FlaskConical className="w-4 h-4 text-indigo-600" />
-        <h4 className="text-sm font-semibold text-slate-900">Simulador</h4>
-        <span className="text-xs text-slate-400">marque o que o casal atendeu e veja a nota</span>
-      </div>
-      <div className="space-y-1.5 mb-3">
-        {criteria.filter(c => c.label.trim()).map((c, i) => (
-          <label key={i} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-            <input type="checkbox" checked={on.has(i)} onChange={() => toggle(i)} className="accent-indigo-600" />
-            <span className="truncate">{c.label}</span>
-            <span className="text-xs text-slate-400 ml-auto">{ruleOf(c) === 'disqualifier' ? 'desqualifica' : `+${weightOf(c)}`}</span>
-          </label>
-        ))}
-      </div>
-      <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-        <span className="text-sm text-slate-500">{result.dq ? 'Desqualificado' : `Nota ${result.score}`} · <span className={cn('font-semibold capitalize', faixaColor)}>{result.faixa}</span></span>
-        <span className={cn('text-sm font-semibold', result.qualificado ? 'text-emerald-700' : 'text-slate-400')}>
-          {result.qualificado ? 'Qualifica ✓' : `Falta pra ${threshold}`}
-        </span>
       </div>
     </div>
   )

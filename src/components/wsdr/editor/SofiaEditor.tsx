@@ -8,10 +8,12 @@ import { PricingEditor } from '@/components/wsdr/editor/PricingEditor'
 import { MomentsEditor } from '@/components/wsdr/editor/MomentsEditor'
 import { PhasesEditor } from '@/components/wsdr/editor/PhasesEditor'
 import { ScoringEditor } from '@/components/wsdr/editor/ScoringEditor'
-import { DiscoverySlotsEditor } from '@/components/wsdr/editor/DiscoverySlotsEditor'
 import { OpeningEditor } from '@/components/wsdr/editor/OpeningEditor'
+import { OpeningStepsEditor } from '@/components/wsdr/editor/OpeningStepsEditor'
 import { BoundariesEditor } from '@/components/wsdr/editor/BoundariesEditor'
-import { WeddingPlannerPicker } from '@/components/wsdr/editor/WeddingPlannerPicker'
+import { ClosersPicker } from '@/components/wsdr/editor/WeddingPlannerPicker'
+import { CrmFieldsPicker } from '@/components/wsdr/editor/CrmFieldsPicker'
+import { DaysField } from '@/components/wsdr/editor/DaysField'
 import { StagePicker } from '@/components/wsdr/editor/StagePicker'
 import { SofiaLayout, type SofiaTab } from '@/components/wsdr/editor/ui/SofiaLayout'
 import { StringListEditor } from '@/components/wsdr/StringListEditor'
@@ -42,8 +44,8 @@ function setCapEnabled(x: SofiaConfigV2, key: CapabilityKey, enabled: boolean): 
 
 const TABS: SofiaTab[] = [
   { id: 'quem', label: 'Quem é a Sofia', icon: User },
-  { id: 'conversa', label: 'Como ela conversa', icon: MessageSquare },
-  { id: 'pontuacao', label: 'Pontuação', icon: Gauge },
+  { id: 'conversa', label: 'Conversa', icon: MessageSquare },
+  { id: 'pontuacao', label: 'Qualificação', icon: Gauge },
   { id: 'preco', label: 'Preço e valores', icon: Wallet },
   { id: 'faz', label: 'O que ela faz', icon: Zap },
   { id: 'regras', label: 'Pode e não pode', icon: ShieldAlert },
@@ -100,7 +102,10 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
         onToggle={v => update(x => setCapEnabled(x, meta.key, v))}>
         {meta.key === 'crm_write' && (
           <div className="space-y-3">
-            <label className="flex items-center justify-between text-sm text-slate-700">
+            <Field label="Campos que ela preenche no CRM" hint="Conforme o casal vai contando, a Sofia guarda essas informações no card. Marque só o que ela pode preencher.">
+              <CrmFieldsPicker value={c.capabilities.crm_write.writable_fields} onChange={keys => update(x => ({ ...x, capabilities: { ...x.capabilities, crm_write: { ...x.capabilities.crm_write, writable_fields: keys } } }))} />
+            </Field>
+            <label className="flex items-center justify-between text-sm text-slate-700 pt-1 border-t border-slate-100">
               <span>Mover o card de etapa automaticamente</span>
               <Switch checked={c.capabilities.crm_write.stage_move_enabled} onCheckedChange={v => update(x => ({ ...x, capabilities: { ...x.capabilities, crm_write: { ...x.capabilities.crm_write, stage_move_enabled: v } } }))} className={c.capabilities.crm_write.stage_move_enabled ? 'bg-indigo-600' : ''} />
             </label>
@@ -112,13 +117,28 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
             )}
           </div>
         )}
-        {meta.key === 'calendar' && (
-          <div className="space-y-3">
-            <WeddingPlannerPicker value={c.capabilities.calendar.wedding_planner_profile_id} onChange={id => update(x => ({ ...x, capabilities: { ...x.capabilities, calendar: { ...x.capabilities.calendar, wedding_planner_profile_id: id } } }))} />
-            <Field label="Duração da reunião (min)"><Input type="number" value={c.capabilities.calendar.slot_duration_minutes} onChange={e => update(x => ({ ...x, capabilities: { ...x.capabilities, calendar: { ...x.capabilities.calendar, slot_duration_minutes: Number(e.target.value) } } }))} /></Field>
-            <label className="flex items-center justify-between text-sm text-slate-700"><span>Pular fins de semana</span><Switch checked={c.capabilities.calendar.skip_weekends} onCheckedChange={v => update(x => ({ ...x, capabilities: { ...x.capabilities, calendar: { ...x.capabilities.calendar, skip_weekends: v } } }))} className={c.capabilities.calendar.skip_weekends ? 'bg-indigo-600' : ''} /></label>
-          </div>
-        )}
+        {meta.key === 'calendar' && (() => {
+          const cal = c.capabilities.calendar
+          const updCal = (patch: Partial<typeof cal>) => update(x => ({ ...x, capabilities: { ...x.capabilities, calendar: { ...x.capabilities.calendar, ...patch } } }))
+          const win = cal.windows?.[0] || { dias: [1, 2, 3, 4, 5], inicio: '10:00', fim: '17:00' }
+          const updWin = (p: Partial<typeof win>) => updCal({ windows: [{ ...win, ...p }] })
+          return (
+            <div className="space-y-3">
+              <ClosersPicker value={cal.closer_ids ?? []} onChange={ids => updCal({ closer_ids: ids })} />
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Horário de início" hint="dias úteis"><Input value={win.inicio} onChange={e => updWin({ inicio: e.target.value })} placeholder="10:00" /></Field>
+                <Field label="Horário de fim"><Input value={win.fim} onChange={e => updWin({ fim: e.target.value })} placeholder="17:00" /></Field>
+                <Field label="Duração da reunião (min)"><Input type="number" value={cal.slot_duration_minutes} onChange={e => updCal({ slot_duration_minutes: Number(e.target.value) })} /></Field>
+                <Field label="Intervalo (min)" hint="ex: 30 → 14h, 14h30"><Input type="number" value={cal.slot_interval_minutes ?? 30} onChange={e => updCal({ slot_interval_minutes: Number(e.target.value) })} /></Field>
+                <Field label="Horários por dia (máx)"><Input type="number" value={cal.slots_per_day ?? 6} onChange={e => updCal({ slots_per_day: Number(e.target.value) })} /></Field>
+                <Field label="Antecedência mínima (h)" hint="1 = pode hoje, ≥ agora+1h"><Input type="number" value={cal.min_lead_hours ?? 1} onChange={e => updCal({ min_lead_hours: Number(e.target.value) })} /></Field>
+                <Field label="Dias à frente (máx)"><Input type="number" value={cal.search_window_days} onChange={e => updCal({ search_window_days: Number(e.target.value) })} /></Field>
+                <Field label="Total de horários a oferecer"><Input type="number" value={cal.max_slots} onChange={e => updCal({ max_slots: Number(e.target.value) })} /></Field>
+              </div>
+              <label className="flex items-center justify-between text-sm text-slate-700"><span>Pular fins de semana</span><Switch checked={cal.skip_weekends} onCheckedChange={v => updCal({ skip_weekends: v })} className={cal.skip_weekends ? 'bg-indigo-600' : ''} /></label>
+            </div>
+          )
+        })()}
         {meta.key === 'multimodal' && (
           <div className="space-y-2">
             {(['audio', 'image', 'pdf'] as const).map(k => (
@@ -142,10 +162,28 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
           </div>
         )}
         {meta.key === 'followup' && (
-          <Field label="Horário padrão da retomada"><Input value={c.capabilities.followup.default_time} onChange={e => update(x => ({ ...x, capabilities: { ...x.capabilities, followup: { ...x.capabilities.followup, default_time: e.target.value } } }))} placeholder="ex: 10:30" /></Field>
+          <div className="space-y-3">
+            <Field label="Quando retomar" hint="Depois de quantos dias sem resposta a Sofia tenta de novo. Pode ser mais de um momento.">
+              <DaysField value={c.capabilities.followup.days ?? []} onChange={days => update(x => ({ ...x, capabilities: { ...x.capabilities, followup: { ...x.capabilities.followup, days } } }))} />
+            </Field>
+            <Field label="Horário padrão da retomada"><Input value={c.capabilities.followup.default_time} onChange={e => update(x => ({ ...x, capabilities: { ...x.capabilities, followup: { ...x.capabilities.followup, default_time: e.target.value } } }))} placeholder="ex: 10:30" /></Field>
+          </div>
         )}
         {meta.key === 'knowledge' && (
           <KnowledgeFaqEditor agentSlug={slug} />
+        )}
+        {meta.key === 'handoff' && (
+          <div className="space-y-3">
+            <Field label="Quando passar pra um humano" hint="As situações em que a Sofia para de insistir e chama uma pessoa. Edite, adicione ou remova.">
+              <StringListEditor items={c.capabilities.handoff.situations} onChange={items => update(x => ({ ...x, capabilities: { ...x.capabilities, handoff: { ...x.capabilities.handoff, situations: items } } }))} placeholder="ex: o casal pede pra falar com uma pessoa" />
+            </Field>
+            <Field label="O que ela diz ao passar" hint="Uma frase humana, sem prometer prazo.">
+              <Input value={c.capabilities.handoff.transition_message} onChange={e => update(x => ({ ...x, capabilities: { ...x.capabilities, handoff: { ...x.capabilities.handoff, transition_message: e.target.value } } }))} />
+            </Field>
+            <Field label="Mover o card pra qual etapa ao passar (opcional)">
+              <StagePicker value={c.capabilities.handoff.target_stage_id} onChange={id => update(x => ({ ...x, capabilities: { ...x.capabilities, handoff: { ...x.capabilities.handoff, target_stage_id: id } } }))} />
+            </Field>
+          </div>
         )}
       </CapabilityCard>
     )
@@ -233,26 +271,28 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
         {tab === 'conversa' && (
           <>
             <EditorCard accent="sky" icon={<MessageSquare className="w-5 h-5" />} title="Mensagem de abertura"
-              desc="A primeira coisa que a Sofia diz. Você escolhe se é um texto exato, só uma diretriz, ou se ela compõe sozinha.">
-              <OpeningEditor
-                mode={c.voice.abertura_mode ?? 'literal'}
-                abertura={c.voice.abertura}
-                onChange={patch => update(x => ({ ...x, voice: { ...x.voice, ...patch as { abertura_mode?: AberturaMode; abertura?: string } } }))}
-              />
+              desc="A primeira coisa que a Sofia diz. Pode ser em PASSOS (ela pausa e espera a resposta, captura o que você definir) ou uma mensagem só.">
+              <label className="flex items-center justify-between text-sm text-slate-700 mb-3 pb-3 border-b border-slate-100">
+                <span>Abertura em passos <span className="text-xs text-slate-400">(pausa e espera a resposta a cada passo)</span></span>
+                <Switch checked={c.voice.opening_stepped ?? false} onCheckedChange={v => update(x => ({ ...x, voice: { ...x.voice, opening_stepped: v } }))} className={(c.voice.opening_stepped ?? false) ? 'bg-indigo-600' : ''} />
+              </label>
+              {(c.voice.opening_stepped ?? false) ? (
+                <OpeningStepsEditor steps={c.voice.opening_steps ?? []} onChange={steps => update(x => ({ ...x, voice: { ...x.voice, opening_steps: steps } }))} />
+              ) : (
+                <OpeningEditor
+                  mode={c.voice.abertura_mode ?? 'directive'}
+                  abertura={c.voice.abertura}
+                  onChange={patch => update(x => ({ ...x, voice: { ...x.voice, ...patch as { abertura_mode?: AberturaMode; abertura?: string } } }))}
+                />
+              )}
             </EditorCard>
             <EditorCard accent="sky" icon={<ListOrdered className="w-5 h-5" />} title="Roteiro da conversa"
               desc="A ORDEM que a Sofia conduz (apresentar → sondar → qualificar → convidar). Em cada etapa você explica o que ela faz e o ritmo. Arraste pra reordenar.">
               <PhasesEditor phases={c.phases} onChange={items => update(x => ({ ...x, phases: items }))} />
             </EditorCard>
-            <EditorCard accent="amber" icon={<Search className="w-5 h-5" />} title="O que ela descobre"
-              desc="Os dados que ela coleta: o que ela PERGUNTA (com prioridade e perguntas) e o que ela PERCEBE sozinha. Alimenta a pontuação.">
-              <DiscoverySlotsEditor
-                slots={c.qualification.discovery_slots ?? []}
-                onSlotsChange={slots => update(x => ({ ...x, qualification: { ...x.qualification, discovery_slots: slots } }))}
-                signals={c.qualification.silent_signals ?? []}
-                onSignalsChange={sig => update(x => ({ ...x, qualification: { ...x.qualification, silent_signals: sig } }))}
-              />
-            </EditorCard>
+            <InfoBanner icon={<Search className="w-4 h-4" />}>
+              O que a Sofia descobre (e como pergunta) agora mora junto da nota, na aba <strong>Qualificação</strong> — cada critério traz o alvo + a pergunta.
+            </InfoBanner>
             <EditorCard accent="sky" icon={<Sparkles className="w-5 h-5" />} title="Momentos da conversa"
               desc="Reações que valem em QUALQUER fase (ex: quando perguntam preço, quando citam a família).">
               <MomentsEditor moments={c.moments} onChange={items => update(x => ({ ...x, moments: items }))} />
@@ -261,10 +301,16 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
         )}
 
         {tab === 'pontuacao' && (
-          <EditorCard accent="indigo" icon={<Target className="w-5 h-5" />} title="Pontuação do casal"
-            desc="Como a Sofia decide se o casal qualifica: pontos por critério, nota mínima e faixas. Ela usa isto como guia do julgamento, uma coisa de cada vez.">
-            <ScoringEditor qual={c.qualification} onChange={q => update(x => ({ ...x, qualification: q }))} />
-          </EditorCard>
+          <>
+            <EditorCard accent="indigo" icon={<Target className="w-5 h-5" />} title="Pontuação do casal"
+              desc="Como a Sofia decide se o casal qualifica: pontos por critério, nota mínima e faixas. Ela usa isto como guia do julgamento, uma coisa de cada vez.">
+              <ScoringEditor qual={c.qualification} onChange={q => update(x => ({ ...x, qualification: q }))} />
+            </EditorCard>
+            <EditorCard accent="violet" icon={<Eye className="w-5 h-5" />} title="Sinais que ela percebe sozinha"
+              desc="Coisas que a Sofia capta no que o casal diz, sem precisar perguntar (ex: a família está ajudando a decidir, hesitação por valor). Ela leva isso em conta no julgamento e na hora de conduzir.">
+              <StringListEditor items={c.qualification.silent_signals ?? []} onChange={items => update(x => ({ ...x, qualification: { ...x.qualification, silent_signals: items } }))} placeholder="ex: a família está ajudando a decidir" />
+            </EditorCard>
+          </>
         )}
 
         {tab === 'preco' && (

@@ -51,7 +51,7 @@ export function EditorSectionGroup({
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors active:scale-[0.997]"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors duration-150 ease-out active:scale-[0.997] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500/40"
       >
         <span className="flex items-center gap-2 min-w-0">
           {icon && <span className={cn('shrink-0', a.icon)}>{icon}</span>}

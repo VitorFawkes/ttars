@@ -59,8 +59,10 @@ function renderTripDate(ev: any, fallbackStart?: string | null): string | null {
 
     if (ev && typeof ev === 'object') {
         if (typeof ev.display === 'string' && ev.display.trim()) preformatted = ev.display.trim()
-        startStr = ev.data_inicio || ev.start || ev.inicio || null
-        endStr = ev.data_fim || ev.end || ev.fim || null
+        // Ordem canônica (igual UniversalFieldRenderer): {start,end} é o formato atual do date picker;
+        // data_inicio/data_fim são legado e às vezes guardam o mês inteiro (placeholder). Preferir o preciso.
+        startStr = ev.start || ev.inicio || ev.data_inicio || null
+        endStr = ev.end || ev.fim || ev.data_fim || null
     } else if (typeof ev === 'string') {
         const range = ev.match(/(\d{4}-\d{2}-\d{2}).*?(\d{4}-\d{2}-\d{2})/)
         if (range) { startStr = range[1]; endStr = range[2] }
@@ -461,13 +463,20 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
             value = briefingData?.[fieldId]
         }
 
-        // Data Viagem Completa (epoca_viagem) — fonte única para data da viagem no Kanban.
-        // Também usada quando o campo configurado é data_exata_da_viagem.
+        // Data da viagem no Kanban — prioridade explícita:
+        //   1) Data da viagem completa (epoca_viagem);
+        //   2) se vazia, Data da viagem com a Welcome (data_exata_da_viagem);
+        //   3) fallback legado (data_viagem_inicio).
+        // Ambos os fieldIds caem aqui (qualquer um pode estar configurado no card).
         if (fieldId === 'epoca_viagem' || fieldId === 'data_exata_da_viagem') {
             const produtoData = card.produto_data as any
-            const ev = produtoData?.epoca_viagem ?? (card as any).epoca_viagem
+            const epoca = produtoData?.epoca_viagem ?? (card as any).epoca_viagem
+            const comWelcome = produtoData?.data_exata_da_viagem ?? (card as any).data_exata_da_viagem
 
-            const label = renderTripDate(ev, (card as any).data_viagem_inicio)
+            const label =
+                renderTripDate(epoca) ??
+                renderTripDate(comWelcome) ??
+                renderTripDate(null, (card as any).data_viagem_inicio)
             if (!label) return null
 
             const expectedStage = calculateExpectedPosVendaStage(produtoData, card.pipeline_id)
