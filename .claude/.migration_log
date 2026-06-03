@@ -1153,3 +1153,7 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-06-02T20:59:13Z | supabase/migrations/20260602o_qualidade_from_casal.sql | applied_to_prod
 2026-06-02T21:01:27Z | supabase/migrations/20260602o_drop_qualidade_7param.sql | applied_to_prod
 2026-06-02T21:44:48Z | supabase/migrations/20260602p_entrada_realidade_from_cache.sql | applied_to_prod
+2026-06-03T01:28:40Z | supabase/migrations/20260602q_ww_funnel_base_dims_from_cache.sql | applied_to_prod
+2026-06-03T01:30:04Z | supabase/migrations/20260602q_ww_funnel_base_dims_from_cache.sql | applied_to_prod
+2026-06-03T01:37:14Z | supabase/migrations/20260602r_ww2_overview_funil_from_active.sql | applied_to_prod
+2026-06-03T01:41:40Z | supabase/migrations/20260602s_ww_drift_combos_universo_active.sql | applied_to_prod
