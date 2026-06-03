@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useFilterParams } from '../components/FilterBar'
+import { FilterBar, type TabProps, type AppliedFilters } from '../components/FilterBar'
 import { useWwLeadIdeal, type WwLeadIdealData, type WwLeadIdealItem, type WwLeadIdealCruzamentoCell, type WwLeadIdealPerfilTop } from '@/hooks/analyticsWeddings/useWw2'
 import { SectionCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
 import { DrillDrawer, type DrillContext } from '../components/DrillDrawer'
@@ -18,8 +18,16 @@ const fromDateInputStart = (s: string) => new Date(s + 'T00:00:00').toISOString(
 const fromDateInputEnd = (s: string) => new Date(s + 'T23:59:59').toISOString()
 const monthsAgo = (n: number) => { const d = new Date(); d.setMonth(d.getMonth() - n); return d.toISOString() }
 
-export function Perfil() {
-  const filters = useFilterParams()
+export function Perfil({ filters, onFiltersChange }: TabProps) {
+  return (
+    <div className="space-y-4">
+      <FilterBar value={filters} onChange={onFiltersChange} />
+      <PerfilContent filters={filters} />
+    </div>
+  )
+}
+
+function PerfilContent({ filters }: { filters: AppliedFilters }) {
 
   // Janela "atual" — começa igual ao filtro global mas vira editável
   const [atualStart, setAtualStart] = useState<string>(filters.dateStart)

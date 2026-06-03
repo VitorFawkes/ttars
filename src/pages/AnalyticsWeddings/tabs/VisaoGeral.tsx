@@ -1,13 +1,21 @@
 import { useState } from 'react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, LabelList } from 'recharts'
 import { useWw2Overview } from '@/hooks/analyticsWeddings/useWw2'
-import { useFilterParams } from '../components/FilterBar'
+import { FilterBar, type TabProps, type AppliedFilters } from '../components/FilterBar'
 import { SectionCard, KpiCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
 import { DrillDrawer, type DrillContext } from '../components/DrillDrawer'
 import { formatCurrency, formatNumber } from '../lib/format'
 
-export function VisaoGeral() {
-  const filters = useFilterParams()
+export function VisaoGeral({ filters, onFiltersChange }: TabProps) {
+  return (
+    <div className="space-y-4">
+      <FilterBar value={filters} onChange={onFiltersChange} />
+      <VisaoGeralContent filters={filters} />
+    </div>
+  )
+}
+
+function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
   const { data, isLoading, error } = useWw2Overview(filters)
   const [drill, setDrill] = useState<DrillContext | null>(null)
 

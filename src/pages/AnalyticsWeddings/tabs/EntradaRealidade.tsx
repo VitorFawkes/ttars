@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
-import { useFilterParams } from '../components/FilterBar'
+import { FilterBar, type TabProps, type AppliedFilters } from '../components/FilterBar'
 import { useWwDriftVenda, useWwDriftCombos, type WwDriftVenda, type WwDriftCombos } from '@/hooks/analyticsWeddings/useWw2'
 import { SectionCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
 import { DrillDrawer, type DrillContext } from '../components/DrillDrawer'
@@ -12,8 +12,16 @@ import { formatCurrency, formatNumber } from '../lib/format'
 const FAIXA_ORDER = ['Até R$50 mil', 'R$50-80 mil', 'R$50-100 mil', 'R$80-100 mil', 'R$100-200 mil', 'R$200-500 mil', '+R$500 mil']
 const CONV_ORDER = ['Apenas o casal', 'Até 20', '20-50', '50-80', '80-100', '+100']
 
-export function EntradaRealidade() {
-  const filters = useFilterParams()
+export function EntradaRealidade({ filters, onFiltersChange }: TabProps) {
+  return (
+    <div className="space-y-4">
+      <FilterBar value={filters} onChange={onFiltersChange} />
+      <EntradaRealidadeContent filters={filters} />
+    </div>
+  )
+}
+
+function EntradaRealidadeContent({ filters }: { filters: AppliedFilters }) {
   const { data, isLoading, error } = useWwDriftVenda(filters)
   const { data: combos } = useWwDriftCombos(filters)
   const [drill, setDrill] = useState<DrillContext | null>(null)
