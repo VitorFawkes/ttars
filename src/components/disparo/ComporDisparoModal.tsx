@@ -45,6 +45,9 @@ const MOTIVO_LABEL: Record<string, string> = {
 
 const INPUT = 'w-full h-11 px-3.5 rounded-xl border border-ww-sand bg-white text-sm text-ww-n700 placeholder:text-ww-n400 focus:outline-none focus:border-ww-gold focus-visible:ring-2 focus-visible:ring-ww-gold/25 transition-[border-color,box-shadow] duration-150'
 
+/** Linha pré-selecionada ao abrir o disparo (o usuário ainda pode trocar). */
+const DEFAULT_LINE_LABEL = 'Extras - Atendimento a viagem'
+
 export function ComporDisparoModal({ open, onClose }: Props) {
   const { data: linhas = [] } = useWhatsAppLinhas('WEDDING')
   const { criarCampanha, ingestRecipients, calcularAgenda, cancelar } = useDisparoActions()
@@ -57,6 +60,7 @@ export function ComporDisparoModal({ open, onClose }: Props) {
   const [capDiario, setCapDiario] = useState(500)
   const [usarRamp, setUsarRamp] = useState(true)
   const corpoRef = useRef<HTMLTextAreaElement>(null)
+  const didDefaultLine = useRef(false)
 
   // Lista colada/importada
   const [parsed, setParsed] = useState<ParsedLista>({ headers: [], rows: [] })
@@ -82,6 +86,18 @@ export function ComporDisparoModal({ open, onClose }: Props) {
     const id = requestAnimationFrame(() => setShown(true))
     return () => cancelAnimationFrame(id)
   }, [open])
+
+  // Pré-seleciona a linha padrão ao abrir (uma vez); usuário pode trocar depois.
+  useEffect(() => {
+    if (!open) { didDefaultLine.current = false; return }
+    if (didDefaultLine.current || linhas.length === 0) return
+    didDefaultLine.current = true
+    if (!phoneNumberId) {
+      const pref = linhas.find((l) => l.phone_number_label === DEFAULT_LINE_LABEL && l.phone_number_id)
+        ?? linhas.find((l) => l.phone_number_id)
+      if (pref?.phone_number_id) setPhoneNumberId(pref.phone_number_id)
+    }
+  }, [open, linhas, phoneNumberId])
 
   const linhaSelecionada = useMemo(
     () => linhas.find((l) => l.phone_number_id === phoneNumberId) ?? null,
