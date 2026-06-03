@@ -4,6 +4,7 @@ import { useWw2Overview } from '@/hooks/analyticsWeddings/useWw2'
 import { FilterBar, type TabProps, type AppliedFilters } from '../components/FilterBar'
 import { SectionCard, KpiCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
 import { DrillDrawer, type DrillContext } from '../components/DrillDrawer'
+import { SerieTemporalChart } from '../components/SerieTemporalChart'
 import { formatCurrency, formatNumber } from '../lib/format'
 
 export function VisaoGeral({ filters, onFiltersChange }: TabProps) {
@@ -38,6 +39,8 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
 
   const openDrill = (ctx: DrillContext) => setDrill(ctx)
   const baseCtx = { dateStart: filters.dateStart, dateEnd: filters.dateEnd }
+  // Tendência: janela de 12 meses terminando no fim do período do filtro (trend precisa de range longo)
+  const trend12Start = new Date(new Date(filters.dateEnd).getTime() - 365 * 24 * 60 * 60 * 1000).toISOString()
 
   return (
     <div className="space-y-5">
@@ -70,6 +73,19 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
           onClick={() => openDrill({ ...baseCtx, status: 'fechado_efetivo', title: 'Casamentos fechados' })}
         />
       </div>
+
+      {/* Tendência ao longo do tempo (#7) — vendas/reuniões/leads por período */}
+      <SerieTemporalChart
+        title="📈 Ao longo do tempo — leads, reuniões e vendas"
+        subtitle="Últimos 12 meses. Quantos entraram, fizeram reunião e fecharam em cada período. Troque mês/semana e quantidade/conversão."
+        dateStart={trend12Start}
+        dateEnd={filters.dateEnd}
+        dateMode={filters.dateMode}
+        origins={filters.origins}
+        faixas={filters.faixas}
+        destinos={filters.destinos}
+        consultorIds={filters.consultorIds}
+      />
 
       {/* Funil */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
