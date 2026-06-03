@@ -181,6 +181,7 @@ DECLARE
   v_body     TEXT;
   v_k        TEXT;
   v_v        TEXT;
+  v_repl     TEXT;
 BEGIN
   SELECT org_id, corpo_mensagem, cap_diario, usar_ramp, janela_inicio, janela_fim
     INTO v_org, v_corpo, v_cap, v_ramp, v_jini, v_jfim
@@ -271,9 +272,14 @@ BEGIN
 
     v_body := v_corpo;
     FOR v_k, v_v IN SELECT key, value FROM jsonb_each_text(v_eff) LOOP
-      v_body := replace(v_body, '{{' || v_k || '}}', COALESCE(v_v, ''));
+      -- aceita {{var}} E [var], com espaços opcionais, sem diferenciar maiúsc/minúsc
+      -- (ex: o usuário escreve [Nome] e a gente troca pelo nome). v_k é sempre
+      -- [a-z0-9_] (seguro em regex); escapa '\' no valor pro regexp_replace.
+      v_repl := replace(COALESCE(v_v, ''), '\', '\\');
+      v_body := regexp_replace(v_body, '\{\{\s*' || v_k || '\s*\}\}', v_repl, 'gi');
+      v_body := regexp_replace(v_body, '\[\s*' || v_k || '\s*\]', v_repl, 'gi');
     END LOOP;
-    -- remove variáveis não preenchidas
+    -- remove só {{...}} não preenchidos; [...] pode ser texto normal, não mexe
     v_body := regexp_replace(v_body, '\{\{\s*[^}]+\s*\}\}', '', 'g');
 
     -- 4. Grava agenda + corpo

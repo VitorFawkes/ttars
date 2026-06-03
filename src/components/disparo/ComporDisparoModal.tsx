@@ -147,7 +147,7 @@ export function ComporDisparoModal({ open, onClose }: Props) {
 
   const insertVar = useCallback((v: string) => {
     const el = corpoRef.current
-    const token = `{{${v}}}`
+    const token = `[${v}]`
     if (!el) { setCorpo((c) => c + token); return }
     const start = el.selectionStart ?? corpo.length
     const end = el.selectionEnd ?? corpo.length
@@ -161,22 +161,26 @@ export function ComporDisparoModal({ open, onClose }: Props) {
 
   // Preview com a 1ª linha
   const preview = useMemo(() => {
-    const firstVars: Record<string, string> = {}
+    const vars: Record<string, string> = {}
     let firstNome = 'Maria'
     if (tab === 'lista' && parsed.rows.length > 0 && telCol) {
       const r = parsed.rows.find((x) => (x[telCol] ?? '').trim() !== '') ?? parsed.rows[0]
       if (nomeCol) firstNome = r[nomeCol] || firstNome
       for (const h of parsed.headers) {
         if (h === telCol || h === nomeCol) continue
-        firstVars[slugifyHeader(h)] = r[h] ?? ''
+        vars[slugifyHeader(h)] = r[h] ?? ''
       }
     } else if (tab === 'casamento') {
       const g = guests.find((x) => guestIds.has(x.id))
       if (g?.nome) firstNome = g.nome
     }
-    let body = corpo.replace(/\{\{\s*nome\s*\}\}/g, firstNome)
-    for (const [k, val] of Object.entries(firstVars)) {
-      body = body.replace(new RegExp(`\\{\\{\\s*${k}\\s*\\}\\}`, 'g'), val)
+    vars.nome = firstNome
+    vars.primeiro_nome = (firstNome || '').split(' ')[0]
+    let body = corpo
+    for (const [k, val] of Object.entries(vars)) {
+      // aceita {{var}} E [var], qualquer caixa (ex: [Nome], {{nome}})
+      body = body.replace(new RegExp(`\\{\\{\\s*${k}\\s*\\}\\}`, 'gi'), val)
+      body = body.replace(new RegExp(`\\[\\s*${k}\\s*\\]`, 'gi'), val)
     }
     return body.replace(/\{\{\s*[^}]+\s*\}\}/g, '')
   }, [corpo, tab, parsed, telCol, nomeCol, guests, guestIds])
@@ -382,7 +386,7 @@ export function ComporDisparoModal({ open, onClose }: Props) {
                         </div>
                         <p className="text-xs text-ww-n500 leading-relaxed">
                           <span className="font-semibold text-ww-n700">{recipientCount}</span> telefone{recipientCount === 1 ? '' : 's'} · as outras colunas viram campos:{' '}
-                          {variaveis.filter((v) => v !== 'nome').map((v) => `{{${v}}}`).join(' ') || 'nenhuma'}
+                          {variaveis.filter((v) => v !== 'nome').map((v) => `[${v}]`).join(' ') || 'nenhuma'}
                         </p>
                       </div>
                     )}
@@ -481,7 +485,7 @@ export function ComporDisparoModal({ open, onClose }: Props) {
                       <button
                         key={v} type="button" onClick={() => insertVar(v)}
                         className="px-2 h-6 rounded-full text-[11px] font-semibold bg-ww-gold-soft text-ww-gold-ink border border-ww-gold/20 hover:bg-ww-gold/15 active:scale-95 transition-[transform,background-color] duration-150"
-                      >{`{{${v}}}`}</button>
+                      >{`[${v}]`}</button>
                     ))}
                   </div>
                 </div>
@@ -489,7 +493,7 @@ export function ComporDisparoModal({ open, onClose }: Props) {
                   ref={corpoRef}
                   value={corpo}
                   onChange={(e) => setCorpo(e.target.value)}
-                  placeholder="Oi {{nome}}! Tudo bem? ..."
+                  placeholder="Oi [nome]! Tudo bem? ..."
                   className="mt-1.5 flex-1 min-h-[120px] px-3.5 py-3 text-sm rounded-xl border border-ww-sand bg-white text-ww-n700 placeholder:text-ww-n400 focus:outline-none focus:border-ww-gold focus-visible:ring-2 focus-visible:ring-ww-gold/25 transition-[border-color,box-shadow] duration-150 resize-none leading-relaxed"
                 />
               </div>
