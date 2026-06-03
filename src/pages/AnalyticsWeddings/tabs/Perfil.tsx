@@ -21,7 +21,8 @@ const monthsAgo = (n: number) => { const d = new Date(); d.setMonth(d.getMonth()
 export function Perfil({ filters, onFiltersChange }: TabProps) {
   return (
     <div className="space-y-4">
-      <FilterBar value={filters} onChange={onFiltersChange} />
+      {/* período é controlado pelos seletores próprios da aba (Referência × Pipeline) — só filtros de perfil aqui */}
+      <FilterBar value={filters} onChange={onFiltersChange} hidePeriod />
       <PerfilContent filters={filters} />
     </div>
   )
@@ -44,6 +45,10 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
     historicoStart: histStart,
     historicoEnd: histEnd,
     minAmostra: 2,
+    origins: filters.origins,
+    consultorIds: filters.consultorIds,
+    faixas: filters.faixas,
+    destinos: filters.destinos,
   })
 
   const baseCtx = { dateStart: atualStart, dateEnd: atualEnd }
