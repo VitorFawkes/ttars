@@ -826,14 +826,21 @@ export type WwLeadIdealParams = {
   historicoEnd?: string | null
   historicoMeses?: number
   minAmostra?: number
+  origins?: string[]
+  consultorIds?: string[]
+  faixas?: string[]
+  destinos?: string[]
+  convidados?: string[]
 }
 
 export function useWwLeadIdeal(params: WwLeadIdealParams) {
   const orgId = useOrgId()
   const minAmostra = params.minAmostra ?? 2
   const usaJanelaCustom = !!(params.historicoStart && params.historicoEnd)
+  const arr = (v?: string[]) => (v && v.length ? v : null)
   return useQuery({
-    queryKey: ['ww', 'lead-ideal-v2', orgId, params.atualStart, params.atualEnd, params.historicoStart ?? null, params.historicoEnd ?? null, params.historicoMeses ?? 12, minAmostra],
+    queryKey: ['ww', 'lead-ideal-v2', orgId, params.atualStart, params.atualEnd, params.historicoStart ?? null, params.historicoEnd ?? null, params.historicoMeses ?? 12, minAmostra,
+      params.origins ?? null, params.consultorIds ?? null, params.faixas ?? null, params.destinos ?? null, params.convidados ?? null],
     queryFn: () => callRpc<WwLeadIdealData>('ww_v2_lead_ideal', {
       p_atual_start: params.atualStart,
       p_atual_end: params.atualEnd,
@@ -842,6 +849,11 @@ export function useWwLeadIdeal(params: WwLeadIdealParams) {
       p_historico_end:   usaJanelaCustom ? params.historicoEnd : null,
       p_historico_meses: params.historicoMeses ?? 12,
       p_min_amostra: minAmostra,
+      p_origins: arr(params.origins),
+      p_consultor_ids: arr(params.consultorIds),
+      p_faixas: arr(params.faixas),
+      p_destinos: arr(params.destinos),
+      p_convidados: arr(params.convidados),
     }),
     enabled: !!orgId,
     staleTime: 60_000,
@@ -951,6 +963,7 @@ export type WwFunilConversaoData = {
   filtrado: WwFunilConversaoMarcos
   baseline_total: number
   filtrado_total: number
+  elopement_ganho?: number
   distincts_disponiveis: { faixas: number; convidados: number; destinos: number }
   tem_filtro_preenchimento: boolean
   error?: string

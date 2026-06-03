@@ -49,7 +49,7 @@ export function useFilterParams(): AppliedFilters {
 }
 
 // FilterBar CONTROLADO — cada aba passa seu próprio estado. Opções vêm do AC (ww_funil_casal).
-export function FilterBar({ value, onChange }: { value: AppliedFilters; onChange: (next: AppliedFilters) => void }) {
+export function FilterBar({ value, onChange, hidePeriod }: { value: AppliedFilters; onChange: (next: AppliedFilters) => void; hidePeriod?: boolean }) {
   const { data: options } = useWwFunilFilterOptions()
 
   const set = (patch: Partial<AppliedFilters>) => onChange({ ...value, ...patch })
@@ -63,32 +63,36 @@ export function FilterBar({ value, onChange }: { value: AppliedFilters; onChange
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3 flex flex-wrap items-center gap-2">
-      <div className="flex items-center gap-1.5">
-        <span className="text-xs text-slate-500 font-medium px-1">📅</span>
-        <select
-          value={value.period}
-          onChange={(e) => setPeriod(e.target.value as PeriodOption)}
-          className="px-2.5 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        >
-          {Object.entries(PERIOD_LABELS).filter(([k]) => k !== 'custom').map(([k, v]) => (
-            <option key={k} value={k}>{v}</option>
-          ))}
-        </select>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <span className="text-xs text-slate-500 font-medium px-1">📊</span>
-        <select
-          value={value.dateMode}
-          onChange={(e) => set({ dateMode: e.target.value as 'cohort' | 'throughput' })}
-          className="px-2.5 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          title="Por safra (criação): leads que ENTRARAM no período. Por período (entrada na etapa): o que ACONTECEU no período (agendou/fez/fechou)."
-        >
-          <option value="cohort">Data de criação (safra)</option>
-          <option value="throughput">Data de entrada na etapa (período)</option>
-        </select>
-      </div>
+      {!hidePeriod && (
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-slate-500 font-medium px-1">📅</span>
+          <select
+            value={value.period}
+            onChange={(e) => setPeriod(e.target.value as PeriodOption)}
+            className="px-2.5 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            {Object.entries(PERIOD_LABELS).filter(([k]) => k !== 'custom').map(([k, v]) => (
+              <option key={k} value={k}>{v}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      {!hidePeriod && (
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-slate-500 font-medium px-1">📊</span>
+          <select
+            value={value.dateMode}
+            onChange={(e) => set({ dateMode: e.target.value as 'cohort' | 'throughput' })}
+            className="px-2.5 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            title="Por safra (criação): leads que ENTRARAM no período. Por período (entrada na etapa): o que ACONTECEU no período (agendou/fez/fechou)."
+          >
+            <option value="cohort">Data de criação (safra)</option>
+            <option value="throughput">Data de entrada na etapa (período)</option>
+          </select>
+        </div>
+      )}
 
-      <div className="w-px h-6 bg-slate-200 mx-1" />
+      {!hidePeriod && <div className="w-px h-6 bg-slate-200 mx-1" />}
 
       <MultiPill label="🎯 Origem" options={options?.origens ?? []} selected={value.origins} onChange={(v) => set({ origins: v })} />
       <MultiPill label="💰 Faixa" options={options?.faixas ?? []} selected={value.faixas} onChange={(v) => set({ faixas: v })} />

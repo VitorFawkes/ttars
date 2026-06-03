@@ -184,9 +184,22 @@ export function FunilComparado() {
           <p className="text-sm text-slate-500 mb-3"><span className="font-medium text-slate-700">{labelB}</span> comparado com <span className="font-medium text-slate-700">{labelA}</span></p>
           <div className="flex flex-wrap gap-6">
             <MetricaInline label="Entrou" a={marcosA.entrou} b={marcosB.entrou} />
-            <MetricaInline label="Ganho" a={marcosA.ganho} b={marcosB.ganho} />
+            <MetricaInline label="Ganho (DW)" a={marcosA.ganho} b={marcosB.ganho} />
             <MetricaInline label="Conversão" a={cumPct(marcosA.ganho, marcosA.entrou)} b={cumPct(marcosB.ganho, marcosB.entrou)} isPct />
           </div>
+          {(() => {
+            const eloA = a.data?.elopement_ganho ?? 0
+            const eloB = b.data?.elopement_ganho ?? 0
+            if (eloA === 0 && eloB === 0) return null
+            return (
+              <p className="mt-2 text-xs text-slate-500">
+                Este é o funil de <strong>Destination Wedding</strong>. Elopements têm pipeline próprio e são contados à parte:{' '}
+                <strong>{formatNumber(eloB)}</strong> em {labelB}
+                {eloA > 0 && <> · <strong>{formatNumber(eloA)}</strong> em {labelA}</>}.
+                {' '}Total de casamentos ({labelB}): <strong>{formatNumber(marcosB.ganho + eloB)}</strong>.
+              </p>
+            )
+          })()}
           {dropIdx != null ? (
             <div className="mt-3 bg-rose-50 border border-rose-200 rounded-lg p-3">
               <p className="text-sm text-rose-800"><strong>Maior queda</strong> na passagem para <strong>{MARCO_LABELS[MARCO_KEYS[dropIdx]]}</strong>: <strong>{fmtPct(linhasA[dropIdx]?.stepPct ?? null)}</strong> em {labelA} → <strong>{fmtPct(linhasB[dropIdx]?.stepPct ?? null)}</strong> em {labelB} ({fmtDeltaPp(deltas[dropIdx] ?? null)}).</p>
