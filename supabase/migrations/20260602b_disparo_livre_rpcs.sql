@@ -182,6 +182,9 @@ DECLARE
   v_k        TEXT;
   v_v        TEXT;
   v_repl     TEXT;
+  v_spin     TEXT;
+  v_opts     TEXT[];
+  v_choice   TEXT;
 BEGIN
   SELECT org_id, corpo_mensagem, cap_diario, usar_ramp, janela_inicio, janela_fim
     INTO v_org, v_corpo, v_cap, v_ramp, v_jini, v_jfim
@@ -271,6 +274,19 @@ BEGIN
                        to_jsonb(split_part(COALESCE(v_eff->>'nome', ''), ' ', 1)), true);
 
     v_body := v_corpo;
+
+    -- 3a. Variações {opção a|opção b|...}: sorteia uma por destinatário (anti-repetição).
+    -- Resolve ANTES das variáveis, então uma variação pode conter [nome] etc.
+    LOOP
+      v_spin := substring(v_body FROM '\{[^{}]*\|[^{}]*\}');  -- 1º bloco {…|…}
+      EXIT WHEN v_spin IS NULL;
+      v_opts := string_to_array(substring(v_spin FROM 2 FOR length(v_spin) - 2), '|');
+      v_choice := v_opts[1 + floor(random() * array_length(v_opts, 1))::int];
+      v_body := overlay(v_body PLACING COALESCE(v_choice, '')
+                        FROM position(v_spin IN v_body) FOR length(v_spin));
+    END LOOP;
+
+    -- 3b. Render variáveis (lista preenche, CRM completa)
     FOR v_k, v_v IN SELECT key, value FROM jsonb_each_text(v_eff) LOOP
       -- aceita {{var}} E [var], com espaços opcionais, sem diferenciar maiúsc/minúsc
       -- (ex: o usuário escreve [Nome] e a gente troca pelo nome). v_k é sempre
