@@ -34,6 +34,9 @@ export interface DrillDownContext {
     presetRows?: DrillDownCard[]
     /** Chave estável do preset (pra queryKey/cache). */
     presetKey?: string
+    /** Modo PRESET ASSÍNCRONO: carrega as linhas sob demanda (ex: clique numa célula do heatmap
+     *  busca os cards exatos via RPC). O drawer mostra loading e depois pagina tudo. Requer presetKey. */
+    presetLoader?: () => Promise<DrillDownCard[]>
     /** Variante visual do drawer ('forecast' mostra data prevista + extra_label). */
     variant?: 'forecast'
     /** Resumo curto pro header (ex: "R$ 300 mil · 8 cards"). */
@@ -122,10 +125,13 @@ export function useAnalyticsDrillDownQuery() {
             context?.presetKey, sortBy, sortDir, page,
         ],
         queryFn: async () => {
-            // Modo PRESET: linhas vindas do cliente (ex: Previsão). Ordena+pagina client-side, sem RPC.
-            if (context?.presetRows) {
+            // Modo PRESET: linhas do cliente (Previsão) OU carregadas sob demanda (heatmap → RPC dedicada).
+            // Em ambos, ordena+pagina client-side, sem chamar a RPC genérica.
+            const presetAll = context?.presetRows
+                ?? (context?.presetLoader ? await context.presetLoader() : null)
+            if (presetAll) {
                 const dirMul = sortDir === 'desc' ? -1 : 1
-                const sorted = [...context.presetRows].sort((a, b) => {
+                const sorted = [...presetAll].sort((a, b) => {
                     if (sortBy === 'valor_display') return (a.valor_display - b.valor_display) * dirMul
                     const av = new Date((a.data_prevista ?? a.created_at) || 0).getTime()
                     const bv = new Date((b.data_prevista ?? b.created_at) || 0).getTime()

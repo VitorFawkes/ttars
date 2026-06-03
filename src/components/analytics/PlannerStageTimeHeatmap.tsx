@@ -5,7 +5,8 @@ import { usePlannerStageXOwner, type StageXOwnerRow } from '@/hooks/analytics/us
 import { useFilterProfilesWithRole } from '@/hooks/analytics/useFilterOptions'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
-import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
+import { useDrillDownStore, type DrillDownCard } from '@/hooks/analytics/useAnalyticsDrillDown'
+import { supabase } from '@/lib/supabase'
 import { getRankTier, rankBadgeClass, rankTierLabel } from '@/utils/rankColor'
 import { cn } from '@/lib/utils'
 
@@ -131,11 +132,46 @@ export default function PlannerStageTimeHeatmap() {
   // V1: só mostra o heatmap. Série temporal vira follow-up.
 
   const openCell = (stageId: string, stageNome: string, ownerId: string, ownerNome: string) => {
+    // "Cards agora" (atuais): cards abertos NESSA etapa agora, do vendas_owner — current_stage casa.
+    if (metric === 'atuais') {
+      drillDown.open({
+        label: `${ownerNome} · ${stageNome}`,
+        contextIcon: '📊',
+        drillSource: 'current_stage',
+        drillStageId: stageId,
+        drillOwnerId: ownerId,
+        drillPhase: 'planner', // atribui por vendas_owner, igual à métrica
+        summary: 'cards parados nessa etapa agora',
+      })
+      return
+    }
+    // Tempo médio / pior caso: o número é "cards que PASSARAM pela etapa no período".
+    // Busca os cards EXATOS dessa população (RPC dedicada) e mostra TODOS no drawer (paginado).
     drillDown.open({
-      label: `${ownerNome} na etapa: ${stageNome}`,
-      drillStageId: stageId,
-      drillSource: 'current_stage',
-      drillOwnerId: ownerId,
+      label: `${ownerNome} · ${stageNome}`,
+      contextIcon: '⏱️',
+      presetKey: `stagecell-${stageId}-${ownerId}-${start}-${end}`,
+      summary: `cards que passaram pela etapa · ${windowLabel(windowPreset)}`,
+      presetLoader: async (): Promise<DrillDownCard[]> => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase.rpc as any)('analytics_planner_stage_x_owner_cards', {
+          p_stage_id: stageId, p_owner_id: ownerId, p_date_start: start, p_date_end: end, p_product: meta.product ?? null,
+        })
+        if (error) throw error
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return ((data as any[]) ?? []).map((r): DrillDownCard => {
+          const dias = r.dias_na_etapa != null ? Math.round(Number(r.dias_na_etapa)) : null
+          return {
+            id: r.id, titulo: r.titulo, produto: r.produto, status_comercial: r.status_comercial,
+            etapa_nome: r.etapa_nome ?? '—', fase: r.fase ?? '', dono_atual_nome: r.dono_atual_nome ?? ownerNome,
+            valor_display: Number(r.valor_display) || 0, receita: Number(r.receita) || 0,
+            created_at: r.created_at, data_fechamento: r.data_fechamento,
+            pessoa_nome: r.pessoa_nome ?? null, pessoa_telefone: r.pessoa_telefone ?? null,
+            total_count: 0, stage_entered_at: r.stage_entered_at, data_prevista: null,
+            extra_label: dias != null ? `${dias} ${dias === 1 ? 'dia' : 'dias'} nessa etapa` : null,
+          }
+        })
+      },
     })
   }
 
