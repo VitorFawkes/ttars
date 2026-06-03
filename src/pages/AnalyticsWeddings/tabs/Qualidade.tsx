@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
-import { useFilterParams } from '../components/FilterBar'
+import { FilterBar, type TabProps, type AppliedFilters } from '../components/FilterBar'
 import { useWwQualidadeLead, type WwQualidadeLead, type WwQualidadeCategoria, type WwPerfilCompareDimensao } from '@/hooks/analyticsWeddings/useWw2'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
@@ -19,8 +19,16 @@ const DEFAULT_EVENT_STAGE_ID = 'ade09bc3-fa3d-49b8-97f0-2f780d0ebbb1'
 
 type Dim = 'faixa' | 'destino' | 'convidados' | 'origem' | 'tipo'
 
-export function Qualidade() {
-  const filters = useFilterParams()
+export function Qualidade({ filters, onFiltersChange }: TabProps) {
+  return (
+    <div className="space-y-4">
+      <FilterBar value={filters} onChange={onFiltersChange} />
+      <QualidadeContent filters={filters} />
+    </div>
+  )
+}
+
+function QualidadeContent({ filters }: { filters: AppliedFilters }) {
   const { pipelineId } = useCurrentProductMeta()
   const { data: stages } = usePipelineStages(pipelineId ?? undefined)
   const [eventStageId, setEventStageId] = useState<string>(DEFAULT_EVENT_STAGE_ID)

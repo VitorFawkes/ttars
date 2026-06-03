@@ -1,15 +1,23 @@
 import { useState, useMemo } from 'react'
 import { Line, LineChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from 'recharts'
 import { useWw2LossReasons } from '@/hooks/analyticsWeddings/useWw2'
-import { useFilterParams } from '../components/FilterBar'
+import { FilterBar, type TabProps, type AppliedFilters } from '../components/FilterBar'
 import { SectionCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
 import { DrillDrawer, type DrillContext } from '../components/DrillDrawer'
 import { formatNumber } from '../lib/format'
 
 const LINE_COLORS = ['#4f46e5', '#7c3aed', '#0891b2', '#f59e0b', '#ef4444']
 
-export function Perdas() {
-  const filters = useFilterParams()
+export function Perdas({ filters, onFiltersChange }: TabProps) {
+  return (
+    <div className="space-y-4">
+      <FilterBar value={filters} onChange={onFiltersChange} />
+      <PerdasContent filters={filters} />
+    </div>
+  )
+}
+
+function PerdasContent({ filters }: { filters: AppliedFilters }) {
   const { data, isLoading, error } = useWw2LossReasons(filters)
   const [drill, setDrill] = useState<DrillContext | null>(null)
 

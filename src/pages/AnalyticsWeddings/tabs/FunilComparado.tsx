@@ -58,7 +58,7 @@ export function FunilComparado() {
   const [origins, setOrigins] = useState<string[]>([])
   const [consultorIds, setConsultorIds] = useState<string[]>([])
   const [maisFiltros, setMaisFiltros] = useState(false)
-  const [dateMode] = useState<DateMode>('cohort')
+  const [dateMode, setDateMode] = useState<DateMode>('cohort')
   const [perfilDim, setPerfilDim] = useState<WwFunilRankingDim>('faixa')
   const [crossX, setCrossX] = useState<WwFunilRankingDim>('convidados')
   const [crossY, setCrossY] = useState<WwFunilRankingDim>('faixa')
@@ -135,9 +135,27 @@ export function FunilComparado() {
     <div className="space-y-5">
       {/* Período */}
       <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-4">
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Período</div>
+        <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Período</div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-slate-500 font-medium px-1">📊</span>
+            <select
+              value={dateMode}
+              onChange={(e) => setDateMode(e.target.value as DateMode)}
+              className="px-2.5 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              title="Por safra (criação): leads que ENTRARAM no período. Por período (entrada na etapa): o que ACONTECEU no período (agendou/fez/fechou)."
+            >
+              <option value="cohort">Data de criação (safra)</option>
+              <option value="throughput">Data de entrada na etapa (período)</option>
+            </select>
+          </div>
+        </div>
         <PeriodoSeletor periodoA={periodoA} periodoB={periodoB} onPeriodoA={setPeriodoA} onPeriodoB={setPeriodoB} />
-        <p className="text-xs text-slate-400 mt-2">Contamos os leads que entraram no período.</p>
+        <p className="text-xs text-slate-400 mt-2">
+          {dateMode === 'cohort'
+            ? 'Contamos os leads pela data de criação — a "safra" que entrou em cada período.'
+            : 'Contamos pelo que aconteceu no período: quem agendou, fez reunião ou fechou dentro da janela.'}
+        </p>
       </div>
 
       {/* Filtro de perfil */}
