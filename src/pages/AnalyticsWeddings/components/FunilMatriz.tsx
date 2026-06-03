@@ -52,6 +52,19 @@ function counts(row: WwFunilRankingRow | undefined): number[] {
 }
 const passagem = (c: number[], i: number): number | null => (i === 0 ? null : stepPct(c[i], c[i - 1]))
 
+// Soma de todos os perfis mostrados — base das linhas/cards de "Total".
+function somaTotal(linhas: Linha[]) {
+  const cA = [0, 0, 0, 0, 0, 0]
+  const cB = [0, 0, 0, 0, 0, 0]
+  let eA = 0
+  let eB = 0
+  for (const l of linhas) {
+    eA += l.entrouA; eB += l.entrouB
+    for (let i = 0; i < 6; i++) { cA[i] += l.countsA[i]; cB[i] += l.countsB[i] }
+  }
+  return { entrouA: eA, entrouB: eB, countsA: cA, countsB: cB }
+}
+
 // Cor SEMÂNTICA ABSOLUTA da passagem: bom/ruim de verdade (não relativo à coluna).
 function corPassagem(p: number | null, small: boolean): string {
   if (small) return 'bg-slate-50 text-slate-400'
@@ -92,9 +105,13 @@ type Props = {
   selecionado: string | null
   onPick: (dim: WwFunilRankingDim, bucket: string) => void
   bRecente: boolean
+  /** Ganhos DW no período B (do funil) — para reconciliar com o total de casamentos. */
+  ganhoDW?: number
+  /** Ganhos Elopement no período B (pipeline próprio, fora do funil DW). */
+  elopementGanho?: number
 }
 
-export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, isLoading, selecionado, onPick, bRecente }: Props) {
+export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, isLoading, selecionado, onPick, bRecente, ganhoDW, elopementGanho }: Props) {
   const [vista, setVista] = useState<Vista>('tabela')
   const [metrica, setMetrica] = useState<Metrica>('passagem')
   const [sortKey, setSortKey] = useState<SortKey>('fechamento')
@@ -237,6 +254,13 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
           {vista === 'lado' && <LadoView linhas={ordenadas} dim={dim} labelA={labelA} labelB={labelB} selecionado={selecionado} onPick={onPick} pequena={pequena} />}
           {vista === 'funis' && <FunisView linhas={ordenadas} dim={dim} selecionado={selecionado} onPick={onPick} pequena={pequena} />}
 
+          {/* Reconciliação: este funil é DW; Elopement (pipeline próprio) conta à parte */}
+          {elopementGanho != null && elopementGanho > 0 && ganhoDW != null && (
+            <div className="mt-3 rounded-lg bg-slate-50 border border-slate-200 px-3.5 py-2.5 text-sm text-slate-600">
+              Este funil é de <strong className="text-slate-800">Destination Wedding</strong>. <strong className="text-slate-800">Elopements</strong> têm pipeline próprio (etapas diferentes) e não entram aqui — foram <strong className="text-slate-800 tabular-nums">{formatNumber(elopementGanho)}</strong> em {labelB}. Total de casamentos: <strong className="text-slate-800 tabular-nums">{formatNumber(ganhoDW)}</strong> DW + <strong className="text-slate-800 tabular-nums">{formatNumber(elopementGanho)}</strong> Elopement = <strong className="text-emerald-700 tabular-nums">{formatNumber(ganhoDW + elopementGanho)}</strong>.
+            </div>
+          )}
+
           {/* Rodapé: contador + legenda */}
           <div className="flex items-start justify-between gap-3 flex-wrap pt-3">
             <p className="text-xs text-slate-400">
@@ -268,16 +292,7 @@ type ViewProps = {
 }
 
 function TabelaView({ linhas, dim, metrica, selecionado, onPick, pequena }: ViewProps & { metrica: Metrica }) {
-  // Total (soma dos perfis mostrados) — para a linha/barra de total
-  const tot = linhas.reduce(
-    (acc, l) => {
-      acc.entrouA += l.entrouA; acc.entrouB += l.entrouB
-      for (let i = 0; i < 6; i++) { acc.cA[i] += l.countsA[i]; acc.cB[i] += l.countsB[i] }
-      return acc
-    },
-    { entrouA: 0, entrouB: 0, cA: [0, 0, 0, 0, 0, 0], cB: [0, 0, 0, 0, 0, 0] },
-  )
-
+  const tot = somaTotal(linhas)
   return (
     <div className="overflow-x-auto -mx-1">
       <table className="w-full border-separate border-spacing-1 text-sm">
@@ -358,13 +373,13 @@ function TabelaView({ linhas, dim, metrica, selecionado, onPick, pequena }: View
                 if (i === 0) {
                   txt = formatNumber(tot.entrouB)
                 } else if (metrica === 'mudanca') {
-                  const pA = passagem(tot.cA, i)
-                  const pB = passagem(tot.cB, i)
+                  const pA = passagem(tot.countsA, i)
+                  const pB = passagem(tot.countsB, i)
                   txt = fmtDeltaPp(pA != null && pB != null ? pB - pA : null)
-                  count = formatNumber(tot.cB[i])
+                  count = formatNumber(tot.countsB[i])
                 } else {
-                  txt = fmtPct(passagem(tot.cB, i))
-                  count = formatNumber(tot.cB[i])
+                  txt = fmtPct(passagem(tot.countsB, i))
+                  count = formatNumber(tot.countsB[i])
                 }
                 return (
                   <td key={k} className="px-1.5 py-1.5 text-center tabular-nums align-middle rounded bg-slate-800 text-white">
@@ -383,6 +398,7 @@ function TabelaView({ linhas, dim, metrica, selecionado, onPick, pequena }: View
 
 // ───────────────────────── Lado a lado (A → B) ─────────────────────────
 function LadoView({ linhas, dim, labelA, labelB, selecionado, onPick, pequena }: ViewProps & { labelA: string; labelB: string }) {
+  const tot = somaTotal(linhas)
   return (
     <div className="overflow-x-auto -mx-1">
       <table className="w-full border-separate border-spacing-1 text-sm">
@@ -439,6 +455,40 @@ function LadoView({ linhas, dim, labelA, labelB, selecionado, onPick, pequena }:
               </tr>
             )
           })}
+
+          {/* Linha de TOTAL */}
+          {linhas.length > 1 && (
+            <tr>
+              <td className="sticky left-0 z-10 px-2 py-1.5 rounded-l-lg text-left align-middle bg-slate-800">
+                <span className="text-sm font-bold text-white whitespace-nowrap">Total</span>
+              </td>
+              {MARCO_KEYS.map((k, i) => {
+                if (i === 0) {
+                  return (
+                    <td key={k} className="px-1.5 py-2 text-center tabular-nums align-middle rounded bg-slate-800 text-white">
+                      <span className="text-xs text-slate-300">{formatNumber(tot.entrouA)}</span>
+                      <span className="text-slate-400 mx-0.5">→</span>
+                      <span className="text-sm font-bold">{formatNumber(tot.entrouB)}</span>
+                    </td>
+                  )
+                }
+                const pA = passagem(tot.countsA, i)
+                const pB = passagem(tot.countsB, i)
+                return (
+                  <td key={k} className="px-1.5 py-1.5 text-center tabular-nums align-middle rounded bg-slate-800 text-white">
+                    <div className="leading-tight">
+                      <span className="text-xs text-slate-300">{fmtPct(pA)}</span>
+                      <span className="text-slate-400 mx-0.5">→</span>
+                      <span className="text-sm font-bold">{fmtPct(pB)}</span>
+                    </div>
+                    <div className="text-[10px] leading-none tabular-nums text-slate-300 mt-0.5">
+                      {formatNumber(tot.countsA[i])}<span className="mx-0.5">→</span>{formatNumber(tot.countsB[i])}
+                    </div>
+                  </td>
+                )
+              })}
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
@@ -448,6 +498,8 @@ function LadoView({ linhas, dim, labelA, labelB, selecionado, onPick, pequena }:
 // ───────────────────────── Mini-funis ─────────────────────────
 function FunisView({ linhas, dim, selecionado, onPick, pequena }: ViewProps) {
   const BARRA_H = 52
+  const tot = somaTotal(linhas)
+  const totFechaPct = tot.entrouB > 0 ? (tot.countsB[5] / tot.entrouB) * 100 : null
   return (
     <div className="space-y-1.5">
       {linhas.map((l) => {
@@ -484,6 +536,36 @@ function FunisView({ linhas, dim, selecionado, onPick, pequena }: ViewProps) {
           </button>
         )
       })}
+
+      {/* Card de TOTAL — agregado de todos os perfis */}
+      {linhas.length > 1 && (
+        <div className="w-full text-left rounded-lg border-2 border-slate-800 bg-slate-50 px-3 py-2.5">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-sm font-bold text-slate-900">Total</span>
+            <span className="ml-auto text-xs text-slate-500 tabular-nums">{formatNumber(tot.entrouB)} leads · fecha {fmtPct(totFechaPct)}</span>
+          </div>
+          <div className="flex items-end gap-1.5" style={{ height: BARRA_H }}>
+            {MARCO_KEYS.map((k, i) => {
+              const cumB = cumPct(tot.countsB[i], tot.entrouB)
+              const h = Math.max(3, Math.round(((cumB ?? 0) / 100) * BARRA_H))
+              return (
+                <div key={k} className="flex-1 flex flex-col items-center justify-end" title={`${COL_LABEL[k]}: ${formatNumber(tot.countsB[i])} (${fmtPct(cumB)} do total)`}>
+                  <div className="w-full rounded-t bg-slate-700" style={{ height: h }} />
+                </div>
+              )
+            })}
+          </div>
+          <div className="flex items-center gap-1.5 mt-1">
+            {MARCO_KEYS.map((k, i) => (
+              <div key={k} className="flex-1 text-center">
+                <div className="text-xs tabular-nums text-slate-800 font-bold">{formatNumber(tot.countsB[i])}</div>
+                <div className="text-[10px] tabular-nums text-slate-400">{i === 0 ? '100%' : fmtPct(cumPct(tot.countsB[i], tot.entrouB))}</div>
+                <div className="text-xs text-slate-400 leading-tight truncate">{COL_LABEL[k]}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
