@@ -7,6 +7,7 @@ import type { IngestRow, IngestResult } from './types'
 export interface CriarCampanhaInput {
   titulo: string
   corpo_mensagem: string
+  corpos_alternativos: string[]
   phone_number_id: string
   cap_diario: number
   usar_ramp: boolean
@@ -38,6 +39,7 @@ export function useDisparoActions() {
           org_id: orgId,
           titulo: input.titulo,
           corpo_mensagem: input.corpo_mensagem,
+          corpos_alternativos: input.corpos_alternativos,
           phone_number_id: input.phone_number_id,
           cap_diario: input.cap_diario,
           usar_ramp: input.usar_ramp,

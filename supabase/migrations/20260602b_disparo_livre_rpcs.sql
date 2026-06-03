@@ -185,9 +185,11 @@ DECLARE
   v_spin     TEXT;
   v_opts     TEXT[];
   v_choice   TEXT;
+  v_corpos_alt JSONB;
+  v_versions TEXT[];
 BEGIN
-  SELECT org_id, corpo_mensagem, cap_diario, usar_ramp, janela_inicio, janela_fim
-    INTO v_org, v_corpo, v_cap, v_ramp, v_jini, v_jfim
+  SELECT org_id, corpo_mensagem, corpos_alternativos, cap_diario, usar_ramp, janela_inicio, janela_fim
+    INTO v_org, v_corpo, v_corpos_alt, v_cap, v_ramp, v_jini, v_jfim
     FROM public.disparo_campanhas WHERE id = p_campaign_id;
   IF v_org IS NULL THEN
     RAISE EXCEPTION 'Campanha % não encontrada', p_campaign_id USING ERRCODE = 'no_data_found';
@@ -197,6 +199,16 @@ BEGIN
   END IF;
 
   v_cap := GREATEST(COALESCE(v_cap, 500), 1);
+
+  -- Versões da mensagem (principal + alternativas não-vazias). Uma é sorteada
+  -- por destinatário, deixando o disparo menos repetitivo (anti-bloqueio).
+  v_versions := ARRAY[v_corpo];
+  IF v_corpos_alt IS NOT NULL AND jsonb_typeof(v_corpos_alt) = 'array' THEN
+    SELECT v_versions || COALESCE(array_agg(value), ARRAY[]::text[])
+      INTO v_versions
+      FROM jsonb_array_elements_text(v_corpos_alt) AS value
+     WHERE NULLIF(btrim(value), '') IS NOT NULL;
+  END IF;
 
   -- Toda a matemática de janela/dia em horário de Brasília
   SET LOCAL TimeZone = 'America/Sao_Paulo';
@@ -273,9 +285,10 @@ BEGIN
     v_eff := jsonb_set(v_eff, ARRAY['primeiro_nome'],
                        to_jsonb(split_part(COALESCE(v_eff->>'nome', ''), ' ', 1)), true);
 
-    v_body := v_corpo;
+    -- Sorteia uma das versões da mensagem para este destinatário
+    v_body := v_versions[1 + floor(random() * array_length(v_versions, 1))::int];
 
-    -- 3a. Variações {opção a|opção b|...}: sorteia uma por destinatário (anti-repetição).
+    -- 3a. Variações {opção a|opção b|...} inline (compat): também sorteia por pessoa.
     -- Resolve ANTES das variáveis, então uma variação pode conter [nome] etc.
     LOOP
       v_spin := substring(v_body FROM '\{[^{}]*\|[^{}]*\}');  -- 1º bloco {…|…}
