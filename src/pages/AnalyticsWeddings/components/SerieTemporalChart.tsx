@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts'
 import { useWwSerieTemporal, type DateMode, type WwSeriePonto } from '@/hooks/analyticsWeddings/useWw2'
 import { SectionCard, EmptyState, LoadingSkeleton } from './ui'
@@ -16,11 +16,11 @@ const MET = [
   { key: 'ganho', label: 'Vendas', color: '#10b981' },
 ] as const
 
-const CONV = [
+// Conversão "de barra pra barra" — a passagem entre etapas consecutivas (em barras, não linha)
+const CONV_BARRAS = [
   { key: 'taxa_sdr', label: 'Lead → Reunião SDR', color: '#6366f1' },
-  { key: 'taxa_closer', label: 'SDR → Closer', color: '#8b5cf6' },
-  { key: 'taxa_ganho', label: 'Closer → Venda', color: '#10b981' },
-  { key: 'taxa_total', label: 'Lead → Venda (geral)', color: '#0f172a' },
+  { key: 'taxa_closer', label: 'Reunião SDR → Closer', color: '#8b5cf6' },
+  { key: 'taxa_ganho', label: 'Reunião Closer → Venda', color: '#10b981' },
 ] as const
 
 const pct = (num: number, den: number) => (den > 0 ? Math.round((1000 * num) / den) / 10 : 0)
@@ -101,7 +101,7 @@ export function SerieTemporalChart({
               ))}
             </BarChart>
           ) : (
-            <LineChart data={rows} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
+            <BarChart data={rows} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
               <XAxis dataKey="label" stroke="#64748b" fontSize={11} tickLine={false} />
               <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} unit="%" />
@@ -110,10 +110,10 @@ export function SerieTemporalChart({
                 formatter={(v: number, n: string) => [`${v}%`, n]}
               />
               <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-              {CONV.map((c) => (
-                <Line key={c.key} type="monotone" dataKey={c.key} name={c.label} stroke={c.color} strokeWidth={2} dot={{ r: 2 }} />
+              {CONV_BARRAS.map((c) => (
+                <Bar key={c.key} dataKey={c.key} name={c.label} fill={c.color} radius={[3, 3, 0, 0]} maxBarSize={22} />
               ))}
-            </LineChart>
+            </BarChart>
           )}
         </ResponsiveContainer>
       )}
