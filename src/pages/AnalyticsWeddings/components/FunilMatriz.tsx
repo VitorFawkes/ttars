@@ -105,13 +105,9 @@ type Props = {
   selecionado: string | null
   onPick: (dim: WwFunilRankingDim, bucket: string) => void
   bRecente: boolean
-  /** Ganhos DW no período B (do funil) — para reconciliar com o total de casamentos. */
-  ganhoDW?: number
-  /** Ganhos Elopement no período B (pipeline próprio, fora do funil DW). */
-  elopementGanho?: number
 }
 
-export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, isLoading, selecionado, onPick, bRecente, ganhoDW, elopementGanho }: Props) {
+export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, isLoading, selecionado, onPick, bRecente }: Props) {
   const [vista, setVista] = useState<Vista>('tabela')
   const [metrica, setMetrica] = useState<Metrica>('passagem')
   const [sortKey, setSortKey] = useState<SortKey>('fechamento')
@@ -253,13 +249,6 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
           {vista === 'tabela' && <TabelaView linhas={ordenadas} dim={dim} metrica={metrica} selecionado={selecionado} onPick={onPick} pequena={pequena} />}
           {vista === 'lado' && <LadoView linhas={ordenadas} dim={dim} labelA={labelA} labelB={labelB} selecionado={selecionado} onPick={onPick} pequena={pequena} />}
           {vista === 'funis' && <FunisView linhas={ordenadas} dim={dim} selecionado={selecionado} onPick={onPick} pequena={pequena} />}
-
-          {/* Reconciliação: este funil é DW; Elopement (pipeline próprio) conta à parte */}
-          {elopementGanho != null && elopementGanho > 0 && ganhoDW != null && (
-            <div className="mt-3 rounded-lg bg-slate-50 border border-slate-200 px-3.5 py-2.5 text-sm text-slate-600">
-              Este funil é de <strong className="text-slate-800">Destination Wedding</strong>. <strong className="text-slate-800">Elopements</strong> têm pipeline próprio (etapas diferentes) e não entram aqui — foram <strong className="text-slate-800 tabular-nums">{formatNumber(elopementGanho)}</strong> em {labelB}. Total de casamentos: <strong className="text-slate-800 tabular-nums">{formatNumber(ganhoDW)}</strong> DW + <strong className="text-slate-800 tabular-nums">{formatNumber(elopementGanho)}</strong> Elopement = <strong className="text-emerald-700 tabular-nums">{formatNumber(ganhoDW + elopementGanho)}</strong>.
-            </div>
-          )}
 
           {/* Rodapé: contador + legenda */}
           <div className="flex items-start justify-between gap-3 flex-wrap pt-3">

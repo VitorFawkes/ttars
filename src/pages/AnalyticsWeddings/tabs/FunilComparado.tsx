@@ -176,8 +176,7 @@ export function FunilComparado() {
 
       {/* Funil por perfil (matriz) — a estrela */}
       <FunilMatriz dim={perfilDim} onDim={setPerfilDim} rankingA={rankA.data ?? undefined} rankingB={rankB.data ?? undefined}
-        labelA={labelA} labelB={labelB} isLoading={rankA.isLoading || rankB.isLoading} selecionado={selPerfil} onPick={onPickPerfil} bRecente={bRecente}
-        ganhoDW={marcosB?.ganho} elopementGanho={b.data?.elopement_ganho} />
+        labelA={labelA} labelB={labelB} isLoading={rankA.isLoading || rankB.isLoading} selecionado={selPerfil} onPick={onPickPerfil} bRecente={bRecente} />
 
       {/* Manchete */}
       {temDados && marcosA && marcosB && (
@@ -186,22 +185,9 @@ export function FunilComparado() {
           <p className="text-sm text-slate-500 mb-3"><span className="font-medium text-slate-700">{labelB}</span> comparado com <span className="font-medium text-slate-700">{labelA}</span></p>
           <div className="flex flex-wrap gap-6">
             <MetricaInline label="Entrou" a={marcosA.entrou} b={marcosB.entrou} />
-            <MetricaInline label="Ganho (DW)" a={marcosA.ganho} b={marcosB.ganho} />
+            <MetricaInline label="Ganho" a={marcosA.ganho} b={marcosB.ganho} />
             <MetricaInline label="Conversão" a={cumPct(marcosA.ganho, marcosA.entrou)} b={cumPct(marcosB.ganho, marcosB.entrou)} isPct />
           </div>
-          {(() => {
-            const eloA = a.data?.elopement_ganho ?? 0
-            const eloB = b.data?.elopement_ganho ?? 0
-            if (eloA === 0 && eloB === 0) return null
-            return (
-              <p className="mt-2 text-xs text-slate-500">
-                Este é o funil de <strong>Destination Wedding</strong>. Elopements têm pipeline próprio e são contados à parte:{' '}
-                <strong>{formatNumber(eloB)}</strong> em {labelB}
-                {eloA > 0 && <> · <strong>{formatNumber(eloA)}</strong> em {labelA}</>}.
-                {' '}Total de casamentos ({labelB}): <strong>{formatNumber(marcosB.ganho + eloB)}</strong>.
-              </p>
-            )
-          })()}
           {dropIdx != null ? (
             <div className="mt-3 bg-rose-50 border border-rose-200 rounded-lg p-3">
               <p className="text-sm text-rose-800"><strong>Maior queda</strong> na passagem para <strong>{MARCO_LABELS[MARCO_KEYS[dropIdx]]}</strong>: <strong>{fmtPct(linhasA[dropIdx]?.stepPct ?? null)}</strong> em {labelA} → <strong>{fmtPct(linhasB[dropIdx]?.stepPct ?? null)}</strong> em {labelB} ({fmtDeltaPp(deltas[dropIdx] ?? null)}).</p>
@@ -220,11 +206,10 @@ export function FunilComparado() {
       {/* Evolução do funil mês a mês (#3) — barras por etapa + toggle quantidade/conversão */}
       <SerieTemporalChart
         title="📊 Evolução do funil — período a período"
-        subtitle="Leads → reuniões → vendas em cada período. Troque mês/semana e quantidade/conversão. (Funil DW; Elopement à parte.)"
+        subtitle="Leads → reuniões → vendas em cada período. Troque mês/semana e quantidade/conversão."
         dateStart={new Date(new Date(periodoB.dateEnd).getTime() - 365 * 24 * 60 * 60 * 1000).toISOString()}
         dateEnd={periodoB.dateEnd}
         dateMode={dateMode}
-        incluirElopement={false}
         origins={origins}
         faixas={faixas}
         destinos={destinos}
