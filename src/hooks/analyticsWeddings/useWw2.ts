@@ -1064,3 +1064,55 @@ export function useWwFunilRanking(params: {
   })
 }
 
+
+// ── Série temporal (semana/mês) — alimenta os gráficos de #3 e #7 ────────────
+export type WwSeriePonto = {
+  periodo: string
+  label: string
+  entrou: number
+  fez_sdr: number
+  fez_closer: number
+  ganho: number
+}
+export type WwSerieTemporal = {
+  granularidade: 'week' | 'month'
+  date_mode: DateMode
+  series: WwSeriePonto[]
+  totais: { entrou: number; fez_sdr: number; fez_closer: number; ganho: number }
+  error?: string
+}
+export type WwSerieParams = {
+  dateStart: string
+  dateEnd: string
+  granularidade: 'week' | 'month'
+  dateMode: DateMode
+  incluirElopement?: boolean
+  origins?: string[]
+  faixas?: string[]
+  destinos?: string[]
+  convidados?: string[]
+  consultorIds?: string[]
+}
+export function useWwSerieTemporal(params: WwSerieParams) {
+  const orgId = useOrgId()
+  const arr = (v?: string[]) => (v && v.length ? v : null)
+  return useQuery({
+    queryKey: ['ww', 'serie-temporal', orgId, params.dateStart, params.dateEnd, params.granularidade, params.dateMode,
+      params.incluirElopement ?? true, params.origins ?? null, params.faixas ?? null, params.destinos ?? null, params.convidados ?? null, params.consultorIds ?? null],
+    queryFn: () => callRpc<WwSerieTemporal>('ww_serie_temporal', {
+      p_date_start: params.dateStart,
+      p_date_end: params.dateEnd,
+      p_granularidade: params.granularidade,
+      p_org_id: orgId,
+      p_date_mode: params.dateMode,
+      p_incluir_elopement: params.incluirElopement ?? true,
+      p_origins: arr(params.origins),
+      p_faixas: arr(params.faixas),
+      p_destinos: arr(params.destinos),
+      p_convidados: arr(params.convidados),
+      p_consultor_ids: arr(params.consultorIds),
+    }),
+    enabled: !!orgId,
+    staleTime: 60_000,
+  })
+}
