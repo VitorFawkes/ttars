@@ -118,9 +118,11 @@ BEGIN
         UPDATE public.contatos SET nome = v_nome WHERE id = v_contact_id;
       END IF;
     ELSE
-      -- telefone_normalizado é coluna GERADA (normalize_phone_brazil(telefone)) — não inserir
-      INSERT INTO public.contatos (org_id, nome, telefone)
-      VALUES (v_org, COALESCE(v_nome, v_norm), v_tel_raw)
+      -- telefone_normalizado é coluna GERADA (normalize_phone_brazil(telefone)) — não inserir.
+      -- origem='whatsapp' isenta do trigger check_contato_required_fields (que exigiria
+      -- sobrenome) — listas de disparo nem sempre têm sobrenome.
+      INSERT INTO public.contatos (org_id, nome, telefone, origem)
+      VALUES (v_org, COALESCE(v_nome, v_norm), v_tel_raw, 'whatsapp')
       RETURNING id INTO v_contact_id;
       v_new := true;
       v_out_nome := v_nome;

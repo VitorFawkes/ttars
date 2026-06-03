@@ -20,6 +20,7 @@ export function useDisparoCampanhas() {
         .from('disparo_campanhas')
         .select('*')
         .eq('org_id', orgId)
+        .neq('status', 'rascunho') // esconde rascunhos incompletos do board
         .order('created_at', { ascending: false })
         .limit(200)
       if (error) throw error
