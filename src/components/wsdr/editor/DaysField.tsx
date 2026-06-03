@@ -30,9 +30,9 @@ export function DaysField({ value, onChange }: { value: number[]; onChange: (day
           onChange={e => setNovo(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); add() } }}
           placeholder="ex: 14"
-          className="w-20 text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+          className="w-20 text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-ww-gold/40"
         />
-        <button type="button" onClick={add} disabled={!novo.trim()} className="shrink-0 p-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white active:scale-95 transition-transform" title="Adicionar dia">
+        <button type="button" onClick={add} disabled={!novo.trim()} className="shrink-0 p-1.5 rounded-lg bg-ww-gold hover:bg-ww-gold-ink disabled:opacity-40 text-white active:scale-95 transition-transform" title="Adicionar dia">
           <Plus className="w-4 h-4" />
         </button>
       </div>

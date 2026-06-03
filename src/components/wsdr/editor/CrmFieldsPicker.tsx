@@ -43,7 +43,7 @@ export function CrmFieldsPicker({ value, onChange }: { value: string[]; onChange
             <p className="px-3 pt-1.5 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-slate-400">{g.section}</p>
             {g.items.map(f => (
               <label key={f.key} className="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-700 cursor-pointer hover:bg-slate-50">
-                <input type="checkbox" checked={value.includes(f.key)} onChange={() => toggle(f.key)} className="accent-indigo-600" />
+                <input type="checkbox" checked={value.includes(f.key)} onChange={() => toggle(f.key)} className="accent-ww-gold" />
                 {f.label}
               </label>
             ))}

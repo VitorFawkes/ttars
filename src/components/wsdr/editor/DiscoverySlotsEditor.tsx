@@ -86,7 +86,7 @@ export function DiscoverySlotsEditor({
                     <select
                       value={s.crm_field_key ?? ''}
                       onChange={e => set(i, { crm_field_key: e.target.value || null })}
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ww-gold/40"
                     >
                       {CRM_FIELDS.map(f => <option key={f.value ?? 'none'} value={f.value ?? ''}>{f.label}</option>)}
                     </select>
@@ -103,7 +103,7 @@ export function DiscoverySlotsEditor({
         {slots.length === 0 && (
           <p className="text-xs text-slate-400 italic py-1">Nenhum dado de sondagem. A Sofia vai usar os critérios como base.</p>
         )}
-        <button type="button" onClick={add} className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700">
+        <button type="button" onClick={add} className="flex items-center gap-1.5 text-sm text-ww-gold-ink hover:text-ww-gold">
           <Plus className="w-4 h-4" />Adicionar dado pra coletar
         </button>
       </div>

@@ -24,11 +24,13 @@ serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    // phone fixo do teste (mesmo whitelistado na linha) — só pra exercitar a config
+    // telefone do simulador: a UI pode passar um número da whitelist; default = nº do Vitor.
+    // (Simulação não entrega no WhatsApp real — só exercita a config/cérebro.)
+    const phone = String(body.phone || "5511964293533").replace(/\D/g, "") || "5511964293533";
     const res = await fetch(N8N_WEBHOOK, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: "5511964293533", nome: body.nome || "", message, history }),
+      body: JSON.stringify({ phone, nome: body.nome || "", message, history }),
     });
     const data = await res.json().catch(() => ({}));
     return new Response(JSON.stringify({ reply: data?.reply ?? "", ok: res.ok }), {

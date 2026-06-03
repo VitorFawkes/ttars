@@ -35,7 +35,7 @@ export function SuggestVariations({ text, fieldType = 'custom', context, onPick 
 
   return (
     <div className="relative inline-block">
-      <button type="button" onClick={() => (open ? setOpen(false) : fetchSug())} className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700">
+      <button type="button" onClick={() => (open ? setOpen(false) : fetchSug())} className="flex items-center gap-1 text-xs text-ww-gold-ink hover:text-ww-gold">
         <Sparkles className="w-3.5 h-3.5" />Sugerir variações
       </button>
       {open && (
@@ -45,7 +45,7 @@ export function SuggestVariations({ text, fieldType = 'custom', context, onPick 
           ) : (
             suggestions.map((s, i) => (
               <button key={i} type="button" onClick={() => { onPick(s.text); setOpen(false) }}
-                className="block w-full text-left text-xs text-slate-700 hover:bg-indigo-50 rounded p-2 border border-slate-100 leading-relaxed">
+                className="block w-full text-left text-xs text-slate-700 hover:bg-ww-gold-soft rounded p-2 border border-slate-100 leading-relaxed">
                 {s.text}
               </button>
             ))

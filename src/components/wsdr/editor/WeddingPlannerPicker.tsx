@@ -46,7 +46,7 @@ export function WeddingPlannerPicker({ value, onChange }: { value: string | null
         value={value || ''}
         onChange={e => onChange(e.target.value || null)}
         disabled={loading}
-        className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-2 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:opacity-50"
+        className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-2 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-ww-gold/40 disabled:opacity-50"
       >
         <option value="">{loading ? 'Carregando…' : 'Selecione uma pessoa'}</option>
         {members.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
@@ -96,7 +96,7 @@ export function ClosersPicker({ value, onChange }: { value: string[]; onChange: 
         <div className="max-h-44 overflow-y-auto rounded-lg border border-slate-200 divide-y divide-slate-100">
           {members.map(m => (
             <label key={m.id} className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 cursor-pointer hover:bg-slate-50">
-              <input type="checkbox" checked={value.includes(m.id)} onChange={() => toggle(m.id)} className="accent-indigo-600" />
+              <input type="checkbox" checked={value.includes(m.id)} onChange={() => toggle(m.id)} className="accent-ww-gold" />
               {m.nome}
             </label>
           ))}

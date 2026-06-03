@@ -7,9 +7,9 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-06-03
 > **Trigger:** ALWAYS ON
-> **Stats:** 234 tabelas | 215 paginas | 386 hooks | 28 views | 880 components
-> **Stats:** 234 tabelas | 215 paginas | 386 hooks | 28 views | 880 components
-> **Stats:** 234 tabelas | 215 paginas | 386 hooks | 28 views | 880 components
+> **Stats:** 234 tabelas | 215 paginas | 388 hooks | 28 views | 881 components
+> **Stats:** 234 tabelas | 215 paginas | 388 hooks | 28 views | 881 components
+> **Stats:** 234 tabelas | 215 paginas | 388 hooks | 28 views | 881 components
 
 ---
 
@@ -171,7 +171,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **386 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **388 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -444,6 +444,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useSofiaAgents()` | `useSofiaAgents.ts` |
 | `useSofiaConfig()` | `useSofiaConfig.ts` |
 | `useSofiaKnowledge()` | `useSofiaKnowledge.ts` |
+| `useSofiaPhoneWhitelist()` | `useSofiaPhoneWhitelist.ts` |
+| `useSofiaResetConversation()` | `useSofiaResetConversation.ts` |
 | `useTaskOutcomes()` | `useTaskOutcomes.ts` |
 | `useTasksList()` | `useTasksList.ts` |
 | `useTemplateUsages()` | `useTemplateUsages.ts` |

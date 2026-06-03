@@ -7,7 +7,7 @@ import {
 } from '@/components/wsdr/sofiaConfig'
 
 const COLOR_CHIP: Record<string, string> = {
-  indigo: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  indigo: 'bg-ww-gold-soft text-ww-gold-ink border-ww-gold/30',
   sky: 'bg-sky-50 text-sky-700 border-sky-200',
   slate: 'bg-slate-50 text-slate-600 border-slate-200',
   rose: 'bg-rose-50 text-rose-700 border-rose-200',
@@ -83,7 +83,7 @@ export function CriteriaEditor({
                             onClick={() => set(i, { weight: p.value })}
                             className={cn(
                               'px-2 py-0.5 rounded text-[11px] border transition-colors',
-                              weight === p.value ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'
+                              weight === p.value ? 'bg-ww-gold-soft text-ww-gold-ink border-ww-gold/30' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'
                             )}
                           >
                             {p.label}
@@ -124,7 +124,7 @@ export function CriteriaEditor({
       {criteria.length === 0 && (
         <p className="text-xs text-slate-400 italic py-1">Nenhum critério ainda. A Sofia vai usar as etapas como base.</p>
       )}
-      <button type="button" onClick={add} className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700">
+      <button type="button" onClick={add} className="flex items-center gap-1.5 text-sm text-ww-gold-ink hover:text-ww-gold">
         <Plus className="w-4 h-4" />Adicionar critério
       </button>
     </div>

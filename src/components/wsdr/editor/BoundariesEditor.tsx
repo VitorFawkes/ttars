@@ -60,7 +60,7 @@ export function BoundariesEditor({ boundaries, onChange }: { boundaries: Boundar
     <div className="space-y-4">
       <div className="flex gap-2">
         <Input value={novo} onChange={e => setNovo(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') add() }} placeholder="Escreva uma regra nova (ex: nunca prometa fornecedor específico)" className="flex-1" />
-        <button type="button" onClick={add} className="shrink-0 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white flex items-center"><Plus className="w-4 h-4" /></button>
+        <button type="button" onClick={add} className="shrink-0 px-3 rounded-lg bg-ww-gold hover:bg-ww-gold-ink text-white flex items-center"><Plus className="w-4 h-4" /></button>
       </div>
       <SortableList items={regras} onReorder={setRegras} renderItem={renderRow} />
       <p className="text-[11px] text-slate-400">

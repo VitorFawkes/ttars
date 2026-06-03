@@ -192,9 +192,8 @@ Escreva a próxima mensagem da {{ $('Monta').item.json.persona }} no WhatsApp, s
 const DEFAULT_ORG_ID = 'b0000000-0000-0000-0000-000000000002'; // Welcome Weddings
 const CODE_PREPARA = `const raw = $input.first().json;
 const body = raw.body || raw;
-const ALLOW_LOCAL = '11964293533';
 const phone = String(body.phone || body.contact_phone || '').replace(/\\D/g, '');
-const allowed = phone.endsWith(ALLOW_LOCAL);
+const allowed = true; // gate de QUEM responde mora no whatsapp-webhook (whitelist no banco); aqui é só metadado
 const org_id = body.org_id || '${DEFAULT_ORG_ID}';
 const agent_slug = body.agent_slug || '${AGENT_SLUG}';
 let hist = body.history || body.historico || [];

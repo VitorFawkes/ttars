@@ -15,7 +15,7 @@ export function StagePicker({ value, onChange }: { value: string | null; onChang
         value={value ?? ''}
         onChange={e => onChange(e.target.value || null)}
         disabled={isLoading || !pipelineId}
-        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ww-gold/40 disabled:opacity-50"
       >
         <option value="">{isLoading ? 'Carregando etapas…' : 'Escolha a etapa de destino'}</option>
         {(stages ?? []).map(s => (

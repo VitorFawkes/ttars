@@ -22,7 +22,7 @@ export function SofiaLayout({
     <div className="flex gap-6 flex-col md:flex-row">
       <nav className="md:w-60 flex-shrink-0 md:sticky md:top-6 md:self-start" aria-label="Seções da Sofia">
         {/* Desktop rail */}
-        <div className="hidden md:flex flex-col gap-0.5 bg-white/80 backdrop-blur border border-slate-200/80 rounded-2xl p-2 shadow-sm">
+        <div className="hidden md:flex flex-col gap-0.5 bg-white/80 backdrop-blur border border-ww-sand rounded-2xl p-2 shadow-ww-lift">
           {tabs.map(t => {
             const Icon = t.icon
             const active = t.id === activeTab
@@ -34,12 +34,12 @@ export function SofiaLayout({
                 className={cn(
                   'group relative flex items-center gap-3 pl-4 pr-3 py-2.5 rounded-xl text-sm text-left',
                   'transition-[background-color,color] duration-150 ease-out active:scale-[0.98]',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40',
-                  active ? 'bg-indigo-50 text-indigo-900 font-semibold' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ww-gold/40',
+                  active ? 'bg-ww-gold-soft text-ww-n700 font-semibold' : 'text-ww-n500 hover:bg-ww-cream/70 hover:text-ww-n700',
                 )}
               >
-                <span className={cn('absolute left-0 top-1/2 -translate-y-1/2 w-1 rounded-full bg-indigo-600 transition-all', active ? 'h-6 opacity-100' : 'h-0 opacity-0')} />
-                <Icon className={cn('w-[18px] h-[18px] transition-colors', active ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-500')} />
+                <span className={cn('absolute left-0 top-1/2 -translate-y-1/2 w-1 rounded-full bg-ww-gold transition-[height,opacity] duration-200 ease-out', active ? 'h-6 opacity-100' : 'h-0 opacity-0')} />
+                <Icon className={cn('w-[18px] h-[18px] transition-colors', active ? 'text-ww-gold-ink' : 'text-ww-n400 group-hover:text-ww-n500')} />
                 <span className="flex-1">{t.label}</span>
                 {t.dirty && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" aria-label="Modificado" />}
               </button>
@@ -60,7 +60,7 @@ export function SofiaLayout({
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-2 rounded-full text-xs whitespace-nowrap border shrink-0',
                   'transition-[background-color,color,border-color] duration-150 ease-out active:scale-[0.96]',
-                  active ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200',
+                  active ? 'bg-ww-gold text-white border-ww-gold' : 'bg-white text-ww-n500 border-ww-sand',
                 )}
               >
                 <Icon className="w-3.5 h-3.5" />{t.label}{t.dirty ? ' •' : ''}
