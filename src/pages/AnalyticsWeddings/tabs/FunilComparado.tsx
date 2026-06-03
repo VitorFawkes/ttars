@@ -176,7 +176,8 @@ export function FunilComparado() {
 
       {/* Funil por perfil (matriz) — a estrela */}
       <FunilMatriz dim={perfilDim} onDim={setPerfilDim} rankingA={rankA.data ?? undefined} rankingB={rankB.data ?? undefined}
-        labelA={labelA} labelB={labelB} isLoading={rankA.isLoading || rankB.isLoading} selecionado={selPerfil} onPick={onPickPerfil} bRecente={bRecente} />
+        labelA={labelA} labelB={labelB} isLoading={rankA.isLoading || rankB.isLoading} selecionado={selPerfil} onPick={onPickPerfil} bRecente={bRecente}
+        ganhoDW={marcosB?.ganho} elopementGanho={b.data?.elopement_ganho} />
 
       {/* Manchete */}
       {temDados && marcosA && marcosB && (
