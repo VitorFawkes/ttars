@@ -5,6 +5,7 @@ import { MultiPill, ConsultorPill } from '../components/FilterPills'
 import { PeriodoSeletor } from '../components/PeriodoSeletor'
 import { FunilMatriz } from '../components/FunilMatriz'
 import { FunilUnificado } from '../components/FunilUnificado'
+import { SerieTemporalChart } from '../components/SerieTemporalChart'
 import { CruzamentoCustom } from '../components/CruzamentoCustom'
 import { DrillDrawer, type DrillContext } from '../components/DrillDrawer'
 import { toLinhas, deltasPassagem, biggestDropStep, daysAgo, MARCO_KEYS, MARCO_LABELS, fmtPct, fmtDeltaPp, cumPct } from '../lib/funil'
@@ -214,6 +215,22 @@ export function FunilComparado() {
 
       {/* Funil unificado */}
       <FunilUnificado marcosA={marcosA} marcosB={marcosB} labelA={labelA} labelB={labelB} isLoading={a.isLoading || b.isLoading} error={a.error || b.error} dropIdx={dropIdx} aRecente={aRecente} bRecente={bRecente} />
+
+      {/* Evolução do funil mês a mês (#3) — barras por etapa + toggle quantidade/conversão */}
+      <SerieTemporalChart
+        title="📊 Evolução do funil — período a período"
+        subtitle="Leads → reuniões → vendas em cada período. Troque mês/semana e quantidade/conversão. (Funil DW; Elopement à parte.)"
+        dateStart={new Date(new Date(periodoB.dateEnd).getTime() - 365 * 24 * 60 * 60 * 1000).toISOString()}
+        dateEnd={periodoB.dateEnd}
+        dateMode={dateMode}
+        incluirElopement={false}
+        origins={origins}
+        faixas={faixas}
+        destinos={destinos}
+        convidados={convidados}
+        consultorIds={consultorIds}
+        defaultModo="conversao"
+      />
 
       {/* Cruzar duas informações — power tool colapsável */}
       <button onClick={() => setCruzarAberto((v) => !v)} className="w-full bg-white border border-slate-200 shadow-sm rounded-xl p-4 flex items-center justify-between text-left hover:border-slate-300 transition">
