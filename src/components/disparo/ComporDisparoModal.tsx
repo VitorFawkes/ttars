@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { X, Send, Upload, ClipboardPaste, AlertTriangle, Loader2, Heart, Users, CheckCircle2, Plus, Ban, Download, MessageCircle, Shuffle } from 'lucide-react'
+import { X, Send, Upload, ClipboardPaste, AlertTriangle, Loader2, Heart, Users, CheckCircle2, Plus, Ban, Download, MessageCircle, Shuffle, Trash2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useWhatsAppLinhas, isOfficialMetaLine } from '../../hooks/useWhatsAppLinhas'
 import { useWeddingsWithGuestCounts } from '../../hooks/convidados/useWeddingsWithGuestCounts'
@@ -55,11 +55,12 @@ export function ComporDisparoModal({ open, onClose }: Props) {
   // ── Composição ──────────────────────────────────────────────────────────
   const [tab, setTab] = useState<Tab>('lista')
   const [titulo, setTitulo] = useState('')
-  const [corpo, setCorpo] = useState('')
+  const [corpos, setCorpos] = useState<string[]>([''])  // versão 1 + variações
+  const [focusedIdx, setFocusedIdx] = useState(0)        // versão focada (alvo dos campos)
   const [phoneNumberId, setPhoneNumberId] = useState<string>('')
   const [capDiario, setCapDiario] = useState(500)
   const [usarRamp, setUsarRamp] = useState(true)
-  const corpoRef = useRef<HTMLTextAreaElement>(null)
+  const corpoRefs = useRef<(HTMLTextAreaElement | null)[]>([])
   const didDefaultLine = useRef(false)
 
   // Lista colada/importada
@@ -125,7 +126,7 @@ export function ComporDisparoModal({ open, onClose }: Props) {
   }, [tab, telCol, parsed.rows, guestIds])
 
   const reset = useCallback(() => {
-    setTab('lista'); setTitulo(''); setCorpo(''); setPhoneNumberId('')
+    setTab('lista'); setTitulo(''); setCorpos(['']); setFocusedIdx(0); setPhoneNumberId('')
     setCapDiario(500); setUsarRamp(true)
     setParsed({ headers: [], rows: [] }); setTelCol(null); setNomeCol(null)
     setWeddingId(''); setGuestIds(new Set())
@@ -145,36 +146,40 @@ export function ComporDisparoModal({ open, onClose }: Props) {
     try { handleParsed(await parseFileLista(file)) } catch { setErro('Não consegui ler o arquivo.') }
   }, [handleParsed])
 
+  const setVersao = useCallback((i: number, val: string) => {
+    setCorpos((arr) => arr.map((x, idx) => (idx === i ? val : x)))
+  }, [])
+
+  const addVersao = useCallback(() => {
+    setCorpos((arr) => [...arr, ''])
+    setFocusedIdx(() => corpos.length) // foca a nova
+  }, [corpos.length])
+
+  const removeVersao = useCallback((i: number) => {
+    setCorpos((arr) => (arr.length <= 1 ? arr : arr.filter((_, idx) => idx !== i)))
+    setFocusedIdx((cur) => (cur >= i && cur > 0 ? cur - 1 : cur))
+  }, [])
+
+  // Insere [campo] na versão focada, no cursor.
   const insertVar = useCallback((v: string) => {
-    const el = corpoRef.current
+    const i = focusedIdx
+    const el = corpoRefs.current[i]
     const token = `[${v}]`
-    if (!el) { setCorpo((c) => c + token); return }
-    const start = el.selectionStart ?? corpo.length
-    const end = el.selectionEnd ?? corpo.length
-    setCorpo((c) => c.slice(0, start) + token + c.slice(end))
+    const cur = corpos[i] ?? ''
+    const start = el?.selectionStart ?? cur.length
+    const end = el?.selectionEnd ?? cur.length
+    setVersao(i, cur.slice(0, start) + token + cur.slice(end))
     requestAnimationFrame(() => {
+      if (!el) return
       el.focus()
       const pos = start + token.length
       el.setSelectionRange(pos, pos)
     })
-  }, [corpo])
+  }, [focusedIdx, corpos, setVersao])
 
-  // Insere um bloco de variação {opção 1|opção 2} e seleciona "opção 1" pra editar.
-  const insertSpintax = useCallback(() => {
-    const el = corpoRef.current
-    const token = '{opção 1|opção 2}'
-    const start = el?.selectionStart ?? corpo.length
-    const end = el?.selectionEnd ?? corpo.length
-    setCorpo((c) => c.slice(0, start) + token + c.slice(end))
-    requestAnimationFrame(() => {
-      if (!el) return
-      el.focus()
-      el.setSelectionRange(start + 1, start + 9) // seleciona "opção 1"
-    })
-  }, [corpo])
-
-  // Preview com a 1ª linha
+  // Preview da versão focada, com a 1ª linha da lista
   const preview = useMemo(() => {
+    const corpo = corpos[focusedIdx] ?? corpos[0] ?? ''
     const vars: Record<string, string> = {}
     let firstNome = 'Maria'
     if (tab === 'lista' && parsed.rows.length > 0 && telCol) {
@@ -198,11 +203,11 @@ export function ComporDisparoModal({ open, onClose }: Props) {
       body = body.replace(new RegExp(`\\[\\s*${k}\\s*\\]`, 'gi'), val)
     }
     return body.replace(/\{\{\s*[^}]+\s*\}\}/g, '')
-  }, [corpo, tab, parsed, telCol, nomeCol, guests, guestIds])
+  }, [corpos, focusedIdx, tab, parsed, telCol, nomeCol, guests, guestIds])
 
   const canReview =
     titulo.trim() !== '' &&
-    corpo.trim() !== '' &&
+    (corpos[0]?.trim() ?? '') !== '' &&
     phoneNumberId !== '' &&
     !linhaOficial &&
     recipientCount > 0
@@ -228,7 +233,8 @@ export function ComporDisparoModal({ open, onClose }: Props) {
     try {
       const id = await criarCampanha({
         titulo: titulo.trim(),
-        corpo_mensagem: corpo,
+        corpo_mensagem: corpos[0],
+        corpos_alternativos: corpos.slice(1).filter((c) => c.trim() !== ''),
         phone_number_id: phoneNumberId,
         cap_diario: capDiario,
         usar_ramp: usarRamp,
@@ -244,7 +250,7 @@ export function ComporDisparoModal({ open, onClose }: Props) {
     } finally {
       setBusy(false)
     }
-  }, [canReview, criarCampanha, titulo, corpo, phoneNumberId, capDiario, usarRamp, variaveis, buildPublico, tab, guestIds, ingestRecipients])
+  }, [canReview, criarCampanha, titulo, corpos, phoneNumberId, capDiario, usarRamp, variaveis, buildPublico, tab, guestIds, ingestRecipients])
 
   const handleEditar = useCallback(async () => {
     if (campaignId) { try { await cancelar(campaignId) } catch { /* draft */ } }
@@ -492,33 +498,53 @@ export function ComporDisparoModal({ open, onClose }: Props) {
                 )}
               </div>
 
-              <div className="flex-1 flex flex-col min-h-0">
+              <div className="flex flex-col">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <FieldLabel>Mensagem</FieldLabel>
+                  <FieldLabel>Mensagem{corpos.length > 1 ? ' e variações' : ''}</FieldLabel>
                   <div className="flex flex-wrap gap-1 justify-end">
                     {variaveis.map((v) => (
                       <button
-                        key={v} type="button" onClick={() => insertVar(v)} title="Inserir campo personalizado"
+                        key={v} type="button" onClick={() => insertVar(v)} title="Inserir campo personalizado na versão em foco"
                         className="px-2 h-6 rounded-full text-[11px] font-semibold bg-ww-gold-soft text-ww-gold-ink border border-ww-gold/20 hover:bg-ww-gold/15 active:scale-95 transition-[transform,background-color] duration-150"
                       >{`[${v}]`}</button>
                     ))}
-                    <button
-                      type="button" onClick={insertSpintax} title="Inserir variação de texto (sorteia uma por pessoa)"
-                      className="inline-flex items-center gap-1 px-2 h-6 rounded-full text-[11px] font-semibold bg-ww-rosewood-soft text-ww-rosewood border border-ww-rosewood/20 hover:bg-ww-rosewood/15 active:scale-95 transition-[transform,background-color] duration-150"
-                    ><Shuffle className="w-3 h-3" /> variação</button>
                   </div>
                 </div>
-                <textarea
-                  ref={corpoRef}
-                  value={corpo}
-                  onChange={(e) => setCorpo(e.target.value)}
-                  placeholder="Oi [nome]! Tudo bem? ..."
-                  className="mt-1.5 flex-1 min-h-[120px] px-3.5 py-3 text-sm rounded-xl border border-ww-sand bg-white text-ww-n700 placeholder:text-ww-n400 focus:outline-none focus:border-ww-gold focus-visible:ring-2 focus-visible:ring-ww-gold/25 transition-[border-color,box-shadow] duration-150 resize-none leading-relaxed"
-                />
-                <p className="mt-2 text-xs text-ww-n500 leading-relaxed">
-                  <Shuffle className="inline w-3 h-3 mr-0.5 text-ww-rosewood" /> Variações: escreva
-                  {' '}<code className="px-1 rounded bg-ww-rosewood-soft text-ww-rosewood">{'{Oi|Olá|E aí}'}</code>{' '}
-                  e o sistema sorteia uma versão por pessoa — deixa a mensagem menos repetida e protege o número.
+
+                <div className="mt-1.5 flex flex-col gap-2.5">
+                  {corpos.map((c, i) => (
+                    <div key={i}>
+                      {corpos.length > 1 && (
+                        <div className="flex items-center justify-between mb-1 px-0.5">
+                          <span className="text-[11px] font-bold uppercase tracking-wide text-ww-n500">
+                            {i === 0 ? 'Versão 1 (principal)' : `Versão ${i + 1}`}
+                          </span>
+                          <button
+                            type="button" onClick={() => removeVersao(i)} title="Remover esta versão"
+                            className="inline-flex items-center justify-center h-6 w-6 rounded-md text-ww-n400 hover:text-ww-error hover:bg-ww-error/5 transition-colors duration-150"
+                          ><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
+                      )}
+                      <textarea
+                        ref={(el) => { corpoRefs.current[i] = el }}
+                        value={c}
+                        onFocus={() => setFocusedIdx(i)}
+                        onChange={(e) => setVersao(i, e.target.value)}
+                        placeholder={i === 0 ? 'Oi [nome]! Tudo bem? ...' : 'Outro jeito de dizer a mesma coisa…'}
+                        className="w-full min-h-[110px] px-3.5 py-3 text-sm rounded-xl border border-ww-sand bg-white text-ww-n700 placeholder:text-ww-n400 focus:outline-none focus:border-ww-gold focus-visible:ring-2 focus-visible:ring-ww-gold/25 transition-[border-color,box-shadow] duration-150 resize-none leading-relaxed"
+                      />
+                    </div>
+                  ))}
+
+                  <button
+                    type="button" onClick={addVersao}
+                    className="self-start inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-xs font-semibold text-ww-rosewood bg-ww-rosewood-soft border border-ww-rosewood/20 hover:bg-ww-rosewood/15 active:scale-[0.98] transition-[transform,background-color] duration-150 ease-ww-soft"
+                  ><Plus className="w-3.5 h-3.5" /> Adicionar variação da mensagem</button>
+                </div>
+
+                <p className="mt-2.5 text-xs text-ww-n500 leading-relaxed">
+                  <Shuffle className="inline w-3.5 h-3.5 mr-1 -mt-0.5 text-ww-rosewood" />
+                  Com mais de uma versão, o sistema manda <span className="font-semibold text-ww-n700">uma diferente pra cada pessoa</span> — deixa a mensagem menos repetida e protege o número.
                 </p>
               </div>
 
