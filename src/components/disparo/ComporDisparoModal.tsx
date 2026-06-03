@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { X, Send, Upload, ClipboardPaste, AlertTriangle, Loader2, Heart, Users, CheckCircle2, Plus, Ban, Download, MessageCircle } from 'lucide-react'
+import { X, Send, Upload, ClipboardPaste, AlertTriangle, Loader2, Heart, Users, CheckCircle2, Plus, Ban, Download, MessageCircle, Shuffle } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useWhatsAppLinhas, isOfficialMetaLine } from '../../hooks/useWhatsAppLinhas'
 import { useWeddingsWithGuestCounts } from '../../hooks/convidados/useWeddingsWithGuestCounts'
@@ -159,6 +159,20 @@ export function ComporDisparoModal({ open, onClose }: Props) {
     })
   }, [corpo])
 
+  // Insere um bloco de variação {opção 1|opção 2} e seleciona "opção 1" pra editar.
+  const insertSpintax = useCallback(() => {
+    const el = corpoRef.current
+    const token = '{opção 1|opção 2}'
+    const start = el?.selectionStart ?? corpo.length
+    const end = el?.selectionEnd ?? corpo.length
+    setCorpo((c) => c.slice(0, start) + token + c.slice(end))
+    requestAnimationFrame(() => {
+      if (!el) return
+      el.focus()
+      el.setSelectionRange(start + 1, start + 9) // seleciona "opção 1"
+    })
+  }, [corpo])
+
   // Preview com a 1ª linha
   const preview = useMemo(() => {
     const vars: Record<string, string> = {}
@@ -176,7 +190,8 @@ export function ComporDisparoModal({ open, onClose }: Props) {
     }
     vars.nome = firstNome
     vars.primeiro_nome = (firstNome || '').split(' ')[0]
-    let body = corpo
+    // variações {a|b|c}: na prévia mostra a 1ª opção (estável); no envio sorteia por pessoa
+    let body = corpo.replace(/\{([^{}]*\|[^{}]*)\}/g, (_m, inner) => inner.split('|')[0])
     for (const [k, val] of Object.entries(vars)) {
       // aceita {{var}} E [var], qualquer caixa (ex: [Nome], {{nome}})
       body = body.replace(new RegExp(`\\{\\{\\s*${k}\\s*\\}\\}`, 'gi'), val)
@@ -483,10 +498,14 @@ export function ComporDisparoModal({ open, onClose }: Props) {
                   <div className="flex flex-wrap gap-1 justify-end">
                     {variaveis.map((v) => (
                       <button
-                        key={v} type="button" onClick={() => insertVar(v)}
+                        key={v} type="button" onClick={() => insertVar(v)} title="Inserir campo personalizado"
                         className="px-2 h-6 rounded-full text-[11px] font-semibold bg-ww-gold-soft text-ww-gold-ink border border-ww-gold/20 hover:bg-ww-gold/15 active:scale-95 transition-[transform,background-color] duration-150"
                       >{`[${v}]`}</button>
                     ))}
+                    <button
+                      type="button" onClick={insertSpintax} title="Inserir variação de texto (sorteia uma por pessoa)"
+                      className="inline-flex items-center gap-1 px-2 h-6 rounded-full text-[11px] font-semibold bg-ww-rosewood-soft text-ww-rosewood border border-ww-rosewood/20 hover:bg-ww-rosewood/15 active:scale-95 transition-[transform,background-color] duration-150"
+                    ><Shuffle className="w-3 h-3" /> variação</button>
                   </div>
                 </div>
                 <textarea
@@ -496,6 +515,11 @@ export function ComporDisparoModal({ open, onClose }: Props) {
                   placeholder="Oi [nome]! Tudo bem? ..."
                   className="mt-1.5 flex-1 min-h-[120px] px-3.5 py-3 text-sm rounded-xl border border-ww-sand bg-white text-ww-n700 placeholder:text-ww-n400 focus:outline-none focus:border-ww-gold focus-visible:ring-2 focus-visible:ring-ww-gold/25 transition-[border-color,box-shadow] duration-150 resize-none leading-relaxed"
                 />
+                <p className="mt-2 text-xs text-ww-n500 leading-relaxed">
+                  <Shuffle className="inline w-3 h-3 mr-0.5 text-ww-rosewood" /> Variações: escreva
+                  {' '}<code className="px-1 rounded bg-ww-rosewood-soft text-ww-rosewood">{'{Oi|Olá|E aí}'}</code>{' '}
+                  e o sistema sorteia uma versão por pessoa — deixa a mensagem menos repetida e protege o número.
+                </p>
               </div>
 
               <div>
