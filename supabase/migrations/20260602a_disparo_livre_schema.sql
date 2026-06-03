@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS public.disparo_campanhas (
   janela_fim          TIME NOT NULL DEFAULT '20:00',
   -- Variáveis disponíveis na mensagem (nomes das colunas da lista + 'nome')
   variaveis_mapeadas  JSONB NOT NULL DEFAULT '[]'::jsonb,
+  -- Versões extras da mensagem (além de corpo_mensagem) — rotacionadas por pessoa
+  corpos_alternativos JSONB NOT NULL DEFAULT '[]'::jsonb,
   -- Estimativa mostrada ao usuário
   estimado_termino_at TIMESTAMPTZ,
   estimado_dias       NUMERIC,
@@ -47,6 +49,10 @@ CREATE TABLE IF NOT EXISTS public.disparo_campanhas (
   finished_at         TIMESTAMPTZ,
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Idempotente p/ bancos que já têm a tabela (prod já criada na 1ª versão da migration)
+ALTER TABLE public.disparo_campanhas
+  ADD COLUMN IF NOT EXISTS corpos_alternativos JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 CREATE INDEX IF NOT EXISTS idx_disparo_campanhas_org_created
   ON public.disparo_campanhas(org_id, created_at DESC);
