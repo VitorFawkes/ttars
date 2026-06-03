@@ -1,12 +1,12 @@
 import type { WwFunilConversaoMarcos } from '@/hooks/analyticsWeddings/useWw2'
-import { toLinhas, deltasPassagem, MARCO_KEYS, MARCO_LABELS, MARCOS_TARDIOS, fmtPct, fmtDeltaPp } from '../lib/funil'
+import { toLinhas, deltasPassagem, MARCO_KEYS, MARCO_LABELS, fmtPct, fmtDeltaPp } from '../lib/funil'
 import { formatNumber } from '../lib/format'
 import { EmptyState, ErrorBanner, LoadingSkeleton } from './ui'
 
-// Funil etapa por etapa: a CONVERSÃO entre etapas é a estrela.
-// Cada etapa = uma barra (agora=sólida, época=fantasma de referência atrás).
-// Entre as etapas, um selo grande com a conversão da passagem (agora vs época + Δ).
-// A maior queda fica destacada em vermelho. Etapas tardias recentes: "amadurecendo".
+// Funil etapa por etapa, comparando dois períodos (B = colorido/foco; A = cinza/referência),
+// na MESMA escala. Cada etapa mostra a passagem ("avançaram da etapa anterior"), a contagem
+// "X de Y", o acumulado "do topo" e a variação (Δ pp). A maior queda fica destacada.
+// Os marcos A/B já chegam FILTRADOS (a tela passa o resultado filtrado da RPC).
 
 type Props = {
   marcosA: WwFunilConversaoMarcos | undefined
@@ -16,11 +16,11 @@ type Props = {
   isLoading: boolean
   error?: unknown
   dropIdx: number | null
-  aRecente: boolean
-  bRecente: boolean
+  aRecente?: boolean
+  bRecente?: boolean
 }
 
-export function FunilUnificado({ marcosA, marcosB, labelA, labelB, isLoading, error, dropIdx, aRecente, bRecente }: Props) {
+export function FunilUnificado({ marcosA, marcosB, labelA, labelB, isLoading, error, dropIdx }: Props) {
   const linhasA = marcosA ? toLinhas(marcosA) : []
   const linhasB = marcosB ? toLinhas(marcosB) : []
   const deltas = marcosA && marcosB ? deltasPassagem(marcosA, marcosB) : []
@@ -29,17 +29,6 @@ export function FunilUnificado({ marcosA, marcosB, labelA, labelB, isLoading, er
 
   return (
     <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5">
-      <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
-        <div>
-          <h3 className="text-base font-semibold text-slate-900 tracking-tight">Funil de venda — etapa por etapa</h3>
-          <p className="text-xs text-slate-500 mt-0.5">Entre as etapas: quantos avançaram (a conversão). A barra é quanto do total chegou até ali.</p>
-        </div>
-        <div className="flex items-center gap-3 text-xs text-slate-500">
-          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm border border-slate-300 bg-slate-100" /> {labelA}</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-indigo-600" /> {labelB}</span>
-        </div>
-      </div>
-
       {isLoading ? (
         <LoadingSkeleton rows={6} />
       ) : error ? (
@@ -47,63 +36,84 @@ export function FunilUnificado({ marcosA, marcosB, labelA, labelB, isLoading, er
       ) : entrouA === 0 && entrouB === 0 ? (
         <EmptyState message="Nenhum lead com esse perfil nos períodos escolhidos." />
       ) : (
-        <div>
-          {MARCO_KEYS.map((key, i) => {
-            const la = linhasA[i]
+        <>
+          {/* Topo do funil — base */}
+          <div className="flex items-baseline justify-between pb-3 border-b border-slate-200">
+            <div>
+              <span className="text-sm text-slate-500">Entraram no funil </span>
+              <span className="text-lg font-bold text-slate-900 tabular-nums">{formatNumber(entrouB)}</span>
+              <span className="text-sm text-slate-500"> pessoas</span>
+            </div>
+            <span className="text-xs text-slate-400">base · 100%</span>
+          </div>
+
+          {MARCO_KEYS.slice(1).map((key, idx) => {
+            const i = idx + 1
             const lb = linhasB[i]
+            const la = linhasA[i]
+            const prevB = linhasB[i - 1]
             const d = deltas[i] ?? null
             const isDrop = dropIdx === i
-            const maturing = (bRecente || aRecente) && MARCOS_TARDIOS.includes(key)
-            const wB = Math.max(1.5, Math.min(100, lb?.cumPct ?? 0))
-            const wA = Math.max(0, Math.min(100, la?.cumPct ?? 0))
-            const stepB = lb?.stepPct ?? null
-            const stepA = la?.stepPct ?? null
-            const chipCls = d == null ? 'bg-slate-100 text-slate-500 border-slate-200'
-              : d > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-              : d < 0 ? 'bg-rose-50 text-rose-700 border-rose-200'
-              : 'bg-slate-100 text-slate-500 border-slate-200'
+            const wA = Math.max(1.5, Math.min(100, la?.stepPct ?? 0))
+            const wB = Math.max(1.5, Math.min(100, lb?.stepPct ?? 0))
+            const up = d != null && d > 0
+            const down = d != null && d < 0
+            const barB = up ? 'bg-emerald-500' : down ? 'bg-rose-500' : 'bg-slate-400'
+            const deltaCls = up ? 'bg-emerald-50 text-emerald-700' : down ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-400'
 
             return (
-              <div key={key}>
-                {/* Selo de conversão da passagem (entre a etapa anterior e esta) */}
-                {i > 0 && (
-                  <div className="flex items-center gap-3 py-1.5 pl-1">
-                    <div className="flex flex-col items-center w-7 shrink-0 text-slate-400">
-                      <svg width="14" height="18" viewBox="0 0 14 18" fill="none"><path d="M7 0v13M7 18l-5-6M7 18l5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <div key={key} className="py-3.5 border-b border-slate-100 last:border-0">
+                {/* cabeçalho da etapa */}
+                <div className="flex items-start justify-between gap-3 mb-2.5">
+                  <div className="min-w-0">
+                    <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">Avançaram até</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-slate-800">{MARCO_LABELS[key]}</span>
+                      {isDrop && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-rose-100 text-rose-700">maior queda</span>}
                     </div>
-                    <div className={`inline-flex items-baseline gap-2 rounded-lg border px-3 py-1.5 ${isDrop ? 'bg-rose-50 border-rose-300' : chipCls}`}>
-                      <span className={`text-lg font-bold tabular-nums ${isDrop ? 'text-rose-700' : ''}`}>{fmtPct(stepB)}</span>
-                      <span className="text-xs opacity-70">avançaram</span>
-                      {stepA != null && (
-                        <span className="text-xs opacity-60">· antes {fmtPct(stepA)}</span>
-                      )}
-                      {d != null && <span className="text-xs font-semibold">({fmtDeltaPp(d)})</span>}
-                    </div>
-                    {isDrop && <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-rose-200 text-rose-800">maior queda</span>}
-                    {maturing && <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700">amadurecendo</span>}
                   </div>
-                )}
+                  <div className="text-right shrink-0">
+                    <div className="text-xs text-slate-600">
+                      <span className="font-semibold tabular-nums text-slate-900">{formatNumber(lb?.count ?? 0)}</span> de <span className="tabular-nums">{formatNumber(prevB?.count ?? 0)}</span> avançaram
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      do topo: <span className="font-medium text-slate-500 tabular-nums">{fmtPct(lb?.cumPct ?? null)}</span> {labelB} · <span className="font-medium text-slate-500 tabular-nums">{fmtPct(la?.cumPct ?? null)}</span> {labelA}
+                    </div>
+                  </div>
+                </div>
 
-                {/* Etapa: rótulo + barra (agora sólida, época = fantasma atrás) */}
-                <div className={`rounded-lg px-2 py-2 ${isDrop ? 'bg-rose-50/60' : ''}`}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium text-slate-800">{MARCO_LABELS[key]}</span>
-                    <span className="text-xs tabular-nums text-slate-500">
-                      <span className="text-slate-900 font-semibold">{formatNumber(lb?.count ?? 0)}</span> · {fmtPct(lb?.cumPct ?? null)}
-                      <span className="text-slate-400"> · antes {formatNumber(la?.count ?? 0)} ({fmtPct(la?.cumPct ?? null)})</span>
-                    </span>
+                {/* barra A — período de referência (cinza) */}
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-28 shrink-0 text-[11px] text-slate-400 truncate" title={labelA}>{labelA}</span>
+                  <div className="flex-1 h-3.5 rounded bg-slate-100 overflow-hidden">
+                    <div className="h-full rounded bg-slate-300" style={{ width: `${wA}%` }} />
                   </div>
-                  <div className="relative h-6 rounded-md bg-slate-100 overflow-hidden">
-                    {/* fantasma A (referência) */}
-                    <div className="absolute inset-y-0 left-0 rounded-md border-2 border-dashed border-slate-300/80" style={{ width: `${wA}%` }} />
-                    {/* barra B (agora) */}
-                    <div className={`absolute inset-y-0 left-0 rounded-md ${isDrop ? 'bg-rose-500' : 'bg-indigo-600'}`} style={{ width: `${wB}%` }} />
+                  <span className="w-36 shrink-0 text-right text-xs tabular-nums text-slate-500">{fmtPct(la?.stepPct ?? null)}</span>
+                </div>
+
+                {/* barra B — período em foco (colorido) */}
+                <div className="flex items-center gap-2">
+                  <span className="w-28 shrink-0 text-[11px] font-medium text-slate-600 truncate" title={labelB}>{labelB}</span>
+                  <div className="flex-1 h-3.5 rounded bg-slate-100 overflow-hidden">
+                    <div className={`h-full rounded ${barB}`} style={{ width: `${wB}%` }} />
+                  </div>
+                  <div className="w-36 shrink-0 flex items-center justify-end gap-2">
+                    <span className="text-base font-bold tabular-nums text-slate-900">{fmtPct(lb?.stepPct ?? null)}</span>
+                    {d != null && (
+                      <span className={`text-xs font-semibold px-1.5 py-0.5 rounded tabular-nums whitespace-nowrap ${deltaCls}`}>
+                        {up ? '▲' : down ? '▼' : ''} {fmtDeltaPp(d)}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
             )
           })}
-        </div>
+
+          <p className="text-[11px] text-slate-400 pt-3">
+            A <strong className="font-semibold text-slate-500">barra colorida</strong> ({labelB}) e a <strong className="font-semibold text-slate-500">barra cinza</strong> ({labelA}) estão na mesma escala — a diferença de comprimento é a variação, também no número à direita.
+          </p>
+        </>
       )}
     </div>
   )
