@@ -11,7 +11,7 @@ import { formatCurrency, formatNumber } from '../lib/format'
 export function Marketing({ filters, onFiltersChange }: TabProps) {
   return (
     <div className="space-y-4">
-      <FilterBar value={filters} onChange={onFiltersChange} />
+      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'dateMode', 'tipo', 'origem']} />
       <MarketingContent filters={filters} />
     </div>
   )

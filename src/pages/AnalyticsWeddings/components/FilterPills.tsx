@@ -2,6 +2,33 @@ import { useEffect, useState, type ReactNode } from 'react'
 
 export type ConsultorOption = { id: string; nome: string }
 
+// Segmento DW × Elopement (Todos · DW · Elopement). É o corte de TIPO de casamento,
+// não confundir com "Apenas o casal" (que é nº de convidados). Token canônico:
+// 'DW' / 'Elopement' (igual ao backend). `tipos = []` significa Todos.
+export function TipoSegment({ selected, onChange }: { selected: string[]; onChange: (n: string[]) => void }) {
+  const cur = selected.includes('Elopement') && !selected.includes('DW') ? 'Elopement'
+            : selected.includes('DW') && !selected.includes('Elopement') ? 'DW' : 'todos'
+  const set = (v: 'todos' | 'DW' | 'Elopement') => onChange(v === 'todos' ? [] : [v])
+  const opts: { k: 'todos' | 'DW' | 'Elopement'; label: string }[] = [
+    { k: 'todos', label: 'Todos' },
+    { k: 'DW', label: 'DW' },
+    { k: 'Elopement', label: 'Elopement' },
+  ]
+  return (
+    <div className="inline-flex items-center gap-1.5">
+      <span className="text-xs text-slate-500 font-medium px-1">💍 Tipo</span>
+      <div className="inline-flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
+        {opts.map(o => (
+          <button key={o.k} onClick={() => set(o.k)}
+            className={`px-2.5 py-1 text-xs font-medium rounded-md transition ${cur === o.k ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function useDropdown() {
   const [open, setOpen] = useState(false)
   useEffect(() => {

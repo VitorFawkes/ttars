@@ -15,7 +15,7 @@ const CONV_ORDER = ['Apenas o casal', 'Até 20', '20-50', '50-80', '80-100', '+1
 export function EntradaRealidade({ filters, onFiltersChange }: TabProps) {
   return (
     <div className="space-y-4">
-      <FilterBar value={filters} onChange={onFiltersChange} />
+      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'dateMode', 'tipo', 'origem']} />
       <EntradaRealidadeContent filters={filters} />
     </div>
   )
