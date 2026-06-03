@@ -249,8 +249,8 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
               : vista === 'funis'
               ? <>Cada barra = quanto do total que entrou chega àquela etapa (formato de funil). A cor da barra mostra se a passagem daquela etapa é boa (verde) ou trava (vermelho).</>
               : metrica === 'mudanca'
-              ? <>Cada célula = a <strong className="text-slate-500">mudança</strong> da passagem entre {labelA} e {labelB}, em pontos percentuais.</>
-              : <>Cada % = de quem chegou na etapa anterior, quantos <strong className="text-slate-500">avançaram</strong>. <span className="text-emerald-700">Verde</span> = passa bem, <span className="text-rose-700">vermelho</span> = trava. A coluna <strong className="text-slate-500">Entrou</strong> é o nº de leads.</>}
+              ? <>Cada célula = a <strong className="text-slate-500">mudança</strong> da passagem entre {labelA} e {labelB}, em pontos percentuais; o <strong className="text-slate-500">número miúdo</strong> embaixo é a quantidade de pessoas. A última linha (<strong className="text-slate-600">Total</strong>) soma todos os perfis.</>
+              : <>Cada % = de quem chegou na etapa anterior, quantos <strong className="text-slate-500">avançaram</strong>; o <strong className="text-slate-500">número miúdo</strong> embaixo é a quantidade de pessoas. <span className="text-emerald-700">Verde</span> = passa bem, <span className="text-rose-700">vermelho</span> = trava. A coluna <strong className="text-slate-500">Entrou</strong> é o nº de leads, e a última linha (<strong className="text-slate-600">Total</strong>) soma todos os perfis.</>}
           </p>
         </>
       )}
@@ -268,6 +268,16 @@ type ViewProps = {
 }
 
 function TabelaView({ linhas, dim, metrica, selecionado, onPick, pequena }: ViewProps & { metrica: Metrica }) {
+  // Total (soma dos perfis mostrados) — para a linha/barra de total
+  const tot = linhas.reduce(
+    (acc, l) => {
+      acc.entrouA += l.entrouA; acc.entrouB += l.entrouB
+      for (let i = 0; i < 6; i++) { acc.cA[i] += l.countsA[i]; acc.cB[i] += l.countsB[i] }
+      return acc
+    },
+    { entrouA: 0, entrouB: 0, cA: [0, 0, 0, 0, 0, 0], cB: [0, 0, 0, 0, 0, 0] },
+  )
+
   return (
     <div className="overflow-x-auto -mx-1">
       <table className="w-full border-separate border-spacing-1 text-sm">
@@ -275,9 +285,9 @@ function TabelaView({ linhas, dim, metrica, selecionado, onPick, pequena }: View
           <tr>
             <th className="sticky left-0 z-10 bg-white text-left text-xs font-semibold uppercase tracking-wide text-slate-400 px-2 py-1.5 align-bottom">{DIM_LABEL[dim]}</th>
             {MARCO_KEYS.map((k) => (
-              <th key={k} className="px-1.5 py-1.5 align-bottom min-w-[76px]">
+              <th key={k} className="px-1.5 py-1.5 align-bottom min-w-[84px]">
                 <div className="text-xs font-medium text-slate-600 text-center leading-tight">{COL_LABEL[k]}</div>
-                <div className="text-xs text-slate-400 text-center">{k === 'entrou' ? 'nº' : metrica === 'mudanca' ? 'Δ' : '% avança'}</div>
+                <div className="text-xs text-slate-400 text-center">{k === 'entrou' ? 'nº' : metrica === 'mudanca' ? 'Δ · nº' : '% · nº'}</div>
               </th>
             ))}
           </tr>
@@ -300,6 +310,7 @@ function TabelaView({ linhas, dim, metrica, selecionado, onPick, pequena }: View
                   const pA = passagem(l.countsA, i)
                   let bg: string
                   let txt: string
+                  let count: string | null = null
                   let title: string
                   if (i === 0) {
                     if (metrica === 'mudanca') {
@@ -316,19 +327,54 @@ function TabelaView({ linhas, dim, metrica, selecionado, onPick, pequena }: View
                     const d = pA != null && pB != null ? pB - pA : null
                     bg = corMudanca(d, small)
                     txt = fmtDeltaPp(d)
-                    title = `passagem: ${fmtPct(pA)} → ${fmtPct(pB)}`
+                    count = formatNumber(l.countsB[i])
+                    title = `passagem: ${fmtPct(pA)} → ${fmtPct(pB)} · ${formatNumber(l.countsB[i])} pessoas`
                   } else {
                     bg = corPassagem(pB, small)
                     txt = fmtPct(pB)
+                    count = formatNumber(l.countsB[i])
                     title = `${formatNumber(l.countsB[i])} de ${formatNumber(l.countsB[i - 1])} avançaram (${fmtPct(pB)})`
                   }
                   return (
-                    <td key={k} title={title} className={`px-1.5 py-2 text-center tabular-nums text-sm font-medium align-middle rounded transition ${bg} ${isSel ? 'ring-1 ring-indigo-300' : ''}`}>{txt}</td>
+                    <td key={k} title={title} className={`px-1.5 py-1.5 text-center tabular-nums align-middle rounded transition ${bg} ${isSel ? 'ring-1 ring-indigo-300' : ''}`}>
+                      <div className="text-sm font-semibold leading-none">{txt}</div>
+                      {count != null && <div className="text-[10px] font-normal leading-none mt-1 opacity-60">{count}</div>}
+                    </td>
                   )
                 })}
               </tr>
             )
           })}
+
+          {/* Linha de TOTAL — soma de todos os perfis mostrados */}
+          {linhas.length > 1 && (
+            <tr>
+              <td className="sticky left-0 z-10 px-2 py-1.5 rounded-l-lg text-left align-middle bg-slate-800">
+                <span className="text-sm font-bold text-white whitespace-nowrap">Total</span>
+              </td>
+              {MARCO_KEYS.map((k, i) => {
+                let txt: string
+                let count: string | null = null
+                if (i === 0) {
+                  txt = formatNumber(tot.entrouB)
+                } else if (metrica === 'mudanca') {
+                  const pA = passagem(tot.cA, i)
+                  const pB = passagem(tot.cB, i)
+                  txt = fmtDeltaPp(pA != null && pB != null ? pB - pA : null)
+                  count = formatNumber(tot.cB[i])
+                } else {
+                  txt = fmtPct(passagem(tot.cB, i))
+                  count = formatNumber(tot.cB[i])
+                }
+                return (
+                  <td key={k} className="px-1.5 py-1.5 text-center tabular-nums align-middle rounded bg-slate-800 text-white">
+                    <div className="text-sm font-bold leading-none">{txt}</div>
+                    {count != null && <div className="text-[10px] font-normal leading-none mt-1 text-slate-300">{count}</div>}
+                  </td>
+                )
+              })}
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
