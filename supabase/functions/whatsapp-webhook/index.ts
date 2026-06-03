@@ -9,6 +9,26 @@ const corsHeaders = {
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-platform-id",
 };
 
+// ── Whitelist da Sofia/wsdr (números que o agente responde) ──────────────────
+// Forma "local" do número (sem DDI 55) p/ comparar com tolerância a formato.
+function sdrwLocalPhone(s: string | null | undefined): string {
+    const d = String(s ?? "").replace(/\D/g, "");
+    if (d.length === 13 && d.startsWith("55")) return d.slice(2);
+    if (d.length === 12 && d.startsWith("55")) return d.slice(2);
+    return d;
+}
+// SEGURO por padrão: lista vazia/nula = NÃO responde ninguém (≠ Patricia, onde
+// vazio = responde todo mundo). Casa com/sem DDI e com pequenas variações de dígitos.
+function sdrwPhoneAllowed(contact: string, list: string[] | null | undefined): boolean {
+    if (!list || list.length === 0) return false;
+    const c = sdrwLocalPhone(contact);
+    if (!c) return false;
+    return list.some((w) => {
+        const lw = sdrwLocalPhone(w);
+        return !!lw && (lw === c || c.endsWith(lw) || lw.endsWith(c));
+    });
+}
+
 /**
  * WhatsApp Webhook Ingest
  * 
@@ -315,36 +335,95 @@ Deno.serve(async (req) => {
                         continue;
                     }
 
-                    // ── SDR Weddings (agente NOVO, isolado em n8n) — intercepta a linha Elopement ──
-                    // Teste controlado: SÓ o número do Vitor recebe resposta (agente novo "Sofia"
-                    // no n8n); o resto da linha Elopement é ignorado. Patricia NÃO é tocada — aqui
-                    // interceptamos toda a linha Elopement antes de qualquer lógica dela. Qualquer
-                    // erro: loga e ignora (não cai na Patricia, evita resposta dupla).
-                    // REVERSÍVEL: remover este bloco restaura a Patricia na linha Elopement.
-                    const SDRW_ELOPEMENT_LINE = "fe26b171-81b5-4622-8d77-aa5bf102d781";
-                    const SDRW_TEST_LOCAL = "11964293533"; // número do Vitor sem DDI
-                    if (phoneNumberId === SDRW_ELOPEMENT_LINE) {
-                        const sdrwIsVitor = normalizedContact.endsWith(SDRW_TEST_LOCAL);
-                        if (sdrwIsVitor) {
+                    // ── SDR Weddings (Sofia / clones, n8n) — roteamento por linha + whitelist no banco ──
+                    // Config-driven: wsdr_phone_line_routing diz quais linhas são de um agente wsdr;
+                    // wsdr_agents.test_mode_phone_whitelist diz QUAIS números ele responde.
+                    // SEGURO: lista vazia/nula = NÃO responde ninguém (≠ Patricia). Editado na tela da Sofia.
+                    // Se a linha NÃO é de um agente wsdr, segue pra lógica genérica (Patricia) abaixo.
+                    let sdrwRoute: { org_id: string; agent_slug: string } | null = null;
+                    try {
+                        const { data: route } = await supabaseClient.rpc("wsdr_resolve_agent_by_line", { p_phone_line: phoneNumberId });
+                        const r = Array.isArray(route) ? route[0] : route;
+                        if (r?.org_id && r?.agent_slug) sdrwRoute = { org_id: r.org_id, agent_slug: r.agent_slug };
+                    } catch (_rErr) { /* sem rota wsdr: cai na lógica genérica */ }
+
+                    if (sdrwRoute) {
+                        // whitelist + on/off do agente (vazio/nulo = ninguém — fail-safe)
+                        let sdrwAllowed = false;
+                        let sdrwAgentActive = true;
+                        try {
+                            const { data: ag } = await supabaseClient
+                                .from("wsdr_agents")
+                                .select("active, test_mode_phone_whitelist")
+                                .eq("org_id", sdrwRoute.org_id)
+                                .eq("slug", sdrwRoute.agent_slug)
+                                .maybeSingle();
+                            sdrwAgentActive = (ag as { active?: boolean } | null)?.active !== false;
+                            sdrwAllowed = sdrwPhoneAllowed(normalizedContact, (ag as { test_mode_phone_whitelist?: string[] | null } | null)?.test_mode_phone_whitelist ?? null);
+                        } catch (_wErr) { sdrwAllowed = false; }
+
+                        if (sdrwAgentActive && sdrwAllowed) {
+                            // Comando /reset no WhatsApp (paridade Patricia): o testador zera a
+                            // própria conversa antes do cérebro. Só números whitelistados chegam aqui.
+                            if ((messageText || "").trim().toLowerCase() === "/reset") {
+                                let resetCid: string | null = null;
+                                try {
+                                    const { data: ensured } = await supabaseClient.rpc("wsdr_ensure_contact", {
+                                        p_org_id: sdrwRoute.org_id,
+                                        p_phone: normalizedContact,
+                                        p_name: data.contact_name || data.contact?.name || data.pushname || singlePayload.contact_name || null,
+                                    });
+                                    resetCid = (typeof ensured === "string" ? ensured : null);
+                                } catch (_eErr) { /* sem contato: ainda assim tenta resetar */ }
+                                try {
+                                    const { data: rr } = await supabaseClient.rpc("wsdr_reset_conversation_by_phone", {
+                                        p_agent_slug: sdrwRoute.agent_slug,
+                                        p_phone: normalizedContact,
+                                        p_org_id: sdrwRoute.org_id,
+                                    });
+                                    console.log(`[webhook] SDR /reset ${normalizedContact}: ${JSON.stringify(rr)}`);
+                                } catch (rErr) {
+                                    console.error("[webhook] SDR /reset error:", rErr);
+                                }
+                                if (resetCid) {
+                                    try {
+                                        await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-message`, {
+                                            method: "POST",
+                                            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${serviceKey}` },
+                                            body: JSON.stringify({
+                                                contact_id: resetCid,
+                                                corpo: "Conversa zerada 💛 manda um oi pra gente começar do zero.",
+                                                phone_number_id: phoneNumberId,
+                                                source: "sdr-weddings",
+                                            }),
+                                        });
+                                    } catch (_sErr) { /* confirmação é best-effort */ }
+                                }
+                                continue; // /reset não vai pro cérebro
+                            }
                             try {
+                                // acha o contato (na org do agente); número novo whitelistado sem contato → cria
+                                let sdrwContactId: string | null = null;
+                                let sdrwContactNome: string | null = null;
                                 const { data: cts } = await supabaseClient
                                     .from("contatos")
-                                    .select("id, nome, telefone")
-                                    .eq("telefone_normalizado", SDRW_TEST_LOCAL)
-                                    .not("telefone", "is", null)
+                                    .select("id, nome")
+                                    .eq("org_id", sdrwRoute.org_id)
+                                    .eq("telefone_normalizado", sdrwLocalPhone(normalizedContact))
                                     .limit(1);
                                 const ct = (cts && cts[0]) || null;
-                                const sdrwContactId = ct?.id || null;
-                                // Roteamento real por linha: resolve (org, agente) pela linha de WhatsApp,
-                                // pra suportar agentes clonados em outras linhas/marcas. Se não resolver,
-                                // o n8n cai no seu default (Sofia/Weddings) — a Sofia atual não quebra.
-                                let sdrwOrgId: string | null = null;
-                                let sdrwAgentSlug: string | null = null;
-                                try {
-                                    const { data: route } = await supabaseClient.rpc("wsdr_resolve_agent_by_line", { p_phone_line: phoneNumberId });
-                                    const r = Array.isArray(route) ? route[0] : route;
-                                    if (r?.org_id) { sdrwOrgId = r.org_id; sdrwAgentSlug = r.agent_slug; }
-                                } catch (_rErr) { /* fallback: n8n usa o default */ }
+                                sdrwContactId = ct?.id || null;
+                                sdrwContactNome = ct?.nome || null;
+                                if (!sdrwContactId) {
+                                    try {
+                                        const { data: ensured } = await supabaseClient.rpc("wsdr_ensure_contact", {
+                                            p_org_id: sdrwRoute.org_id,
+                                            p_phone: normalizedContact,
+                                            p_name: data.contact_name || data.contact?.name || data.pushname || singlePayload.contact_name || null,
+                                        });
+                                        sdrwContactId = (typeof ensured === "string" ? ensured : null);
+                                    } catch (_eErr) { /* segue sem contato: só não entrega */ }
+                                }
                                 let sdrwHistory: { role: string; text: string }[] = [];
                                 if (sdrwContactId) {
                                     // Histórico recente E só da PRÓPRIA Sofia: inclui o que o lead
@@ -377,8 +456,8 @@ Deno.serve(async (req) => {
                                         const { data: sdrwCfg } = await supabaseClient
                                             .from("wsdr_agent_config")
                                             .select("config")
-                                            .eq("slug", "sofia-weddings")
-                                            .eq("org_id", "b0000000-0000-0000-0000-000000000002")
+                                            .eq("slug", sdrwRoute.agent_slug)
+                                            .eq("org_id", sdrwRoute.org_id)
                                             .maybeSingle();
                                         const mm = sdrwCfg?.config?.capabilities?.multimodal || null;
                                         if (mm?.enabled) {
@@ -397,11 +476,11 @@ Deno.serve(async (req) => {
                                     body: JSON.stringify({
                                         contact_phone: normalizedContact,
                                         contact_id: sdrwContactId,
-                                        nome: data.contact_name || data.contact?.name || data.pushname || singlePayload.contact_name || ct?.nome || "",
+                                        nome: data.contact_name || data.contact?.name || data.pushname || singlePayload.contact_name || sdrwContactNome || "",
                                         message: sdrwMessage,
                                         history: sdrwHistory,
-                                        org_id: sdrwOrgId || undefined,
-                                        agent_slug: sdrwAgentSlug || undefined,
+                                        org_id: sdrwRoute.org_id,
+                                        agent_slug: sdrwRoute.agent_slug,
                                     }),
                                 });
                                 const sdrwJson = await sdrwRes.json().catch(() => ({}));
@@ -420,12 +499,12 @@ Deno.serve(async (req) => {
                                             body: JSON.stringify({
                                                 contact_id: sdrwContactId,
                                                 corpo: sdrwBubbles[bi],
-                                                phone_number_id: SDRW_ELOPEMENT_LINE,
+                                                phone_number_id: phoneNumberId,
                                                 source: "sdr-weddings",
                                             }),
                                         });
                                     }
-                                    console.log(`[webhook] SDR Weddings (Sofia) respondeu via Echo (${sdrwBubbles.length} bolha(s))`);
+                                    console.log(`[webhook] SDR Weddings (${sdrwRoute.agent_slug}) respondeu via Echo (${sdrwBubbles.length} bolha(s))`);
                                 } else {
                                     console.warn(`[webhook] SDR Weddings sem reply/contato (reply=${!!sdrwReply}, contact=${sdrwContactId})`);
                                 }
@@ -433,9 +512,9 @@ Deno.serve(async (req) => {
                                 console.error("[webhook] SDR Weddings branch error:", err);
                             }
                         } else {
-                            console.log(`[webhook] Elopement teste: ignorando ${normalizedContact} (só ${SDRW_TEST_LOCAL} responde)`);
+                            console.log(`[webhook] SDR wsdr: ignorando ${normalizedContact} (allowed=${sdrwAllowed}, active=${sdrwAgentActive})`);
                         }
-                        continue; // intercepta TODA a linha Elopement no teste; Patricia não roda aqui
+                        continue; // a linha é de um agente wsdr; Patricia não roda aqui
                     }
                     const { data: lineRow } = await supabaseClient
                         .from("whatsapp_linha_config")

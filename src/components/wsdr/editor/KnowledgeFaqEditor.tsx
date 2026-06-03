@@ -48,7 +48,7 @@ export function KnowledgeFaqEditor({ agentSlug = 'sofia-weddings' }: { agentSlug
         <Input value={novaP} onChange={e => setNovaP(e.target.value)} placeholder="O que o casal costuma perguntar?" />
         <Textarea value={novaR} onChange={e => setNovaR(e.target.value)} placeholder="Como a Sofia deve responder" className="min-h-[60px]" />
         <button type="button" onClick={addNew} disabled={savingId === 'new' || !novaP.trim() || !novaR.trim()}
-          className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700 disabled:opacity-40">
+          className="flex items-center gap-1.5 text-sm text-ww-gold-ink hover:text-ww-gold disabled:opacity-40">
           {savingId === 'new' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}Adicionar e indexar
         </button>
       </div>
@@ -71,7 +71,7 @@ function KnowledgeRow({ item, busy, onSave, onDelete }: {
       <div className="flex items-center justify-between gap-2">
         <label className="flex items-center gap-1.5 text-xs text-slate-500">
           {item.enabled ? 'Ativa' : 'Desativada'}
-          <Switch checked={item.enabled} onCheckedChange={v => onSave({ enabled: v })} className={item.enabled ? 'bg-indigo-600' : ''} />
+          <Switch checked={item.enabled} onCheckedChange={v => onSave({ enabled: v })} className={item.enabled ? 'bg-ww-gold' : ''} />
         </label>
         <button type="button" onClick={onDelete} className="text-slate-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
       </div>
@@ -79,7 +79,7 @@ function KnowledgeRow({ item, busy, onSave, onDelete }: {
       <Textarea value={r} onChange={e => setR(e.target.value)} placeholder="Resposta" className="min-h-[60px]" />
       {dirty && (
         <button type="button" onClick={() => onSave({ pergunta: p, resposta: r })} disabled={busy}
-          className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-700 disabled:opacity-40">
+          className="flex items-center gap-1.5 text-xs text-ww-gold-ink hover:text-ww-gold disabled:opacity-40">
           {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}Salvar e reindexar
         </button>
       )}

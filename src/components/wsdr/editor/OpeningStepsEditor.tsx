@@ -27,18 +27,18 @@ export function OpeningStepsEditor({
         renderItem={(s, i) => (
           <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
             <div className="flex items-start gap-2">
-              <span className="mt-1.5 w-6 h-6 shrink-0 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center">{i + 1}</span>
+              <span className="mt-1.5 w-6 h-6 shrink-0 rounded-full bg-ww-gold-soft text-ww-gold-ink text-xs font-bold flex items-center justify-center">{i + 1}</span>
               <div className="flex-1 space-y-2">
                 <textarea
                   value={s.fala}
                   onChange={e => set(i, { fala: e.target.value })}
                   placeholder="O que ela diz neste passo (ex: cumprimenta e pergunta o nome)"
                   rows={2}
-                  className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y"
+                  className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ww-gold/40 resize-y"
                 />
                 <div className="flex flex-wrap items-center gap-3">
                   <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
-                    <input type="checkbox" checked={s.espera_resposta} onChange={e => set(i, { espera_resposta: e.target.checked })} className="accent-indigo-600" />
+                    <input type="checkbox" checked={s.espera_resposta} onChange={e => set(i, { espera_resposta: e.target.checked })} className="accent-ww-gold" />
                     {s.espera_resposta ? <Pause className="w-3.5 h-3.5 text-amber-500" /> : <ArrowDown className="w-3.5 h-3.5 text-slate-400" />}
                     {s.espera_resposta ? 'Espera a resposta' : 'Emenda no próximo'}
                   </label>
@@ -55,7 +55,7 @@ export function OpeningStepsEditor({
           </div>
         )}
       />
-      <button type="button" onClick={add} className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700">
+      <button type="button" onClick={add} className="flex items-center gap-1.5 text-sm text-ww-gold-ink hover:text-ww-gold">
         <Plus className="w-4 h-4" />Adicionar passo
       </button>
     </div>

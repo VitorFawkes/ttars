@@ -39,14 +39,14 @@ export function SofiaAgentSwitcher({ selectedSlug, onSelect }: Props) {
           return (
             <button key={a.slug} type="button" onClick={() => onSelect(a.slug)}
               className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-colors',
-                active ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300')}>
+                active ? 'bg-ww-gold text-white border-ww-gold' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300')}>
               <Bot className="w-3.5 h-3.5" />{a.display_name}
             </button>
           )
         })}
         {!adding && (
           <button type="button" onClick={() => setAdding(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border border-dashed border-slate-300 text-slate-500 hover:border-indigo-300 hover:text-indigo-600 transition-colors">
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border border-dashed border-slate-300 text-slate-500 hover:border-ww-gold/40 hover:text-ww-gold-ink transition-colors">
             <Plus className="w-3.5 h-3.5" />Novo agente
           </button>
         )}
@@ -57,7 +57,7 @@ export function SofiaAgentSwitcher({ selectedSlug, onSelect }: Props) {
           <Input autoFocus value={name} onChange={e => setName(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') handleCreate() }}
             placeholder="Nome do novo agente (ex: Helena)" className="flex-1 min-w-[240px]" />
-          <Button type="button" onClick={handleCreate} disabled={creating || !name.trim()} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+          <Button type="button" onClick={handleCreate} disabled={creating || !name.trim()} className="bg-ww-gold hover:bg-ww-gold-ink text-white">
             {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Criar a partir da Sofia'}
           </Button>
           <button type="button" onClick={() => { setAdding(false); setName('') }} className="p-1.5 text-slate-400 hover:text-slate-600">

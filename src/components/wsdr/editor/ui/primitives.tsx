@@ -8,29 +8,31 @@ import { cn } from '@/lib/utils'
 
 export type Accent = 'indigo' | 'violet' | 'sky' | 'amber' | 'emerald' | 'rose' | 'slate'
 
+// Welcome Weddings: paleta QUENTE. Os nomes dos acentos viram "slots" lógicos —
+// os antigos frios (indigo/violet/sky) renderizam tons de marca (dourado/rosewood/oliva).
 const ACCENT: Record<Accent, { icon: string; iconBg: string }> = {
-  indigo: { icon: 'text-indigo-600', iconBg: 'bg-indigo-50' },
-  violet: { icon: 'text-violet-600', iconBg: 'bg-violet-50' },
-  sky: { icon: 'text-sky-600', iconBg: 'bg-sky-50' },
-  amber: { icon: 'text-amber-600', iconBg: 'bg-amber-50' },
-  emerald: { icon: 'text-emerald-600', iconBg: 'bg-emerald-50' },
-  rose: { icon: 'text-rose-600', iconBg: 'bg-rose-50' },
-  slate: { icon: 'text-slate-500', iconBg: 'bg-slate-100' },
+  indigo: { icon: 'text-ww-gold-ink', iconBg: 'bg-ww-gold-soft' },
+  violet: { icon: 'text-ww-rosewood', iconBg: 'bg-ww-rosewood-soft' },
+  sky: { icon: 'text-ww-olive-ink', iconBg: 'bg-ww-olive-soft' },
+  amber: { icon: 'text-amber-700', iconBg: 'bg-amber-50' },
+  emerald: { icon: 'text-ww-olive-ink', iconBg: 'bg-ww-olive-soft' },
+  rose: { icon: 'text-ww-rosewood', iconBg: 'bg-ww-rosewood-soft' },
+  slate: { icon: 'text-ww-n500', iconBg: 'bg-ww-cream' },
 }
 
-// Card de seção: ícone em chip colorido + título forte + descrição. Um accent por seção
-// dá leitura imediata (nada de parede de cards brancos iguais).
+// Seção (sub-bloco) dentro da gaveta. ACHATADA: sem caixa própria — a gaveta já é a
+// superfície branca. Separação por hairline + respiro (nada de caixa-na-caixa).
 export function EditorCard({
   icon, title, desc, accent = 'indigo', children, aside,
 }: { icon: ReactNode; title: string; desc?: string; accent?: Accent; children: ReactNode; aside?: ReactNode }) {
   const a = ACCENT[accent]
   return (
-    <section className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 space-y-4">
+    <section className="space-y-4">
       <div className="flex items-start gap-3">
-        <span className={cn('flex items-center justify-center w-9 h-9 rounded-lg shrink-0', a.iconBg, a.icon)}>{icon}</span>
+        <span className={cn('flex items-center justify-center w-9 h-9 rounded-xl shrink-0', a.iconBg, a.icon)}>{icon}</span>
         <div className="space-y-0.5 min-w-0 flex-1">
-          <h3 className="text-base font-semibold text-slate-900 tracking-tight">{title}</h3>
-          {desc && <p className="text-sm text-slate-500 leading-relaxed">{desc}</p>}
+          <h3 className="font-ww-serif text-lg text-ww-n700 tracking-tight leading-tight">{title}</h3>
+          {desc && <p className="text-sm text-ww-n500 leading-relaxed">{desc}</p>}
         </div>
         {aside}
       </div>
@@ -47,22 +49,22 @@ export function EditorSectionGroup({
   const [open, setOpen] = useState(defaultOpen)
   const a = ACCENT[accent]
   return (
-    <div className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">
+    <div className="border border-ww-sand rounded-2xl bg-white shadow-ww-lift overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors duration-150 ease-out active:scale-[0.997] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500/40"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-ww-cream/60 transition-colors duration-150 ease-out active:scale-[0.997] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ww-gold/40"
       >
         <span className="flex items-center gap-2 min-w-0">
           {icon && <span className={cn('shrink-0', a.icon)}>{icon}</span>}
-          <span className="text-xs font-bold uppercase tracking-wide text-slate-500 truncate">{label}</span>
+          <span className="text-xs font-bold uppercase tracking-wide text-ww-n500 truncate">{label}</span>
           {count != null && (
-            <span className="text-[11px] font-medium text-slate-500 bg-slate-100 rounded-full px-1.5 py-0.5 shrink-0">{count}</span>
+            <span className="text-[11px] font-medium text-ww-n500 bg-ww-cream rounded-full px-1.5 py-0.5 shrink-0">{count}</span>
           )}
         </span>
-        <ChevronDown className={cn('w-4 h-4 text-slate-400 transition-transform duration-200', open && 'rotate-180')} />
+        <ChevronDown className={cn('w-4 h-4 text-ww-n400 transition-transform duration-200', open && 'rotate-180')} />
       </button>
-      {open && <div className="px-4 pb-4 pt-1 space-y-3 border-t border-slate-100">{children}</div>}
+      {open && <div className="px-4 pb-4 pt-1 space-y-3 border-t border-ww-sand">{children}</div>}
     </div>
   )
 }
@@ -70,17 +72,17 @@ export function EditorSectionGroup({
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-900 mb-1.5">{label}</label>
+      <label className="block text-sm font-medium text-ww-n700 mb-1.5">{label}</label>
       {children}
-      {hint && <p className="text-xs text-slate-400 mt-1 leading-relaxed">{hint}</p>}
+      {hint && <p className="text-xs text-ww-n400 mt-1 leading-relaxed">{hint}</p>}
     </div>
   )
 }
 
 export function InfoBanner({ icon, children }: { icon?: ReactNode; children: ReactNode }) {
   return (
-    <div className="flex items-start gap-2.5 bg-slate-50/70 border border-slate-200 rounded-xl p-4 text-xs text-slate-600 leading-relaxed">
-      {icon && <span className="text-slate-400 shrink-0 mt-0.5">{icon}</span>}
+    <div className="flex items-start gap-2.5 bg-ww-cream/60 border border-ww-sand rounded-xl p-4 text-xs text-ww-n600 leading-relaxed">
+      {icon && <span className="text-ww-n400 shrink-0 mt-0.5">{icon}</span>}
       <div>{children}</div>
     </div>
   )
@@ -88,10 +90,10 @@ export function InfoBanner({ icon, children }: { icon?: ReactNode; children: Rea
 
 export function EmptyState({ icon, title, hint }: { icon?: ReactNode; title: string; hint?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center text-center py-8 px-4 rounded-lg border border-dashed border-slate-200 bg-slate-50/50">
-      {icon && <span className="text-slate-300 mb-2">{icon}</span>}
-      <p className="text-sm text-slate-500">{title}</p>
-      {hint && <p className="text-xs text-slate-400 mt-0.5">{hint}</p>}
+    <div className="flex flex-col items-center justify-center text-center py-8 px-4 rounded-xl border border-dashed border-ww-sand bg-ww-cream/40">
+      {icon && <span className="text-ww-n400 mb-2">{icon}</span>}
+      <p className="text-sm text-ww-n500">{title}</p>
+      {hint && <p className="text-xs text-ww-n400 mt-0.5">{hint}</p>}
     </div>
   )
 }

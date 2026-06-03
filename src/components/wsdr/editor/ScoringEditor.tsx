@@ -67,15 +67,15 @@ export function ScoringEditor({ qual, onChange }: { qual: Qual; onChange: (q: Qu
             Desligado: ela julga o fit livremente, sem nota mínima fixa.
           </p>
         </div>
-        <Switch checked={enabled} onCheckedChange={v => set({ scoring_enabled: v })} className={enabled ? 'bg-indigo-600' : ''} />
+        <Switch checked={enabled} onCheckedChange={v => set({ scoring_enabled: v })} className={enabled ? 'bg-ww-gold' : ''} />
       </div>
 
       {enabled && (
         <>
           {/* Nota máxima alcançável — referência pra calibrar nota mínima e faixas */}
-          <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg bg-indigo-50/60 border border-indigo-100">
+          <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg bg-ww-gold-soft/60 border border-ww-gold/20">
             <span className="text-xs text-slate-600">Com os critérios de hoje, a nota máxima que um casal alcança é</span>
-            <span className="text-sm font-bold text-indigo-700">{maxScore} pontos</span>
+            <span className="text-sm font-bold text-ww-gold-ink">{maxScore} pontos</span>
           </div>
 
           {/* Config geral */}
@@ -97,7 +97,7 @@ export function ScoringEditor({ qual, onChange }: { qual: Qual; onChange: (q: Qu
             <select
               value={fallback}
               onChange={e => set({ fallback_action: e.target.value as Qual['fallback_action'] })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ww-gold/40"
             >
               {FALLBACK_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
@@ -119,8 +119,8 @@ export function ScoringEditor({ qual, onChange }: { qual: Qual; onChange: (q: Qu
 }
 
 function ExplainerCard({ n, icon, title, body, tone }: { n: number; icon: React.ReactNode; title: string; body: string; tone: 'red' | 'indigo' | 'emerald' }) {
-  const border = { red: 'border-red-200 bg-red-50/40', indigo: 'border-indigo-200 bg-indigo-50/40', emerald: 'border-emerald-200 bg-emerald-50/40' }[tone]
-  const dot = { red: 'bg-red-100 text-red-700', indigo: 'bg-indigo-100 text-indigo-700', emerald: 'bg-emerald-100 text-emerald-700' }[tone]
+  const border = { red: 'border-red-200 bg-red-50/40', indigo: 'border-ww-gold/30 bg-ww-gold-soft/40', emerald: 'border-emerald-200 bg-emerald-50/40' }[tone]
+  const dot = { red: 'bg-red-100 text-red-700', indigo: 'bg-ww-gold-soft text-ww-gold-ink', emerald: 'bg-emerald-100 text-emerald-700' }[tone]
   return (
     <div className={cn('rounded-xl border p-4', border)}>
       <div className="flex items-center gap-2 mb-1.5">
@@ -139,7 +139,7 @@ function ScoringExplainer({ disqualify, qualify, bonus, threshold, maxBonus }: {
       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Como a nota funciona</p>
       <div className="grid md:grid-cols-3 gap-3">
         <ExplainerCard n={1} tone="red" icon={<ShieldAlert className="w-4 h-4 text-red-600" />} title="Desqualifica" body={`Se um dos ${disqualify} alertas vermelhos bater, o casal cai direto, sem somar pontos.`} />
-        <ExplainerCard n={2} tone="indigo" icon={<TrendingUp className="w-4 h-4 text-indigo-600" />} title="Soma pontos" body={`Os ${qualify} critérios que qualificam somam pontos. Ao atingir ${threshold}, o casal qualifica.`} />
+        <ExplainerCard n={2} tone="indigo" icon={<TrendingUp className="w-4 h-4 text-ww-gold-ink" />} title="Soma pontos" body={`Os ${qualify} critérios que qualificam somam pontos. Ao atingir ${threshold}, o casal qualifica.`} />
         <ExplainerCard n={3} tone="emerald" icon={<Sparkles className="w-4 h-4 text-emerald-600" />} title="Bônus" body={`Os ${bonus} sinais de bônus reforçam, somando até ${maxBonus} no total. Não decidem sozinhos.`} />
       </div>
     </div>

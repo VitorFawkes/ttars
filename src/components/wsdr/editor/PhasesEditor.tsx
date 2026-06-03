@@ -41,7 +41,7 @@ export function PhasesEditor({ phases, onChange }: { phases: SofiaPhase[]; onCha
       {phases.length === 0 && (
         <p className="text-xs text-slate-400 italic py-1">Nenhuma etapa ainda. Sem etapas, a Sofia conduz no modo livre.</p>
       )}
-      <button type="button" onClick={add} className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700">
+      <button type="button" onClick={add} className="flex items-center gap-1.5 text-sm text-ww-gold-ink hover:text-ww-gold">
         <Plus className="w-4 h-4" />Adicionar etapa
       </button>
     </div>

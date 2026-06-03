@@ -27,34 +27,32 @@ export function MomentsEditor({ moments, onChange }: { moments: SofiaMoment[]; o
         renderItem={(m, i) => {
           const trig = MOMENT_TRIGGERS.find(t => t.value === m.trigger_type) || MOMENT_TRIGGERS[MOMENT_TRIGGERS.length - 1]
           return (
-            <div className="border border-slate-200 rounded-lg p-3 space-y-2.5 bg-white">
+            <div className="border border-ww-sand rounded-xl p-3 space-y-2.5 bg-white">
+              {/* O gatilho É o título do momento (não há campo "nome" — ele não ia pro prompt). */}
               <div className="flex items-center gap-2">
-                <Input value={m.label} onChange={e => set(i, { label: e.target.value })} placeholder="Nome do momento (ex: Quando perguntam preço)" className="flex-1" />
-                <label className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
-                  {m.enabled ? 'Ativo' : 'Inativo'}
-                  <Switch checked={m.enabled} onCheckedChange={v => set(i, { enabled: v })} className={m.enabled ? 'bg-indigo-600' : ''} />
-                </label>
-                <button type="button" onClick={() => remove(i)} className="p-1.5 hover:bg-red-50 rounded text-slate-400 hover:text-red-500 shrink-0"><Trash2 className="w-4 h-4" /></button>
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">Quando acontece</label>
                 <select
                   value={m.trigger_type}
                   onChange={e => set(i, { trigger_type: e.target.value as MomentTrigger })}
-                  className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-2 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                  aria-label="Quando acontece"
+                  className="flex-1 min-w-0 text-sm font-medium border border-ww-sand rounded-lg px-2.5 py-2 bg-white text-ww-n700 focus:outline-none focus:ring-2 focus:ring-ww-gold/40"
                 >
                   {MOMENT_TRIGGERS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
-                <p className="text-[11px] text-slate-400 mt-1">{trig.exemplo}</p>
+                <label className="flex items-center gap-1.5 text-xs text-ww-n500 shrink-0">
+                  {m.enabled ? 'Ativo' : 'Inativo'}
+                  <Switch checked={m.enabled} onCheckedChange={v => set(i, { enabled: v })} className={m.enabled ? 'bg-ww-gold' : ''} />
+                </label>
+                <button type="button" onClick={() => remove(i)} className="p-1.5 hover:bg-red-50 rounded text-ww-n400 hover:text-red-500 shrink-0"><Trash2 className="w-4 h-4" /></button>
               </div>
+              {trig.exemplo && <p className="text-[11px] text-ww-n400 -mt-1">Dispara, por ex., em: {trig.exemplo}</p>}
               {m.trigger_type === 'custom_condition' && (
                 <div>
-                  <label className="block text-xs text-slate-500 mb-1">Descreva quando isso acontece</label>
+                  <label className="block text-xs text-ww-n500 mb-1">Descreva quando isso acontece</label>
                   <Input value={m.custom_condition_description ?? ''} onChange={e => set(i, { custom_condition_description: e.target.value })} placeholder="Ex: quando o casal menciona um resort all-inclusive" />
                 </div>
               )}
               <div>
-                <label className="block text-xs text-slate-500 mb-1">O que a Sofia faz nesse momento</label>
+                <label className="block text-xs text-ww-n500 mb-1">O que a Sofia faz nesse momento</label>
                 <Textarea value={m.instrucao} onChange={e => set(i, { instrucao: e.target.value })} placeholder="Ex: fale da assessoria com leveza e remeta os detalhes à Wedding Planner" className="min-h-[72px]" />
               </div>
             </div>
@@ -64,7 +62,7 @@ export function MomentsEditor({ moments, onChange }: { moments: SofiaMoment[]; o
       {moments.length === 0 && (
         <p className="text-xs text-slate-400 italic py-1">Nenhum momento ainda.</p>
       )}
-      <button type="button" onClick={add} className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700">
+      <button type="button" onClick={add} className="flex items-center gap-1.5 text-sm text-ww-gold-ink hover:text-ww-gold">
         <Plus className="w-4 h-4" />Adicionar momento
       </button>
     </div>

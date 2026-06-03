@@ -38,7 +38,7 @@ export function CriterionInterligadoEditor({
           <CriterionCard c={c} onPatch={(p) => set(i, p)} onRemove={() => remove(i)} />
         )}
       />
-      <button type="button" onClick={add} className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700">
+      <button type="button" onClick={add} className="flex items-center gap-1.5 text-sm text-ww-gold-ink hover:text-ww-gold">
         <Plus className="w-4 h-4" />Adicionar critério
       </button>
     </div>
@@ -91,11 +91,11 @@ function CriterionCard({ c, onPatch, onRemove }: { c: QualCriterion; onPatch: (p
                   onChange={e => onPatch({ como_perguntar: e.target.value })}
                   placeholder="A pergunta que ela prefere usar (ela ainda reage ao que o casal disse)"
                   rows={2}
-                  className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y"
+                  className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ww-gold/40 resize-y"
                 />
               )}
               <label className="flex items-center gap-2 mt-2 text-xs text-slate-600 cursor-pointer">
-                <input type="checkbox" checked={naFronteira} onChange={e => onPatch({ perguntar_quando: e.target.checked ? 'fronteira' : 'sempre' })} className="accent-indigo-600" />
+                <input type="checkbox" checked={naFronteira} onChange={e => onPatch({ perguntar_quando: e.target.checked ? 'fronteira' : 'sempre' })} className="accent-ww-gold" />
                 Só pergunta se faltar ponto (aprofundamento)
               </label>
             </>
@@ -107,7 +107,7 @@ function CriterionCard({ c, onPatch, onRemove }: { c: QualCriterion; onPatch: (p
           <select
             value={kind}
             onChange={e => onPatch({ kind: e.target.value as CriterionKind, rule_type: e.target.value === 'desqualifica' ? 'disqualifier' : 'qualifier' })}
-            className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-ww-gold/40"
           >
             {CRITERION_KIND_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -132,7 +132,7 @@ function CriterionCard({ c, onPatch, onRemove }: { c: QualCriterion; onPatch: (p
 
 function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
   return (
-    <button type="button" onClick={onClick} className={cn('px-2.5 py-1 rounded-full text-xs font-medium border transition-colors', on ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300')}>
+    <button type="button" onClick={onClick} className={cn('px-2.5 py-1 rounded-full text-xs font-medium border transition-colors', on ? 'bg-ww-gold-soft text-ww-gold-ink border-ww-gold/30' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300')}>
       {label}
     </button>
   )
@@ -163,7 +163,7 @@ function FaixasEditor({ c, onPatch }: { c: QualCriterion; onPatch: (p: Partial<Q
           <button type="button" onClick={() => onPatch({ faixas: faixas.filter((_, idx) => idx !== i) })} className="text-slate-300 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
         </div>
       ))}
-      <button type="button" onClick={() => onPatch({ faixas: [...faixas, { de: null, ate: null, pontos: 0 }] })} className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700"><Plus className="w-3 h-3" />faixa</button>
+      <button type="button" onClick={() => onPatch({ faixas: [...faixas, { de: null, ate: null, pontos: 0 }] })} className="flex items-center gap-1 text-xs text-ww-gold-ink hover:text-ww-gold"><Plus className="w-3 h-3" />faixa</button>
     </div>
   )
 }
@@ -181,7 +181,7 @@ function OpcoesEditor({ c, onPatch }: { c: QualCriterion; onPatch: (p: Partial<Q
           <button type="button" onClick={() => onPatch({ opcoes: opcoes.filter((_, idx) => idx !== i) })} className="text-slate-300 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
         </div>
       ))}
-      <button type="button" onClick={() => onPatch({ opcoes: [...opcoes, { opcao: '', pontos: 0 }] })} className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700"><Plus className="w-3 h-3" />opção</button>
+      <button type="button" onClick={() => onPatch({ opcoes: [...opcoes, { opcao: '', pontos: 0 }] })} className="flex items-center gap-1 text-xs text-ww-gold-ink hover:text-ww-gold"><Plus className="w-3 h-3" />opção</button>
       <label className="flex items-center gap-2 text-[11px] text-slate-500 pt-1">
         Fora da lista:
         <select value={c.fora_da_lista ?? 'zero'} onChange={e => onPatch({ fora_da_lista: e.target.value as 'zero' | 'desqualifica' })} className="border border-slate-300 rounded px-1.5 py-0.5 text-[11px]">

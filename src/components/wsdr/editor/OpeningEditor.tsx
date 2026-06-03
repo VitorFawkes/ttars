@@ -31,10 +31,10 @@ export function OpeningEditor({
               onClick={() => onChange({ abertura_mode: o.value })}
               className={cn(
                 'text-left p-3 rounded-lg border transition-all active:scale-[0.99]',
-                active ? 'bg-indigo-50 border-indigo-300 ring-1 ring-indigo-200' : 'bg-white border-slate-200 hover:border-slate-300'
+                active ? 'bg-ww-gold-soft border-ww-gold/40 ring-1 ring-ww-gold/30' : 'bg-white border-slate-200 hover:border-slate-300'
               )}
             >
-              <p className={cn('text-sm font-medium', active ? 'text-indigo-900' : 'text-slate-700')}>{o.label}</p>
+              <p className={cn('text-sm font-medium', active ? 'text-ww-n700' : 'text-slate-700')}>{o.label}</p>
               <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{o.hint}</p>
             </button>
           )
@@ -74,7 +74,7 @@ export function OpeningEditor({
         <div className="mt-2 flex flex-wrap gap-2">
           {VARIABLES.map(v => (
             <span key={v.token} className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200 rounded px-2 py-1">
-              <code className="text-[11px] text-indigo-700">{v.token}</code>
+              <code className="text-[11px] text-ww-gold-ink">{v.token}</code>
               <span className="text-[11px] text-slate-400">{v.desc}</span>
             </span>
           ))}

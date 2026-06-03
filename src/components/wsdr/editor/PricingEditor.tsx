@@ -19,7 +19,7 @@ export function PricingEditor({ pricing, onChange }: { pricing: SofiaPricing; on
       <div className="space-y-3">
         <label className="flex items-center justify-between text-sm font-medium text-slate-900">
           <span>A Sofia menciona a assessoria (honorário)</span>
-          <Switch checked={pricing.mention_fee} onCheckedChange={v => set({ mention_fee: v })} className={pricing.mention_fee ? 'bg-indigo-600' : ''} />
+          <Switch checked={pricing.mention_fee} onCheckedChange={v => set({ mention_fee: v })} className={pricing.mention_fee ? 'bg-ww-gold' : ''} />
         </label>
         {pricing.mention_fee && (
           <div className="grid grid-cols-2 gap-3">
@@ -40,8 +40,8 @@ export function PricingEditor({ pricing, onChange }: { pricing: SofiaPricing; on
         <label className="block text-sm font-medium text-slate-900 mb-1.5">Quando falar de valor</label>
         <div className="space-y-1.5">
           {REVEAL_OPTIONS.map(opt => (
-            <label key={opt.value} className={cn('flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer', pricing.reveal_strategy === opt.value ? 'border-indigo-300 bg-indigo-50/60' : 'border-slate-200 hover:border-slate-300')}>
-              <input type="radio" name="reveal" className="mt-1 accent-indigo-600" checked={pricing.reveal_strategy === opt.value} onChange={() => set({ reveal_strategy: opt.value as RevealStrategy })} />
+            <label key={opt.value} className={cn('flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer', pricing.reveal_strategy === opt.value ? 'border-ww-gold/40 bg-ww-gold-soft/60' : 'border-slate-200 hover:border-slate-300')}>
+              <input type="radio" name="reveal" className="mt-1 accent-ww-gold" checked={pricing.reveal_strategy === opt.value} onChange={() => set({ reveal_strategy: opt.value as RevealStrategy })} />
               <span><span className="text-sm font-medium text-slate-900">{opt.label}</span><span className="block text-xs text-slate-500">{opt.hint}</span></span>
             </label>
           ))}
@@ -51,7 +51,7 @@ export function PricingEditor({ pricing, onChange }: { pricing: SofiaPricing; on
       {/* Não negocia */}
       <label className="flex items-center justify-between text-sm text-slate-700 p-3 rounded-lg border border-slate-200">
         <span>Permitir que a Sofia negocie/dê desconto <span className="text-xs text-slate-400">(ela é SDR — recomendado deixar desligado)</span></span>
-        <Switch checked={pricing.can_negotiate} onCheckedChange={v => set({ can_negotiate: v })} className={pricing.can_negotiate ? 'bg-indigo-600' : ''} />
+        <Switch checked={pricing.can_negotiate} onCheckedChange={v => set({ can_negotiate: v })} className={pricing.can_negotiate ? 'bg-ww-gold' : ''} />
       </label>
 
       {/* Tom ao hesitar */}
@@ -62,9 +62,9 @@ export function PricingEditor({ pricing, onChange }: { pricing: SofiaPricing; on
             { value: 'empathetic', label: 'Com empatia', hint: 'Acolhe, reconhece e deixa a porta aberta.' },
             { value: 'firm', label: 'Com firmeza', hint: 'Reafirma o valor e os diferenciais, sem agressividade.' },
           ] as const).map(opt => (
-            <label key={opt.value} className={cn('flex flex-col gap-0.5 p-2.5 rounded-lg border cursor-pointer', pricing.tone_on_pushback === opt.value ? 'border-indigo-300 bg-indigo-50/60' : 'border-slate-200 hover:border-slate-300')}>
+            <label key={opt.value} className={cn('flex flex-col gap-0.5 p-2.5 rounded-lg border cursor-pointer', pricing.tone_on_pushback === opt.value ? 'border-ww-gold/40 bg-ww-gold-soft/60' : 'border-slate-200 hover:border-slate-300')}>
               <span className="flex items-center gap-2 text-sm font-medium text-slate-900">
-                <input type="radio" name="pushback" className="accent-indigo-600" checked={pricing.tone_on_pushback === opt.value} onChange={() => set({ tone_on_pushback: opt.value })} />
+                <input type="radio" name="pushback" className="accent-ww-gold" checked={pricing.tone_on_pushback === opt.value} onChange={() => set({ tone_on_pushback: opt.value })} />
                 {opt.label}
               </span>
               <span className="text-xs text-slate-500 pl-6">{opt.hint}</span>
@@ -94,7 +94,7 @@ export function PricingEditor({ pricing, onChange }: { pricing: SofiaPricing; on
             <Input value={r.contexto || ''} onChange={e => setRange(i, { contexto: e.target.value })} placeholder="Contexto (o que inclui / observações)" />
           </div>
         ))}
-        <button type="button" onClick={addRange} className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700"><Plus className="w-4 h-4" />Adicionar destino</button>
+        <button type="button" onClick={addRange} className="flex items-center gap-1.5 text-sm text-ww-gold-ink hover:text-ww-gold"><Plus className="w-4 h-4" />Adicionar destino</button>
       </div>
     </div>
   )

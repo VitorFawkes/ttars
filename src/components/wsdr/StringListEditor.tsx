@@ -84,7 +84,7 @@ export function StringListEditor({
           placeholder={placeholder}
           className="flex-1"
         />
-        <Button type="button" onClick={handleAdd} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white shrink-0">
+        <Button type="button" onClick={handleAdd} size="sm" className="bg-ww-gold hover:bg-ww-gold-ink text-white shrink-0">
           <Plus className="w-4 h-4" />
         </Button>
       </div>

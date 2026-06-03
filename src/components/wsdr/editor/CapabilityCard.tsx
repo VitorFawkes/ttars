@@ -14,7 +14,7 @@ const COLOR: Record<string, string> = {
   emerald: 'bg-emerald-50 text-emerald-600',
   violet: 'bg-violet-50 text-violet-600',
   rose: 'bg-rose-50 text-rose-600',
-  indigo: 'bg-indigo-50 text-indigo-600',
+  indigo: 'bg-ww-gold-soft text-ww-gold-ink',
 }
 
 const STATUS_STYLE: Record<CapStatus, { label: string; cls: string }> = {
@@ -52,7 +52,7 @@ export function CapabilityCard({ icon, color, title, subtitle, description, stat
           </div>
           <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
         </div>
-        <Switch checked={enabled} onCheckedChange={onToggle} className={enabled ? 'bg-indigo-600' : ''} />
+        <Switch checked={enabled} onCheckedChange={onToggle} className={enabled ? 'bg-ww-gold' : ''} />
       </div>
 
       {children && (
@@ -62,7 +62,7 @@ export function CapabilityCard({ icon, color, title, subtitle, description, stat
           className="w-full flex items-center justify-between px-4 py-2 border-t border-slate-100 text-xs text-slate-500 hover:bg-slate-50 transition-colors"
         >
           <span>{open ? 'Ocultar ajustes' : 'Ver ajustes'}</span>
-          <ChevronDown className={cn('w-4 h-4 transition-transform', open && 'rotate-180', open && 'text-indigo-600')} />
+          <ChevronDown className={cn('w-4 h-4 transition-transform', open && 'rotate-180', open && 'text-ww-gold-ink')} />
         </button>
       )}
 
