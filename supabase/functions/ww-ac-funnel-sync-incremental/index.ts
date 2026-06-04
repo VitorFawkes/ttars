@@ -33,6 +33,10 @@ const FIELD_GANHO            = '87'
 const FIELD_DEAL_PACOTE_CONV = '62'
 const FIELD_DEAL_MOTIVO_CLOSER = '47'
 const FIELD_DEAL_MOTIVO_SDR    = '56'
+const FIELD_DEAL_ORCAMENTO     = '27'  // orçamento declarado (form do site)
+const FIELD_DEAL_CONV_FORM     = '26'  // nº convidados declarado (form do site)
+const FIELD_DEAL_DESTINO       = '28'  // destino declarado (form do site)
+const FIELD_DEAL_TIPO          = '30'  // DW ou Elopment (declarado)
 const CONTACT_FIELD_CONVIDADOS = '121'
 const CONTACT_FIELD_ORCAMENTO  = '376'
 const CONTACT_FIELD_UTM_SOURCE = '46'
@@ -40,7 +44,7 @@ const CONTACT_FIELD_UTM_MEDIUM = '47'
 const CONTACT_FIELD_UTM_CAMPAIGN = '48'
 const CONTACT_FIELD_ORIGEM_CONVERSAO = '137'
 
-type Deal = { id: string; group: string | null; title: string | null; contact?: string | null }
+type Deal = { id: string; group: string | null; title: string | null; contact?: string | null; cdate?: string | null }
 
 function parseDateTime(v: string | null | undefined): string | null {
   if (!v) return null
@@ -231,6 +235,13 @@ Deno.serve(async (req) => {
       closer_fez: closer.fez,
       closer_canal: closer.canal,
       ganho_at: parseDateTime(fieldMap[FIELD_GANHO]),
+      // Dimensões DECLARADAS no form do site (campos do DEAL) — só p/ deals WW.
+      // Cru (a normalização/limpeza acontece depois, no refresh_ww_funil_casal).
+      faixa_raw:      isWw ? (fieldMap[FIELD_DEAL_ORCAMENTO] ?? null) : null,
+      convidados_raw: isWw ? (fieldMap[FIELD_DEAL_CONV_FORM] ?? null) : null,
+      destino_raw:    isWw ? (fieldMap[FIELD_DEAL_DESTINO]   ?? null) : null,
+      tipo_casamento: isWw ? (fieldMap[FIELD_DEAL_TIPO]      ?? null) : null,
+      deal_created_at: parseDateTime(deal.cdate),
       real_orcamento_raw: orcamentoRaw,
       real_orcamento_parsed: parseOrcamento(orcamentoRaw),
       real_convidados_raw: convidadosRaw,

@@ -1174,3 +1174,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-06-03T16:48:06Z | supabase/migrations/20260603g_ww_cache_rpcs_tipo_real.sql | applied_to_prod
 2026-06-03T16:51:49Z | supabase/migrations/20260603h_ww_casal_tipo_filter.sql | applied_to_prod
 2026-06-03T17:00:40Z | supabase/migrations/20260603i_ww_drift_combos_tipo.sql | applied_to_prod
+2026-06-03T17:39:21Z | supabase/migrations/20260603j_analytics_planner_stage_x_owner_cards.sql | applied_to_prod
+2026-06-04T21:56:13Z | supabase/migrations/20260604a_ww_refresh_casal_cron.sql | applied_to_prod
