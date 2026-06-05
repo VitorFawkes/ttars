@@ -446,12 +446,21 @@ Deno.serve(async (req) => {
                                             text: m.body || "",
                                         }));
                                 }
-                                // Multimodal: se veio mídia (áudio/foto/PDF) sem texto, converte em
-                                // texto antes de mandar pro cérebro (gated pela config da Sofia).
+                                // Multimodal: Echo manda mídia (áudio/foto/PDF/sticker) com um
+                                // PLACEHOLDER de texto ('[Áudio]', '[Documento]'…) ou a legenda da
+                                // imagem — NUNCA vazio. Por isso o gatilho é o TIPO + media_url
+                                // (igual à Patricia em ai-agent-router-v2), e não "texto vazio".
+                                // O bug anterior (gate "texto vazio") nunca disparava → a Sofia
+                                // recebia literalmente "[Áudio]" e não entendia a mídia.
                                 let sdrwMessage = messageText;
                                 const sdrwMsgType = data.type || data.message_type || "text";
                                 const sdrwMediaUrl = data.media_url || data.media?.url || null;
-                                if ((!sdrwMessage || !sdrwMessage.trim()) && sdrwMediaUrl && sdrwMsgType !== "text") {
+                                const sdrwIsMedia = !!sdrwMediaUrl && ["audio", "image", "document", "sticker"].includes(sdrwMsgType);
+                                if (sdrwIsMedia) {
+                                    // Legenda real (imagem com texto) vs placeholder do Echo: o
+                                    // placeholder é um único token entre colchetes ('[Áudio]');
+                                    // uma legenda real não casa com esse padrão.
+                                    const sdrwCaption = /^\[[^\]]+\]$/.test((messageText || "").trim()) ? "" : (messageText || "").trim();
                                     try {
                                         const { data: sdrwCfg } = await supabaseClient
                                             .from("wsdr_agent_config")
@@ -461,13 +470,14 @@ Deno.serve(async (req) => {
                                             .maybeSingle();
                                         const mm = sdrwCfg?.config?.capabilities?.multimodal || null;
                                         if (mm?.enabled) {
-                                            sdrwMessage = await processMediaToText(sdrwMsgType, sdrwMediaUrl, OPENAI_API_KEY, mm);
+                                            const sdrwMediaText = await processMediaToText(sdrwMsgType, sdrwMediaUrl, OPENAI_API_KEY, mm);
+                                            sdrwMessage = sdrwCaption ? `${sdrwCaption}\n${sdrwMediaText}` : sdrwMediaText;
                                         } else {
                                             sdrwMessage = `[o casal mandou um ${sdrwMsgType}, mas a Sofia não está processando mídia agora]`;
                                         }
                                     } catch (mErr) {
                                         console.error("[webhook] Sofia multimodal error:", mErr);
-                                        sdrwMessage = `[${sdrwMsgType} recebido]`;
+                                        sdrwMessage = sdrwCaption || `[${sdrwMsgType} recebido]`;
                                     }
                                 }
                                 const sdrwRes = await fetch("https://n8n-n8n.ymnmx7.easypanel.host/webhook/sdr-weddings", {
