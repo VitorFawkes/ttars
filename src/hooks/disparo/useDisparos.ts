@@ -58,7 +58,7 @@ export function useDisparoFila(campaignId: string | null) {
       if (!campaignId) return []
       const { data, error } = await sbAny
         .from('disparo_fila')
-        .select('id, campaign_id, contact_id, telefone_normalizado, status, execute_at, priority, attempts, corpo_renderizado, erro_motivo, enviado_at')
+        .select('id, campaign_id, contact_id, telefone_normalizado, status, execute_at, priority, attempts, corpo_renderizado, erro_motivo, enviado_at, variaveis, whatsapp_message_id, contato:contatos(nome)')
         .eq('campaign_id', campaignId)
         .order('execute_at', { ascending: true })
         .limit(2000)
