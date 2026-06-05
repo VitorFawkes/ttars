@@ -50,6 +50,9 @@ export interface DisparoFilaItem {
   corpo_renderizado: string | null
   erro_motivo: string | null
   enviado_at: string | null
+  variaveis: Record<string, string> | null
+  whatsapp_message_id: string | null
+  contato: { nome: string | null } | null
 }
 
 /** 1 destinatário da lista colada/importada. */
