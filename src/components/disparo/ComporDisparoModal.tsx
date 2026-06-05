@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { X, Send, Upload, ClipboardPaste, AlertTriangle, Loader2, Heart, Users, CheckCircle2, Plus, Ban, Download, MessageCircle, Shuffle, Trash2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { formatPhoneBR } from '../../utils/normalizePhone'
 import { useWhatsAppLinhas, isOfficialMetaLine } from '../../hooks/useWhatsAppLinhas'
 import { useWeddingsWithGuestCounts } from '../../hooks/convidados/useWeddingsWithGuestCounts'
 import { useGuests } from '../../hooks/convidados/useGuests'
@@ -41,6 +42,29 @@ const MOTIVO_LABEL: Record<string, string> = {
   telefone_invalido: 'telefone inválido',
   opt_out: 'pediu pra não receber',
   duplicado: 'repetido na lista',
+}
+
+/** Renderiza a mensagem substituindo [campo]/{{campo}} pelo valor da pessoa. */
+function renderMensagem(corpo: string, nome: string, extras: Record<string, string>): string {
+  const vars: Record<string, string> = { ...extras }
+  vars.nome = nome
+  vars.primeiro_nome = (nome || '').split(' ')[0]
+  // variações {a|b|c}: mostra a 1ª opção (estável); no envio sorteia por pessoa
+  let body = corpo.replace(/\{([^{}]*\|[^{}]*)\}/g, (_m, inner) => inner.split('|')[0])
+  for (const [k, val] of Object.entries(vars)) {
+    body = body.replace(new RegExp(`\\{\\{\\s*${k}\\s*\\}\\}`, 'gi'), val)
+    body = body.replace(new RegExp(`\\[\\s*${k}\\s*\\]`, 'gi'), val)
+  }
+  return body.replace(/\{\{\s*[^}]+\s*\}\}/g, '')
+}
+
+/** Compara dois telefones pelos dígitos finais (tolera DDI/máscara diferentes). */
+function mesmoTelefone(a: string, b: string): boolean {
+  const da = (a || '').replace(/\D/g, '')
+  const db = (b || '').replace(/\D/g, '')
+  if (!da || !db) return false
+  const n = Math.min(da.length, db.length, 11)
+  return n >= 8 && da.slice(-n) === db.slice(-n)
 }
 
 const INPUT = 'w-full h-11 px-3.5 rounded-xl border border-ww-sand bg-white text-sm text-ww-n700 placeholder:text-ww-n400 focus:outline-none focus:border-ww-gold focus-visible:ring-2 focus-visible:ring-ww-gold/25 transition-[border-color,box-shadow] duration-150'
@@ -180,29 +204,20 @@ export function ComporDisparoModal({ open, onClose }: Props) {
   // Preview da versão focada, com a 1ª linha da lista
   const preview = useMemo(() => {
     const corpo = corpos[focusedIdx] ?? corpos[0] ?? ''
-    const vars: Record<string, string> = {}
+    const extras: Record<string, string> = {}
     let firstNome = 'Maria'
     if (tab === 'lista' && parsed.rows.length > 0 && telCol) {
       const r = parsed.rows.find((x) => (x[telCol] ?? '').trim() !== '') ?? parsed.rows[0]
       if (nomeCol) firstNome = r[nomeCol] || firstNome
       for (const h of parsed.headers) {
         if (h === telCol || h === nomeCol) continue
-        vars[slugifyHeader(h)] = r[h] ?? ''
+        extras[slugifyHeader(h)] = r[h] ?? ''
       }
     } else if (tab === 'casamento') {
       const g = guests.find((x) => guestIds.has(x.id))
       if (g?.nome) firstNome = g.nome
     }
-    vars.nome = firstNome
-    vars.primeiro_nome = (firstNome || '').split(' ')[0]
-    // variações {a|b|c}: na prévia mostra a 1ª opção (estável); no envio sorteia por pessoa
-    let body = corpo.replace(/\{([^{}]*\|[^{}]*)\}/g, (_m, inner) => inner.split('|')[0])
-    for (const [k, val] of Object.entries(vars)) {
-      // aceita {{var}} E [var], qualquer caixa (ex: [Nome], {{nome}})
-      body = body.replace(new RegExp(`\\{\\{\\s*${k}\\s*\\}\\}`, 'gi'), val)
-      body = body.replace(new RegExp(`\\[\\s*${k}\\s*\\]`, 'gi'), val)
-    }
-    return body.replace(/\{\{\s*[^}]+\s*\}\}/g, '')
+    return renderMensagem(corpo, firstNome, extras)
   }, [corpos, focusedIdx, tab, parsed, telCol, nomeCol, guests, guestIds])
 
   const canReview =
@@ -278,6 +293,27 @@ export function ComporDisparoModal({ open, onClose }: Props) {
   const optOuts = rejeitados.filter((r) => r.out_motivo === 'opt_out').length
   const dias = estimarDias(aceitos.length, capDiario, usarRamp)
 
+  // 3 primeiros exemplos REAIS — mensagem já com nome/campos da pessoa substituídos,
+  // pra conferir se o "[nome]" foi lido certinho antes de disparar.
+  const exemplos = aceitos.slice(0, 3).map((r) => {
+    const nome = (r.out_nome || '').trim() || 'Convidado'
+    const extras: Record<string, string> = {}
+    if (tab === 'lista' && telCol) {
+      const src = parsed.rows.find((row) => mesmoTelefone(row[telCol] ?? '', r.out_telefone))
+      if (src) {
+        for (const h of parsed.headers) {
+          if (h === telCol || h === nomeCol) continue
+          extras[slugifyHeader(h)] = src[h] ?? ''
+        }
+      }
+    }
+    return {
+      nome,
+      telefone: r.out_telefone,
+      texto: renderMensagem(corpos[0] ?? '', nome, extras),
+    }
+  })
+
   return (
     <div
       className={cn('fixed inset-0 z-50 flex items-center justify-center bg-ww-n700/35 backdrop-blur-sm p-4 transition-opacity duration-200 ease-ww-soft', shown ? 'opacity-100' : 'opacity-0')}
@@ -336,8 +372,23 @@ export function ComporDisparoModal({ open, onClose }: Props) {
             )}
 
             <div className="mt-5">
-              <FieldLabel>Prévia da mensagem</FieldLabel>
-              <PreviewBubble text={preview} className="mt-2" />
+              <FieldLabel>Como vão chegar — 3 primeiros exemplos</FieldLabel>
+              <p className="mt-1 text-xs text-ww-n400">Confira se o nome e os campos entraram certinho. Estas são exatamente as mensagens que essas pessoas vão receber.</p>
+              <div className="mt-3 space-y-3">
+                {exemplos.length === 0 ? (
+                  <PreviewBubble text={preview} />
+                ) : (
+                  exemplos.map((ex, i) => (
+                    <div key={i} className="rounded-xl border border-ww-sand bg-white px-3.5 pt-3 pb-1 shadow-ww-lift">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-semibold text-ww-n700 truncate">{ex.nome}</span>
+                        <span className="text-xs text-ww-n400 tabular-nums shrink-0">{formatPhoneBR(ex.telefone)}</span>
+                      </div>
+                      <PreviewBubble text={ex.texto} className="mt-2 border-0 p-0" />
+                    </div>
+                  ))
+                )}
+              </div>
               <div className="mt-3 text-xs text-ww-n500">
                 Linha <span className="font-semibold text-ww-n700">{linhaSelecionada?.phone_number_label}</span> · até{' '}
                 <span className="font-semibold text-ww-n700">{capDiario}/dia</span>{usarRamp ? ' (começa devagar)' : ''} · só das 08h às 20h
