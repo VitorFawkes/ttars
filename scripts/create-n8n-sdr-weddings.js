@@ -102,7 +102,15 @@ Data definida ou pedido de prioridade é sinal forte pra convidar assim que os g
 </gates_do_convite>
 
 <convite_e_agenda>
-A reunião é entre o casal e a nossa Wedding Planner. Você NÃO participa da reunião nem é a Planner; você só AGENDA. Quando fizer sentido, convide. {{ $('Monta').item.json.invented_date_rule_txt }}Se houver horários livres abaixo, ofereça ALGUNS deles agrupados por dia (poucos por vez, como um humano faria) e peça pra escolherem um. Se não houver horários carregados, pergunte o melhor período. Peça o e-mail só DEPOIS que escolherem o horário. Handoff invisível: nunca diga "vou te transferir/passar" ("já deixo reservado com a nossa Planner e te confirmo").
+A reunião é entre o casal e a nossa Wedding Planner. Você NÃO participa da reunião nem é a Planner; você só AGENDA. Quando fizer sentido, convide. {{ $('Monta').item.json.invented_date_rule_txt }}
+{{ $('Monta').item.json.agenda_regras_txt }}
+Como conduzir o agendamento (seja inteligente, nunca um balcão burro):
+- Se o casal pedir um horário ou período específico (ex.: "17h30", "fim da tarde", "segunda à noite"), NUNCA ignore. PRIMEIRO reconheça o que pediram. Se bater com algum horário livre da lista, ofereça/confirme esse.
+- Se o horário que pediram NÃO der (fora do horário de atendimento, dia que a Planner não atende, ou cedo demais pela antecedência), diga isso com gentileza e explique o porquê em uma frase curta usando as regras acima, e JÁ ofereça os horários livres MAIS PRÓXIMOS do que eles queriam (ex.: pediram 17h30 e a Planner vai até as 17h: "ela atende até as 17h, mas consigo às 16h ou, se preferir mais pra noite, em outro dia às 19h"). Nunca só despeje outros horários sem reconhecer o que pediram.
+- Se não pediram horário específico, ofereça ALGUNS dos horários livres abaixo (poucos por vez, variando manhã/tarde/noite como um humano faria) e peça pra escolherem um.
+- Só ofereça ou confirme horários que estão na lista abaixo; nunca prometa um horário que não está nela. Se o que eles querem está dentro das regras mas não aparece na lista, diga que vai verificar com a Planner e ofereça os mais próximos.
+- Se não houver nenhum horário livre carregado, pergunte o melhor período pra você verificar.
+Peça o e-mail só DEPOIS que escolherem o horário. Handoff invisível: nunca diga "vou te transferir/passar" ("já deixo reservado com a nossa Planner e te confirmo").
 Horários livres da agenda da Planner (já dentro das regras, só ofereça destes):
 {{ $('Parse Agenda').item.json.slots_txt || '(nenhum horário carregado; pergunte o melhor período)' }}
 </convite_e_agenda>
@@ -275,6 +283,23 @@ const regras_txt = ativas.map(r => '- ' + r.texto).join('\\n');
 const no_dash_enabled = ativas.some(r => r.id === 'no_dash');
 const invented_date_rule_txt = ativas.some(r => r.id === 'no_invented_date') ? 'Você não inventa data nem horário. ' : '';
 const comportamentos_txt = '';
+// Agenda: regras reais legíveis (dias/horário de atendimento, duração, antecedência) pra a Sofia
+// EXPLICAR com gentileza quando um horário pedido não cabe, em vez de só despejar outros.
+const cal = (cfg.capabilities && cfg.capabilities.calendar) || {};
+const DOW_NAMES = { 0:'domingo',1:'segunda',2:'terça',3:'quarta',4:'quinta',5:'sexta',6:'sábado' };
+const calWins = arr(cal.windows);
+const calDur = (typeof cal.slot_duration_minutes === 'number') ? cal.slot_duration_minutes : 45;
+const calLead = (typeof cal.min_lead_hours === 'number') ? cal.min_lead_hours : 1;
+const calSkipWe = cal.skip_weekends !== false;
+const fmtHM = (s) => String(s||'').replace(':00','h').replace(':','h');
+const lastStart = (w) => { const parts = String((w && w.fim) || '17:00').split(':'); const endM = (parseInt(parts[0],10)||0)*60 + (parseInt(parts[1],10)||0); const lm = endM - calDur; const h = Math.floor(lm/60), mm = lm%60; return h + 'h' + (mm>0 ? String(mm).padStart(2,'0') : ''); };
+const winTxts = calWins.map(w => { const dias = arr(w.dias).length ? w.dias : [1,2,3,4,5]; return dias.map(d => DOW_NAMES[d]).filter(Boolean).join(', ') + ' das ' + fmtHM(w.inicio||'10:00') + ' às ' + fmtHM(w.fim||'17:00'); });
+const agenda_regras_txt = (cal.enabled && calWins.length) ? (
+  'Regras reais da agenda da Wedding Planner (use SÓ pra explicar quando um horário não der; nunca invente nem prometa fora delas):\\n' +
+  '- Atende: ' + winTxts.join(' / ') + '.\\n' +
+  '- Cada conversa dura ' + calDur + ' min, então o horário mais tarde que dá pra começar é ' + lastStart(calWins[0]) + '.\\n' +
+  '- Precisa de pelo menos ' + calLead + 'h de antecedência' + (calSkipWe ? ' e não atende fins de semana' : '') + '.'
+) : '';
 // Proposta = identidade canônica da empresa (usada pra ela se apresentar em qualquer momento).
 const proposta_val = id.proposta || cfg.proposta || '';
 const proposta_txt = proposta_val ? ('Sobre a ' + (id.empresa || cfg.empresa || 'gente') + ': ' + proposta_val + '. Use isso pra se apresentar com naturalidade, sem decorar.') : '';
@@ -412,6 +437,7 @@ return [{ json: {
   bubbles_enabled: !!(cfg.capabilities && cfg.capabilities.memory && cfg.capabilities.memory.enabled && cfg.capabilities.memory.bubbles_enabled),
   crm_write_enabled: !!(cfg.capabilities && cfg.capabilities.crm_write && cfg.capabilities.crm_write.enabled),
   calendar_enabled: !!(cfg.capabilities && cfg.capabilities.calendar && cfg.capabilities.calendar.enabled),
+  agenda_regras_txt: agenda_regras_txt,
   followup_enabled: !!(cfg.capabilities && cfg.capabilities.followup && cfg.capabilities.followup.enabled),
   followup_days: (cfg.capabilities && cfg.capabilities.followup && Array.isArray(cfg.capabilities.followup.days) && cfg.capabilities.followup.days.length) ? cfg.capabilities.followup.days : [1,3,7],
   handoff_enabled: !!(cfg.capabilities && cfg.capabilities.handoff && cfg.capabilities.handoff.enabled),
