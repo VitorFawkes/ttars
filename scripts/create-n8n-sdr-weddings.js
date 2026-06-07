@@ -119,7 +119,7 @@ Horários livres da agenda da Planner (já dentro das regras, só ofereça deste
 Regras absolutas, nunca quebre:
 - ORÇAMENTO DO CASAL: pergunte quanto o casal pretende investir antes de convidar. Se recusarem um número, ofereça estas faixas como opção e siga sem travar: {{ $('Monta').item.json.faixas_txt }} (isto é o orçamento DELES, diferente da nossa política de preço).
 - Pouca intenção (só curiosidade, sem data, "daqui muitos anos"): reconheça com carinho, deixe a porta aberta, não force outra pergunta.
-- Nunca invente dado sobre destino, prazo, política ou pacote. Se não está na base de conhecimento nem o casal disse, não afirme: diga que confirma com a Planner ou pergunte.
+- JAMAIS INVENTE o que ninguém te passou. Vale pra TUDO: preço de destino sem faixa, disponibilidade de data ou de um local/resort específico, capacidade ou viabilidade ("cabe 300 numa praia?", "Noronha aceita esse tamanho?"), políticas (jurídico, documentação, parcelamento, contrato), pacotes e fornecedores. Não chute número, data, disponibilidade, capacidade nem política pra parecer útil ou pra agradar. Quando NÃO souber: (1) reconheça o que pediram; (2) seja honesta e leve que esse detalhe específico quem confirma/fecha é a Wedding Planner; (3) mantenha a conversa andando — responda o que VOCÊ sabe, convide ou pergunte. Honestidade inteligente: nunca evasiva, nunca robótica (sem repetir "Planner" a cada frase), e nunca inventando.
 {{ $('Monta').item.json.regras_txt }}
 {{ $('Monta').item.json.competitors_txt }}
 {{ $('Monta').item.json.fronteiras_txt }}
@@ -128,6 +128,7 @@ Regras absolutas, nunca quebre:
 <politica_preco>
 Você PODE falar de valor (NUNCA negocia, você é SDR). Siga:
 {{ $('Monta').item.json.pricing_txt }}
+Você só tem faixa de referência destes destinos: {{ $('Monta').item.json.precos_destinos_txt || '(nenhum cadastrado)' }}. Pra QUALQUER outro destino (ex: Maldivas, Bali, Tailândia, México), NÃO invente faixa nem reaproveite a de outro lugar: diga com leveza e honestidade que pra esse destino os valores certinhos são com a Wedding Planner, e siga a conversa (convide, pergunte o orçamento do casal). A gente OPERA muito mais destinos do que os que têm faixa aqui, então querer um destino sem faixa é normal, não é um "não".
 Sempre que falar de preço, contextualize com leveza que depende de escopo, destino, época e formato, e que a Wedding Planner detalha tudo no papo. Se o casal sumir/esfriar quando o preço aparece, não force, remeta à Planner.
 </politica_preco>
 
@@ -164,6 +165,7 @@ Evite sempre, com o caminho certo no lugar:
 Antes de enviar, pare e revise em silêncio (esta é a sua rede de segurança, leve a sério):
 - Minha resposta BATE com onde a conversa está? Olhe o que você já sabe, o que ainda falta, a última fala do casal e os gates do convite. Se não bater, reescreva antes de mandar.
 - Reagi ao que o casal disse?
+- Afirmei algum número, preço, data, disponibilidade, capacidade ou política que NINGUÉM me passou (nem o casal, nem a base, nem as faixas/horários que tenho)? Se sim, apago e troco por "isso a Wedding Planner confirma" — jamais invento pra parecer útil.
 - Respeitei as linhas vermelhas, a política de preço e o glossário?
 - Se é primeiro contato, abri do jeito certo; se os gates fecharam, costurei e convidei.
 </autochecagem>
@@ -259,6 +261,8 @@ const pushback_txt = (pr.tone_on_pushback === 'firm')
   ? 'Se hesitarem pelo valor, reafirme com firmeza o valor e os diferenciais, sem agressividade.'
   : 'Se hesitarem pelo valor, acolha com empatia, reconheça o momento e deixe a porta aberta.';
 const pricing_txt = [assessoria_txt, (revealMap[pr.reveal_strategy] || revealMap.on_question), (pr.can_negotiate ? '' : 'NUNCA negocie nem dê desconto, você é SDR.'), pushback_txt, (ranges_txt ? ('Faixas de casamento por destino (a partir de):\\n' + ranges_txt) : '')].filter(Boolean).join('\\n');
+// Destinos que TÊM faixa de referência (pra ela saber o escopo e não inventar fora dele).
+const precos_destinos_txt = arr(pr.destination_ranges).map(r => r.destino).filter(Boolean).join(', ');
 const gl = vo.glossary || {};
 const glossary_usar = arr(gl.marca).map(g => g.palavra || g).filter(Boolean).join(', ');
 const glossary_evitar = arr(gl.proibida).map(g => (g.palavra||g) + (g.alternativa ? (' (prefira "' + g.alternativa + '")') : '')).filter(Boolean).join(', ');
@@ -428,6 +432,7 @@ return [{ json: {
   criterios_json: criterios_json,
   faqs_txt: faqs_txt,
   pricing_txt: pricing_txt,
+  precos_destinos_txt: precos_destinos_txt,
   glossary_usar: glossary_usar,
   glossary_evitar: glossary_evitar,
   comportamentos_txt: comportamentos_txt,
