@@ -338,8 +338,22 @@ const weightOf = (c) => (typeof c.weight === 'number') ? c.weight : (wpadrao[c.i
 // Linha pro Qualificador-LLM saber O QUE extrair por critério (conforme o tipo).
 const critQualLine = (c, i) => {
   const k = kindOf(c); const lbl = c.label || c.criterio || c;
-  if (k === 'faixas_valor') return (i+1) + '. ' + lbl + ' — calcule o valor (' + (c.base === 'total' ? 'orçamento total' : 'orçamento ÷ convidados que vão de fato') + ') e devolva o NÚMERO em "valor" (null se ainda não dá pra saber).';
-  if (k === 'peso_por_opcao') return (i+1) + '. ' + lbl + ' — devolva em "opcao" a REGIÃO da lista mais próxima do que o casal disse (entre: ' + arr(c.opcoes).map(o=>o.opcao).join(', ') + '). Encaixe sub-lugares na região (ex: Trancoso/Jericoacoara/Maragogi/Porto de Galinhas = Nordeste; Cancún/Punta Cana/Tulum/Aruba = Caribe; Toscana/Portugal/Grécia = Europa). Use "fora" SÓ se claramente não for nenhuma região da lista (ex: Bali, Japão, Dubai). "" se ainda não souber.';
+  if (k === 'faixas_valor') {
+    // Tipo GENÉRICO de número (não mais só "orçamento"). base define COMO obter o número:
+    // total = soma o orçamento total; por_convidado = orçamento ÷ convidados; qualquer
+    // outro (ex: numero) = extrai o número direto do que o critério pede (ex: nº de convidados).
+    const how = c.base === 'total' ? 'some o orçamento TOTAL do casamento'
+              : c.base === 'por_convidado' ? 'calcule o orçamento ÷ convidados que vão de fato'
+              : 'extraia o número que representa isto';
+    return (i+1) + '. ' + lbl + ' — ' + how + ' e devolva o NÚMERO em "valor" (null se ainda não dá pra saber).';
+  }
+  if (k === 'peso_por_opcao') {
+    // Tipo GENÉRICO de opção (não mais só "destino"). As pistas de mapeamento (ex: sub-lugares
+    // por região) vêm da config do critério (campo "dica"), não hardcoded.
+    const ops = arr(c.opcoes).map(o=>o.opcao).filter(Boolean).join(', ');
+    const dica = (c.dica && String(c.dica).trim()) ? (' ' + String(c.dica).trim()) : '';
+    return (i+1) + '. ' + lbl + ' — devolva em "opcao" qual destas opções melhor representa o que o casal disse (entre: ' + ops + ').' + dica + ' Use "fora" só se claramente não for nenhuma. "" se ainda não souber.';
+  }
   if (k === 'desqualifica') return (i+1) + '. ' + lbl + ' — atende=true SÓ se isto for claramente verdade (desqualifica o casal).';
   return (i+1) + '. ' + lbl + ' — atende=true se o casal claramente tem/atende isso.';
 };
