@@ -112,6 +112,8 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
   const [metrica, setMetrica] = useState<Metrica>('passagem')
   const [sortKey, setSortKey] = useState<SortKey>('fechamento')
   const [soComAmostra, setSoComAmostra] = useState(false)
+  const [esconderNI, setEsconderNI] = useState(true)
+  const isNI = (b: string) => /n[ãa]o\s*informad/i.test(b)
 
   const todas = useMemo<Linha[]>(() => {
     const rowsA = rankingA?.rows ?? []
@@ -138,8 +140,11 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
   }, [rankingA, rankingB, dim])
 
   const pequena = (l: Linha) => l.entrouB < AMOSTRA_MIN && l.entrouA < AMOSTRA_MIN
-  const visiveis = soComAmostra ? todas.filter((l) => !pequena(l)) : todas
-  const escondidas = todas.length - visiveis.length
+  const niLinha = todas.find((l) => isNI(l.bucket)) ?? null
+  const perfis = todas.filter((l) => !isNI(l.bucket))
+  const baseLinhas = esconderNI ? perfis : todas
+  const visiveis = soComAmostra ? baseLinhas.filter((l) => !pequena(l)) : baseLinhas
+  const escondidas = baseLinhas.length - visiveis.length
 
   const ordenadas = useMemo(() => {
     const arr = [...visiveis]
@@ -147,12 +152,13 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
     if (sortKey === 'fechamento') arr.sort((x, y) => nl(y.taxaB) - nl(x.taxaB))
     else if (sortKey === 'volume') arr.sort((x, y) => y.entrouB - x.entrouB)
     else arr.sort((x, y) => (x.queda == null ? Infinity : x.queda) - (y.queda == null ? Infinity : y.queda))
+    arr.sort((x, y) => Number(isNI(x.bucket)) - Number(isNI(y.bucket))) // "Não informado" sempre por último
     return arr
   }, [visiveis, sortKey])
 
   // Manchete: quem mais fecha + a etapa que mais trava no geral (passagem agregada).
   const insight = useMemo(() => {
-    const base = ordenadas.filter((l) => !pequena(l))
+    const base = ordenadas.filter((l) => !pequena(l) && !isNI(l.bucket))
     if (!base.length) return null
     const leader = base.reduce((best, l) => ((l.taxaB ?? -1) > (best.taxaB ?? -1) ? l : best))
     let worst: { label: string; p: number } | null = null
@@ -253,7 +259,7 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
           {/* Rodapé: contador + legenda */}
           <div className="flex items-start justify-between gap-3 flex-wrap pt-3">
             <p className="text-xs text-slate-400">
-              Mostrando {ordenadas.length} de {todas.length} perfis{escondidas > 0 && <> · {escondidas} com menos de {AMOSTRA_MIN} leads {soComAmostra ? <button onClick={() => setSoComAmostra(false)} className="text-indigo-600 hover:underline">mostrar</button> : 'marcados como "poucos"'}</>}.
+              Mostrando {ordenadas.filter((l) => !isNI(l.bucket)).length} de {perfis.length} perfis{escondidas > 0 && <> · {escondidas} com menos de {AMOSTRA_MIN} leads {soComAmostra ? <button onClick={() => setSoComAmostra(false)} className="text-indigo-600 hover:underline">mostrar</button> : 'marcados como "poucos"'}</>}{niLinha && (niLinha.entrouB || niLinha.entrouA) > 0 && <> · {(niLinha.entrouB || niLinha.entrouA)} sem {DIM_LABEL[dim].toLowerCase()} informado {esconderNI ? <button onClick={() => setEsconderNI(false)} className="text-indigo-600 hover:underline">mostrar</button> : <button onClick={() => setEsconderNI(true)} className="text-indigo-600 hover:underline">esconder</button>}</>}.
             </p>
           </div>
           <p className="text-xs text-slate-400 leading-relaxed border-t border-slate-100 pt-2 mt-1">
