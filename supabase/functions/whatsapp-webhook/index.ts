@@ -480,6 +480,25 @@ Deno.serve(async (req) => {
                                         sdrwMessage = sdrwCaption || `[${sdrwMsgType} recebido]`;
                                     }
                                 }
+                                // Persiste a mensagem do LEAD em whatsapp_messages (espelho do insert
+                                // das respostas dela), pra o histórico conter os DOIS lados nos próximos
+                                // turnos — hoje só as respostas dela ficavam salvas. Gravo DEPOIS de
+                                // montar sdrwHistory (pra não duplicar a msg atual neste turno) e com o
+                                // texto já resolvido (transcrição de áudio etc). Fire-and-forget pra não
+                                // somar latência antes do cérebro (completa durante o await do n8n).
+                                if (sdrwContactId && sdrwMessage && sdrwMessage.trim()) {
+                                    supabaseClient.from("whatsapp_messages").insert({
+                                        contact_id: sdrwContactId,
+                                        body: sdrwMessage,
+                                        direction: "inbound",
+                                        is_from_me: false,
+                                        type: "text",
+                                        status: "received",
+                                        sender_phone: normalizedContact,
+                                        phone_number_label: singlePayload.phone_number || data.phone_number || null,
+                                        metadata: { source: "sdr-weddings-inbound", original_type: sdrwMsgType, whatsapp_message_id: data.whatsapp_message_id || data.message_id || null },
+                                    }).then(() => {}).catch((e: Error) => console.error("[webhook] Sofia inbound save error:", e));
+                                }
                                 const sdrwRes = await fetch("https://n8n-n8n.ymnmx7.easypanel.host/webhook/sdr-weddings", {
                                     method: "POST",
                                     headers: { "Content-Type": "application/json" },
