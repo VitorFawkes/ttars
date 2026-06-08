@@ -9,6 +9,7 @@ import { getRankTier, rankBadgeClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
 import { FILTER_CONTRACTS } from '@/hooks/analytics/filterContracts'
+import HBarChart, { type HBarDatum } from './charts/HBarChart'
 import { cn } from '@/lib/utils'
 
 const FASE_LABELS: Record<string, string> = {
@@ -52,6 +53,16 @@ export default function ResumoView() {
       (data?.por_origem ?? [])
         .filter(r => r.leads > 0)
         .map(r => Math.round((r.ganhos / r.leads) * 100)),
+    [data?.por_origem],
+  )
+
+  // Gráfico de gestor: faturamento por origem (de relance, de onde vem o dinheiro)
+  const origemChart = useMemo<HBarDatum[]>(
+    () =>
+      (data?.por_origem ?? [])
+        .filter(r => r.faturamento > 0)
+        .sort((a, b) => b.faturamento - a.faturamento)
+        .map(r => ({ key: r.origem, label: ORIGEM_LABELS[r.origem] ?? r.origem, value: r.faturamento })),
     [data?.por_origem],
   )
 
@@ -212,7 +223,11 @@ export default function ResumoView() {
               Sem leads no período
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="space-y-4">
+              {origemChart.length > 0 && (
+                <HBarChart data={origemChart} format={formatCurrency} maxLabel={20} />
+              )}
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 text-xs text-slate-500 uppercase tracking-wider">
@@ -253,6 +268,7 @@ export default function ResumoView() {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </WidgetCard>

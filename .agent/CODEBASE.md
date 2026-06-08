@@ -7,9 +7,9 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-06-08
 > **Trigger:** ALWAYS ON
-> **Stats:** 233 tabelas | 215 paginas | 389 hooks | 28 views | 881 components
-> **Stats:** 233 tabelas | 215 paginas | 389 hooks | 28 views | 881 components
-> **Stats:** 233 tabelas | 215 paginas | 389 hooks | 28 views | 881 components
+> **Stats:** 233 tabelas | 216 paginas | 389 hooks | 28 views | 881 components
+> **Stats:** 233 tabelas | 216 paginas | 389 hooks | 28 views | 881 components
+> **Stats:** 233 tabelas | 216 paginas | 389 hooks | 28 views | 881 components
 
 ---
 
@@ -639,7 +639,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **215 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **216 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -779,6 +779,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `UnderConstruction` | `src/pages/analytics-new/UnderConstruction.tsx` |
 | `WhatsAppView` | `src/pages/analytics-new/WhatsAppView.tsx` |
 | `WidgetCard` | `src/pages/analytics-new/WidgetCard.tsx` |
+| `HBarChart` | `src/pages/analytics-new/charts/HBarChart.tsx` |
 | `FunnelFilterPanel` | `src/pages/analytics-new/funil/FunnelFilterPanel.tsx` |
 | `FunnelKpis` | `src/pages/analytics-new/funil/FunnelKpis.tsx` |
 | `FunnelKpisEditor` | `src/pages/analytics-new/funil/FunnelKpisEditor.tsx` |
