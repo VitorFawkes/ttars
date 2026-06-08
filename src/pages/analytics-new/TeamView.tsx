@@ -14,6 +14,7 @@ import { getRankTier, rankBadgeClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
 import { FILTER_CONTRACTS } from '@/hooks/analytics/filterContracts'
+import HBarChart, { type HBarDatum } from './charts/HBarChart'
 import PlannerProfileDrawer from '@/components/analytics/PlannerProfileDrawer'
 import { cn } from '@/lib/utils'
 
@@ -79,6 +80,17 @@ export default function TeamView() {
 
   const leaderboardRows = (leaderboard.data ?? []).filter(row =>
     phaseFilter === 'all' ? true : row.fases.includes(phaseFilter)
+  )
+
+  // Gráfico de gestor: receita por pessoa (comparar o time de relance, respeita a fase ativa)
+  const receitaChart = useMemo<HBarDatum[]>(
+    () =>
+      leaderboardRows
+        .filter(r => r.receita_total > 0)
+        .slice()
+        .sort((a, b) => b.receita_total - a.receita_total)
+        .map(r => ({ key: r.user_id, label: r.user_nome, value: r.receita_total })),
+    [leaderboardRows],
   )
 
   // Decide qual drawer abrir: se a pessoa é Planner (vendas), abre o perfil rico.
@@ -199,6 +211,24 @@ export default function TeamView() {
           isLoading={leaderboard.isLoading}
         />
       </div>
+
+      {/* Gráfico: receita por pessoa — comparação visual do time (respeita a fase ativa) */}
+      <WidgetCard
+        title="Receita por pessoa"
+        subtitle="Quem traz mais receita no período — compare o time de relance. Clique numa pessoa na tabela abaixo pra abrir o perfil."
+      >
+        {leaderboard.isLoading ? (
+          <div className="h-40 flex items-center justify-center text-slate-400">
+            <Loader2 className="w-5 h-5 animate-spin" />
+          </div>
+        ) : receitaChart.length === 0 ? (
+          <div className="h-24 flex items-center justify-center text-sm text-slate-400">
+            Sem receita no período pra comparar
+          </div>
+        ) : (
+          <HBarChart data={receitaChart} format={formatCurrency} maxLabel={24} color="#10b981" />
+        )}
+      </WidgetCard>
 
       {/* Leaderboard geral */}
       <WidgetCard
