@@ -1179,3 +1179,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-06-05T19:49:54Z | supabase/migrations/20260605a_wsdr_calendar_spread_slots.sql | applied_to_prod
 2026-06-08T13:34:46Z | supabase/migrations/20260604b_ww_casal_is_perdido.sql | applied_to_prod
 2026-06-08T13:35:07Z | supabase/migrations/20260604c_drop_dead_ww_tables.sql | applied_to_prod
+2026-06-08T14:04:31Z | supabase/migrations/20260604d_ww_journey_reconcile_cron.sql | applied_to_prod
