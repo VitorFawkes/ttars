@@ -380,6 +380,15 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
               />
             )}
           </EditorCard>
+          <EditorCard accent="sky" icon={<MessageSquare className="w-5 h-5" />} title="Como ela reage ao que o casal diz"
+            desc="Quando e como a Sofia reage ao que o casal escreve. Use pra ela reagir só ao que tem peso e NÃO comentar trivialidades (ex: 'que bom que veio do site').">
+            <Textarea
+              value={c.voice.reaction ?? ''}
+              onChange={e => update(x => ({ ...x, voice: { ...x.voice, reaction: e.target.value } }))}
+              className="min-h-[100px]"
+              placeholder="Ex: Reaja ao que o casal disse quando tiver peso (uma pergunta, um sonho, uma dor). Não comente trivialidades nem repita o óbvio."
+            />
+          </EditorCard>
           <EditorCard accent="sky" icon={<ListOrdered className="w-5 h-5" />} title="Roteiro da conversa"
             desc="A ORDEM que a Sofia conduz (apresentar → sondar → qualificar → convidar). Em cada etapa você explica o que ela faz e o ritmo. Arraste pra reordenar.">
             <PhasesEditor phases={c.phases} onChange={items => update(x => ({ ...x, phases: items }))} />
@@ -399,6 +408,15 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
           <EditorCard accent="indigo" icon={<Target className="w-5 h-5" />} title="Pontuação do casal"
             desc="Como a Sofia decide se o casal qualifica: pontos por critério, nota mínima e faixas. Ela usa isto como guia do julgamento, uma coisa de cada vez.">
             <ScoringEditor qual={c.qualification} onChange={q => update(x => ({ ...x, qualification: q }))} />
+          </EditorCard>
+          <EditorCard accent="indigo" icon={<Target className="w-5 h-5" />} title="Quando ela convida pra Wedding Planner"
+            desc="As condições pra Sofia fazer o convite. Por padrão usa a SUA pontuação acima (uma qualificação só): nome + casal qualificado + sinal de vontade/data. Edite do seu jeito.">
+            <Textarea
+              value={c.qualification.invite_gates ?? ''}
+              onChange={e => update(x => ({ ...x, qualification: { ...x.qualification, invite_gates: e.target.value } }))}
+              className="min-h-[120px]"
+              placeholder="Ex: Só convide quando souber o nome, o casal estiver qualificado e houver sinal de vontade/data."
+            />
           </EditorCard>
           <EditorCard accent="violet" icon={<Eye className="w-5 h-5" />} title="Sinais que ela percebe sozinha"
             desc="Coisas que a Sofia capta no que o casal diz, sem precisar perguntar (ex: a família está ajudando a decidir, hesitação por valor). Ela leva isso em conta no julgamento e na hora de conduzir.">
