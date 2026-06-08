@@ -255,7 +255,6 @@ export interface SofiaConfigV2 {
     // v3 (opcionais)
     scoring_enabled?: boolean
     threshold?: number
-    bands?: { quente: number; morno: number }
     max_bonus_points?: number
     fallback_action?: FallbackAction
     discovery_slots?: DiscoverySlot[]
@@ -489,7 +488,6 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
       gates: {},
       scoring_enabled: false,
       threshold: 50,
-      bands: { quente: 80, morno: 50 },
       max_bonus_points: 10,
       fallback_action: 'material_informativo',
       discovery_slots: [
@@ -569,7 +567,6 @@ export function normalizeToV2(raw: unknown): SofiaConfigV2 {
       },
       qualification: {
         ...def.qualification, ...c.qualification,
-        bands: { ...def.qualification.bands!, ...(c.qualification?.bands || {}) },
         discovery_slots: c.qualification?.discovery_slots ?? def.qualification.discovery_slots,
         silent_signals: c.qualification?.silent_signals ?? def.qualification.silent_signals,
       },
