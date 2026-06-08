@@ -264,6 +264,44 @@ Deno.serve(async (req) => {
 
     if (upsertErr) throw new Error(`upsert failed: ${upsertErr.message}`)
 
+    // 5b. JORNADA: re-puxa a movimentacao (dealActivities) e atualiza ww_deal_event.
+    // Idempotente (onConflict ac_activity_id). E daqui que sai o "fez Closer / ganho"
+    // pela jornada (entrou no Planejamento, etc). org_id explicito porque service_role
+    // nao tem JWT -> requesting_org_id() retornaria NULL e violaria NOT NULL.
+    if (isWw && deal.contact) {
+      try {
+        const WEDDING_ORG = 'b0000000-0000-0000-0000-000000000002'
+        type AcAct = { id: string | number; dataType?: string; cdate?: string; dataOldval?: string | null; dataAction?: string | null; userid?: string | number | null }
+        const acts: AcAct[] = []
+        for (let offset = 0; offset < 2000; offset += 100) {
+          const j = await acFetch<{ dealActivities?: AcAct[] }>(`/api/3/deals/${dealId}/dealActivities?limit=100&offset=${offset}`)
+          const batch = j.dealActivities ?? []
+          acts.push(...batch)
+          if (batch.length < 100) break
+        }
+        const events = acts
+          .filter(a => a.dataType === 'd_stageid' || a.dataType === 'd_groupid')
+          .map(a => ({
+            ac_deal_id: String(dealId),
+            org_id: WEDDING_ORG,
+            ac_activity_id: String(a.id),
+            event_ts: parseDateTime(a.cdate),
+            kind: a.dataType === 'd_groupid' ? 'esteira' : 'etapa',
+            from_id: a.dataOldval != null ? String(a.dataOldval) : null,
+            to_id: a.dataAction != null ? String(a.dataAction) : null,
+            by_user: a.userid != null ? String(a.userid) : null,
+            by_automation: false,
+            contact_id: String(deal.contact),
+          }))
+        if (events.length) {
+          const { error: evErr } = await supabase.from('ww_deal_event').upsert(events, { onConflict: 'ac_activity_id' })
+          if (evErr) console.warn(`ww_deal_event upsert failed (deal ${dealId}):`, evErr.message)
+        }
+      } catch (e) {
+        console.warn(`journey sync failed (deal ${dealId}):`, (e as Error).message)
+      }
+    }
+
     // 6. Marcar evento como processado (se veio de webhook)
     if (eventId) {
       await supabase.rpc('ac_event_raw_mark_processed', {
