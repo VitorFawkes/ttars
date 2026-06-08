@@ -18,9 +18,16 @@ const DIM_LABEL: Record<WwFunilRankingDim, string> = { faixa: 'Investimento', co
 type Vista = 'tabela' | 'lado' | 'funis'
 const VISTA_LABEL: Record<Vista, string> = { tabela: 'Tabela', lado: 'Lado a lado', funis: 'Mini-funis' }
 type Metrica = 'passagem' | 'mudanca'
-type SortKey = 'fechamento' | 'queda' | 'volume'
-const SORT_LABEL: Record<SortKey, string> = { fechamento: 'Melhor fechamento', queda: 'Maior queda', volume: 'Mais leads' }
+type SortKey = 'valor' | 'fechamento' | 'queda' | 'volume'
+const SORT_LABEL: Record<SortKey, string> = { valor: 'Por valor', fechamento: 'Melhor fechamento', queda: 'Maior queda', volume: 'Mais leads' }
 const AMOSTRA_MIN = 5
+// Ordem canônica por valor — faixa/convidados são ordinais (faixa já fundida: sem R$50-80/R$80-100);
+// destino é categórico (sem ordem de valor → cai pra volume).
+const BUCKET_ORDER: Record<WwFunilRankingDim, string[]> = {
+  faixa: ['Até R$50 mil', 'R$50-100 mil', 'R$100-200 mil', 'R$200-500 mil', '+R$500 mil'],
+  convidados: ['Apenas o casal', 'Até 20', '20-50', '50-80', '80-100', '+100'],
+  destino: [],
+}
 
 // Rótulos curtos das colunas. "Marcou" = agendou a reunião; "Fez" = aconteceu.
 const COL_LABEL: Record<string, string> = {
@@ -110,7 +117,7 @@ type Props = {
 export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, isLoading, selecionado, onPick, bRecente }: Props) {
   const [vista, setVista] = useState<Vista>('tabela')
   const [metrica, setMetrica] = useState<Metrica>('passagem')
-  const [sortKey, setSortKey] = useState<SortKey>('fechamento')
+  const [sortKey, setSortKey] = useState<SortKey>('valor')
   const [soComAmostra, setSoComAmostra] = useState(false)
   const [esconderNI, setEsconderNI] = useState(true)
   const isNI = (b: string) => /n[ãa]o\s*informad/i.test(b)
@@ -142,19 +149,22 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
   const pequena = (l: Linha) => l.entrouB < AMOSTRA_MIN && l.entrouA < AMOSTRA_MIN
   const niLinha = todas.find((l) => isNI(l.bucket)) ?? null
   const perfis = todas.filter((l) => !isNI(l.bucket))
-  const baseLinhas = esconderNI ? perfis : todas
+  const baseLinhas = (esconderNI ? perfis : todas).filter((l) => l.entrouA > 0 || l.entrouB > 0) // esconde baldes zerados
   const visiveis = soComAmostra ? baseLinhas.filter((l) => !pequena(l)) : baseLinhas
   const escondidas = baseLinhas.length - visiveis.length
 
   const ordenadas = useMemo(() => {
     const arr = [...visiveis]
     const nl = (v: number | null) => (v == null ? -Infinity : v)
-    if (sortKey === 'fechamento') arr.sort((x, y) => nl(y.taxaB) - nl(x.taxaB))
+    const ordem = BUCKET_ORDER[dim]
+    if (sortKey === 'valor' && ordem.length) arr.sort((x, y) => ((ordem.indexOf(x.bucket) + 1) || 999) - ((ordem.indexOf(y.bucket) + 1) || 999))
+    else if (sortKey === 'valor') arr.sort((x, y) => y.entrouB - x.entrouB) // destino: sem ordem de valor → por volume
+    else if (sortKey === 'fechamento') arr.sort((x, y) => nl(y.taxaB) - nl(x.taxaB))
     else if (sortKey === 'volume') arr.sort((x, y) => y.entrouB - x.entrouB)
     else arr.sort((x, y) => (x.queda == null ? Infinity : x.queda) - (y.queda == null ? Infinity : y.queda))
     arr.sort((x, y) => Number(isNI(x.bucket)) - Number(isNI(y.bucket))) // "Não informado" sempre por último
     return arr
-  }, [visiveis, sortKey])
+  }, [visiveis, sortKey, dim])
 
   // Manchete: quem mais fecha + a etapa que mais trava no geral (passagem agregada).
   const insight = useMemo(() => {
