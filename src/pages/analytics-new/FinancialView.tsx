@@ -4,6 +4,7 @@ import { useFinanceiroOverview } from '@/hooks/analytics/useFinanceiroOverview'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
+import { FILTER_CONTRACTS } from '@/hooks/analytics/filterContracts'
 import { cn } from '@/lib/utils'
 
 const ORIGEM_LABELS: Record<string, string> = {
@@ -47,7 +48,7 @@ export default function FinancialView() {
         </p>
       </header>
 
-      <SimpleFilterBar showOwner={false} showOrigins={false} />
+      <SimpleFilterBar contract={FILTER_CONTRACTS.financeiro} />
 
       {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

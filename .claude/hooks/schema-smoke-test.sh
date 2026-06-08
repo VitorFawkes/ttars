@@ -576,6 +576,13 @@ if [ "$VIAGENS_CHECK" = "200" ] || [ "$VIAGENS_CHECK" = "206" ]; then
     '{"p_item_id":"00000000-0000-0000-0000-000000000000"}'
 fi
 
+# ── Analytics: lente temporal (cohort↔atividade) — guarda contra rebase que dropa p_date_ref ──
+# Se uma migration futura recriar a função sem p_date_ref, a chamada com esse param vira 404.
+test_rpc_exists "analytics_resumo_overview aceita p_date_ref" "analytics_resumo_overview" \
+  '{"p_date_start":"2026-01-01T00:00:00Z","p_date_end":"2026-02-01T00:00:00Z","p_product":"TRIPS","p_date_ref":"created"}'
+test_rpc_exists "analytics_financeiro_overview aceita p_date_ref" "analytics_financeiro_overview" \
+  '{"p_date_start":"2026-01-01T00:00:00Z","p_date_end":"2026-02-01T00:00:00Z","p_product":"TRIPS","p_date_ref":"created"}'
+
 if [ $FAILED -gt 0 ]; then
   echo "" >&2
   echo "$FAILED/$TOTAL queries falharam. O banco não tem as colunas que o frontend espera." >&2

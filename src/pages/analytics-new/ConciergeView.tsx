@@ -12,6 +12,7 @@ import { useConciergeOverview, useConciergePendentes } from '@/hooks/analytics/u
 import { getRankTier, rankBadgeClass, rankTextClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
+import { FILTER_CONTRACTS } from '@/hooks/analytics/filterContracts'
 import { cn } from '@/lib/utils'
 
 function formatMes(iso: string): string {
@@ -73,7 +74,7 @@ export default function ConciergeView() {
         </p>
       </header>
 
-      <SimpleFilterBar showOrigins={false} myButtonLabel="Meus atendimentos" />
+      <SimpleFilterBar contract={FILTER_CONTRACTS.concierge} />
 
       {/* KPIs principais */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

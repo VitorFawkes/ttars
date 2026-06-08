@@ -5,11 +5,11 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-06-03
+> **Last Updated:** 2026-06-08
 > **Trigger:** ALWAYS ON
-> **Stats:** 234 tabelas | 215 paginas | 388 hooks | 28 views | 881 components
-> **Stats:** 234 tabelas | 215 paginas | 388 hooks | 28 views | 881 components
-> **Stats:** 234 tabelas | 215 paginas | 388 hooks | 28 views | 881 components
+> **Stats:** 233 tabelas | 215 paginas | 389 hooks | 28 views | 881 components
+> **Stats:** 233 tabelas | 215 paginas | 389 hooks | 28 views | 881 components
+> **Stats:** 233 tabelas | 215 paginas | 389 hooks | 28 views | 881 components
 
 ---
 
@@ -171,7 +171,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **388 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **389 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -279,6 +279,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | Hook | File |
 |------|------|
 | `displayedEtapa()` | `displayedEtapa.ts` |
+| `filterContracts()` | `filterContracts.ts` |
 | `forecastToDrillRows()` | `forecastToDrillRows.ts` |
 | `mockHotel()` | `mockHotel.ts` |
 | `types()` | `types.ts` |

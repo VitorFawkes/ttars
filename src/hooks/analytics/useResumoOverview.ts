@@ -27,16 +27,17 @@ export interface ResumoOverview {
 }
 
 export function useResumoOverview() {
-    const { dateRange, product } = useAnalyticsFilters()
+    const { dateRange, product, dateRef } = useAnalyticsFilters()
 
     return useQuery({
-        queryKey: ['analytics', 'resumo-overview', dateRange.start, dateRange.end, product],
+        queryKey: ['analytics', 'resumo-overview', dateRange.start, dateRange.end, product, dateRef],
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC nova
             const { data, error } = await (supabase.rpc as any)('analytics_resumo_overview', {
                 p_date_start: dateRange.start,
                 p_date_end: dateRange.end,
                 p_product: product,
+                p_date_ref: dateRef,
             })
             if (error) throw error
             return (data as unknown as ResumoOverview) || null
@@ -51,7 +52,7 @@ export function useResumoOverview() {
  * deslocado pra trás). Útil pra calcular delta semana-vs-semana, mês-vs-mês etc.
  */
 export function useResumoOverviewPrevious() {
-    const { dateRange, product } = useAnalyticsFilters()
+    const { dateRange, product, dateRef } = useAnalyticsFilters()
 
     const startMs = new Date(dateRange.start).getTime()
     const endMs = new Date(dateRange.end).getTime()
@@ -60,13 +61,14 @@ export function useResumoOverviewPrevious() {
     const previousStart = new Date(startMs - durationMs).toISOString()
 
     return useQuery({
-        queryKey: ['analytics', 'resumo-overview-previous', previousStart, previousEnd, product],
+        queryKey: ['analytics', 'resumo-overview-previous', previousStart, previousEnd, product, dateRef],
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data, error } = await (supabase.rpc as any)('analytics_resumo_overview', {
                 p_date_start: previousStart,
                 p_date_end: previousEnd,
                 p_product: product,
+                p_date_ref: dateRef,
             })
             if (error) throw error
             return (data as unknown as ResumoOverview) || null

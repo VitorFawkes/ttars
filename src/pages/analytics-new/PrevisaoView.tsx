@@ -5,11 +5,13 @@ import { format, addDays } from 'date-fns'
 import KpiCard from '@/components/analytics/KpiCard'
 import PlannerForecastChart from '@/components/analytics/PlannerForecastChart'
 import { usePlannerForecastByDono, type ForecastCard } from '@/hooks/analytics/usePlannerForecastByDono'
+import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { forecastToDrillRows } from '@/hooks/analytics/forecastToDrillRows'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
+import { FILTER_CONTRACTS } from '@/hooks/analytics/filterContracts'
 import { cn } from '@/lib/utils'
 
 const ORIGEM_LABELS: Record<string, string> = {
@@ -24,6 +26,9 @@ function daysBetween(a: string, b: string): number {
 
 export default function PrevisaoView() {
   const drillDown = useDrillDownStore()
+  // "Meu pipeline" (toggle de dono) — a janela de fechamento é intrínseca (±180d), mas o
+  // dono é filtrável: cada planner vê a própria previsão.
+  const { ownerIds } = useAnalyticsFilters()
   const today = useMemo(() => new Date(), []) // estável por mount — evita recomputar janela/memo a cada render
   const todayStr = format(today, 'yyyy-MM-dd')
 
@@ -31,7 +36,7 @@ export default function PrevisaoView() {
   const { data: cards, isLoading } = usePlannerForecastByDono({
     dateStart: format(addDays(today, -180), 'yyyy-MM-dd'),
     dateEnd: format(addDays(today, 180), 'yyyy-MM-dd'),
-    ownerIds: [], origens: [], stageIds: [], valueMin: null, valueMax: null,
+    ownerIds, origens: [], stageIds: [], valueMin: null, valueMax: null,
   })
 
   const stats = useMemo(() => {
@@ -123,7 +128,7 @@ export default function PrevisaoView() {
         </p>
       </header>
 
-      <SimpleFilterBar showOwner={false} showOrigins={false} myButtonLabel="Meu pipeline" />
+      <SimpleFilterBar contract={FILTER_CONTRACTS.previsao} myButtonLabel="Meu pipeline" />
 
       {/* KPIs executivos */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

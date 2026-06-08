@@ -4,6 +4,13 @@ import { startOfMonth, subMonths, endOfDay, startOfYear } from 'date-fns'
 export type Granularity = 'day' | 'week' | 'month'
 export type DatePreset = 'this_month' | 'last_month' | 'last_3_months' | 'last_6_months' | 'this_year' | 'last_year' | 'all_time' | 'custom'
 export type AnalysisMode = 'entries' | 'stage_entry' | 'ganho_sdr' | 'ganho_planner' | 'ganho_total'
+/**
+ * Lente temporal (cohort vs período), compartilhada por todas as telas.
+ *  - 'created' = por safra: agrupa pela data de criação/entrada do lead (a turma que entrou no período).
+ *  - 'stage'   = por atividade: conta o que aconteceu no período (pela data do evento/movimento).
+ * Casa 1:1 com o param `p_date_ref` das RPCs analytics_* e com a mesma lente do funil.
+ */
+export type DateRef = 'created' | 'stage'
 
 export interface AnalyticsFiltersState {
     datePreset: DatePreset
@@ -11,6 +18,7 @@ export interface AnalyticsFiltersState {
     granularity: Granularity
     product: string
     mode: AnalysisMode
+    dateRef: DateRef
     stageId: string | null
     ownerId: string | null       // Compat: derived from ownerIds[0] or null
     ownerIds: string[]           // Multi-select: [] = todos
@@ -23,6 +31,7 @@ export interface AnalyticsFiltersState {
     setGranularity: (g: Granularity) => void
     setProduct: (p: string) => void
     setMode: (mode: AnalysisMode) => void
+    setDateRef: (ref: DateRef) => void
     setModeWithStage: (mode: AnalysisMode, stageId: string | null) => void
     setOwnerId: (id: string | null) => void
     setOwnerIds: (ids: string[]) => void
@@ -73,6 +82,9 @@ export const initialFiltersState = {
     // so this only affects the brief first render before the sync runs.
     product: 'TRIPS' as const,
     mode: 'entries' as AnalysisMode,
+    // Lente temporal padrão: 'stage' (por atividade/período) — preserva o comportamento
+    // histórico das RPCs (p_date_ref DEFAULT 'stage'). Telas oferecem o toggle p/ 'created' (safra).
+    dateRef: 'stage' as DateRef,
     stageId: null as string | null,
     ownerId: null as string | null,
     ownerIds: [] as string[],
@@ -91,6 +103,7 @@ export const useAnalyticsFilters = create<AnalyticsFiltersState>()((set) => ({
     setGranularity: (granularity) => set({ granularity }),
     setProduct: (product) => set({ product }),
     setMode: (mode) => set({ mode, stageId: null }),
+    setDateRef: (dateRef) => set({ dateRef }),
     setModeWithStage: (mode, stageId) => set({
         mode,
         stageId: mode === 'stage_entry' ? stageId : null,

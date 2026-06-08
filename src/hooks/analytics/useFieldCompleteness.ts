@@ -203,6 +203,11 @@ export function useFieldCompleteness({
 
         for (const sf of systemFields) {
             if (!visibleFieldKeys.has(sf.key)) continue
+            // Defesa em profundidade: nunca exibir campo de OUTRO produto (ex.: ww_* de
+            // Casamentos numa tela de Viagens), mesmo que uma config herdada o marque visível.
+            // O isolamento primário é o visibleFieldKeys (is_visible no pipeline); este é o cinto+suspensório.
+            const sfProduct = (sf as { produto_exclusivo?: string | null }).produto_exclusivo
+            if (sfProduct && sfProduct !== productFilter) continue
             const sec = sf.section || 'details'
             const arr = fieldsBySec.get(sec) || []
             arr.push({
@@ -236,7 +241,7 @@ export function useFieldCompleteness({
         })
 
         return result
-    }, [systemFields, stageConfigs, sectionFieldConfigs, sections, pipelineId])
+    }, [systemFields, stageConfigs, sectionFieldConfigs, sections, pipelineId, productFilter])
 
     // Fetch cards for selected stages
     const { data: cards, isLoading: cardsLoading } = useQuery({
