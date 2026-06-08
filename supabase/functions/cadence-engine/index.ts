@@ -553,8 +553,11 @@ async function processQueue(supabaseClient: SupabaseClient) {
         }
 
         try {
-            // Marcar como processing
-            await supabaseClient
+            // Marcar como processing — claim ATÔMICO: só vence quem ainda vê
+            // status='pending'. Se outra execução concorrente já reivindicou
+            // este item, o UPDATE não casa nenhuma linha → pulamos para não
+            // processar/enviar em duplicidade.
+            const { data: claimed } = await supabaseClient
                 .from("cadence_queue")
                 .update({
                     status: "processing",
@@ -562,7 +565,13 @@ async function processQueue(supabaseClient: SupabaseClient) {
                     last_attempt_at: new Date().toISOString(),
                     attempts: item.attempts + 1
                 })
-                .eq("id", item.id);
+                .eq("id", item.id)
+                .eq("status", "pending")
+                .select("id");
+            if (!claimed || claimed.length === 0) {
+                console.log(`[CadenceEngine] Queue item ${item.id} já reivindicado por outra execução — pulando`);
+                continue;
+            }
 
             // Processar o step
             const result = await executeStep(supabaseClient, item);
@@ -676,14 +685,23 @@ async function processEntryQueue(supabaseClient: SupabaseClient) {
 
     for (const item of entryItems) {
         try {
-            // Marcar como processing
-            await supabaseClient
+            // Marcar como processing — claim ATÔMICO (igual à fila de envio):
+            // só vence quem ainda vê status='pending'. Evita que execuções
+            // concorrentes processem o mesmo item de entrada e iniciem a mesma
+            // cadência/enfileirem o mesmo step várias vezes (causa do flood).
+            const { data: claimedEntry } = await supabaseClient
                 .from("cadence_entry_queue")
                 .update({
                     status: "processing",
                     attempts: item.attempts + 1
                 })
-                .eq("id", item.id);
+                .eq("id", item.id)
+                .eq("status", "pending")
+                .select("id");
+            if (!claimedEntry || claimedEntry.length === 0) {
+                console.log(`[CadenceEngine] Entry item ${item.id} já reivindicado por outra execução — pulando`);
+                continue;
+            }
 
             // Processar baseado no action_type do trigger
             const trigger = item.trigger;
@@ -3314,6 +3332,30 @@ async function executeMessageStep(
         });
         await advanceAfterMessageStep(supabaseClient, instance, step);
         return { skipped: true, reason: 'no_phone' };
+    }
+
+    // 2.5) Idempotência: se este passo JÁ foi enviado para esta instância, não
+    // reenviar. Protege contra linhas duplicadas na fila / processamento
+    // concorrente (causa do flood: o mesmo passo saiu até 15x → WhatsApp bloqueou
+    // por spam). NÃO avança aqui — só a primeira execução (que de fato envia)
+    // agenda o próximo passo; as duplicatas viram no-op.
+    const { data: priorSend } = await supabaseClient
+        .from('cadence_event_log')
+        .select('id')
+        .eq('instance_id', instance.id)
+        .eq('event_type', 'cadence_step_message_sent')
+        .eq('event_data->>step_key', step.step_key)
+        .limit(1);
+    if (priorSend && priorSend.length > 0) {
+        await logEvent(supabaseClient, {
+            instance_id: instance.id,
+            card_id: card.id,
+            event_type: 'cadence_step_message_skipped',
+            event_source: 'cadence_engine',
+            event_data: { step_key: step.step_key, reason: 'already_sent_dedup' },
+            action_taken: 'skip',
+        });
+        return { skipped: true, reason: 'already_sent' };
     }
 
     // 3) Resolver phone line (config do step OU env default)
