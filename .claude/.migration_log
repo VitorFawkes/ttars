@@ -1180,3 +1180,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-06-08T13:34:46Z | supabase/migrations/20260604b_ww_casal_is_perdido.sql | applied_to_prod
 2026-06-08T13:35:07Z | supabase/migrations/20260604c_drop_dead_ww_tables.sql | applied_to_prod
 2026-06-08T14:04:31Z | supabase/migrations/20260604d_ww_journey_reconcile_cron.sql | applied_to_prod
+2026-06-08T16:47:01Z | supabase/migrations/20260604e_ww_casal_dim_cadastro_recente.sql | applied_to_prod
+2026-06-08T16:50:03Z | supabase/migrations/20260604f_ww_casal_dim_recente_nao_vazio.sql | applied_to_prod
