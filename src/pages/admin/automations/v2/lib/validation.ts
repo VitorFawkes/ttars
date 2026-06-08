@@ -40,7 +40,7 @@ export function validateNode(type: WorkflowNodeType, config: Record<string, unkn
             error = requireKey(config, 'phase_id')
             break
         case 'trigger.field_changed':
-            error = requireKey(config, 'field_key')
+            error = requireKey(config, 'field')
             break
         case 'trigger.tag_added':
         case 'trigger.tag_removed':

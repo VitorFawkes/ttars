@@ -5,7 +5,7 @@
  *  - card_created                 → applicable_pipeline_ids (opcional)
  *  - stage_enter                  → applicable_stage_ids (multi)
  *  - macro_stage_enter            → phase_id
- *  - field_changed                → field_key (whitelist) + opt: from/to
+ *  - field_changed                → field (whitelist) + opt: from/to
  *  - tag_added / tag_removed      → tag_id
  *  - inbound_message_pattern      → patterns[] (palavras-chave)
  *  - time_offset_from_date        → source (data) + days_offset (+/-)
@@ -162,8 +162,8 @@ export const TriggerEditor: React.FC<TriggerEditorProps> = ({ type, config, onCh
                     <div className="space-y-2">
                         <Label className="text-xs">Campo do card</Label>
                         <CustomSelect
-                            value={(config.field_key as string) || ''}
-                            onChange={(v) => set({ field_key: v || null })}
+                            value={(config.field as string) || ''}
+                            onChange={(v) => set({ field: v || null })}
                             options={[
                                 { value: '', label: 'Selecionar campo...' },
                                 ...FIELD_WHITELIST,

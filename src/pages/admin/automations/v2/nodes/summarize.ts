@@ -72,7 +72,7 @@ export function summarizeConfig(
             if (!config.phase_id) return null
             return `Fase: ${resolveOr(labels, 'phaseById', config.phase_id as string, '(carregando)')}`
         case 'trigger.field_changed': {
-            const f = config.field_key as string | undefined
+            const f = config.field as string | undefined
             const to = config.to_value as string | undefined
             if (!f) return null
             return to ? `${f} → ${truncate(to, 20)}` : f
