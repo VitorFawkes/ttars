@@ -455,6 +455,12 @@ Deno.serve(async (req) => {
                                 let sdrwMessage = messageText;
                                 const sdrwMsgType = data.type || data.message_type || "text";
                                 const sdrwMediaUrl = data.media_url || data.media?.url || null;
+                                // Reply do WhatsApp: quando o casal responde uma mensagem específica, o
+                                // Echo manda o trecho citado em data.quoted.content. Anexamos isso ao
+                                // que vai pro cérebro pra ela saber A QUE estão respondendo (ex: "esse aqui").
+                                const sdrwQuoted = (data.quoted && data.quoted.content)
+                                    ? String(data.quoted.content).slice(0, 280)
+                                    : ((singlePayload.quoted && singlePayload.quoted.content) ? String(singlePayload.quoted.content).slice(0, 280) : null);
                                 const sdrwIsMedia = !!sdrwMediaUrl && ["audio", "image", "document", "sticker"].includes(sdrwMsgType);
                                 if (sdrwIsMedia) {
                                     // Legenda real (imagem com texto) vs placeholder do Echo: o
@@ -506,7 +512,7 @@ Deno.serve(async (req) => {
                                         contact_phone: normalizedContact,
                                         contact_id: sdrwContactId,
                                         nome: data.contact_name || data.contact?.name || data.pushname || singlePayload.contact_name || sdrwContactNome || "",
-                                        message: sdrwMessage,
+                                        message: sdrwQuoted ? `[o casal está respondendo a esta mensagem anterior: "${sdrwQuoted}"]\n${sdrwMessage}` : sdrwMessage,
                                         history: sdrwHistory,
                                         org_id: sdrwRoute.org_id,
                                         agent_slug: sdrwRoute.agent_slug,
