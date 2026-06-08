@@ -12,7 +12,7 @@ import { PerfilCompareChart } from '../components/PerfilCompareChart'
 import { formatNumber } from '../lib/format'
 
 const FAIXA_ORDER = ['Até R$50 mil', 'R$50-80 mil', 'R$50-100 mil', 'R$80-100 mil', 'R$100-200 mil', 'R$200-500 mil', '+R$500 mil']
-const CONV_ORDER = ['Apenas o casal', 'Até 20', '20-50', '50-80', '80-100', '+100']
+const CONV_ORDER = ['Apenas o casal', 'Até 20', '20-50', '50-100', '+100']
 
 // Stage default em throughput: "Reunião Agendada" (primeira etapa do funil Closer)
 const DEFAULT_EVENT_STAGE_ID = 'ade09bc3-fa3d-49b8-97f0-2f780d0ebbb1'

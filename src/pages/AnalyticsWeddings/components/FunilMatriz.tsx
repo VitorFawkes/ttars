@@ -25,7 +25,7 @@ const AMOSTRA_MIN = 5
 // destino é categórico (sem ordem de valor → cai pra volume).
 const BUCKET_ORDER: Record<WwFunilRankingDim, string[]> = {
   faixa: ['Até R$50 mil', 'R$50-100 mil', 'R$100-200 mil', 'R$200-500 mil', '+R$500 mil'],
-  convidados: ['Apenas o casal', 'Até 20', '20-50', '50-80', '80-100', '+100'],
+  convidados: ['Apenas o casal', 'Até 20', '20-50', '50-100', '+100'],
   destino: [],
 }
 

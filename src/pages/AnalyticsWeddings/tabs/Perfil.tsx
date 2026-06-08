@@ -10,7 +10,7 @@ type Dim = 'faixa' | 'destino' | 'convidados'
 type Cruz = 'faixa_x_convidados' | 'faixa_x_destino' | 'convidados_x_destino'
 
 const FAIXA_ORDER = ['Até R$50 mil', 'R$50-80 mil', 'R$50-100 mil', 'R$80-100 mil', 'R$100-200 mil', 'R$200-500 mil', '+R$500 mil']
-const CONV_ORDER = ['Apenas o casal', 'Até 20', '20-50', '50-80', '80-100', '+100']
+const CONV_ORDER = ['Apenas o casal', 'Até 20', '20-50', '50-100', '+100']
 
 // Helpers de data — YYYY-MM-DD pra input[type=date]
 const toDateInput = (iso: string) => iso.slice(0, 10)
