@@ -1183,3 +1183,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-06-08T16:47:01Z | supabase/migrations/20260604e_ww_casal_dim_cadastro_recente.sql | applied_to_prod
 2026-06-08T16:50:03Z | supabase/migrations/20260604f_ww_casal_dim_recente_nao_vazio.sql | applied_to_prod
 2026-06-08T17:29:37Z | supabase/migrations/20260604g_ww_faixa_fundir_50_100.sql | applied_to_prod
+2026-06-08T17:35:58Z | supabase/migrations/20260608a_disparo_defer_orphan_reprocess.sql | applied_to_prod
