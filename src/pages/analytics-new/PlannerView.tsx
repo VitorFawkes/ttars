@@ -19,6 +19,7 @@ import { getRankTier, rankBadgeClass, rankTextClass, rankTierLabel } from '@/uti
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
 import { FILTER_CONTRACTS } from '@/hooks/analytics/filterContracts'
+import HBarChart, { type HBarDatum } from './charts/HBarChart'
 import { cn } from '@/lib/utils'
 
 const ORIGEM_LABELS: Record<string, string> = {
@@ -118,6 +119,15 @@ export default function PlannerView() {
       .filter(v => v.phase_slug === 'planner')
       .sort((a, b) => a.ordem - b.ordem)
   }, [velocity.data])
+
+  // Gráfico de gestor: tempo típico (mediana) por etapa — onde os cards empacam
+  const velocityChart = useMemo<HBarDatum[]>(
+    () =>
+      plannerVelocity
+        .filter(v => v.mediana_dias > 0)
+        .map(v => ({ key: v.stage_id, label: v.stage_nome, value: Math.round(v.mediana_dias) })),
+    [plannerVelocity],
+  )
 
   // Filtra ticket variation pra mostrar só planners
   const plannerTicketVar = useMemo(() => {
@@ -445,7 +455,11 @@ export default function PlannerView() {
             Sem dados de tempo nas etapas
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="space-y-4">
+            {velocityChart.length > 0 && (
+              <HBarChart data={velocityChart} format={(v) => `${v}d`} maxLabel={28} color="#f59e0b" />
+            )}
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-xs text-slate-500 uppercase tracking-wider">
@@ -476,6 +490,7 @@ export default function PlannerView() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </WidgetCard>
