@@ -8,6 +8,7 @@ import { formatCurrency } from '@/utils/whatsappFormatters'
 import { getRankTier, rankBadgeClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
+import { FILTER_CONTRACTS } from '@/hooks/analytics/filterContracts'
 import { cn } from '@/lib/utils'
 
 function formatWeek(iso: string): string {
@@ -65,7 +66,7 @@ export default function OperationsView() {
         </p>
       </header>
 
-      <SimpleFilterBar roleFilter="vendas" showOrigins={false} myButtonLabel="Minhas viagens" />
+      <SimpleFilterBar contract={FILTER_CONTRACTS.operacoes} roleFilter="vendas" myButtonLabel="Minhas viagens" />
 
       {/* KPIs principais */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

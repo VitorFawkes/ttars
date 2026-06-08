@@ -11,6 +11,7 @@ import { useFilterProfilesWithRole } from '@/hooks/analytics/useFilterOptions'
 import { supabase } from '@/lib/supabase'
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
+import { FILTER_CONTRACTS } from '@/hooks/analytics/filterContracts'
 import SdrEvolutionSection from './SdrEvolutionSection'
 import { cn } from '@/lib/utils'
 
@@ -227,7 +228,7 @@ export default function SdrView() {
         </p>
       </header>
 
-      <SimpleFilterBar roleFilter="sdr" myButtonLabel="Meus leads" />
+      <SimpleFilterBar contract={FILTER_CONTRACTS.sdr} roleFilter="sdr" myButtonLabel="Meus leads" />
 
       {/* Aviso quando há filtro de origem global ativo */}
       {origins.length > 0 && (

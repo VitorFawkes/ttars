@@ -13,6 +13,7 @@ import { formatCurrency } from '@/utils/whatsappFormatters'
 import { getRankTier, rankBadgeClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
+import { FILTER_CONTRACTS } from '@/hooks/analytics/filterContracts'
 import PlannerProfileDrawer from '@/components/analytics/PlannerProfileDrawer'
 import { cn } from '@/lib/utils'
 
@@ -143,7 +144,7 @@ export default function TeamView() {
         </p>
       </header>
 
-      <SimpleFilterBar showOrigins={false} myButtonLabel="Eu" />
+      <SimpleFilterBar contract={FILTER_CONTRACTS.team} myButtonLabel="Eu" />
 
       {/* Filtro de fase global — afeta leaderboard e tabela de performance */}
       <div className="flex items-center gap-1 bg-white rounded-lg border border-slate-200 p-1 w-fit">

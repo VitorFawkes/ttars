@@ -8,6 +8,7 @@ import { formatCurrency } from '@/utils/whatsappFormatters'
 import { getRankTier, rankBadgeClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
+import { FILTER_CONTRACTS } from '@/hooks/analytics/filterContracts'
 import { cn } from '@/lib/utils'
 
 const FASE_LABELS: Record<string, string> = {
@@ -71,7 +72,7 @@ export default function ResumoView() {
         </nav>
       </header>
 
-      <SimpleFilterBar showOwner={false} showOrigins={false} />
+      <SimpleFilterBar contract={FILTER_CONTRACTS.resumo} />
 
       {/* BLOCO A: EMPRESA */}
       <section id="empresa" className="space-y-4 scroll-mt-6">

@@ -18,6 +18,7 @@ import { formatCurrency } from '@/utils/whatsappFormatters'
 import { getRankTier, rankBadgeClass, rankTextClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
+import { FILTER_CONTRACTS } from '@/hooks/analytics/filterContracts'
 import { cn } from '@/lib/utils'
 
 const ORIGEM_LABELS: Record<string, string> = {
@@ -237,7 +238,7 @@ export default function PlannerView() {
         </p>
       </header>
 
-      <SimpleFilterBar roleFilter="vendas" myButtonLabel="Meus cards" />
+      <SimpleFilterBar contract={FILTER_CONTRACTS.planner} roleFilter="vendas" myButtonLabel="Meus cards" />
 
       {origins.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center justify-between">

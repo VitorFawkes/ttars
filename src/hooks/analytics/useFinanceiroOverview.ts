@@ -20,16 +20,17 @@ export interface FinanceiroOverview {
 }
 
 export function useFinanceiroOverview() {
-    const { dateRange, product } = useAnalyticsFilters()
+    const { dateRange, product, dateRef } = useAnalyticsFilters()
 
     return useQuery({
-        queryKey: ['analytics', 'financeiro-overview', dateRange.start, dateRange.end, product],
+        queryKey: ['analytics', 'financeiro-overview', dateRange.start, dateRange.end, product, dateRef],
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC nova
             const { data, error } = await (supabase.rpc as any)('analytics_financeiro_overview', {
                 p_date_start: dateRange.start,
                 p_date_end: dateRange.end,
                 p_product: product,
+                p_date_ref: dateRef,
             })
             if (error) throw error
             return (data as unknown as FinanceiroOverview) || null
