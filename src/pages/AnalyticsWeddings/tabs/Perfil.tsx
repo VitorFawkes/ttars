@@ -22,7 +22,7 @@ export function Perfil({ filters, onFiltersChange }: TabProps) {
   return (
     <div className="space-y-4">
       {/* período é controlado pelos seletores próprios da aba (Referência × Pipeline) — só filtros de perfil aqui */}
-      <FilterBar value={filters} onChange={onFiltersChange} hidePeriod />
+      <FilterBar value={filters} onChange={onFiltersChange} show={['tipo', 'origem', 'faixa', 'destino', 'consultor']} />
       <PerfilContent filters={filters} />
     </div>
   )
@@ -49,6 +49,7 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
     consultorIds: filters.consultorIds,
     faixas: filters.faixas,
     destinos: filters.destinos,
+    tipos: filters.tipos,
   })
 
   const baseCtx = { dateStart: atualStart, dateEnd: atualEnd }

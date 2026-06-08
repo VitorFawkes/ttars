@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { DollarSign, Users, MapPin, Megaphone, UserRound, X, Search } from 'lucide-react'
 import { useWwFunilConversao, useWwFunilFilterOptions, useWwFunilRanking, type Ww2Filters, type WwFunilConversaoMarcos, type WwFunilRankingDim } from '@/hooks/analyticsWeddings/useWw2'
-import { MultiPill, ConsultorPill } from '../components/FilterPills'
+import { MultiPill, ConsultorPill, TipoSegment } from '../components/FilterPills'
 import { PeriodoSeletor } from '../components/PeriodoSeletor'
 import { FunilMatriz } from '../components/FunilMatriz'
 import { FunilUnificado } from '../components/FunilUnificado'
@@ -58,6 +58,7 @@ export function FunilComparado() {
   const [destinos, setDestinos] = useState<string[]>([])
   const [origins, setOrigins] = useState<string[]>([])
   const [consultorIds, setConsultorIds] = useState<string[]>([])
+  const [tipos, setTipos] = useState<string[]>([])
   const [maisFiltros, setMaisFiltros] = useState(false)
   const [dateMode, setDateMode] = useState<DateMode>('cohort')
   const [perfilDim, setPerfilDim] = useState<WwFunilRankingDim>('faixa')
@@ -72,22 +73,22 @@ export function FunilComparado() {
   const labelB = labelDoPeriodo(periodoB)
 
   const { data: options } = useWwFunilFilterOptions()
-  const perfil = { faixas, convidados, destinos, origins, consultorIds }
+  const perfil = { faixas, convidados, destinos, origins, consultorIds, tipos }
   const filtersA: Ww2Filters = { ...perfil, dateMode, dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd }
   const filtersB: Ww2Filters = { ...perfil, dateMode, dateStart: periodoB.dateStart, dateEnd: periodoB.dateEnd }
   const a = useWwFunilConversao(filtersA)
   const b = useWwFunilConversao(filtersB)
 
   // Perfis comparados: ranking nas duas janelas, mesma dimensão (junta no cliente).
-  const rankA = useWwFunilRanking({ dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd, dateMode, dimensoes: [perfilDim], origins, consultorIds })
-  const rankB = useWwFunilRanking({ dateStart: periodoB.dateStart, dateEnd: periodoB.dateEnd, dateMode, dimensoes: [perfilDim], origins, consultorIds })
+  const rankA = useWwFunilRanking({ dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd, dateMode, dimensoes: [perfilDim], origins, tipos, consultorIds })
+  const rankB = useWwFunilRanking({ dateStart: periodoB.dateStart, dateEnd: periodoB.dateEnd, dateMode, dimensoes: [perfilDim], origins, tipos, consultorIds })
   // Cruzamento (power tool): só janela A.
-  const cruz = useWwFunilRanking({ dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd, dateMode, dimensoes: [crossX, crossY], origins, consultorIds })
+  const cruz = useWwFunilRanking({ dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd, dateMode, dimensoes: [crossX, crossY], origins, tipos, consultorIds })
 
   const marcosA = a.data?.filtrado
   const marcosB = b.data?.filtrado
-  const hasFilters = faixas.length + convidados.length + destinos.length + origins.length + consultorIds.length > 0
-  const clearAll = () => { setFaixas([]); setConvidados([]); setDestinos([]); setOrigins([]); setConsultorIds([]) }
+  const hasFilters = faixas.length + convidados.length + destinos.length + origins.length + consultorIds.length + tipos.length > 0
+  const clearAll = () => { setFaixas([]); setConvidados([]); setDestinos([]); setOrigins([]); setConsultorIds([]); setTipos([]) }
 
   const setDimFilter = (dim: WwFunilRankingDim, buckets: string[]) => {
     if (dim === 'faixa') setFaixas(buckets); else if (dim === 'convidados') setConvidados(buckets); else setDestinos(buckets)
@@ -163,6 +164,8 @@ export function FunilComparado() {
       <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-4">
         <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Perfil de lead <span className="font-normal normal-case text-slate-400">(vale para os dois lados)</span></div>
         <div className="flex flex-wrap items-center gap-2">
+          <TipoSegment selected={tipos} onChange={setTipos} />
+          <div className="w-px h-6 bg-slate-200" />
           <MultiPill label="Investimento" icon={<DollarSign className={ic} />} options={options?.faixas ?? []} selected={faixas} onChange={setFaixas} />
           <MultiPill label="Convidados" icon={<Users className={ic} />} options={options?.convidados ?? []} selected={convidados} onChange={setConvidados} />
           <MultiPill label="Destino" icon={<MapPin className={ic} />} options={options?.destinos ?? []} selected={destinos} onChange={setDestinos} />

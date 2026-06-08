@@ -11,7 +11,7 @@ const LINE_COLORS = ['#4f46e5', '#7c3aed', '#0891b2', '#f59e0b', '#ef4444']
 export function Perdas({ filters, onFiltersChange }: TabProps) {
   return (
     <div className="space-y-4">
-      <FilterBar value={filters} onChange={onFiltersChange} />
+      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'tipo', 'origem', 'faixa']} />
       <PerdasContent filters={filters} />
     </div>
   )
