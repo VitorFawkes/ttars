@@ -189,7 +189,7 @@ Estado consolidado da conversa (sua memória; confie nisto pra não repetir perg
 - Sinais: {{ JSON.stringify($('Parse Consolida').item.json.sinais || {}) }}
 
 Leitura de qualificação (SUGESTÃO de um colega; use ou ignore conforme o timing e o tom, nunca exponha isto):
-- Nota do casal: {{ $('Parse Qualifica').item.json.score }}/100 ({{ $('Parse Qualifica').item.json.faixa }})
+- Nota do casal: {{ $('Parse Qualifica').item.json.score }}/100 — {{ $('Parse Qualifica').item.json.qualificado ? 'já dá pra convidar pra conversa com a Wedding Planner' : 'ainda não qualificado, siga conhecendo' }}
 - Ainda falta entender: {{ $('Parse Qualifica').item.json.falta_txt }}
 - Pergunta que poderia ajudar agora: {{ $('Parse Qualifica').item.json.proxima_pergunta_sugerida || '(nenhuma, melhor só acolher)' }}
 
@@ -372,8 +372,6 @@ const entender_txt = crit.filter(c => kindOf(c) !== 'desqualifica').map((c,i) =>
 // Pontuação: orientação ao Qualificador-LLM + corte determinístico (aplicado no Parse Qualifica).
 const scoring_enabled = !!qu.scoring_enabled;
 const sc_threshold = (typeof qu.threshold === 'number') ? qu.threshold : 50;
-const sc_quente = (qu.bands && typeof qu.bands.quente === 'number') ? qu.bands.quente : 80;
-const sc_morno = (qu.bands && typeof qu.bands.morno === 'number') ? qu.bands.morno : 50;
 const sc_max_bonus = (typeof qu.max_bonus_points === 'number') ? qu.max_bonus_points : 10;
 // Sondagem: slots com prioridade + perguntas viram o conteúdo de <o_que_entender>.
 const slots = arr(qu.discovery_slots).filter(s => s && s.label);
@@ -426,8 +424,6 @@ return [{ json: {
   no_dash_enabled: no_dash_enabled,
   scoring_enabled: scoring_enabled,
   sc_threshold: sc_threshold,
-  sc_quente: sc_quente,
-  sc_morno: sc_morno,
   sc_max_bonus: sc_max_bonus,
   etapas_txt: (crit.length ? entender_txt : (slots.length ? sondagem_txt : arr(etapas).map((e,i) => (i+1) + '. ' + e).join('\\n'))) + sinais_txt,
   faixas_txt: arr(faixas).join('; '),
@@ -592,8 +588,8 @@ const QUALIFICA_SYSTEM = `Você é o qualificador de leads de casamento da {{ $(
 - critério que pede um VALOR (ex: orçamento por convidado) → preencha "valor" com o NÚMERO (ou null se ainda não dá pra saber).
 - critério que pede uma OPÇÃO (ex: destino) → preencha "opcao" com o que o casal indicou (ou "fora", ou "" se não souber).
 NÃO calcule a nota final, isso é feito depois. Devolva SOMENTE um JSON válido (sem markdown, sem crases):
-{"avaliacao": [{"n": 1, "atende": true|false, "valor": null, "opcao": "", "nota": "frase curta"}], "score": 0-100, "qualificado": true|false, "faixa": "quente"|"morno"|"frio", "falta": ["o que ainda precisa entender"], "proxima_pergunta_sugerida": "uma pergunta aberta e natural, ou '' se ainda não é hora de perguntar", "handoff": true|false}
-Um item por critério, pelo número. score/qualificado/faixa são só estimativa de apoio (o cálculo oficial usa a sua avaliacao + os pesos). Se o casal hesita ou está emotivo, proxima_pergunta_sugerida pode ser ''.
+{"avaliacao": [{"n": 1, "atende": true|false, "valor": null, "opcao": "", "nota": "frase curta"}], "score": 0-100, "qualificado": true|false, "falta": ["o que ainda precisa entender"], "proxima_pergunta_sugerida": "uma pergunta aberta e natural, ou '' se ainda não é hora de perguntar", "handoff": true|false}
+Um item por critério, pelo número. score/qualificado são só estimativa de apoio (o cálculo oficial usa a sua avaliacao + os pesos). Se o casal hesita ou está emotivo, proxima_pergunta_sugerida pode ser ''.
 handoff=true SOMENTE se a última mensagem do casal indicar uma das situações de passar pra um humano (listadas abaixo, se houver); senão handoff=false. ATENÇÃO: topar/marcar a reunião com a Wedding Planner ("pode marcar", "como agenda?", "bora") NÃO é handoff — é o objetivo; handoff=false nesses casos.`;
 const QUALIFICA_USER = `Critérios de qualificação (com importância):
 {{ $('Monta').item.json.criterios_txt }}
@@ -607,7 +603,7 @@ Estado consolidado:
 Situações de passar pra um humano (handoff=true se a última mensagem encaixar em alguma; se vazio, handoff sempre false):
 {{ $('Monta').item.json.handoff_situations_txt || '(nenhuma)' }}
 
-Devolva só o JSON {avaliacao, score, qualificado, faixa, falta, proxima_pergunta_sugerida, handoff}.`;
+Devolva só o JSON {avaliacao, score, qualificado, falta, proxima_pergunta_sugerida, handoff}.`;
 const CODE_PARSE_QUALIFICA = `let t = String($('Qualifica').item.json.output || '').trim();
 t = t.replace(/^\`\`\`(json)?/i,'').replace(/\`\`\`$/,'').trim();
 let r = {};
@@ -616,12 +612,10 @@ if (typeof r !== 'object' || Array.isArray(r) || !r) r = {};
 const m = $('Monta').first().json;
 const scoring = !!m.scoring_enabled;
 const thr = (typeof m.sc_threshold === 'number') ? m.sc_threshold : 50;
-const qz = (typeof m.sc_quente === 'number') ? m.sc_quente : 80;
-const mz = (typeof m.sc_morno === 'number') ? m.sc_morno : 50;
 const maxBonus = (typeof m.sc_max_bonus === 'number') ? m.sc_max_bonus : 10;
 let crits = []; try { crits = JSON.parse(m.criterios_json || '[]'); } catch(e) { crits = []; }
 const aval = Array.isArray(r.avaliacao) ? r.avaliacao : [];
-let score, qualificado, faixa;
+let score, qualificado;
 if (scoring && crits.length && aval.length) {
   // CÁLCULO DETERMINÍSTICO (lógica da Patricia, por tipo): a IA extrai atende/valor/opção por
   // critério; aqui a conta é exata. Faixas: o valor cai numa faixa = pontos. Peso por opção:
@@ -651,18 +645,15 @@ if (scoring && crits.length && aval.length) {
   });
   score = dq ? 0 : Math.max(0, Math.min(100, Math.round(pts + Math.min(bonusRaw, maxBonus))));
   qualificado = !dq && score >= thr;
-  faixa = score >= qz ? 'quente' : score >= mz ? 'morno' : 'frio';
 } else {
   // Pontuação desligada (ou sem dados): julgamento livre da IA.
   score = Number(r.score); if (!isFinite(score)) score = 0; score = Math.max(0, Math.min(100, Math.round(score)));
-  faixa = (typeof r.faixa === 'string') ? r.faixa : (score >= 70 ? 'quente' : score >= 40 ? 'morno' : 'frio');
   qualificado = r.qualificado === true;
 }
 const falta = Array.isArray(r.falta) ? r.falta.filter(x => typeof x === 'string') : [];
 return [{ json: {
   score,
   qualificado,
-  faixa,
   falta,
   falta_txt: falta.length ? falta.join('; ') : '(nada essencial faltando)',
   proxima_pergunta_sugerida: (typeof r.proxima_pergunta_sugerida === 'string') ? r.proxima_pergunta_sugerida : '',
