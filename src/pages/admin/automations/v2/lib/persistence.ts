@@ -190,18 +190,20 @@ export async function saveWorkflow(payload: SavePayload): Promise<SaveResult> {
         }
     }
 
-    // Validar que todo nó Decisão (branch) tem AMBAS as saídas conectadas.
-    // Sem isso, em runtime a condição cai numa alça sem destino e o fluxo trava
-    // em silêncio (o motor não usa next_step_key como fallback em branch).
+    // Validar que todo nó Decisão (branch) tem PELO MENOS UMA saída conectada.
+    // Uma alça sem destino é segura: o motor encerra o fluxo nesse caminho (não
+    // usa next_step_key como fallback em branch — ver executeBranchStep). Isso
+    // permite "só faz algo se verdadeiro" sem precisar ligar a alça falsa a nada.
+    // Só bloqueia o branch totalmente solto (não faz nada em nenhum caso).
     const branchNodes = payload.nodes.filter((n) => n.type === 'action.branch')
     for (const b of branchNodes) {
         const handles = new Set(
             payload.edges.filter((e) => e.source === b.id).map((e) => e.sourceHandle),
         )
-        if (!handles.has('true') || !handles.has('false')) {
+        if (!handles.has('true') && !handles.has('false')) {
             return {
                 success: false,
-                error: `A Decisão "${b.data.label || 'sem nome'}" precisa ter as duas saídas (verdadeiro e falso) conectadas.`,
+                error: `A Decisão "${b.data.label || 'sem nome'}" precisa ter ao menos uma saída (verdadeiro ou falso) conectada.`,
             }
         }
     }
