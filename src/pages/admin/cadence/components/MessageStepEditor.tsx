@@ -46,6 +46,8 @@ const VARIABLE_HINTS = [
     '{{trigger.event_start_time}}',
     '{{trigger.event_name}}',
     '{{trigger.meeting_join_url}}',
+    // Tarefa concluída (gatilho "Tarefa concluída", ex: reunião)
+    '{{trigger.data_reuniao}}',
 ]
 
 export const MessageStepEditor: React.FC<MessageStepEditorProps> = ({

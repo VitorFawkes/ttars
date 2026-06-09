@@ -31,6 +31,8 @@ export const NODE_REGISTRY: NodeTypeMeta[] = [
       label: 'Card parado em etapa',          description: 'Dispara quando o card fica X dias na mesma etapa' },
     { type: 'trigger.calendly_invitee_created', category: 'trigger', iconName: 'CalendarCheck', imageUrl: '/calendly-icon.webp', isTrigger: true,
       label: 'Reunião agendada no Calendly',  description: 'Dispara quando lead agenda reunião via Calendly (pode criar card novo)' },
+    { type: 'trigger.task_completed',         category: 'trigger', iconName: 'CheckCircle',   isTrigger: true,
+      label: 'Tarefa concluída',              description: 'Dispara quando uma tarefa (ex: reunião) é marcada como concluída' },
 
     // ─── Ações no card ───────────────────────────────────────────────────────
     { type: 'action.create_task',     category: 'card', iconName: 'CheckSquare', isTrigger: false,

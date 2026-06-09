@@ -33,6 +33,7 @@ export type TriggerNodeType =
     | 'trigger.time_offset_from_date'
     | 'trigger.time_in_stage'
     | 'trigger.calendly_invitee_created'
+    | 'trigger.task_completed'
 
 export type ActionNodeType =
     // card

@@ -88,6 +88,7 @@ const NODE_TO_EVENT_TYPE: Record<TriggerNodeType, string> = {
     'trigger.time_offset_from_date':   'time_offset_from_date',
     'trigger.time_in_stage':           'time_in_stage',
     'trigger.calendly_invitee_created':'calendly_invitee_created',
+    'trigger.task_completed':          'task_completed',
 }
 
 /** Inverso pra deserialização. */

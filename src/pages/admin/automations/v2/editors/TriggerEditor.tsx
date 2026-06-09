@@ -38,6 +38,21 @@ const TIME_OFFSET_SOURCES = [
     { value: 'proposal.expires_at',     label: 'Vencimento da proposta' },
 ]
 
+const TASK_TIPO_OPTIONS = [
+    { value: '',          label: 'Qualquer tarefa' },
+    { value: 'reuniao',   label: 'Reunião' },
+    { value: 'contato',   label: 'Contato' },
+    { value: 'coleta_documentos', label: 'Coleta de documentos' },
+    { value: 'enviar_proposta',   label: 'Enviar proposta' },
+    { value: 'email',     label: 'E-mail' },
+]
+
+const TASK_OUTCOME_OPTIONS = [
+    { value: 'qualquer',      label: 'Qualquer resultado' },
+    { value: 'realizada',     label: 'Realizada' },
+    { value: 'nao_compareceu', label: 'Não compareceu' },
+]
+
 const FIELD_WHITELIST = [
     { value: 'status_comercial',  label: 'Status comercial' },
     { value: 'prioridade',        label: 'Prioridade' },
@@ -510,6 +525,56 @@ export const TriggerEditor: React.FC<TriggerEditorProps> = ({ type, config, onCh
                             </div>
                         )}
                     </div>
+                </div>
+            )
+        }
+
+        case 'trigger.task_completed': {
+            const taskTipo = (config.task_tipo as string) || ''
+            const isMeeting = taskTipo === 'reuniao'
+            return (
+                <div className="space-y-4">
+                    <p className="text-xs text-slate-500">
+                        Dispara quando uma tarefa é marcada como concluída no card. Reagendar uma reunião não dispara.
+                    </p>
+
+                    <div className="space-y-2">
+                        <Label className="text-xs">Tipo de tarefa</Label>
+                        <CustomSelect
+                            value={taskTipo}
+                            onChange={(v) => set({ task_tipo: v || null, outcome: v === 'reuniao' ? config.outcome : null })}
+                            options={TASK_TIPO_OPTIONS}
+                        />
+                        <p className="text-xs text-slate-400">Deixe em "Qualquer tarefa" pra disparar em qualquer conclusão.</p>
+                    </div>
+
+                    {isMeeting && (
+                        <div className="space-y-2">
+                            <Label className="text-xs">Resultado da reunião</Label>
+                            <CustomSelect
+                                value={(config.outcome as string) || 'qualquer'}
+                                onChange={(v) => set({ outcome: v })}
+                                options={TASK_OUTCOME_OPTIONS}
+                            />
+                            <p className="text-xs text-slate-400">Filtra pelo desfecho marcado ao concluir a reunião.</p>
+                        </div>
+                    )}
+
+                    <details className="bg-indigo-50 border border-indigo-200 rounded-md px-3 py-2">
+                        <summary className="text-xs font-medium text-indigo-900 cursor-pointer">
+                            Variáveis disponíveis nos próximos passos
+                        </summary>
+                        <div className="mt-2 text-xs text-indigo-900 space-y-1 font-mono">
+                            <div><code>{'{{trigger.data_reuniao}}'}</code> — data/hora da tarefa (ex: 12/09 às 16:30)</div>
+                            <div><code>{'{{trigger.data_reuniao_completa}}'}</code> — data/hora completa (ex: 12/09/2026 16:30)</div>
+                            <div><code>{'{{trigger.task_titulo}}'}</code> — título da tarefa</div>
+                            <div><code>{'{{trigger.task_resultado}}'}</code> — resultado (realizada, não compareceu...)</div>
+                            <div><code>{'{{contact.primeiro_nome}}'}</code> — primeiro nome do contato</div>
+                        </div>
+                        <p className="mt-2 text-xs text-indigo-700">
+                            Use em campos de texto das ações (criar tarefa, mandar mensagem, atualizar campo).
+                        </p>
+                    </details>
                 </div>
             )
         }
