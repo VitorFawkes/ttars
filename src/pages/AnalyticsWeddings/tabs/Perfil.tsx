@@ -7,10 +7,26 @@ import { LiftBadge } from '../components/LiftBadge'
 import { formatNumber } from '../lib/format'
 
 type Dim = 'faixa' | 'destino' | 'convidados'
-type Cruz = 'faixa_x_convidados' | 'faixa_x_destino' | 'convidados_x_destino'
+type Eixo = 'faixa' | 'convidados' | 'destino' | 'origem' | 'canal_sdr' | 'tipo'
 
-const FAIXA_ORDER = ['Até R$50 mil', 'R$50-80 mil', 'R$50-100 mil', 'R$80-100 mil', 'R$100-200 mil', 'R$200-500 mil', '+R$500 mil']
-const CONV_ORDER = ['Apenas o casal', 'Até 20', '20-50', '50-80', '80-100', '+100']
+// Baldes fundidos (form do site mudou de opções ao longo do tempo) — ver memória
+// project_ww_analytics_pipeline_duravel: NUNCA re-dividir 50-80/80-100.
+const FAIXA_ORDER = ['Até R$50 mil', 'R$50-100 mil', 'R$100-200 mil', 'R$200-500 mil', '+R$500 mil']
+const CONV_ORDER = ['Apenas o casal', 'Até 20', '20-50', '50-100', '+100']
+
+// Eixos do cruzamento livre (substituem as 3 combinações fixas antigas).
+const EIXO_OPTS: { id: Eixo; label: string }[] = [
+  { id: 'faixa', label: '💰 Faixa' },
+  { id: 'convidados', label: '👥 Convidados' },
+  { id: 'destino', label: '🏝️ Destino' },
+  { id: 'origem', label: '🎯 Origem' },
+  { id: 'canal_sdr', label: '🎥 1ª reunião' },
+  { id: 'tipo', label: '💍 Tipo' },
+]
+const eixoLabel = (e: Eixo) => EIXO_OPTS.find(o => o.id === e)?.label ?? e
+const eixoOrder = (e: Eixo): string[] | undefined => (e === 'faixa' ? FAIXA_ORDER : e === 'convidados' ? CONV_ORDER : undefined)
+// Drill (ww2_drill_down) só conhece estes eixos; nos demais a célula não é clicável.
+const DRILL_OK: Eixo[] = ['faixa', 'convidados', 'destino']
 
 // Helpers de data — YYYY-MM-DD pra input[type=date]
 const toDateInput = (iso: string) => iso.slice(0, 10)
@@ -22,7 +38,7 @@ export function Perfil({ filters, onFiltersChange }: TabProps) {
   return (
     <div className="space-y-4">
       {/* período é controlado pelos seletores próprios da aba (Referência × Pipeline) — só filtros de perfil aqui */}
-      <FilterBar value={filters} onChange={onFiltersChange} show={['tipo', 'origem', 'faixa', 'destino', 'consultor']} />
+      <FilterBar value={filters} onChange={onFiltersChange} show={['tipo', 'origem', 'faixa', 'convidados', 'destino', 'consultor', 'canal_sdr', 'canal_closer']} />
       <PerfilContent filters={filters} />
     </div>
   )
@@ -38,7 +54,9 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
   const [histEnd, setHistEnd]     = useState<string>(new Date().toISOString())
 
   const [drill, setDrill] = useState<DrillContext | null>(null)
-  const [cruz, setCruz] = useState<Cruz>('faixa_x_convidados')
+  const [cruzX, setCruzX] = useState<Eixo>('faixa')
+  const [cruzY, setCruzY] = useState<Eixo>('convidados')
+  const [referencia, setReferencia] = useState<'ganho' | 'perdido'>('ganho')
 
   const { data, isLoading, error } = useWwLeadIdeal({
     atualStart, atualEnd,
@@ -49,7 +67,12 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
     consultorIds: filters.consultorIds,
     faixas: filters.faixas,
     destinos: filters.destinos,
+    convidados: filters.convidados,
     tipos: filters.tipos,
+    sdrCanal: filters.canalSdr,
+    closerCanal: filters.canalCloser,
+    referencia,
+    cruzX, cruzY,
   })
 
   const baseCtx = { dateStart: atualStart, dateEnd: atualEnd }
@@ -62,9 +85,12 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
   const dimFaixa = dims.find(d => d.dimensao === 'faixa')
   const dimDestino = dims.find(d => d.dimensao === 'destino')
   const dimConvidados = dims.find(d => d.dimensao === 'convidados')
-  const cruzAtual = data.cruzamentos?.[cruz] ?? []
+  const dimCanal = dims.find(d => d.dimensao === 'canal_sdr')
+  const cruzCells = data.cruzamento ?? []
   const topHist = data.top_perfis_historico ?? []
   const topAtual = data.top_perfis_atual ?? []
+  const refLabel = referencia === 'perdido' ? 'perdeu' : 'fechou'
+  const refUpper = referencia === 'perdido' ? 'PERDEU' : 'FECHOU'
 
   const fonteV2 = (data as unknown as { fonte_v2?: string })?.fonte_v2
 
@@ -77,7 +103,7 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
             <div className="flex-1">
               <p className="font-medium">Histórico vem do ActiveCampaign direto</p>
               <p className="text-emerald-700 text-xs mt-1">
-                {data.total_historico} casamentos fechados (universo lógica weddings-kpi.vercel.app) × {data.total_atual} leads novos no CRM.
+                {data.total_historico} casamentos de referência (quem {refLabel}) × {data.total_atual} leads novos no CRM.
                 Mesma fonte de verdade que o site dashboard usa, agora com perfil de entrada (form do casal: orçamento + convidados + destino).
               </p>
             </div>
@@ -87,6 +113,7 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
 
       <Header
         data={data}
+        referencia={referencia} onReferencia={setReferencia}
         atualStart={atualStart} atualEnd={atualEnd}
         histStart={histStart} histEnd={histEnd}
         onAtualStart={setAtualStart} onAtualEnd={setAtualEnd}
@@ -95,49 +122,49 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
 
       <DiagnosticoGeral data={data} />
 
-      {/* Análise cruzada 2D — heatmap com seletor */}
+      {/* Análise cruzada 2D — heatmap com eixos LIVRES (escolha qualquer par) */}
       <SectionCard
         title="🔍 Análise cruzada — Lead ideal vs Pipeline"
-        subtitle="Compare dois cruzamentos lado a lado. Cada célula mostra o % nos fechamentos (referência) e o % nos leads novos. Diferenças destacadas em cor."
+        subtitle={`Escolha duas dimensões pra cruzar. Cada célula mostra o % entre quem ${refLabel} (referência) e o % entre os leads novos. Diferenças destacadas em cor.`}
       >
         <div className="flex items-center gap-2 mb-4 flex-wrap">
           <span className="text-xs font-medium text-slate-700">Cruzar:</span>
-          {([
-            { id: 'faixa_x_convidados', label: '💰 Faixa × 👥 Convidados' },
-            { id: 'faixa_x_destino',    label: '💰 Faixa × 🏝️ Destino' },
-            { id: 'convidados_x_destino', label: '👥 Convidados × 🏝️ Destino' },
-          ] as { id: Cruz; label: string }[]).map(opt => (
-            <button
-              key={opt.id}
-              onClick={() => setCruz(opt.id)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition ${cruz === opt.id ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'}`}
-            >
-              {opt.label}
-            </button>
-          ))}
+          <select
+            value={cruzX}
+            onChange={e => setCruzX(e.target.value as Eixo)}
+            className="px-2.5 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            {EIXO_OPTS.filter(o => o.id !== cruzY).map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+          </select>
+          <span className="text-xs text-slate-400">×</span>
+          <select
+            value={cruzY}
+            onChange={e => setCruzY(e.target.value as Eixo)}
+            className="px-2.5 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            {EIXO_OPTS.filter(o => o.id !== cruzX).map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+          </select>
         </div>
         <HeatmapDuplo
-          cells={cruzAtual}
-          xOrder={cruz === 'faixa_x_convidados' || cruz === 'faixa_x_destino' ? FAIXA_ORDER : CONV_ORDER}
-          yOrder={cruz === 'faixa_x_convidados' ? CONV_ORDER : undefined}
-          xLabel={cruz === 'convidados_x_destino' ? 'Convidados' : 'Faixa'}
-          yLabel={cruz === 'faixa_x_convidados' ? 'Convidados' : 'Destino'}
-          onCellClick={(x, y) => {
-            // mapeia (x, y) → filtros do drill
+          cells={cruzCells}
+          xOrder={eixoOrder(cruzX)}
+          yOrder={eixoOrder(cruzY)}
+          xLabel={eixoLabel(cruzX)}
+          yLabel={eixoLabel(cruzY)}
+          onCellClick={DRILL_OK.includes(cruzX) && DRILL_OK.includes(cruzY) ? (x, y) => {
             const ctx: DrillContext = { ...baseCtx, title: `Leads novos — ${x} + ${y}` }
-            if (cruz === 'faixa_x_convidados') { ctx.faixa = x; ctx.convidados = y }
-            else if (cruz === 'faixa_x_destino') { ctx.faixa = x; ctx.destino = y }
-            else if (cruz === 'convidados_x_destino') { ctx.convidados = x; ctx.destino = y }
+            if (cruzX === 'faixa') ctx.faixa = x; else if (cruzX === 'convidados') ctx.convidados = x; else if (cruzX === 'destino') ctx.destino = x
+            if (cruzY === 'faixa') ctx.faixa = y; else if (cruzY === 'convidados') ctx.convidados = y; else if (cruzY === 'destino') ctx.destino = y
             setDrill(ctx)
-          }}
+          } : undefined}
         />
       </SectionCard>
 
       {/* Top combos 3D — lado a lado */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <TopPerfisCard
-          titulo="🏆 Top 10 perfis de quem FECHOU (referência)"
-          subtitulo="Combos (faixa + destino + convidados) mais frequentes entre as vendas fechadas no período de referência."
+          titulo={`🏆 Top 10 perfis de quem ${refUpper} (referência)`}
+          subtitulo={`Combos (faixa + destino + convidados) mais frequentes entre quem ${refLabel} no período de referência.`}
           perfis={topHist}
           accent="emerald"
         />
@@ -152,7 +179,7 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
 
       <ComparacaoDimensao
         titulo="💰 Investimento declarado"
-        subtitulo="À esquerda, perfil de quem fechou no período de referência. À direita, perfil dos leads novos. Lift acima de 1 = pipeline tem MAIS dessa categoria; abaixo de 1 = MENOS."
+        subtitulo={`À esquerda, perfil de quem ${refLabel} no período de referência. À direita, perfil dos leads novos. Lift acima de 1 = pipeline tem MAIS dessa categoria; abaixo de 1 = MENOS.`}
         dim={dimFaixa}
         ordenarPor={FAIXA_ORDER}
         onCategoriaClick={(cat) => setDrill({ ...baseCtx, faixa: cat, title: `Leads novos — faixa "${cat}"` })}
@@ -170,14 +197,23 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
         dim={dimDestino}
         onCategoriaClick={(cat) => setDrill({ ...baseCtx, destino: cat, title: `Leads novos — destino "${cat}"` })}
       />
+      {dimCanal && (
+        <ComparacaoDimensao
+          titulo="🎥 Como foi a 1ª reunião"
+          subtitulo={`Canal da 1ª reunião (vídeo, WhatsApp, presencial...) entre quem ${refLabel} vs os leads novos. Cobertura parcial — conta só quem teve reunião registrada.`}
+          dim={dimCanal}
+        />
+      )}
 
       <DrillDrawer ctx={drill} onClose={() => setDrill(null)} />
     </div>
   )
 }
 
-function Header({ data, atualStart, atualEnd, histStart, histEnd, onAtualStart, onAtualEnd, onHistStart, onHistEnd }: {
+function Header({ data, referencia, onReferencia, atualStart, atualEnd, histStart, histEnd, onAtualStart, onAtualEnd, onHistStart, onHistEnd }: {
   data: WwLeadIdealData
+  referencia: 'ganho' | 'perdido'
+  onReferencia: (v: 'ganho' | 'perdido') => void
   atualStart: string; atualEnd: string
   histStart: string; histEnd: string
   onAtualStart: (v: string) => void
@@ -185,6 +221,9 @@ function Header({ data, atualStart, atualEnd, histStart, histEnd, onAtualStart, 
   onHistStart: (v: string) => void
   onHistEnd: (v: string) => void
 }) {
+  const refUpper = referencia === 'perdido' ? 'PERDEU' : 'FECHOU'
+  const refWord = referencia === 'perdido' ? 'perdas' : 'vendas'
+  const refDesc = referencia === 'perdido' ? 'Leads que se perderam (com motivo de perda)' : 'Fechamentos que ocorreram no período'
   const setPresetHist = (months: number) => {
     if (months === 0) {
       onHistStart('2020-01-01T00:00:00.000Z')
@@ -202,14 +241,26 @@ function Header({ data, atualStart, atualEnd, histStart, histEnd, onAtualStart, 
         Compare dois períodos independentes e descubra se o marketing continua atraindo o tipo certo.
       </p>
 
+      <div className="mt-3 inline-flex items-center gap-1.5">
+        <span className="text-xs text-slate-500 font-medium">Comparar pipeline com:</span>
+        <div className="inline-flex items-center gap-0.5 bg-white/70 border border-indigo-200 rounded-lg p-0.5">
+          {([['ganho', 'Quem fechou'], ['perdido', 'Quem perdeu']] as const).map(([k, l]) => (
+            <button key={k} onClick={() => onReferencia(k)}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition ${referencia === k ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-800'}`}>
+              {l}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Período HISTÓRICO */}
         <div className="bg-white border border-emerald-200 rounded-lg p-3">
-          <div className="text-xs uppercase tracking-wide text-emerald-700 font-medium">📐 Referência: quem FECHOU</div>
+          <div className="text-xs uppercase tracking-wide text-emerald-700 font-medium">📐 Referência: quem {refUpper}</div>
           <div className="text-2xl font-semibold text-slate-900 mt-1 tabular-nums">
-            {formatNumber(data.total_historico)} <span className="text-sm font-normal text-slate-500">vendas</span>
+            {formatNumber(data.total_historico)} <span className="text-sm font-normal text-slate-500">{refWord}</span>
           </div>
-          <div className="text-[11px] text-slate-500 mt-0.5">Fechamentos que ocorreram no período</div>
+          <div className="text-[11px] text-slate-500 mt-0.5">{refDesc}</div>
           <div className="mt-2 flex items-center gap-2 flex-wrap">
             <input type="date" value={toDateInput(histStart)} onChange={e => onHistStart(fromDateInputStart(e.target.value))} className="px-2 py-1 text-xs border border-slate-300 rounded text-slate-700" />
             <span className="text-xs text-slate-500">até</span>
@@ -536,6 +587,9 @@ function labelDim(d: Dim | string): string {
     case 'faixa': return 'Faixa de investimento'
     case 'destino': return 'Destino'
     case 'convidados': return 'Nº de convidados'
+    case 'origem': return 'Origem'
+    case 'canal_sdr': return 'Canal da 1ª reunião'
+    case 'tipo': return 'Tipo (DW/Elopement)'
     default: return d
   }
 }

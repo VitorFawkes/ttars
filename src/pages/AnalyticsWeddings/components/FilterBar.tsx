@@ -4,6 +4,11 @@ import { useWwFunilFilterOptions } from '@/hooks/analyticsWeddings/useWw2'
 import { type PeriodOption, PERIOD_LABELS, periodToDates } from '../lib/dates'
 import { MultiPill, ConsultorPill, TipoSegment } from './FilterPills'
 
+// Helpers de período custom — ISO ↔ YYYY-MM-DD pra input[type=date]
+const toDateInput = (iso: string) => iso.slice(0, 10)
+const fromDateInputStart = (s: string) => new Date(s + 'T00:00:00').toISOString()
+const fromDateInputEnd = (s: string) => new Date(s + 'T23:59:59').toISOString()
+
 export type AppliedFilters = {
   dateStart: string
   dateEnd: string
@@ -14,6 +19,8 @@ export type AppliedFilters = {
   destinos: string[]
   tipos: string[]
   consultorIds: string[]
+  canalSdr: string[]
+  canalCloser: string[]
   period: PeriodOption
 }
 
@@ -26,7 +33,7 @@ export type TabProps = {
 // eslint-disable-next-line react-refresh/only-export-components
 export function defaultFilters(period: PeriodOption = '30d', dateMode: 'cohort' | 'throughput' = 'cohort'): AppliedFilters {
   const { dateStart, dateEnd } = periodToDates(period)
-  return { period, dateMode, dateStart, dateEnd, origins: [], faixas: [], convidados: [], destinos: [], tipos: [], consultorIds: [] }
+  return { period, dateMode, dateStart, dateEnd, origins: [], faixas: [], convidados: [], destinos: [], tipos: [], consultorIds: [], canalSdr: [], canalCloser: [] }
 }
 
 function parseList(v: string | null): string[] {
@@ -48,13 +55,15 @@ export function useFilterParams(): AppliedFilters {
     destinos: parseList(params.get('destinos')),
     tipos: parseList(params.get('tipos')),
     consultorIds: parseList(params.get('consultorIds')),
+    canalSdr: parseList(params.get('canalSdr')),
+    canalCloser: parseList(params.get('canalCloser')),
   }
 }
 
 // Chaves de filtro que uma aba pode pedir. Cada aba mostra SÓ o que responde à
 // pergunta dela (regra: filtro que não muda a resposta não entra). Não é filtro
 // global — cada aba tem o seu estado e o seu conjunto.
-export type FilterKey = 'period' | 'dateMode' | 'origem' | 'faixa' | 'convidados' | 'destino' | 'tipo' | 'consultor'
+export type FilterKey = 'period' | 'dateMode' | 'origem' | 'faixa' | 'convidados' | 'destino' | 'tipo' | 'consultor' | 'canal_sdr' | 'canal_closer'
 // Conjunto padrão (compat para quem não passa `show`).
 const DEFAULT_SHOW: FilterKey[] = ['period', 'dateMode', 'origem', 'faixa', 'destino', 'consultor']
 
@@ -66,6 +75,8 @@ export function FilterBar({ value, onChange, show = DEFAULT_SHOW }: { value: App
 
   const set = (patch: Partial<AppliedFilters>) => onChange({ ...value, ...patch })
   const setPeriod = (p: PeriodOption) => {
+    // 'custom' mantém o intervalo atual pra você editar; presets recalculam as datas
+    if (p === 'custom') { onChange({ ...value, period: 'custom' }); return }
     const { dateStart, dateEnd } = periodToDates(p)
     onChange({ ...value, period: p, dateStart, dateEnd })
   }
@@ -76,24 +87,43 @@ export function FilterBar({ value, onChange, show = DEFAULT_SHOW }: { value: App
     (has('convidados') ? value.convidados.length : 0) +
     (has('destino') ? value.destinos.length : 0) +
     (has('tipo') ? value.tipos.length : 0) +
-    (has('consultor') ? value.consultorIds.length : 0)
+    (has('consultor') ? value.consultorIds.length : 0) +
+    (has('canal_sdr') ? value.canalSdr.length : 0) +
+    (has('canal_closer') ? value.canalCloser.length : 0)
 
   const hasPeriodControls = has('period') || has('dateMode')
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3 flex flex-wrap items-center gap-2">
       {has('period') && (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-xs text-slate-500 font-medium px-1">📅</span>
           <select
             value={value.period}
             onChange={(e) => setPeriod(e.target.value as PeriodOption)}
             className="px-2.5 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
-            {Object.entries(PERIOD_LABELS).filter(([k]) => k !== 'custom').map(([k, v]) => (
+            {Object.entries(PERIOD_LABELS).map(([k, v]) => (
               <option key={k} value={k}>{v}</option>
             ))}
           </select>
+          {value.period === 'custom' && (
+            <div className="inline-flex items-center gap-1.5">
+              <input
+                type="date"
+                value={toDateInput(value.dateStart)}
+                onChange={(e) => e.target.value && set({ dateStart: fromDateInputStart(e.target.value) })}
+                className="px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <span className="text-xs text-slate-400">até</span>
+              <input
+                type="date"
+                value={toDateInput(value.dateEnd)}
+                onChange={(e) => e.target.value && set({ dateEnd: fromDateInputEnd(e.target.value) })}
+                className="px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          )}
         </div>
       )}
       {has('dateMode') && (
@@ -119,6 +149,8 @@ export function FilterBar({ value, onChange, show = DEFAULT_SHOW }: { value: App
       {has('convidados') && <MultiPill label="👥 Convidados" options={options?.convidados ?? []} selected={value.convidados} onChange={(v) => set({ convidados: v })} />}
       {has('destino') && <MultiPill label="🏝️ Destino" options={options?.destinos ?? []} selected={value.destinos} onChange={(v) => set({ destinos: v })} />}
       {has('consultor') && <ConsultorPill options={options?.consultores ?? []} selected={value.consultorIds} onChange={(v) => set({ consultorIds: v })} />}
+      {has('canal_sdr') && <MultiPill label="🎥 1ª reunião" options={options?.canais_sdr ?? []} selected={value.canalSdr} onChange={(v) => set({ canalSdr: v })} />}
+      {has('canal_closer') && <MultiPill label="🎥 Reunião fechamento" options={options?.canais_closer ?? []} selected={value.canalCloser} onChange={(v) => set({ canalCloser: v })} />}
 
       {activeCount > 0 && (
         <button

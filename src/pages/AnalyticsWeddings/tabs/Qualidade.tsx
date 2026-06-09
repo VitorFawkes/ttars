@@ -22,7 +22,7 @@ type Dim = 'faixa' | 'destino' | 'convidados' | 'origem' | 'tipo'
 export function Qualidade({ filters, onFiltersChange }: TabProps) {
   return (
     <div className="space-y-4">
-      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'dateMode', 'tipo', 'origem']} />
+      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'dateMode', 'tipo', 'origem', 'canal_sdr']} />
       <QualidadeContent filters={filters} />
     </div>
   )
