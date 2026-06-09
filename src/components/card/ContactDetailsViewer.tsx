@@ -166,6 +166,20 @@ export default function ContactDetailsViewer({ contact, card }: ContactDetailsVi
                         </div>
 
                         <div>
+                            <label className="text-xs font-medium text-gray-500 uppercase block">Login Axus Travel</label>
+                            <div className="text-sm text-gray-900 font-mono break-all">
+                                {contact.axus_login || '-'}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="text-xs font-medium text-gray-500 uppercase block">Senha Axus Travel</label>
+                            <div className="text-sm text-gray-900 font-mono break-all">
+                                {contact.axus_senha || '-'}
+                            </div>
+                        </div>
+
+                        <div>
                             <label className="text-xs font-medium text-gray-500 uppercase block">Endereço</label>
                             <div className="text-sm text-gray-900">
                                 {contact.endereco ? (() => {
