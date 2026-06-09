@@ -11,17 +11,17 @@
  * `dateRef` = lente temporal cohort↔atividade (ver `DateRef` em useAnalyticsFilters).
  * Só entra no contrato de telas cuja RPC aceita `p_date_ref`.
  */
-export type FilterDimension = 'period' | 'dateRef' | 'owners' | 'tags' | 'origins'
+export type FilterDimension = 'period' | 'dateRef' | 'compare' | 'owners' | 'tags' | 'origins'
 
 export const FILTER_CONTRACTS: Record<string, FilterDimension[]> = {
-  // Visão geral da empresa — recorte por período e lente temporal (sem dono: é agregado).
-  resumo: ['period', 'dateRef'],
+  // Visão geral da empresa — período, lente temporal e comparação com período anterior.
+  resumo: ['period', 'dateRef', 'compare'],
   // Qualidade de dados é um retrato AGORA — sem período; filtra por dono e etiqueta.
   saude: ['owners', 'tags'],
-  // Equipe — período + dono + etiqueta. (lente safra↔atividade: próximo incremento, RPCs de time ainda não aceitam p_date_ref.)
-  team: ['period', 'owners', 'tags'],
-  // Financeiro — período + lente (visão de receita da empresa).
-  financeiro: ['period', 'dateRef'],
+  // Equipe — período + comparação + dono + etiqueta.
+  team: ['period', 'compare', 'owners', 'tags'],
+  // Financeiro — período + lente + comparação (visão de receita da empresa).
+  financeiro: ['period', 'dateRef', 'compare'],
   // Previsão — janela de fechamento é intrínseca (não usa período); filtra por dono ("Meu pipeline").
   previsao: ['owners'],
   // SDR — período + dono + origem. (a lente safra↔atividade do funil vive na própria tela de Funil.)

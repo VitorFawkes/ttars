@@ -4,6 +4,7 @@ import {
 } from 'lucide-react'
 import KpiCard from '@/components/analytics/KpiCard'
 import { useResumoOverview, useResumoOverviewPrevious } from '@/hooks/analytics/useResumoOverview'
+import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import { getRankTier, rankBadgeClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
@@ -39,6 +40,7 @@ function formatMes(iso: string): string {
 }
 
 export default function ResumoView() {
+  const { compare } = useAnalyticsFilters()
   const { data, isLoading } = useResumoOverview()
   const previous = useResumoOverviewPrevious()
 
@@ -97,7 +99,7 @@ export default function ResumoView() {
             bgColor="bg-emerald-50"
             isLoading={isLoading}
             subtitle={`${kpis?.ganhos ?? 0} ganhos no período`}
-            delta={kpis && prevKpis ? { current: kpis.faturamento, previous: prevKpis.faturamento } : undefined}
+            delta={compare && kpis && prevKpis ? { current: kpis.faturamento, previous: prevKpis.faturamento } : undefined}
           />
           <KpiCard
             title="Receita (margem)"
@@ -106,7 +108,7 @@ export default function ResumoView() {
             color="text-emerald-600"
             bgColor="bg-emerald-50"
             isLoading={isLoading}
-            delta={kpis && prevKpis ? { current: kpis.receita, previous: prevKpis.receita } : undefined}
+            delta={compare && kpis && prevKpis ? { current: kpis.receita, previous: prevKpis.receita } : undefined}
           />
           <KpiCard
             title="Ticket médio"
@@ -115,7 +117,7 @@ export default function ResumoView() {
             color="text-indigo-600"
             bgColor="bg-indigo-50"
             isLoading={isLoading}
-            delta={kpis && prevKpis ? { current: kpis.ticket_medio, previous: prevKpis.ticket_medio } : undefined}
+            delta={compare && kpis && prevKpis ? { current: kpis.ticket_medio, previous: prevKpis.ticket_medio } : undefined}
           />
           <KpiCard
             title="Conversão do período"
@@ -125,7 +127,7 @@ export default function ResumoView() {
             bgColor="bg-indigo-50"
             isLoading={isLoading}
             subtitle={`ganhos ÷ ${kpis?.leads_entrada ?? 0} leads do período`}
-            delta={kpis && prevKpis ? { current: kpis.conversao_geral, previous: prevKpis.conversao_geral } : undefined}
+            delta={compare && kpis && prevKpis ? { current: kpis.conversao_geral, previous: prevKpis.conversao_geral } : undefined}
           />
         </div>
 

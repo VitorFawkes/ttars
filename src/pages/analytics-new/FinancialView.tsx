@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
 import { DollarSign, TrendingUp, ReceiptText, Clock, Percent } from 'lucide-react'
 import KpiCard from '@/components/analytics/KpiCard'
-import { useFinanceiroOverview } from '@/hooks/analytics/useFinanceiroOverview'
+import { useFinanceiroOverview, useFinanceiroOverviewPrevious } from '@/hooks/analytics/useFinanceiroOverview'
+import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
@@ -28,7 +29,10 @@ function formatMes(iso: string): string {
 }
 
 export default function FinancialView() {
+  const { compare } = useAnalyticsFilters()
   const { data, isLoading } = useFinanceiroOverview()
+  const previous = useFinanceiroOverviewPrevious(compare)
+  const prevKpis = previous.data?.kpis
 
   const kpis = data?.kpis
   const pendente = data?.pendente
@@ -82,6 +86,7 @@ export default function FinancialView() {
           bgColor="bg-emerald-50"
           isLoading={isLoading}
           subtitle={`${kpis?.qtd ?? 0} vendas no período`}
+          delta={compare && kpis && prevKpis ? { current: kpis.faturamento, previous: prevKpis.faturamento } : undefined}
         />
         <KpiCard
           title="Receita (margem estimada)"
@@ -91,6 +96,7 @@ export default function FinancialView() {
           bgColor="bg-emerald-50"
           isLoading={isLoading}
           subtitle={kpis ? `Margem estimada: ${kpis.margem_pct}% (10% fixo, salvo Monde)` : undefined}
+          delta={compare && kpis && prevKpis ? { current: kpis.receita, previous: prevKpis.receita } : undefined}
         />
         <KpiCard
           title="Ticket médio"
@@ -99,6 +105,7 @@ export default function FinancialView() {
           color="text-indigo-600"
           bgColor="bg-indigo-50"
           isLoading={isLoading}
+          delta={compare && kpis && prevKpis ? { current: kpis.ticket_medio, previous: prevKpis.ticket_medio } : undefined}
         />
         <KpiCard
           title="Pendente no período"

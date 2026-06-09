@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { User as UserIcon, Tag as TagIcon, Users as UsersIcon, X } from 'lucide-react'
+import { User as UserIcon, Tag as TagIcon, Users as UsersIcon, X, Repeat } from 'lucide-react'
 import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import type { FilterDimension } from '@/hooks/analytics/filterContracts'
 import { useAuth } from '@/contexts/AuthContext'
@@ -55,6 +55,8 @@ export default function SimpleFilterBar({
     setTagIds,
     dateRef,
     setDateRef,
+    compare,
+    setCompare,
   } = useAnalyticsFilters()
 
   const profiles = useFilterProfilesWithRole()
@@ -184,6 +186,24 @@ export default function SimpleFilterBar({
           </div>
           <span className="w-px h-6 bg-slate-200 mx-1" />
         </div>
+      )}
+
+      {/* Comparar com período anterior (mesma duração, deslocado pra trás) */}
+      {has('compare') && (
+        <button
+          type="button"
+          onClick={() => setCompare(!compare)}
+          className={cn(
+            'inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-colors',
+            compare
+              ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+              : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50',
+          )}
+          title="Mostra a variação vs o período anterior de mesma duração"
+        >
+          <Repeat className="w-3.5 h-3.5" />
+          Comparar
+        </button>
       )}
 
       {/* Pessoa específica — só faz sentido na visão Time todo (gestor focando em alguém) */}

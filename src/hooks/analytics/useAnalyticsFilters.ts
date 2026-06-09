@@ -19,6 +19,8 @@ export interface AnalyticsFiltersState {
     product: string
     mode: AnalysisMode
     dateRef: DateRef
+    /** Comparar com o período imediatamente anterior (deltas nos KPIs). Default ligado. */
+    compare: boolean
     stageId: string | null
     ownerId: string | null       // Compat: derived from ownerIds[0] or null
     ownerIds: string[]           // Multi-select: [] = todos
@@ -32,6 +34,7 @@ export interface AnalyticsFiltersState {
     setProduct: (p: string) => void
     setMode: (mode: AnalysisMode) => void
     setDateRef: (ref: DateRef) => void
+    setCompare: (v: boolean) => void
     setModeWithStage: (mode: AnalysisMode, stageId: string | null) => void
     setOwnerId: (id: string | null) => void
     setOwnerIds: (ids: string[]) => void
@@ -85,6 +88,7 @@ export const initialFiltersState = {
     // Lente temporal padrão: 'stage' (por atividade/período) — preserva o comportamento
     // histórico das RPCs (p_date_ref DEFAULT 'stage'). Telas oferecem o toggle p/ 'created' (safra).
     dateRef: 'stage' as DateRef,
+    compare: true,
     stageId: null as string | null,
     ownerId: null as string | null,
     ownerIds: [] as string[],
@@ -104,6 +108,7 @@ export const useAnalyticsFilters = create<AnalyticsFiltersState>()((set) => ({
     setProduct: (product) => set({ product }),
     setMode: (mode) => set({ mode, stageId: null }),
     setDateRef: (dateRef) => set({ dateRef }),
+    setCompare: (compare) => set({ compare }),
     setModeWithStage: (mode, stageId) => set({
         mode,
         stageId: mode === 'stage_entry' ? stageId : null,

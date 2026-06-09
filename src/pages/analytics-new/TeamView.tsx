@@ -5,7 +5,8 @@ import KpiCard from '@/components/analytics/KpiCard'
 import { useTeamLeaderboard } from '@/hooks/analytics/useTeamLeaderboard'
 import { useTeamPerformance } from '@/hooks/analytics/useTeamPerformance'
 import { useTeamSlaCompliance } from '@/hooks/analytics/useTeamSlaCompliance'
-import { useTeamAggregateKpis } from '@/hooks/analytics/useTeamAggregateKpis'
+import { useTeamAggregateKpis, useTeamAggregateKpisPrevious } from '@/hooks/analytics/useTeamAggregateKpis'
+import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { useTeamIndividualEvolution } from '@/hooks/analytics/useTeamIndividualEvolution'
 import { useTeamTicketVariation } from '@/hooks/analytics/useTeamTicketVariation'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
@@ -141,7 +142,10 @@ export default function TeamView() {
 
   // KPIs agregados — vêm de RPC dedicada (cards DISTINTOS). Somar linhas do
   // leaderboard inflava o número porque um card com SDR+Planner+Pós contava 3x.
+  const { compare } = useAnalyticsFilters()
   const aggregateKpis = useTeamAggregateKpis()
+  const aggregatePrev = useTeamAggregateKpisPrevious(compare)
+  const prevAgg = aggregatePrev.data
   const totalReceita = aggregateKpis.data?.receita_total ?? 0
   const totalGanhos = aggregateKpis.data?.cards_ganhos ?? 0
   const totalAbertos = aggregateKpis.data?.cards_abertos ?? 0
@@ -185,6 +189,7 @@ export default function TeamView() {
           color="text-emerald-600"
           bgColor="bg-emerald-50"
           isLoading={leaderboard.isLoading}
+          delta={compare && prevAgg ? { current: totalReceita, previous: prevAgg.receita_total } : undefined}
         />
         <KpiCard
           title="Ganhos no período"
@@ -193,6 +198,7 @@ export default function TeamView() {
           color="text-indigo-600"
           bgColor="bg-indigo-50"
           isLoading={leaderboard.isLoading}
+          delta={compare && prevAgg ? { current: totalGanhos, previous: prevAgg.cards_ganhos } : undefined}
         />
         <KpiCard
           title="Cards abertos"
