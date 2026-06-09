@@ -44,6 +44,7 @@ export type ActionNodeType =
     | 'action.update_field'
     | 'action.update_contact_field'
     | 'action.assign_owner'
+    | 'action.mark_card_result'
     | 'action.notify_internal'
     // message
     | 'action.send_message'

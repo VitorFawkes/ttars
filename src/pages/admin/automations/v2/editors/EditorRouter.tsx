@@ -22,6 +22,7 @@ import {
     CreateTaskEditor, CompleteTaskEditor, ChangeStageEditor, CardTagEditor,
     UpdateFieldEditor, NotifyInternalEditor, N8nWebhookEditor,
     UpdateContactFieldEditor, SendEmailEditor, AssignOwnerEditor,
+    MarkCardResultEditor,
 } from './CardActionEditors'
 
 interface EditorRouterProps {
@@ -85,6 +86,8 @@ export const EditorRouter: React.FC<EditorRouterProps> = ({ type, config, onChan
             return <UpdateContactFieldEditor config={config} onChange={onChange} />
         case 'action.assign_owner':
             return <AssignOwnerEditor config={config} onChange={onChange} />
+        case 'action.mark_card_result':
+            return <MarkCardResultEditor config={config} onChange={onChange} />
         case 'action.send_email':
             return <SendEmailEditor config={config} onChange={onChange} />
         case 'action.notify_internal':
