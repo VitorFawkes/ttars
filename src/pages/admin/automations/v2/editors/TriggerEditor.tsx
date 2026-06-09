@@ -565,8 +565,8 @@ export const TriggerEditor: React.FC<TriggerEditorProps> = ({ type, config, onCh
                             Variáveis disponíveis nos próximos passos
                         </summary>
                         <div className="mt-2 text-xs text-indigo-900 space-y-1 font-mono">
-                            <div><code>{'{{trigger.data_reuniao}}'}</code> — data/hora da tarefa (ex: 12/09 às 16:30)</div>
-                            <div><code>{'{{trigger.data_reuniao_completa}}'}</code> — data/hora completa (ex: 12/09/2026 16:30)</div>
+                            <div><code>{'{{trigger.data_reuniao}}'}</code> — data da reunião do card (ex: 10/06 às 14:00)</div>
+                            <div><code>{'{{trigger.data_reuniao_completa}}'}</code> — data da reunião completa (ex: 10/06/2026 14:00)</div>
                             <div><code>{'{{trigger.task_titulo}}'}</code> — título da tarefa</div>
                             <div><code>{'{{trigger.task_resultado}}'}</code> — resultado (realizada, não compareceu...)</div>
                             <div><code>{'{{contact.primeiro_nome}}'}</code> — primeiro nome do contato</div>
