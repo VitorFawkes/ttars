@@ -95,6 +95,23 @@ function formatBrazilDateShort(iso: string | null | undefined): string {
     }
 }
 
+// Formata a data da reunião (cards.produto_data.data_reuniao). Esse campo é
+// salvo como wall-clock de Brasília SEM fuso (ex: "2026-06-10T14:00:00") — então
+// formatamos os componentes direto, sem conversão de timezone (senão desloca 3h
+// e mostra 11:00 em vez de 14:00). Valores com fuso explícito (Z/+hh:mm — ex:
+// data_vencimento da tarefa, que é timestamptz) caem no formatador com fuso SP.
+function formatMeetingDate(raw: string | null | undefined, withYear: boolean): string {
+    if (!raw) return '';
+    const s = String(raw);
+    const hasTz = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(s);
+    const naive = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if (naive && !hasTz) {
+        const [, y, mo, d, h, mi] = naive;
+        return withYear ? `${d}/${mo}/${y} ${h}:${mi}` : `${d}/${mo} às ${h}:${mi}`;
+    }
+    return withYear ? formatBrazilDateTime(s) : formatBrazilDateShort(s);
+}
+
 // Substitui placeholders {{trigger.x}}, {{contact.x}}, {{card.x}} num texto.
 // `eventData` é o JSONB do entry da fila — contém as variáveis do trigger
 // (ex: invitee_name, event_start_time pro Calendly).
@@ -109,6 +126,11 @@ function renderTriggerVars(
     const data = eventData || {};
     const startFormatted = formatBrazilDateTime(data.event_start_time);
     const endFormatted = formatBrazilDateTime(data.event_end_time);
+    // Data da reunião: prioriza o campo data_reuniao do card (produto_data),
+    // cai pra data de vencimento da tarefa (gatilho task_completed) como fallback.
+    const meetingRaw = (card?.produto_data?.data_reuniao
+        ?? card?.briefing_inicial?.data_reuniao
+        ?? data.tarefa_data_vencimento) as string | null | undefined;
     const firstName = (contato?.nome || '').split(' ')[0] || '';
     // Merge de campos do card: produto_data tem prioridade, briefing_inicial como fallback (fase SDR)
     const cardFields: Record<string, any> = {
@@ -144,9 +166,9 @@ function renderTriggerVars(
         .replace(/\{\{\s*trigger\.event_end_time\s*\}\}/g, endFormatted)
         .replace(/\{\{\s*trigger\.organizer_email\s*\}\}/g, String(data.organizer_email ?? ''))
         .replace(/\{\{\s*trigger\.meeting_join_url\s*\}\}/g, String(data.meeting_join_url ?? ''))
-        // Trigger task_completed (ex: reunião concluída) — data_vencimento da tarefa
-        .replace(/\{\{\s*trigger\.data_reuniao\s*\}\}/g, formatBrazilDateShort(data.tarefa_data_vencimento))
-        .replace(/\{\{\s*trigger\.data_reuniao_completa\s*\}\}/g, formatBrazilDateTime(data.tarefa_data_vencimento))
+        // Data da reunião — campo data_reuniao do card (fallback: data da tarefa)
+        .replace(/\{\{\s*trigger\.data_reuniao\s*\}\}/g, formatMeetingDate(meetingRaw, false))
+        .replace(/\{\{\s*trigger\.data_reuniao_completa\s*\}\}/g, formatMeetingDate(meetingRaw, true))
         .replace(/\{\{\s*trigger\.task_titulo\s*\}\}/g, String(data.tarefa_titulo ?? ''))
         .replace(/\{\{\s*trigger\.task_resultado\s*\}\}/g, String(data.tarefa_outcome ?? ''))
         // Campos dinâmicos do card: {{card.<key>}} resolve de produto_data/briefing_inicial
