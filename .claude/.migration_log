@@ -1144,3 +1144,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-06-09T18:26:13Z | supabase/migrations/20260609i_ww_sdr_section_rebuild.sql | applied_to_prod
 2026-06-09T18:29:09Z | supabase/migrations/20260609j_ww_sdr_reorder.sql | applied_to_prod
 2026-06-09T18:46:13Z | supabase/migrations/20260609k_ww_sdr_remove_noivo2.sql | applied_to_prod
+2026-06-09T18:47:44Z | supabase/migrations/20260609l_ww_sdr_remove_cpf_principal.sql | applied_to_prod
