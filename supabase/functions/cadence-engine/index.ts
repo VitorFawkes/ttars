@@ -77,6 +77,24 @@ function formatBrazilDateTime(iso: string | null | undefined): string {
     }
 }
 
+// Formato curto "DD/MM às HH:MM" (sem ano), no fuso de Brasília. Usado pra
+// {{trigger.data_reuniao}} (gatilho task_completed de reunião).
+function formatBrazilDateShort(iso: string | null | undefined): string {
+    if (!iso) return '';
+    try {
+        const d = new Date(iso);
+        const dia = d.toLocaleString('pt-BR', {
+            timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit',
+        });
+        const hora = d.toLocaleString('pt-BR', {
+            timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit',
+        });
+        return `${dia} às ${hora}`;
+    } catch {
+        return String(iso);
+    }
+}
+
 // Substitui placeholders {{trigger.x}}, {{contact.x}}, {{card.x}} num texto.
 // `eventData` é o JSONB do entry da fila — contém as variáveis do trigger
 // (ex: invitee_name, event_start_time pro Calendly).
@@ -126,6 +144,11 @@ function renderTriggerVars(
         .replace(/\{\{\s*trigger\.event_end_time\s*\}\}/g, endFormatted)
         .replace(/\{\{\s*trigger\.organizer_email\s*\}\}/g, String(data.organizer_email ?? ''))
         .replace(/\{\{\s*trigger\.meeting_join_url\s*\}\}/g, String(data.meeting_join_url ?? ''))
+        // Trigger task_completed (ex: reunião concluída) — data_vencimento da tarefa
+        .replace(/\{\{\s*trigger\.data_reuniao\s*\}\}/g, formatBrazilDateShort(data.tarefa_data_vencimento))
+        .replace(/\{\{\s*trigger\.data_reuniao_completa\s*\}\}/g, formatBrazilDateTime(data.tarefa_data_vencimento))
+        .replace(/\{\{\s*trigger\.task_titulo\s*\}\}/g, String(data.tarefa_titulo ?? ''))
+        .replace(/\{\{\s*trigger\.task_resultado\s*\}\}/g, String(data.tarefa_outcome ?? ''))
         // Campos dinâmicos do card: {{card.<key>}} resolve de produto_data/briefing_inicial
         // (ex: {{card.destino}}). titulo é tratado à parte abaixo.
         .replace(/\{\{\s*card\.([a-zA-Z0-9_]+)\s*\}\}/g, (match, key: string) => {

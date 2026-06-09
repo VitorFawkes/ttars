@@ -142,6 +142,7 @@ const EVENT_OPTIONS: Array<{ value: EventType; label: string }> = [
   { value: 'time_offset_from_date', label: EVENT_TYPE_LABELS.time_offset_from_date },
   { value: 'time_in_stage', label: EVENT_TYPE_LABELS.time_in_stage },
   { value: 'calendly_invitee_created', label: EVENT_TYPE_LABELS.calendly_invitee_created },
+  { value: 'task_completed', label: EVENT_TYPE_LABELS.task_completed },
 ]
 
 const TASK_TIPO_OPTIONS = [
@@ -1184,6 +1185,7 @@ function EventConfigEditor({
   const needsTimeOffset = form.event_type === 'time_offset_from_date'
   const needsTimeInStage = form.event_type === 'time_in_stage'
   const needsCalendlyConfig = form.event_type === 'calendly_invitee_created'
+  const needsTaskCompletedConfig = form.event_type === 'task_completed'
   const { data: workspaceProfiles = [] } = useFilterProfiles()
   const supportsCardTypeFilter = EVENTS_SUPPORTING_CARD_TYPE_FILTER.has(form.event_type)
 
@@ -1579,6 +1581,56 @@ function EventConfigEditor({
           <p className="text-xs text-slate-500 mt-1">
             Dispara se o card continua na mesma etapa por mais dias que o definido. Verificação diária às 9h.
           </p>
+        </div>
+      )}
+
+      {needsTaskCompletedConfig && (
+        <div className="space-y-3 p-3 rounded-md border border-slate-200 bg-slate-50">
+          <p className="text-xs text-slate-600">
+            Dispara quando uma tarefa é marcada como concluída no card. Reagendar uma reunião não dispara.
+          </p>
+          <div>
+            <Label>Tipo de tarefa</Label>
+            <Select
+              value={(form.event_config.task_tipo as string) || ''}
+              onChange={(v) =>
+                setForm({
+                  event_config: {
+                    ...form.event_config,
+                    task_tipo: v || null,
+                    outcome: v === 'reuniao' ? form.event_config.outcome : null,
+                  },
+                })
+              }
+              options={[{ value: '', label: 'Qualquer tarefa' }, ...TASK_TIPO_OPTIONS]}
+            />
+            <p className="text-xs text-slate-500 mt-1">Deixe em "Qualquer tarefa" pra disparar em qualquer conclusão.</p>
+          </div>
+          {(form.event_config.task_tipo as string) === 'reuniao' && (
+            <div>
+              <Label>Resultado da reunião</Label>
+              <Select
+                value={(form.event_config.outcome as string) || 'qualquer'}
+                onChange={(v) => setForm({ event_config: { ...form.event_config, outcome: v } })}
+                options={[
+                  { value: 'qualquer', label: 'Qualquer resultado' },
+                  { value: 'realizada', label: 'Realizada' },
+                  { value: 'nao_compareceu', label: 'Não compareceu' },
+                ]}
+              />
+            </div>
+          )}
+          <details className="bg-indigo-50 border border-indigo-200 rounded-md px-3 py-2">
+            <summary className="text-xs font-medium text-indigo-900 cursor-pointer">
+              Variáveis disponíveis nos próximos passos
+            </summary>
+            <div className="mt-2 text-xs text-indigo-900 space-y-1 font-mono">
+              <div><code>{'{{trigger.data_reuniao}}'}</code> — data/hora da tarefa (ex: 12/09 às 16:30)</div>
+              <div><code>{'{{trigger.data_reuniao_completa}}'}</code> — data/hora completa</div>
+              <div><code>{'{{trigger.task_titulo}}'}</code> — título da tarefa</div>
+              <div><code>{'{{trigger.task_resultado}}'}</code> — resultado (realizada, não compareceu...)</div>
+            </div>
+          </details>
         </div>
       )}
 

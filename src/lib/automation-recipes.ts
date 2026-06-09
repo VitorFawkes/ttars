@@ -73,6 +73,7 @@ export type EventType =
   | 'time_in_stage'
   | 'cron_roteamento'
   | 'calendly_invitee_created'
+  | 'task_completed'
 
 /**
  * Fontes de data para gatilhos time_offset_from_date.
@@ -552,4 +553,5 @@ export const EVENT_TYPE_LABELS: Record<EventType, string> = {
   time_in_stage: 'Card parado X dias em etapa',
   cron_roteamento: 'Roteamento automático diário',
   calendly_invitee_created: 'Reunião agendada no Calendly',
+  task_completed: 'Tarefa concluída',
 }
