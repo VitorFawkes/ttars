@@ -28,6 +28,8 @@ export const FILTER_CONTRACTS: Record<string, FilterDimension[]> = {
   sdr: ['period', 'owners', 'origins'],
   // Planner — período + dono + origem.
   planner: ['period', 'owners', 'origins'],
+  // Retenção — segmenta a base por dono (quem fechou) e origem; janela própria (meses).
+  retencao: ['owners', 'origins'],
   // Operações (pós-venda) — período + dono.
   operacoes: ['period', 'owners'],
   // Concierge — período. (filtro por dono: próximo incremento, a RPC de concierge ainda não aceita p_owner_ids.)
