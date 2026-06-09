@@ -5,11 +5,11 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-06-08
+> **Last Updated:** 2026-06-09
 > **Trigger:** ALWAYS ON
-> **Stats:** 210 tabelas | 206 paginas | 358 hooks | 23 views | 845 components
-> **Stats:** 210 tabelas | 206 paginas | 358 hooks | 23 views | 845 components
-> **Stats:** 210 tabelas | 206 paginas | 358 hooks | 23 views | 845 components
+> **Stats:** 234 tabelas | 207 paginas | 360 hooks | 28 views | 845 components
+> **Stats:** 234 tabelas | 207 paginas | 360 hooks | 28 views | 845 components
+> **Stats:** 234 tabelas | 207 paginas | 360 hooks | 28 views | 845 components
 
 ---
 
@@ -171,7 +171,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **358 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **360 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -326,6 +326,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useAutoMergePreflight()` | `useAutoMergePreflight.ts` |
 | `useAutoSave()` | `useAutoSave.ts` |
 | `useAutomations()` | `useAutomations.ts` |
+| `useBackendAutomationSettings()` | `useBackendAutomationSettings.ts` |
 | `useBulkGiftStatus()` | `useBulkGiftStatus.ts` |
 | `useBulkLeadActions()` | `useBulkLeadActions.ts` |
 | `useCancelamento()` | `useCancelamento.ts` |
@@ -496,6 +497,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useFilterOptions()` | `useFilterOptions.ts` |
 | `useFilterOptions()` | `useFilterOptions.ts` |
 | `useFilterOptions()` | `useFilterOptions.ts` |
+| `useFunnelStagesLens()` | `useFunnelStagesLens.ts` |
 | `useGiftStatusKanban()` | `useGiftStatusKanban.ts` |
 | `useKanbanTarefas()` | `useKanbanTarefas.ts` |
 | `useKanbanViagens()` | `useKanbanViagens.ts` |
@@ -608,7 +610,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **206 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **207 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -744,6 +746,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `UnderConstruction` | `src/pages/analytics-new/UnderConstruction.tsx` |
 | `WhatsAppView` | `src/pages/analytics-new/WhatsAppView.tsx` |
 | `WidgetCard` | `src/pages/analytics-new/WidgetCard.tsx` |
+| `FunnelLensToggle` | `src/pages/analytics-new/charts/FunnelLensToggle.tsx` |
 | `HBarChart` | `src/pages/analytics-new/charts/HBarChart.tsx` |
 | `FunnelFilterPanel` | `src/pages/analytics-new/funil/FunnelFilterPanel.tsx` |
 | `FunnelKpis` | `src/pages/analytics-new/funil/FunnelKpis.tsx` |

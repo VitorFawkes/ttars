@@ -36,6 +36,12 @@ export interface BackendAutomation {
   tables: string[]
   sourceFile?: string
   isActive: boolean
+  /**
+   * Quando true, esta automação é configurável por workspace via
+   * backend_automation_settings (ligar/desligar + parâmetros) e a tela
+   * /settings/automations-backend mostra os controles de edição.
+   */
+  editable?: boolean
 }
 
 export interface CategoryMeta {
@@ -138,6 +144,18 @@ export const BACKEND_AUTOMATIONS: BackendAutomation[] = [
     tables: ['cards'],
     sourceFile: 'supabase/migrations/20260422g_analytics_v2_triggers.sql',
     isActive: true,
+  },
+  {
+    id: 'ww_derive_tipo_casamento',
+    name: 'Qualificação Weddings: Elopement × Destination Wedding',
+    category: 'trigger_sql',
+    description:
+      'Em cards de Weddings, define o Tipo de Casamento automaticamente pelo número de convidados: "Apenas o Casal" vira Elopement; qualquer faixa de convidados vira Destination Wedding. Só preenche quando o tipo está vazio (respeita escolha manual). Editável aqui: ligar/desligar e ajustar os parâmetros.',
+    trigger: 'Card de Weddings criado, ou campo de convidados alterado',
+    tables: ['cards'],
+    sourceFile: 'supabase/migrations/20260609f_ww_qualificacao_automation.sql',
+    isActive: true,
+    editable: true,
   },
   {
     id: 'sync_role_from_team',
