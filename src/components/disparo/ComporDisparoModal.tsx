@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { X, Send, Upload, ClipboardPaste, AlertTriangle, Loader2, Heart, Users, CheckCircle2, Plus, Ban, Download, MessageCircle, Shuffle, Trash2 } from 'lucide-react'
+import { X, Send, Upload, ClipboardPaste, AlertTriangle, Loader2, Heart, Users, CheckCircle2, Plus, Ban, Download, MessageCircle, Shuffle, Trash2, Sparkles } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { supabase } from '../../lib/supabase'
 import { formatPhoneBR } from '../../utils/normalizePhone'
 import { useWhatsAppLinhas, isOfficialMetaLine } from '../../hooks/useWhatsAppLinhas'
 import { useWeddingsWithGuestCounts } from '../../hooks/convidados/useWeddingsWithGuestCounts'
@@ -105,10 +106,11 @@ export function ComporDisparoModal({ open, onClose }: Props) {
   const [corpos, setCorpos] = useState<string[]>([''])  // versão 1 + variações
   const [focusedIdx, setFocusedIdx] = useState(0)        // versão focada (alvo dos campos)
   const [phoneNumberId, setPhoneNumberId] = useState<string>('')
-  const [capDiario, setCapDiario] = useState(500)
+  const [capDiario, setCapDiario] = useState(50)
   const [usarRamp, setUsarRamp] = useState(true)
   const corpoRefs = useRef<(HTMLTextAreaElement | null)[]>([])
   const didDefaultLine = useRef(false)
+  const [iaBusy, setIaBusy] = useState(false)
 
   // Lista colada/importada
   const [parsed, setParsed] = useState<ParsedLista>({ headers: [], rows: [] })
@@ -174,7 +176,7 @@ export function ComporDisparoModal({ open, onClose }: Props) {
 
   const reset = useCallback(() => {
     setTab('lista'); setTitulo(''); setCorpos(['']); setFocusedIdx(0); setPhoneNumberId('')
-    setCapDiario(500); setUsarRamp(true)
+    setCapDiario(50); setUsarRamp(true)
     setParsed({ headers: [], rows: [] }); setTelCol(null); setNomeCol(null)
     setWeddingId(''); setGuestIds(new Set())
     setBusy(false); setCampaignId(null); setResults(null); setErro(null)
@@ -206,6 +208,39 @@ export function ComporDisparoModal({ open, onClose }: Props) {
     setCorpos((arr) => (arr.length <= 1 ? arr : arr.filter((_, idx) => idx !== i)))
     setFocusedIdx((cur) => (cur >= i && cur > 0 ? cur - 1 : cur))
   }, [])
+
+  // IA: gera variações da mensagem principal (mesmo sentido, palavras diferentes) e
+  // anexa como novas versões — protege o número de ser marcado como spam por repetição.
+  const gerarVariacoesIA = useCallback(async () => {
+    const base = (corpos[0] ?? '').trim()
+    if (!base || iaBusy) return
+    setIaBusy(true); setErro(null)
+    try {
+      const casamento = tab === 'casamento' ? weddings.find((w) => w.id === weddingId)?.titulo : undefined
+      const { data, error } = await supabase.functions.invoke<{ variacoes?: string[]; error?: string }>(
+        'disparo-variar-mensagem',
+        { body: { mensagem: base, num_variacoes: 3, contexto: { variaveis, casamento } } },
+      )
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      const novas = (data?.variacoes ?? []).map((v) => (v ?? '').trim()).filter((v) => v !== '')
+      if (novas.length === 0) throw new Error('vazio')
+      setCorpos((arr) => {
+        const mantidas = arr.filter((c, i) => i === 0 || c.trim() !== '') // mantém v1, descarta variações em branco
+        const todas = [...mantidas]
+        for (const v of novas) {
+          if (todas.length >= 6) break
+          if (!todas.some((t) => t.trim() === v)) todas.push(v)
+        }
+        return todas
+      })
+      setFocusedIdx(0)
+    } catch {
+      setErro('Não consegui gerar variações com a IA agora. Tente de novo em instantes.')
+    } finally {
+      setIaBusy(false)
+    }
+  }, [corpos, iaBusy, tab, weddings, weddingId, variaveis])
 
   // Insere [campo] na versão focada, no cursor.
   const insertVar = useCallback((v: string) => {
@@ -539,9 +574,15 @@ export function ComporDisparoModal({ open, onClose }: Props) {
                       onChange={(e) => setCapDiario(Math.max(1, parseInt(e.target.value || '1', 10)))}
                       className="w-24 h-9 px-3 text-sm rounded-lg border border-ww-sand bg-white text-ww-n700 focus:outline-none focus:border-ww-gold focus-visible:ring-2 focus-visible:ring-ww-gold/25"
                     />
+                    <span className="text-xs text-ww-n400">recomendado: até ~50/dia</span>
                   </div>
-                  {capDiario > 500 && (
-                    <p className="text-xs text-ww-olive-ink flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5 shrink-0" /> Acima de 500/dia o risco de bloqueio aumenta.</p>
+                  {capDiario > 80 && (
+                    <p className={cn('text-xs flex items-start gap-1.5', capDiario > 200 ? 'text-ww-rosewood' : 'text-ww-olive-ink')}>
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      {capDiario > 200
+                        ? 'Acima de 200/dia o risco de bloqueio do número é alto — ainda mais em linha não-oficial. O mais seguro é ficar perto de 50/dia.'
+                        : 'Acima de ~80/dia o risco de bloqueio começa a subir. Para proteger o número, o ideal é ficar perto de 50/dia.'}
+                    </p>
                   )}
                   <label className="flex items-center gap-2.5 text-sm text-ww-n600 cursor-pointer">
                     <input type="checkbox" className="accent-ww-gold" checked={usarRamp} onChange={(e) => setUsarRamp(e.target.checked)} />
@@ -610,15 +651,30 @@ export function ComporDisparoModal({ open, onClose }: Props) {
                     </div>
                   ))}
 
-                  <button
-                    type="button" onClick={addVersao}
-                    className="self-start inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-xs font-semibold text-ww-rosewood bg-ww-rosewood-soft border border-ww-rosewood/20 hover:bg-ww-rosewood/15 active:scale-[0.98] transition-[transform,background-color] duration-150 ease-ww-soft"
-                  ><Plus className="w-3.5 h-3.5" /> Adicionar variação da mensagem</button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button" onClick={addVersao}
+                      className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-xs font-semibold text-ww-rosewood bg-ww-rosewood-soft border border-ww-rosewood/20 hover:bg-ww-rosewood/15 active:scale-[0.98] transition-[transform,background-color] duration-150 ease-ww-soft"
+                    ><Plus className="w-3.5 h-3.5" /> Adicionar variação</button>
+                    <button
+                      type="button" onClick={gerarVariacoesIA}
+                      disabled={iaBusy || (corpos[0]?.trim() ?? '') === ''}
+                      title={(corpos[0]?.trim() ?? '') === '' ? 'Escreva a mensagem principal primeiro' : 'A IA cria versões diferentes com o mesmo sentido'}
+                      className={cn('inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-xs font-semibold border transition-[transform,background-color] duration-150 ease-ww-soft active:scale-[0.98]',
+                        iaBusy || (corpos[0]?.trim() ?? '') === ''
+                          ? 'bg-ww-cream text-ww-n400 border-ww-sand cursor-not-allowed'
+                          : 'text-ww-gold-ink bg-ww-gold-soft border-ww-gold/25 hover:bg-ww-gold/15')}
+                    >
+                      {iaBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                      {iaBusy ? 'Gerando…' : 'Gerar variações com IA'}
+                    </button>
+                  </div>
                 </div>
 
                 <p className="mt-2.5 text-xs text-ww-n500 leading-relaxed">
                   <Shuffle className="inline w-3.5 h-3.5 mr-1 -mt-0.5 text-ww-rosewood" />
                   Com mais de uma versão, o sistema manda <span className="font-semibold text-ww-n700">uma diferente pra cada pessoa</span> — deixa a mensagem menos repetida e protege o número.
+                  {' '}Clique em <span className="font-semibold text-ww-gold-ink">Gerar variações com IA</span> pra criar versões automaticamente.
                 </p>
               </div>
 

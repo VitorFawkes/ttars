@@ -55,6 +55,18 @@ export interface DisparoFilaItem {
   contato: { nome: string | null } | null
 }
 
+/** Saúde de uma linha de WhatsApp (RPC disparo_saude_linhas). */
+export interface DisparoSaudeLinha {
+  phone_number_id: string
+  phone_number_label: string
+  is_oficial: boolean
+  enviados_hoje: number
+  responderam: number      // destinatários (7d) que responderam
+  destinatarios: number    // destinatários distintos (7d) — denominador de "responderam"
+  ultimo_envio_at: string | null
+  status: 'saudavel' | 'risco' | 'bloqueada'
+}
+
 /** 1 destinatário da lista colada/importada. */
 export interface IngestRow {
   telefone: string
