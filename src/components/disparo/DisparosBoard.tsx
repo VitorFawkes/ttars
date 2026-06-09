@@ -7,6 +7,7 @@ import { useDisparoActions } from '../../hooks/disparo/useDisparoActions'
 import type { DisparoCampanha, DisparoStatus } from '../../hooks/disparo/types'
 import { ComporDisparoModal } from './ComporDisparoModal'
 import { DisparoRelatorioModal } from './DisparoRelatorioModal'
+import { SaudeLinhasPanel } from './SaudeLinhasPanel'
 
 const STATUS_META: Record<DisparoStatus, { label: string; cls: string }> = {
   rascunho:   { label: 'Rascunho',   cls: 'bg-ww-cream text-ww-n500 border-ww-sand' },
@@ -50,6 +51,8 @@ export function DisparosBoard() {
           <Plus className="h-4 w-4" /> Novo disparo
         </button>
       </div>
+
+      <SaudeLinhasPanel />
 
       {isLoading ? (
         <div className="rounded-2xl border border-ww-sand bg-white shadow-ww-lift p-10 text-center text-sm text-ww-n500">Carregando…</div>
