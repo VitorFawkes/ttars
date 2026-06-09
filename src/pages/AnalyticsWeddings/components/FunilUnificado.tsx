@@ -51,14 +51,22 @@ export function FunilUnificado({ marcosA, marcosB, labelA, labelB, isLoading, er
         <EmptyState message="Nenhum lead com esse perfil nos períodos escolhidos." />
       ) : (
         <>
-          {/* Topo do funil — base */}
-          <div className="flex items-baseline justify-between pb-3 border-b border-slate-200">
-            <div>
-              <span className="text-sm text-slate-500">Entraram no funil </span>
-              <span className="text-lg font-bold text-slate-900 tabular-nums">{formatNumber(entrouB)}</span>
-              <span className="text-sm text-slate-500"> pessoas</span>
+          {/* Topo do funil — base dos DOIS períodos comparados */}
+          <div className="flex items-end justify-between gap-4 pb-3 border-b border-slate-200">
+            <div className="min-w-0">
+              <div className="text-sm text-slate-500">Entraram no funil</div>
+              <div className="mt-1.5 flex items-baseline gap-x-6 gap-y-1 flex-wrap">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl font-bold text-slate-900 tabular-nums leading-none">{formatNumber(entrouB)}</span>
+                  <span className="text-xs font-medium text-slate-500">{labelB}</span>
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl font-bold text-slate-400 tabular-nums leading-none">{formatNumber(entrouA)}</span>
+                  <span className="text-xs font-medium text-slate-400">{labelA}</span>
+                </div>
+              </div>
             </div>
-            <span className="text-xs text-slate-400">base · 100%</span>
+            <span className="shrink-0 text-xs text-slate-400">base · 100%</span>
           </div>
 
           {/* cabeçalho das colunas */}

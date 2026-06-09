@@ -5,7 +5,8 @@ import KpiCard from '@/components/analytics/KpiCard'
 import { useTeamLeaderboard } from '@/hooks/analytics/useTeamLeaderboard'
 import { useTeamPerformance } from '@/hooks/analytics/useTeamPerformance'
 import { useTeamSlaCompliance } from '@/hooks/analytics/useTeamSlaCompliance'
-import { useTeamAggregateKpis } from '@/hooks/analytics/useTeamAggregateKpis'
+import { useTeamAggregateKpis, useTeamAggregateKpisPrevious } from '@/hooks/analytics/useTeamAggregateKpis'
+import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { useTeamIndividualEvolution } from '@/hooks/analytics/useTeamIndividualEvolution'
 import { useTeamTicketVariation } from '@/hooks/analytics/useTeamTicketVariation'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
@@ -13,6 +14,8 @@ import { formatCurrency } from '@/utils/whatsappFormatters'
 import { getRankTier, rankBadgeClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
+import { FILTER_CONTRACTS } from '@/hooks/analytics/filterContracts'
+import HBarChart, { type HBarDatum } from './charts/HBarChart'
 import PlannerProfileDrawer from '@/components/analytics/PlannerProfileDrawer'
 import { cn } from '@/lib/utils'
 
@@ -69,7 +72,9 @@ export default function TeamView() {
   const [phaseFilter, setPhaseFilter] = useState<string>('all')
   const [individualUser, setIndividualUser] = useState<{ id: string; nome: string } | null>(null)
   const [profilePlanner, setProfilePlanner] = useState<{ id: string; nome: string } | null>(null)
-  const leaderboard = useTeamLeaderboard()
+  // Lente do placar (Leva D): 'created' (safra, = comportamento atual) | 'stage' (atividade, fecharam no período)
+  const [teamLens, setTeamLens] = useState<'created' | 'stage'>('created')
+  const leaderboard = useTeamLeaderboard(teamLens)
   const phaseTab = phaseFilter === 'all' ? 'sdr' : phaseFilter
   const phasePerf = useTeamPerformance(phaseTab)
   const sla = useTeamSlaCompliance()
@@ -78,6 +83,17 @@ export default function TeamView() {
 
   const leaderboardRows = (leaderboard.data ?? []).filter(row =>
     phaseFilter === 'all' ? true : row.fases.includes(phaseFilter)
+  )
+
+  // Gráfico de gestor: receita por pessoa (comparar o time de relance, respeita a fase ativa)
+  const receitaChart = useMemo<HBarDatum[]>(
+    () =>
+      leaderboardRows
+        .filter(r => r.receita_total > 0)
+        .slice()
+        .sort((a, b) => b.receita_total - a.receita_total)
+        .map(r => ({ key: r.user_id, label: r.user_nome, value: r.receita_total })),
+    [leaderboardRows],
   )
 
   // Decide qual drawer abrir: se a pessoa é Planner (vendas), abre o perfil rico.
@@ -128,7 +144,10 @@ export default function TeamView() {
 
   // KPIs agregados — vêm de RPC dedicada (cards DISTINTOS). Somar linhas do
   // leaderboard inflava o número porque um card com SDR+Planner+Pós contava 3x.
-  const aggregateKpis = useTeamAggregateKpis()
+  const { compare } = useAnalyticsFilters()
+  const aggregateKpis = useTeamAggregateKpis(teamLens)
+  const aggregatePrev = useTeamAggregateKpisPrevious(compare, teamLens)
+  const prevAgg = aggregatePrev.data
   const totalReceita = aggregateKpis.data?.receita_total ?? 0
   const totalGanhos = aggregateKpis.data?.cards_ganhos ?? 0
   const totalAbertos = aggregateKpis.data?.cards_abertos ?? 0
@@ -143,7 +162,32 @@ export default function TeamView() {
         </p>
       </header>
 
-      <SimpleFilterBar showOrigins={false} myButtonLabel="Eu" />
+      <SimpleFilterBar contract={FILTER_CONTRACTS.team} myButtonLabel="Eu" />
+
+      {/* Lente do placar (Leva D): Por safra (criados no período, padrão) / Por atividade (fecharam no período) */}
+      <div className="flex items-center gap-2 -mt-2">
+        <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Placar</span>
+        <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+          {([['created', 'Por safra'], ['stage', 'Por atividade']] as const).map(([v, label]) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setTeamLens(v)}
+              title={
+                v === 'created'
+                  ? 'A turma de cards CRIADOS no período (inclui abertos) — padrão.'
+                  : 'Cards que FECHARAM no período (ganho/perdido); win rate sobre os fechados.'
+              }
+              className={cn(
+                'px-2.5 py-1.5 text-[11px] font-medium transition-colors',
+                teamLens === v ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Filtro de fase global — afeta leaderboard e tabela de performance */}
       <div className="flex items-center gap-1 bg-white rounded-lg border border-slate-200 p-1 w-fit">
@@ -172,6 +216,7 @@ export default function TeamView() {
           color="text-emerald-600"
           bgColor="bg-emerald-50"
           isLoading={leaderboard.isLoading}
+          delta={compare && prevAgg ? { current: totalReceita, previous: prevAgg.receita_total } : undefined}
         />
         <KpiCard
           title="Ganhos no período"
@@ -180,6 +225,7 @@ export default function TeamView() {
           color="text-indigo-600"
           bgColor="bg-indigo-50"
           isLoading={leaderboard.isLoading}
+          delta={compare && prevAgg ? { current: totalGanhos, previous: prevAgg.cards_ganhos } : undefined}
         />
         <KpiCard
           title="Cards abertos"
@@ -198,6 +244,24 @@ export default function TeamView() {
           isLoading={leaderboard.isLoading}
         />
       </div>
+
+      {/* Gráfico: receita por pessoa — comparação visual do time (respeita a fase ativa) */}
+      <WidgetCard
+        title="Receita por pessoa"
+        subtitle="Quem traz mais receita no período — compare o time de relance. Clique numa pessoa na tabela abaixo pra abrir o perfil."
+      >
+        {leaderboard.isLoading ? (
+          <div className="h-40 flex items-center justify-center text-slate-400">
+            <Loader2 className="w-5 h-5 animate-spin" />
+          </div>
+        ) : receitaChart.length === 0 ? (
+          <div className="h-24 flex items-center justify-center text-sm text-slate-400">
+            Sem receita no período pra comparar
+          </div>
+        ) : (
+          <HBarChart data={receitaChart} format={formatCurrency} maxLabel={24} color="#10b981" />
+        )}
+      </WidgetCard>
 
       {/* Leaderboard geral */}
       <WidgetCard

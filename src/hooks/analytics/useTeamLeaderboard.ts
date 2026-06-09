@@ -18,11 +18,11 @@ export interface TeamLeaderboardRow {
     tarefas_vencidas: number
 }
 
-export function useTeamLeaderboard() {
+export function useTeamLeaderboard(dateRef: 'created' | 'stage' = 'created') {
     const { dateRange, ownerIds, tagIds } = useAnalyticsFilters()
 
     return useQuery({
-        queryKey: ['analytics', 'team-leaderboard', dateRange.start, dateRange.end, ownerIds, tagIds],
+        queryKey: ['analytics', 'team-leaderboard', dateRange.start, dateRange.end, ownerIds, tagIds, dateRef],
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC nova
             const { data, error } = await (supabase.rpc as any)('analytics_team_leaderboard', {
@@ -30,6 +30,7 @@ export function useTeamLeaderboard() {
                 p_date_end: dateRange.end,
                 p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
                 p_tag_ids: tagIds.length > 0 ? tagIds : undefined,
+                p_date_ref: dateRef,
             })
             if (error) throw error
             return (data as unknown as TeamLeaderboardRow[]) || []

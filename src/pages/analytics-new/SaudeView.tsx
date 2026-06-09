@@ -23,6 +23,7 @@ import { Lock } from 'lucide-react'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
+import { FILTER_CONTRACTS } from '@/hooks/analytics/filterContracts'
 import { cn } from '@/lib/utils'
 
 const BUCKET_LABELS: Record<SaudeBucket, string> = {
@@ -123,7 +124,7 @@ export default function SaudeView() {
         </div>
       </header>
 
-      <SimpleFilterBar showOrigins={false} showPeriod={false} myButtonLabel="Meus cards em risco" />
+      <SimpleFilterBar contract={FILTER_CONTRACTS.saude} myButtonLabel="Meus cards em risco" />
 
       {/* Total abertos */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

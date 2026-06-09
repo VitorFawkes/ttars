@@ -5,7 +5,8 @@ import PlannerProfileDrawer from '@/components/analytics/PlannerProfileDrawer'
 import PlannerForecastChart from '@/components/analytics/PlannerForecastChart'
 import PlannerStageTimeHeatmap from '@/components/analytics/PlannerStageTimeHeatmap'
 import KpiCard from '@/components/analytics/KpiCard'
-import { useFunnelConversion, useLossReasons } from '@/hooks/analytics/useFunnelConversion'
+import { useLossReasons } from '@/hooks/analytics/useFunnelConversion'
+import { useFunnelStagesLens, type FunnelLens } from '@/hooks/analytics/useFunnelStagesLens'
 import { useFunnelVelocity } from '@/hooks/analytics/useFunnelVelocity'
 import { useTeamLeaderboard } from '@/hooks/analytics/useTeamLeaderboard'
 import { useTeamTicketVariation } from '@/hooks/analytics/useTeamTicketVariation'
@@ -18,6 +19,9 @@ import { formatCurrency } from '@/utils/whatsappFormatters'
 import { getRankTier, rankBadgeClass, rankTextClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
+import { FILTER_CONTRACTS } from '@/hooks/analytics/filterContracts'
+import HBarChart, { type HBarDatum } from './charts/HBarChart'
+import FunnelLensToggle from './charts/FunnelLensToggle'
 import { cn } from '@/lib/utils'
 
 const ORIGEM_LABELS: Record<string, string> = {
@@ -82,7 +86,8 @@ function ConversionBadge({ rate, sample }: { rate: number; sample: readonly numb
 }
 
 export default function PlannerView() {
-  const funnel = useFunnelConversion()
+  const [funnelLens, setFunnelLens] = useState<FunnelLens>('now')
+  const funnel = useFunnelStagesLens(funnelLens)
   const velocity = useFunnelVelocity()
   const lossReasons = useLossReasons()
   const leaderboard = useTeamLeaderboard()
@@ -106,7 +111,7 @@ export default function PlannerView() {
   const plannerStages = useMemo(() => {
     return (funnel.data ?? []).filter(s => s.phase_slug === 'planner').sort((a, b) => a.ordem - b.ordem)
   }, [funnel.data])
-  const totalPlanner = plannerStages.reduce((sum, s) => sum + s.current_count, 0)
+  const totalPlanner = plannerStages.reduce((sum, s) => sum + s.count, 0)
 
   const plannerLeaderboard = useMemo(() => {
     return (leaderboard.data ?? []).filter(row => plannerIds.has(row.user_id))
@@ -117,6 +122,15 @@ export default function PlannerView() {
       .filter(v => v.phase_slug === 'planner')
       .sort((a, b) => a.ordem - b.ordem)
   }, [velocity.data])
+
+  // Gráfico de gestor: tempo típico (mediana) por etapa — onde os cards empacam
+  const velocityChart = useMemo<HBarDatum[]>(
+    () =>
+      plannerVelocity
+        .filter(v => v.mediana_dias > 0)
+        .map(v => ({ key: v.stage_id, label: v.stage_nome, value: Math.round(v.mediana_dias) })),
+    [plannerVelocity],
+  )
 
   // Filtra ticket variation pra mostrar só planners
   const plannerTicketVar = useMemo(() => {
@@ -237,7 +251,7 @@ export default function PlannerView() {
         </p>
       </header>
 
-      <SimpleFilterBar roleFilter="vendas" myButtonLabel="Meus cards" />
+      <SimpleFilterBar contract={FILTER_CONTRACTS.planner} roleFilter="vendas" myButtonLabel="Meus cards" />
 
       {origins.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center justify-between">
@@ -296,10 +310,19 @@ export default function PlannerView() {
         />
       </div>
 
+      {/* Lente do funil (Leva D): Agora (foto) / Por safra / Por atividade */}
+      <FunnelLensToggle value={funnelLens} onChange={setFunnelLens} />
+
       {/* Carteira por etapa — barras clicáveis */}
       <WidgetCard
         title="Carteira por etapa do Planner"
-        subtitle="Quantos cards estão em cada etapa nesse momento. Clique numa barra pra ver os cards."
+        subtitle={
+          funnelLens === 'now'
+            ? 'Quantos cards estão em cada etapa neste momento. Clique numa barra pra ver os cards.'
+            : funnelLens === 'created'
+              ? 'Por safra: a turma criada no período e até onde chegou no funil. Clique numa barra pra ver os cards.'
+              : 'Por atividade: cards que entraram em cada etapa dentro do período. Clique numa barra pra ver os cards.'
+        }
       >
         {funnel.isLoading ? (
           <div className="h-40 flex items-center justify-center text-slate-400">
@@ -312,7 +335,7 @@ export default function PlannerView() {
         ) : (
           <div className="space-y-2">
             {plannerStages.map(stage => {
-              const share = totalPlanner > 0 ? (stage.current_count / totalPlanner) * 100 : 0
+              const share = totalPlanner > 0 ? (stage.count / totalPlanner) * 100 : 0
               return (
                 <button
                   key={stage.stage_id}
@@ -327,7 +350,7 @@ export default function PlannerView() {
                     />
                   </div>
                   <span className="w-12 text-sm text-slate-700 tabular-nums text-right">
-                    {stage.current_count}
+                    {stage.count}
                   </span>
                   <span className="w-14 text-right text-xs text-slate-500 tabular-nums">
                     {share.toFixed(0)}%
@@ -444,7 +467,11 @@ export default function PlannerView() {
             Sem dados de tempo nas etapas
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="space-y-4">
+            {velocityChart.length > 0 && (
+              <HBarChart data={velocityChart} format={(v) => `${v}d`} maxLabel={28} color="#f59e0b" />
+            )}
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-xs text-slate-500 uppercase tracking-wider">
@@ -475,6 +502,7 @@ export default function PlannerView() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </WidgetCard>

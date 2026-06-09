@@ -4,10 +4,13 @@ import {
 } from 'lucide-react'
 import KpiCard from '@/components/analytics/KpiCard'
 import { useResumoOverview, useResumoOverviewPrevious } from '@/hooks/analytics/useResumoOverview'
+import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import { getRankTier, rankBadgeClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
+import { FILTER_CONTRACTS } from '@/hooks/analytics/filterContracts'
+import HBarChart, { type HBarDatum } from './charts/HBarChart'
 import { cn } from '@/lib/utils'
 
 const FASE_LABELS: Record<string, string> = {
@@ -37,6 +40,7 @@ function formatMes(iso: string): string {
 }
 
 export default function ResumoView() {
+  const { compare } = useAnalyticsFilters()
   const { data, isLoading } = useResumoOverview()
   const previous = useResumoOverviewPrevious()
 
@@ -51,6 +55,16 @@ export default function ResumoView() {
       (data?.por_origem ?? [])
         .filter(r => r.leads > 0)
         .map(r => Math.round((r.ganhos / r.leads) * 100)),
+    [data?.por_origem],
+  )
+
+  // Gráfico de gestor: faturamento por origem (de relance, de onde vem o dinheiro)
+  const origemChart = useMemo<HBarDatum[]>(
+    () =>
+      (data?.por_origem ?? [])
+        .filter(r => r.faturamento > 0)
+        .sort((a, b) => b.faturamento - a.faturamento)
+        .map(r => ({ key: r.origem, label: ORIGEM_LABELS[r.origem] ?? r.origem, value: r.faturamento })),
     [data?.por_origem],
   )
 
@@ -71,7 +85,7 @@ export default function ResumoView() {
         </nav>
       </header>
 
-      <SimpleFilterBar showOwner={false} showOrigins={false} />
+      <SimpleFilterBar contract={FILTER_CONTRACTS.resumo} />
 
       {/* BLOCO A: EMPRESA */}
       <section id="empresa" className="space-y-4 scroll-mt-6">
@@ -85,7 +99,7 @@ export default function ResumoView() {
             bgColor="bg-emerald-50"
             isLoading={isLoading}
             subtitle={`${kpis?.ganhos ?? 0} ganhos no período`}
-            delta={kpis && prevKpis ? { current: kpis.faturamento, previous: prevKpis.faturamento } : undefined}
+            delta={compare && kpis && prevKpis ? { current: kpis.faturamento, previous: prevKpis.faturamento } : undefined}
           />
           <KpiCard
             title="Receita (margem)"
@@ -94,7 +108,7 @@ export default function ResumoView() {
             color="text-emerald-600"
             bgColor="bg-emerald-50"
             isLoading={isLoading}
-            delta={kpis && prevKpis ? { current: kpis.receita, previous: prevKpis.receita } : undefined}
+            delta={compare && kpis && prevKpis ? { current: kpis.receita, previous: prevKpis.receita } : undefined}
           />
           <KpiCard
             title="Ticket médio"
@@ -103,7 +117,7 @@ export default function ResumoView() {
             color="text-indigo-600"
             bgColor="bg-indigo-50"
             isLoading={isLoading}
-            delta={kpis && prevKpis ? { current: kpis.ticket_medio, previous: prevKpis.ticket_medio } : undefined}
+            delta={compare && kpis && prevKpis ? { current: kpis.ticket_medio, previous: prevKpis.ticket_medio } : undefined}
           />
           <KpiCard
             title="Conversão do período"
@@ -113,7 +127,7 @@ export default function ResumoView() {
             bgColor="bg-indigo-50"
             isLoading={isLoading}
             subtitle={`ganhos ÷ ${kpis?.leads_entrada ?? 0} leads do período`}
-            delta={kpis && prevKpis ? { current: kpis.conversao_geral, previous: prevKpis.conversao_geral } : undefined}
+            delta={compare && kpis && prevKpis ? { current: kpis.conversao_geral, previous: prevKpis.conversao_geral } : undefined}
           />
         </div>
 
@@ -211,7 +225,11 @@ export default function ResumoView() {
               Sem leads no período
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="space-y-4">
+              {origemChart.length > 0 && (
+                <HBarChart data={origemChart} format={formatCurrency} maxLabel={20} />
+              )}
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 text-xs text-slate-500 uppercase tracking-wider">
@@ -252,6 +270,7 @@ export default function ResumoView() {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </WidgetCard>

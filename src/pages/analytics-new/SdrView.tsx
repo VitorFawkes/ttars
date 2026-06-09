@@ -1,8 +1,9 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Inbox, MessageCircle, CalendarCheck, Trophy, Loader2, ArrowRightLeft, Timer } from 'lucide-react'
 import KpiCard from '@/components/analytics/KpiCard'
-import { useFunnelConversion, useLossReasons } from '@/hooks/analytics/useFunnelConversion'
+import { useLossReasons } from '@/hooks/analytics/useFunnelConversion'
+import { useFunnelStagesLens, type FunnelLens } from '@/hooks/analytics/useFunnelStagesLens'
 import { useTeamLeaderboard } from '@/hooks/analytics/useTeamLeaderboard'
 import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { useResumoOverview, useResumoOverviewPrevious } from '@/hooks/analytics/useResumoOverview'
@@ -11,6 +12,8 @@ import { useFilterProfilesWithRole } from '@/hooks/analytics/useFilterOptions'
 import { supabase } from '@/lib/supabase'
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
+import { FILTER_CONTRACTS } from '@/hooks/analytics/filterContracts'
+import FunnelLensToggle from './charts/FunnelLensToggle'
 import SdrEvolutionSection from './SdrEvolutionSection'
 import { cn } from '@/lib/utils'
 
@@ -138,7 +141,8 @@ function ConversionBadge({ rate }: { rate: number }) {
 }
 
 export default function SdrView() {
-  const funnel = useFunnelConversion()
+  const [funnelLens, setFunnelLens] = useState<FunnelLens>('now')
+  const funnel = useFunnelStagesLens(funnelLens)
   const lossReasons = useLossReasons()
   const leaderboard = useTeamLeaderboard()
   const resumo = useResumoOverview()
@@ -163,7 +167,7 @@ export default function SdrView() {
     return (funnel.data ?? []).filter(s => s.phase_slug === 'sdr').sort((a, b) => a.ordem - b.ordem)
   }, [funnel.data])
   const topStage = sdrStages[0]
-  const topCount = topStage?.current_count ?? 0
+  const topCount = topStage?.count ?? 0
 
   // Marcos do funil mapeados pelas etapas reais
   const milestoneStages = useMemo(() => {
@@ -227,7 +231,7 @@ export default function SdrView() {
         </p>
       </header>
 
-      <SimpleFilterBar roleFilter="sdr" myButtonLabel="Meus leads" />
+      <SimpleFilterBar contract={FILTER_CONTRACTS.sdr} roleFilter="sdr" myButtonLabel="Meus leads" />
 
       {/* Aviso quando há filtro de origem global ativo */}
       {origins.length > 0 && (
@@ -241,17 +245,20 @@ export default function SdrView() {
         </div>
       )}
 
+      {/* Lente do funil (Leva D): Agora (foto) / Por safra / Por atividade */}
+      <FunnelLensToggle value={funnelLens} onChange={setFunnelLens} />
+
       {/* KPIs hero — funil em números, clicáveis */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           title="Novos leads no período"
-          value={milestoneStages[0].stage?.current_count ?? resumo.data?.empresa.kpis.leads_entrada ?? 0}
+          value={milestoneStages[0].stage?.count ?? resumo.data?.empresa.kpis.leads_entrada ?? 0}
           icon={Inbox}
           color="text-blue-600"
           bgColor="bg-blue-50"
           isLoading={funnel.isLoading}
           delta={prevLeads !== undefined ? {
-            current: milestoneStages[0].stage?.current_count ?? 0,
+            current: milestoneStages[0].stage?.count ?? 0,
             previous: prevLeads,
           } : undefined}
           onClick={milestoneStages[0].stage ? () => openCardsInStage(milestoneStages[0].stage!.stage_id, milestoneStages[0].stage!.stage_nome) : undefined}
@@ -259,7 +266,7 @@ export default function SdrView() {
         />
         <KpiCard
           title="Conectados"
-          value={milestoneStages[1].stage?.current_count ?? 0}
+          value={milestoneStages[1].stage?.count ?? 0}
           icon={MessageCircle}
           color="text-indigo-600"
           bgColor="bg-indigo-50"
@@ -269,7 +276,7 @@ export default function SdrView() {
         />
         <KpiCard
           title="Reuniões agendadas"
-          value={milestoneStages[2].stage?.current_count ?? 0}
+          value={milestoneStages[2].stage?.count ?? 0}
           icon={CalendarCheck}
           color="text-purple-600"
           bgColor="bg-purple-50"
@@ -279,7 +286,7 @@ export default function SdrView() {
         />
         <KpiCard
           title="Qualificados (passados pro Planner)"
-          value={milestoneStages[3].stage?.current_count ?? 0}
+          value={milestoneStages[3].stage?.count ?? 0}
           icon={Trophy}
           color="text-emerald-600"
           bgColor="bg-emerald-50"
@@ -360,7 +367,7 @@ export default function SdrView() {
         ) : (
           <div className="space-y-2">
             {sdrStages.map(stage => {
-              const conv = topCount > 0 ? (stage.current_count / topCount) * 100 : 0
+              const conv = topCount > 0 ? (stage.count / topCount) * 100 : 0
               return (
                 <button
                   key={stage.stage_id}
@@ -375,7 +382,7 @@ export default function SdrView() {
                     />
                   </div>
                   <span className="w-12 text-sm text-slate-700 tabular-nums text-right">
-                    {stage.current_count}
+                    {stage.count}
                   </span>
                   <span className="w-14 text-right">
                     <ConversionBadge rate={conv} />

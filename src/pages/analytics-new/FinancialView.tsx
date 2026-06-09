@@ -1,9 +1,13 @@
+import { useMemo } from 'react'
 import { DollarSign, TrendingUp, ReceiptText, Clock, Percent } from 'lucide-react'
 import KpiCard from '@/components/analytics/KpiCard'
-import { useFinanceiroOverview } from '@/hooks/analytics/useFinanceiroOverview'
+import { useFinanceiroOverview, useFinanceiroOverviewPrevious } from '@/hooks/analytics/useFinanceiroOverview'
+import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
+import { FILTER_CONTRACTS } from '@/hooks/analytics/filterContracts'
+import HBarChart, { type HBarDatum } from './charts/HBarChart'
 import { cn } from '@/lib/utils'
 
 const ORIGEM_LABELS: Record<string, string> = {
@@ -25,7 +29,10 @@ function formatMes(iso: string): string {
 }
 
 export default function FinancialView() {
+  const { compare } = useAnalyticsFilters()
   const { data, isLoading } = useFinanceiroOverview()
+  const previous = useFinanceiroOverviewPrevious(compare)
+  const prevKpis = previous.data?.kpis
 
   const kpis = data?.kpis
   const pendente = data?.pendente
@@ -37,6 +44,26 @@ export default function FinancialView() {
   const maxFatOrigem = Math.max(...porOrigem.map(o => o.faturamento), 1)
   const maxFatConsultor = Math.max(...porConsultor.map(p => p.faturamento), 1)
 
+  // Gráficos de gestor: faturamento por origem + receita por consultor (ranking de relance)
+  const origemChart = useMemo<HBarDatum[]>(
+    () =>
+      porOrigem
+        .filter(r => r.faturamento > 0)
+        .slice()
+        .sort((a, b) => b.faturamento - a.faturamento)
+        .map(r => ({ key: r.origem, label: ORIGEM_LABELS[r.origem] ?? r.origem, value: r.faturamento })),
+    [porOrigem],
+  )
+  const consultorChart = useMemo<HBarDatum[]>(
+    () =>
+      porConsultor
+        .filter(r => r.receita > 0)
+        .slice()
+        .sort((a, b) => b.receita - a.receita)
+        .map(r => ({ key: r.user_id ?? r.user_nome ?? '?', label: r.user_nome ?? '—', value: r.receita })),
+    [porConsultor],
+  )
+
   return (
     <div className="flex flex-col gap-6">
       <header>
@@ -47,7 +74,7 @@ export default function FinancialView() {
         </p>
       </header>
 
-      <SimpleFilterBar showOwner={false} showOrigins={false} />
+      <SimpleFilterBar contract={FILTER_CONTRACTS.financeiro} />
 
       {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -59,6 +86,7 @@ export default function FinancialView() {
           bgColor="bg-emerald-50"
           isLoading={isLoading}
           subtitle={`${kpis?.qtd ?? 0} vendas no período`}
+          delta={compare && kpis && prevKpis ? { current: kpis.faturamento, previous: prevKpis.faturamento } : undefined}
         />
         <KpiCard
           title="Receita (margem estimada)"
@@ -68,6 +96,7 @@ export default function FinancialView() {
           bgColor="bg-emerald-50"
           isLoading={isLoading}
           subtitle={kpis ? `Margem estimada: ${kpis.margem_pct}% (10% fixo, salvo Monde)` : undefined}
+          delta={compare && kpis && prevKpis ? { current: kpis.receita, previous: prevKpis.receita } : undefined}
         />
         <KpiCard
           title="Ticket médio"
@@ -76,6 +105,7 @@ export default function FinancialView() {
           color="text-indigo-600"
           bgColor="bg-indigo-50"
           isLoading={isLoading}
+          delta={compare && kpis && prevKpis ? { current: kpis.ticket_medio, previous: prevKpis.ticket_medio } : undefined}
         />
         <KpiCard
           title="Pendente no período"
@@ -134,7 +164,11 @@ export default function FinancialView() {
             Sem vendas no período
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="space-y-4">
+            {origemChart.length > 0 && (
+              <HBarChart data={origemChart} format={formatCurrency} maxLabel={20} />
+            )}
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-xs text-slate-500 uppercase tracking-wider">
@@ -184,6 +218,7 @@ export default function FinancialView() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </WidgetCard>
@@ -200,7 +235,11 @@ export default function FinancialView() {
             Sem dados de consultores no período
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="space-y-4">
+            {consultorChart.length > 0 && (
+              <HBarChart data={consultorChart} format={formatCurrency} maxLabel={22} color="#10b981" />
+            )}
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-xs text-slate-500 uppercase tracking-wider">
@@ -236,6 +275,7 @@ export default function FinancialView() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </WidgetCard>

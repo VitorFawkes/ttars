@@ -16,7 +16,7 @@ interface DeltaBadgeProps {
  * - previous === 0 e current > 0: mostra "novo" em vez de Infinity%.
  */
 export default function DeltaBadge({ current, previous, inverse, hint }: DeltaBadgeProps) {
-  if (previous === null || previous === undefined) {
+  if (previous === null || previous === undefined || Number.isNaN(previous) || Number.isNaN(current)) {
     return <span className="text-xs text-slate-300">—</span>
   }
 
@@ -39,6 +39,10 @@ export default function DeltaBadge({ current, previous, inverse, hint }: DeltaBa
   }
 
   const deltaPct = ((current - previous) / Math.abs(previous)) * 100
+  // Rede de segurança: divisão degenerada (0/0, valores não-numéricos) → não mostra "NaN%".
+  if (!Number.isFinite(deltaPct)) {
+    return <span className="text-xs text-slate-300">—</span>
+  }
   const isPositive = deltaPct > 0
   const isNeutral = Math.abs(deltaPct) < 1
 

@@ -246,6 +246,8 @@ export interface SofiaConfigV2 {
     forbidden_phrases?: string[]
     listening?: ListeningConfig
     examples?: string[]
+    // Como ela reage ao que o casal diz (antes era fixo no código).
+    reaction?: string
   }
   qualification: {
     etapas: string[]
@@ -255,8 +257,9 @@ export interface SofiaConfigV2 {
     // v3 (opcionais)
     scoring_enabled?: boolean
     threshold?: number
-    bands?: { quente: number; morno: number }
     max_bonus_points?: number
+    // Quando ela convida pra Planner (antes era fixo no código).
+    invite_gates?: string
     fallback_action?: FallbackAction
     discovery_slots?: DiscoverySlot[]
     silent_signals?: string[]
@@ -413,6 +416,7 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
         'Frases curtas, português natural',
       ],
       typical_phrases: [],
+      reaction: 'Reaja ao que o casal disse quando tiver peso de verdade (uma pergunta, um sonho, uma dor): acolhe e segue. Não comente trivialidades (de onde vieram, o canal) nem repita o óbvio.',
       forbidden_phrases: [],
       listening: { echo_social: true, acknowledge_observations: true, handle_bursts: true, never_ignore: true },
       examples: [],
@@ -489,8 +493,8 @@ export function defaultSofiaConfig(): SofiaConfigV2 {
       gates: {},
       scoring_enabled: false,
       threshold: 50,
-      bands: { quente: 80, morno: 50 },
       max_bonus_points: 10,
+      invite_gates: 'Só convide pra Wedding Planner quando TUDO for verdadeiro:\n- Você sabe o nome do casal.\n- O casal está qualificado pelos seus critérios (a leitura de qualificação diz "qualificado: sim").\n- Há sinal de vontade real de seguir ou data pretendida.\nData definida ou pedido de prioridade é sinal forte pra convidar assim que isso acontecer.',
       fallback_action: 'material_informativo',
       discovery_slots: [
         { key: 'visao', label: 'Visão do casamento (estilo, o que significa)', priority: 'preferred', questions: [], crm_field_key: null },
@@ -569,7 +573,6 @@ export function normalizeToV2(raw: unknown): SofiaConfigV2 {
       },
       qualification: {
         ...def.qualification, ...c.qualification,
-        bands: { ...def.qualification.bands!, ...(c.qualification?.bands || {}) },
         discovery_slots: c.qualification?.discovery_slots ?? def.qualification.discovery_slots,
         silent_signals: c.qualification?.silent_signals ?? def.qualification.silent_signals,
       },

@@ -12,6 +12,8 @@ import { useConciergeOverview, useConciergePendentes } from '@/hooks/analytics/u
 import { getRankTier, rankBadgeClass, rankTextClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
+import { FILTER_CONTRACTS } from '@/hooks/analytics/filterContracts'
+import HBarChart, { type HBarDatum } from './charts/HBarChart'
 import { cn } from '@/lib/utils'
 
 function formatMes(iso: string): string {
@@ -64,6 +66,17 @@ export default function ConciergeView() {
     [data?.por_concierge],
   )
 
+  // Gráfico de gestor: volume de atendimentos por concierge (comparar o time de relance)
+  const conciergeChart = useMemo<HBarDatum[]>(
+    () =>
+      (data?.por_concierge ?? [])
+        .filter(r => r.atendimentos > 0)
+        .slice()
+        .sort((a, b) => b.atendimentos - a.atendimentos)
+        .map(r => ({ key: r.user_id ?? r.user_nome ?? '?', label: r.user_nome ?? '—', value: r.atendimentos })),
+    [data?.por_concierge],
+  )
+
   return (
     <div className="flex flex-col gap-6">
       <header>
@@ -73,7 +86,7 @@ export default function ConciergeView() {
         </p>
       </header>
 
-      <SimpleFilterBar showOrigins={false} myButtonLabel="Meus atendimentos" />
+      <SimpleFilterBar contract={FILTER_CONTRACTS.concierge} />
 
       {/* KPIs principais */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -318,7 +331,11 @@ export default function ConciergeView() {
             Sem atendimentos atribuídos a concierges no período
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="space-y-4">
+            {conciergeChart.length > 0 && (
+              <HBarChart data={conciergeChart} format={(v) => String(v)} maxLabel={24} />
+            )}
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-xs text-slate-500 uppercase tracking-wider">
@@ -362,6 +379,7 @@ export default function ConciergeView() {
                 })}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </WidgetCard>

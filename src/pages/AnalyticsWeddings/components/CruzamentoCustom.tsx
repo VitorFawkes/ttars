@@ -12,7 +12,7 @@ const DIM_LABEL: Record<WwFunilRankingDim, string> = {
 
 // Ordem lógica (ranges) — as opções vêm alfabéticas, aqui ordenamos pra leitura.
 const ORDEM: Record<WwFunilRankingDim, string[]> = {
-  convidados: ['Apenas o casal', 'Até 20', '20-50', '50-80', '80-100', '+100'],
+  convidados: ['Apenas o casal', 'Até 20', '20-50', '50-100', '+100'],
   faixa: ['Até R$50 mil', 'R$50-80 mil', 'R$50-100 mil', 'R$80-100 mil', 'R$100-200 mil', 'R$200-500 mil', '+R$500 mil'],
   destino: [],
 }

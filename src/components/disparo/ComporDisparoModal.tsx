@@ -58,6 +58,29 @@ function renderMensagem(corpo: string, nome: string, extras: Record<string, stri
   return body.replace(/\{\{\s*[^}]+\s*\}\}/g, '')
 }
 
+/** Converte QUALQUER erro (timeout, permissão, rede, banco…) numa mensagem clara
+ *  em português. A pessoa que usa o disparo não é técnica — nunca expor texto
+ *  cru de erro (code, stack, "statement timeout" etc.). */
+function mensagemErroAmigavel(e: unknown, contexto: 'preparar' | 'agendar'): string {
+  const err = e as { message?: string; code?: string } | null
+  const code = err?.code ?? ''
+  const txt = (err?.message ?? '').toLowerCase()
+  const tem = (s: string) => txt.includes(s)
+
+  if (code === '57014' || tem('timeout') || tem('canceling statement')) {
+    return 'Essa lista é grande e o preparo demorou demais. Tente de novo — se continuar, me avise.'
+  }
+  if (code === '42501' || tem('sem permissão') || tem('permission') || tem('workspace')) {
+    return 'Não consegui confirmar seu acesso a este disparo. Atualize a página e tente de novo.'
+  }
+  if (tem('failed to fetch') || tem('network') || tem('load failed')) {
+    return 'Parece que a conexão caiu. Verifique a internet e tente de novo.'
+  }
+  return contexto === 'preparar'
+    ? 'Não consegui preparar o disparo agora. Tente de novo em instantes — se continuar, me avise.'
+    : 'Não consegui agendar o disparo agora. Tente de novo em instantes.'
+}
+
 /** Compara dois telefones pelos dígitos finais (tolera DDI/máscara diferentes). */
 function mesmoTelefone(a: string, b: string): boolean {
   const da = (a || '').replace(/\D/g, '')
@@ -261,7 +284,7 @@ export function ComporDisparoModal({ open, onClose }: Props) {
       setCampaignId(id)
       setResults(res)
     } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Falha ao preparar o disparo.')
+      setErro(mensagemErroAmigavel(e, 'preparar'))
     } finally {
       setBusy(false)
     }
@@ -279,7 +302,7 @@ export function ComporDisparoModal({ open, onClose }: Props) {
       await calcularAgenda(campaignId)
       close()
     } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Falha ao agendar o disparo.')
+      setErro(mensagemErroAmigavel(e, 'agendar'))
     } finally {
       setBusy(false)
     }

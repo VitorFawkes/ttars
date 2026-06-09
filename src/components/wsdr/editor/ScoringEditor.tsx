@@ -32,8 +32,6 @@ export function ScoringEditor({ qual, onChange }: { qual: Qual; onChange: (q: Qu
   const enabled = qual.scoring_enabled ?? false
   const threshold = qual.threshold ?? 50
   const maxBonus = qual.max_bonus_points ?? 10
-  const quente = qual.bands?.quente ?? 80
-  const morno = qual.bands?.morno ?? 50
   const fallback = qual.fallback_action ?? 'material_informativo'
   const set = (patch: Partial<Qual>) => onChange({ ...qual, ...patch })
 
@@ -54,7 +52,6 @@ export function ScoringEditor({ qual, onChange }: { qual: Qual; onChange: (q: Qu
     return Math.min(100, qSum + bSum)
   }, [buckets, maxBonus])
   const thresholdTooHigh = threshold > maxScore
-  const quenteUnreachable = quente > maxScore
 
   return (
     <div className="space-y-5">
@@ -85,12 +82,6 @@ export function ScoringEditor({ qual, onChange }: { qual: Qual; onChange: (q: Qu
             </Field>
             <Field label="Teto dos bônus" hint="Quanto os sinais de bônus podem somar juntos, no máximo.">
               <Input type="number" value={maxBonus} onChange={e => set({ max_bonus_points: Number(e.target.value) })} />
-            </Field>
-            <Field label="Faixa “quente” a partir de" hint={quenteUnreachable ? `⚠️ Acima da nota máxima (${maxScore}) — nenhum casal vai chegar a “quente”.` : 'Nota igual ou acima = casal quente.'}>
-              <Input type="number" value={quente} onChange={e => set({ bands: { quente: Number(e.target.value), morno } })} className={quenteUnreachable ? 'border-amber-400 focus-visible:ring-amber-400' : ''} />
-            </Field>
-            <Field label="Faixa “morno” a partir de" hint="Entre morno e quente = morno; abaixo = frio.">
-              <Input type="number" value={morno} onChange={e => set({ bands: { quente, morno: Number(e.target.value) } })} />
             </Field>
           </div>
           <Field label="Se o casal não atingir a nota mínima" hint="O que a Sofia faz quando o casal não qualifica.">
