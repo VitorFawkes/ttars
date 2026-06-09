@@ -5,6 +5,8 @@ import { useRetencaoCohort } from '@/hooks/analytics/useRetencaoCohort'
 import { formatCurrency } from '@/utils/whatsappFormatters'
 import { getRankTier, rankBadgeClass, rankDotClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
+import SimpleFilterBar from './SimpleFilterBar'
+import { FILTER_CONTRACTS } from '@/hooks/analytics/filterContracts'
 import { cn } from '@/lib/utils'
 
 const COHORT_RANGE_OPTIONS: { value: number; label: string }[] = [
@@ -59,6 +61,8 @@ export default function RetentionView() {
           ))}
         </select>
       </header>
+
+      <SimpleFilterBar contract={FILTER_CONTRACTS.retencao} myButtonLabel="Meus clientes" />
 
       {/* KPIs principais */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
