@@ -17,15 +17,12 @@ import {
 import { useRoles } from '../../../hooks/useRoles';
 import { useTeamOptions } from '../../../hooks/useTeams';
 import { useUsers } from '../../../hooks/useUsers';
-import { useProducts } from '../../../hooks/useProducts';
 import { useAuth } from '../../../contexts/AuthContext';
 import type { Database } from '../../../database.types';
-import { cn } from '../../../lib/utils';
 
 type WorkspaceRow = {
     org_id: string;
     org_name: string;
-    is_account: boolean;
     is_member: boolean;
 };
 
@@ -46,11 +43,10 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess }: EditUserModa
     const isPlatformAdmin = currentProfile?.is_platform_admin === true;
     const [isLoading, setIsLoading] = useState(false);
 
-    // Fetch roles, teams and products from database
+    // Fetch roles and teams from database
     const { roles, isLoading: rolesLoading } = useRoles();
     const { options: teamOptions, isLoading: teamsLoading } = useTeamOptions(true);
     const { updateEmail } = useUsers();
-    const { products: PRODUCTS } = useProducts(true);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -58,10 +54,9 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess }: EditUserModa
         email: '',
         role_id: '',
         team_id: 'none',
-        produtos: [] as string[]
     });
 
-    // Workspaces visíveis para este admin (gerenciado só por platform admin)
+    // Acesso a produtos = membership nos workspaces da conta (org_members)
     const [workspaces, setWorkspaces] = useState<WorkspaceRow[]>([]);
     const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<Set<string>>(new Set());
     const [initialWorkspaceIds, setInitialWorkspaceIds] = useState<Set<string>>(new Set());
@@ -69,7 +64,10 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess }: EditUserModa
 
     const selectedRole = roles.find(r => r.id === formData.role_id);
     const isAdminRole = selectedRole?.name === 'admin';
-    const showWorkspaceSection = isPlatformAdmin && isAdminRole && !!user;
+    // Admins da conta (ou platform admin) podem gerenciar acesso a produtos de qualquer usuário.
+    // A RPC valida a permissão de verdade no servidor.
+    const canManageWorkspaces = isPlatformAdmin || currentProfile?.is_admin === true;
+    const showWorkspaceSection = canManageWorkspaces && !!user;
 
     // Load user data when modal opens
     useEffect(() => {
@@ -79,12 +77,11 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess }: EditUserModa
                 email: user.email || '',
                 role_id: user.role_id || '',
                 team_id: user.team_id || 'none',
-                produtos: (user.produtos as string[]) || []
             });
         }
     }, [user]);
 
-    // Buscar workspaces da account quando platform admin abre modal de admin
+    // Buscar workspaces (produtos) da conta para gerenciar o acesso do usuário
     useEffect(() => {
         if (!showWorkspaceSection || !user) {
             setWorkspaces([]);
@@ -96,7 +93,7 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess }: EditUserModa
         setWorkspacesLoading(true);
         type RpcFn = (fn: string, args: { p_user_id: string }) =>
             Promise<{ data: WorkspaceRow[] | null; error: { message: string } | null }>;
-        (supabase.rpc as unknown as RpcFn)('platform_get_admin_workspaces', { p_user_id: user.id })
+        (supabase.rpc as unknown as RpcFn)('get_member_workspaces', { p_user_id: user.id })
             .then(({ data, error }) => {
                 if (cancelled) return;
                 if (error) {
@@ -125,21 +122,10 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess }: EditUserModa
         selectedWorkspaceIds.size !== initialWorkspaceIds.size ||
         Array.from(selectedWorkspaceIds).some(id => !initialWorkspaceIds.has(id));
 
-    const toggleProduct = (value: string) => {
-        setFormData(prev => ({
-            ...prev,
-            produtos: prev.produtos.includes(value)
-                ? prev.produtos.filter(p => p !== value)
-                : [...prev.produtos, value]
-        }));
-    };
-
-    type AppProduct = Database['public']['Enums']['app_product'];
     type ProfileUpdates = {
         nome: string;
         role_id: string | null;
         team_id: string | null;
-        produtos: AppProduct[] | null;
         is_admin: boolean;
     };
 
@@ -192,21 +178,20 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess }: EditUserModa
                 nome: formData.nome,
                 role_id: formData.role_id || null,
                 team_id: formData.team_id === 'none' ? null : formData.team_id,
-                produtos: formData.produtos.length > 0 ? (formData.produtos as AppProduct[]) : null,
                 is_admin: isAdminRole
             });
 
-            // Sync de workspaces (só platform admin + role=admin + mudou)
+            // Sync de acesso a produtos (membership) — só quando mudou
             if (showWorkspaceSection && workspacesChanged) {
                 type SetWorkspacesRpc = (fn: string, args: { p_user_id: string; p_workspace_ids: string[] }) =>
                     Promise<{ data: unknown; error: { message: string } | null }>;
                 const { error: wsError } = await (supabase.rpc as unknown as SetWorkspacesRpc)(
-                    'platform_set_admin_workspaces',
+                    'set_member_workspaces',
                     { p_user_id: user.id, p_workspace_ids: Array.from(selectedWorkspaceIds) }
                 );
                 if (wsError) {
                     toast({
-                        title: 'Atualizado, mas falhou ao salvar workspaces',
+                        title: 'Atualizado, mas falhou ao salvar acesso a produtos',
                         description: wsError.message,
                         type: 'error'
                     });
@@ -286,39 +271,6 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess }: EditUserModa
                                 Define o que o usuário pode fazer no sistema (permissões).
                             </p>
                         </div>
-
-                        {showWorkspaceSection && (
-                            <div className="space-y-2 pt-2">
-                                <Label>Workspaces que este admin enxerga</Label>
-                                {workspacesLoading ? (
-                                    <p className="text-xs text-muted-foreground">Carregando workspaces…</p>
-                                ) : workspaces.length === 0 ? (
-                                    <p className="text-xs text-muted-foreground">Nenhum workspace disponível.</p>
-                                ) : (
-                                    <div className="space-y-1.5 rounded-lg border border-slate-200 p-3 bg-slate-50">
-                                        {workspaces.map(w => (
-                                            <label key={w.org_id} className="flex items-center gap-2.5 cursor-pointer py-1">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedWorkspaceIds.has(w.org_id)}
-                                                    onChange={() => toggleWorkspace(w.org_id)}
-                                                    className="rounded border-slate-300 text-indigo-600 w-4 h-4 flex-shrink-0"
-                                                />
-                                                <span className="text-sm text-foreground">
-                                                    {w.org_name}
-                                                    {w.is_account && (
-                                                        <span className="ml-2 text-xs text-slate-500">(empresa)</span>
-                                                    )}
-                                                </span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                )}
-                                <p className="text-xs text-muted-foreground">
-                                    Só platform admin vê esta seção. Marque os workspaces que este admin deve poder alternar no menu superior.
-                                </p>
-                            </div>
-                        )}
                     </div>
 
                     {/* Divider */}
@@ -346,35 +298,42 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess }: EditUserModa
                     </div>
 
                     {/* Divider */}
-                    <div className="border-t border-slate-200" />
+                    {showWorkspaceSection && <div className="border-t border-slate-200" />}
 
-                    {/* Product Access Section */}
-                    <div className="space-y-4">
-                        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                            <Layers className="w-4 h-4 text-primary" />
-                            Acesso a Produtos
-                        </div>
+                    {/* Product Access Section — membership nos workspaces (org_members) */}
+                    {showWorkspaceSection && (
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                                <Layers className="w-4 h-4 text-primary" />
+                                Acesso a Produtos
+                            </div>
 
-                        <div className="space-y-2">
-                            {PRODUCTS.map(p => (
-                                <label key={p.slug} className="flex items-center gap-3 cursor-pointer py-1">
-                                    <input
-                                        type="checkbox"
-                                        checked={formData.produtos.includes(p.slug)}
-                                        onChange={() => toggleProduct(p.slug)}
-                                        className="rounded border-slate-300 text-indigo-600 w-4 h-4 flex-shrink-0"
-                                    />
-                                    <div className="flex items-center gap-2">
-                                        <p.icon className={cn('w-4 h-4', p.color_class)} />
-                                        <span className="text-sm text-foreground">{p.name}</span>
+                            <div className="space-y-2">
+                                {workspacesLoading ? (
+                                    <p className="text-xs text-muted-foreground">Carregando produtos…</p>
+                                ) : workspaces.length === 0 ? (
+                                    <p className="text-xs text-muted-foreground">Nenhum produto disponível.</p>
+                                ) : (
+                                    <div className="space-y-1.5 rounded-lg border border-slate-200 p-3 bg-slate-50">
+                                        {workspaces.map(w => (
+                                            <label key={w.org_id} className="flex items-center gap-2.5 cursor-pointer py-1">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedWorkspaceIds.has(w.org_id)}
+                                                    onChange={() => toggleWorkspace(w.org_id)}
+                                                    className="rounded border-slate-300 text-indigo-600 w-4 h-4 flex-shrink-0"
+                                                />
+                                                <span className="text-sm text-foreground">{w.org_name}</span>
+                                            </label>
+                                        ))}
                                     </div>
-                                </label>
-                            ))}
-                            <p className="text-xs text-muted-foreground pl-1 pt-1">
-                                Nenhum selecionado = acesso a todos os produtos.
-                            </p>
+                                )}
+                                <p className="text-xs text-muted-foreground pl-1 pt-1">
+                                    O usuário poderá alternar entre os produtos marcados no menu superior.
+                                </p>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={onClose}>
