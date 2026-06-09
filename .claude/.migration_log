@@ -1132,3 +1132,8 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-06-09T14:00:49Z | supabase/migrations/20260609b_contatos_axus_login_senha.sql | applied_to_prod
 2026-06-09T14:12:25Z | supabase/migrations/20260609_grant_marcar_ganho_perdido_service_role.sql | applied_to_prod
 2026-06-09T14:41:39Z | supabase/migrations/20260609c_automations_task_completed_trigger.sql | applied_to_prod
+2026-06-09T16:23:33Z | supabase/migrations/20260609_disable_ac_weddings_inbound.sql | applied_to_prod
+2026-06-09T17:01:39Z | supabase/migrations/20260609b_ww_card_sdr_section.sql | applied_to_prod
+2026-06-09T17:12:01Z | supabase/migrations/20260609c_ww_lead_source_leadster.sql | applied_to_prod
+2026-06-09T17:14:24Z | supabase/migrations/20260609a_member_workspaces.sql | applied_to_prod
+2026-06-09T17:20:05Z | supabase/migrations/20260609d_ww_convidados_orcamento_text.sql | applied_to_prod
