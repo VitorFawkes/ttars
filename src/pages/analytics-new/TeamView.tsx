@@ -72,7 +72,9 @@ export default function TeamView() {
   const [phaseFilter, setPhaseFilter] = useState<string>('all')
   const [individualUser, setIndividualUser] = useState<{ id: string; nome: string } | null>(null)
   const [profilePlanner, setProfilePlanner] = useState<{ id: string; nome: string } | null>(null)
-  const leaderboard = useTeamLeaderboard()
+  // Lente do placar (Leva D): 'created' (safra, = comportamento atual) | 'stage' (atividade, fecharam no período)
+  const [teamLens, setTeamLens] = useState<'created' | 'stage'>('created')
+  const leaderboard = useTeamLeaderboard(teamLens)
   const phaseTab = phaseFilter === 'all' ? 'sdr' : phaseFilter
   const phasePerf = useTeamPerformance(phaseTab)
   const sla = useTeamSlaCompliance()
@@ -143,8 +145,8 @@ export default function TeamView() {
   // KPIs agregados — vêm de RPC dedicada (cards DISTINTOS). Somar linhas do
   // leaderboard inflava o número porque um card com SDR+Planner+Pós contava 3x.
   const { compare } = useAnalyticsFilters()
-  const aggregateKpis = useTeamAggregateKpis()
-  const aggregatePrev = useTeamAggregateKpisPrevious(compare)
+  const aggregateKpis = useTeamAggregateKpis(teamLens)
+  const aggregatePrev = useTeamAggregateKpisPrevious(compare, teamLens)
   const prevAgg = aggregatePrev.data
   const totalReceita = aggregateKpis.data?.receita_total ?? 0
   const totalGanhos = aggregateKpis.data?.cards_ganhos ?? 0
@@ -161,6 +163,31 @@ export default function TeamView() {
       </header>
 
       <SimpleFilterBar contract={FILTER_CONTRACTS.team} myButtonLabel="Eu" />
+
+      {/* Lente do placar (Leva D): Por safra (criados no período, padrão) / Por atividade (fecharam no período) */}
+      <div className="flex items-center gap-2 -mt-2">
+        <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Placar</span>
+        <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+          {([['created', 'Por safra'], ['stage', 'Por atividade']] as const).map(([v, label]) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setTeamLens(v)}
+              title={
+                v === 'created'
+                  ? 'A turma de cards CRIADOS no período (inclui abertos) — padrão.'
+                  : 'Cards que FECHARAM no período (ganho/perdido); win rate sobre os fechados.'
+              }
+              className={cn(
+                'px-2.5 py-1.5 text-[11px] font-medium transition-colors',
+                teamLens === v ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Filtro de fase global — afeta leaderboard e tabela de performance */}
       <div className="flex items-center gap-1 bg-white rounded-lg border border-slate-200 p-1 w-fit">
