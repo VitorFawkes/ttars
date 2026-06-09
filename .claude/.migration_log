@@ -1129,4 +1129,5 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-06-01T17:42:24Z | supabase/migrations/20260601b_ww_deal_ac_mirror.sql | applied_to_prod
 2026-06-01T19:58:49Z | supabase/migrations/20260601a_wsdr_knowledge_rag.sql | applied_to_prod
 2026-06-08T17:35:58Z | supabase/migrations/20260608a_disparo_defer_orphan_reprocess.sql | applied_to_prod
+2026-06-09T14:00:49Z | supabase/migrations/20260609b_contatos_axus_login_senha.sql | applied_to_prod
 2026-06-09T14:12:25Z | supabase/migrations/20260609_grant_marcar_ganho_perdido_service_role.sql | applied_to_prod

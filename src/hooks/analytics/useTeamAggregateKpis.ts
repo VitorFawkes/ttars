@@ -10,11 +10,11 @@ export interface TeamAggregateKpisRow {
     tarefas_vencidas: number
 }
 
-export function useTeamAggregateKpis() {
+export function useTeamAggregateKpis(dateRef: 'created' | 'stage' = 'created') {
     const { dateRange, ownerIds, tagIds } = useAnalyticsFilters()
 
     return useQuery({
-        queryKey: ['analytics', 'team-aggregate-kpis', dateRange.start, dateRange.end, ownerIds, tagIds],
+        queryKey: ['analytics', 'team-aggregate-kpis', dateRange.start, dateRange.end, ownerIds, tagIds, dateRef],
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC nova
             const { data, error } = await (supabase.rpc as any)('analytics_team_aggregate_kpis', {
@@ -22,6 +22,7 @@ export function useTeamAggregateKpis() {
                 p_date_end: dateRange.end,
                 p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
                 p_tag_ids: tagIds.length > 0 ? tagIds : undefined,
+                p_date_ref: dateRef,
             })
             if (error) throw error
             const first = (Array.isArray(data) ? data[0] : data) as TeamAggregateKpisRow | undefined
@@ -33,7 +34,7 @@ export function useTeamAggregateKpis() {
 }
 
 /** Mesmos KPIs agregados no período ANTERIOR (toggle "Comparar"). Só roda quando `enabled`. */
-export function useTeamAggregateKpisPrevious(enabled: boolean) {
+export function useTeamAggregateKpisPrevious(enabled: boolean, dateRef: 'created' | 'stage' = 'created') {
     const { dateRange, ownerIds, tagIds } = useAnalyticsFilters()
 
     const startMs = new Date(dateRange.start).getTime()
@@ -43,7 +44,7 @@ export function useTeamAggregateKpisPrevious(enabled: boolean) {
     const previousStart = new Date(startMs - durationMs).toISOString()
 
     return useQuery({
-        queryKey: ['analytics', 'team-aggregate-kpis-previous', previousStart, previousEnd, ownerIds, tagIds],
+        queryKey: ['analytics', 'team-aggregate-kpis-previous', previousStart, previousEnd, ownerIds, tagIds, dateRef],
         queryFn: async () => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC nova
             const { data, error } = await (supabase.rpc as any)('analytics_team_aggregate_kpis', {
@@ -51,6 +52,7 @@ export function useTeamAggregateKpisPrevious(enabled: boolean) {
                 p_date_end: previousEnd,
                 p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
                 p_tag_ids: tagIds.length > 0 ? tagIds : undefined,
+                p_date_ref: dateRef,
             })
             if (error) throw error
             const first = (Array.isArray(data) ? data[0] : data) as TeamAggregateKpisRow | undefined

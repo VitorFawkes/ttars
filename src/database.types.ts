@@ -6698,6 +6698,8 @@ export type Database = {
       }
       contatos: {
         Row: {
+          axus_login: string | null
+          axus_senha: string | null
           cargo: string | null
           chatpro_session_id: string | null
           cpf: string | null
@@ -6743,6 +6745,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          axus_login?: string | null
+          axus_senha?: string | null
           cargo?: string | null
           chatpro_session_id?: string | null
           cpf?: string | null
@@ -6788,6 +6792,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          axus_login?: string | null
+          axus_senha?: string | null
           cargo?: string | null
           chatpro_session_id?: string | null
           cpf?: string | null
