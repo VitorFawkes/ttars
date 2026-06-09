@@ -5,16 +5,19 @@
  * Reusa pickers que já existem (stages, tags, users, fields).
  */
 import React from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select as CustomSelect } from '@/components/ui/Select'
+import { supabase } from '@/lib/supabase'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
 import { useCardTags } from '@/hooks/useCardTags'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { useProductContext } from '@/hooks/useProductContext'
 import { useUsers } from '@/hooks/useUsers'
 import { useUpdatableCardFields } from '@/hooks/useUpdatableCardFields'
+import { useOrg } from '@/contexts/OrgContext'
 import { useWorkflowStore } from '../store/useWorkflowStore'
 import { OUTCOME_LABELS } from '@/components/tasks/taskTypeConfig'
 
@@ -613,6 +616,86 @@ export const AssignOwnerEditor: React.FC<ConfigEditorProps> = ({ config, onChang
             <p className="text-[11px] text-slate-500 -mt-1 ml-6">
                 Desmarque para sobrescrever mesmo se já houver alguém nesse papel.
             </p>
+        </div>
+    )
+}
+
+// ─── mark_card_result ────────────────────────────────────────────────────────
+//
+// Marca o card como ganho ou perdido. Delega às RPCs marcar_ganho / marcar_perdido
+// no motor — mesma semântica dos botões manuais. Ganho é dependente da fase
+// (em SDR só avança pra Planner; só em Planner fecha a venda).
+const RESULT_OUTCOMES = [
+    { value: 'ganho', label: 'Ganho' },
+    { value: 'perda', label: 'Perda' },
+] as const
+
+export const MarkCardResultEditor: React.FC<ConfigEditorProps> = ({ config, onChange }) => {
+    const set = (patch: Record<string, unknown>) => onChange({ ...config, ...patch })
+    const outcome = (config.outcome as string) || 'ganho'
+
+    const { org } = useOrg()
+    const activeOrgId = org?.id
+
+    // Motivos de perda isolados por workspace (mesma query do LossReasonModal)
+    const { data: reasons } = useQuery({
+        queryKey: ['loss-reasons-active', activeOrgId],
+        queryFn: async () => {
+            if (!activeOrgId) return []
+            const { data, error } = await supabase
+                .from('motivos_perda')
+                .select('id, nome')
+                .eq('ativo', true)
+                .eq('org_id', activeOrgId)
+                .order('nome')
+            if (error) throw error
+            return data
+        },
+        enabled: outcome === 'perda' && !!activeOrgId,
+    })
+
+    const reasonOptions = [
+        { value: '', label: 'Sem motivo' },
+        ...(reasons || []).map((r) => ({ value: r.id, label: r.nome })),
+    ]
+
+    return (
+        <div className="space-y-3">
+            <div className="space-y-2">
+                <Label className="text-xs">Resultado</Label>
+                <CustomSelect
+                    value={outcome}
+                    onChange={(v) => set({ outcome: v })}
+                    options={[...RESULT_OUTCOMES]}
+                />
+            </div>
+
+            {outcome === 'ganho' ? (
+                <p className="text-[11px] text-slate-500">
+                    Marca o ganho da seção atual do card. Em fase SDR, avança pra Planner;
+                    em fase Planner, fecha a venda e move pro Pós-Venda.
+                </p>
+            ) : (
+                <>
+                    <div className="space-y-2">
+                        <Label className="text-xs">Motivo da perda (opcional)</Label>
+                        <CustomSelect
+                            value={(config.motivo_perda_id as string) || ''}
+                            onChange={(v) => set({ motivo_perda_id: v || null })}
+                            options={reasonOptions}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-xs">Comentário (opcional)</Label>
+                        <Textarea
+                            value={(config.motivo_perda_comentario as string) || ''}
+                            onChange={(e) => set({ motivo_perda_comentario: e.target.value || null })}
+                            placeholder="Detalhe a perda (aparece no histórico do card)"
+                            className="min-h-[72px]"
+                        />
+                    </div>
+                </>
+            )}
         </div>
     )
 }

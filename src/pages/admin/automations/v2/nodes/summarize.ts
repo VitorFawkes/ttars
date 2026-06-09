@@ -156,6 +156,11 @@ export function summarizeConfig(
             if (!u) return `${roleLabel}: (pessoa não escolhida)`
             return `${roleLabel} → ${resolveOr(labels, 'userById', u, '...')}`
         }
+        case 'action.mark_card_result': {
+            const outcome = (config.outcome as string) || 'ganho'
+            if (outcome === 'ganho') return '🏆 Ganho'
+            return config.motivo_perda_id ? '❌ Perda (com motivo)' : '❌ Perda'
+        }
         case 'action.notify_internal': {
             const mode = (config.recipient_mode as string) || 'card_owner'
             const title = config.title as string | undefined

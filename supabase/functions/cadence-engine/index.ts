@@ -1715,6 +1715,77 @@ async function executeChangeStageAction(
     return { moved: true, from_stage_id: card.pipeline_stage_id, to_stage_id: targetStageId };
 }
 
+// ----------------------------------------------------------------------------
+// mark_result: marca o card como ganho ou perdido.
+// Delega às RPCs marcar_ganho / marcar_perdido (SECURITY DEFINER) — mesma
+// lógica de fase/milestone/activity dos botões manuais. Não reimplementa nada.
+// trigger.action_config: { outcome: 'ganho'|'perda', motivo_perda_id?, motivo_perda_comentario? }
+// ----------------------------------------------------------------------------
+async function executeMarkResultAction(
+    supabaseClient: SupabaseClient,
+    cardId: string,
+    trigger: any,
+    orgId: string
+) {
+    const config = trigger.action_config || {};
+    const outcome: string = config.outcome || 'ganho';
+
+    if (outcome !== 'ganho' && outcome !== 'perda') {
+        return { skipped: true, reason: 'invalid_outcome' };
+    }
+
+    // Erros previsíveis das RPCs (card já fechado / fase não suporta ganho)
+    // viram skip silencioso — não é falha dura, só significa que a automação
+    // não tinha o que fazer naquele card.
+    const isExpectedRpcError = (msg: string) =>
+        /já está com status|já está fechado|não suporta ação de ganho/i.test(msg);
+
+    let rpcResult: unknown = null;
+
+    if (outcome === 'ganho') {
+        const { data, error } = await supabaseClient.rpc('marcar_ganho', {
+            p_card_id: cardId,
+        });
+        if (error) {
+            if (isExpectedRpcError(error.message)) {
+                return { skipped: true, reason: 'card_not_eligible', detail: error.message };
+            }
+            throw new Error(`marcar_ganho failed: ${error.message}`);
+        }
+        rpcResult = data;
+    } else {
+        const { error } = await supabaseClient.rpc('marcar_perdido', {
+            p_card_id: cardId,
+            p_motivo_perda_id: config.motivo_perda_id ?? null,
+            p_motivo_perda_comentario: config.motivo_perda_comentario ?? null,
+        });
+        if (error) {
+            if (isExpectedRpcError(error.message)) {
+                return { skipped: true, reason: 'card_not_eligible', detail: error.message };
+            }
+            throw new Error(`marcar_perdido failed: ${error.message}`);
+        }
+        rpcResult = { marked_lost: true };
+    }
+
+    await supabaseClient.from("cadence_event_log").insert({
+        card_id: cardId,
+        org_id: orgId,
+        event_type: outcome === 'ganho' ? 'entry_rule_card_won' : 'entry_rule_card_lost',
+        event_source: 'entry_trigger',
+        event_data: {
+            trigger_id: trigger.id,
+            trigger_name: trigger.name,
+            outcome,
+            motivo_perda_id: outcome === 'perda' ? (config.motivo_perda_id ?? null) : null,
+        },
+        action_taken: 'mark_result',
+        action_result: rpcResult,
+    });
+
+    return { ok: true, outcome, rpc_result: rpcResult };
+}
+
 // ============================================================================
 // Sprint 2 Actions: add_tag / remove_tag / notify_internal
 // ============================================================================
@@ -3894,6 +3965,9 @@ async function executeCardActionStep(
                 break;
             case 'assign_owner':
                 actionResult = await executeAssignOwnerAction(supabaseClient, card.id, virtualTrigger, orgId);
+                break;
+            case 'mark_result':
+                actionResult = await executeMarkResultAction(supabaseClient, card.id, virtualTrigger, orgId);
                 break;
             case 'send_email':
                 actionResult = await executeSendEmailAction(supabaseClient, card.id, virtualTrigger, orgId);

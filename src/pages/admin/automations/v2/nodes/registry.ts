@@ -49,6 +49,8 @@ export const NODE_REGISTRY: NodeTypeMeta[] = [
       label: 'Atualizar campo do contato', description: 'Atualiza um campo do contato do card (e-mail, telefone, nome)' },
     { type: 'action.assign_owner', category: 'card', iconName: 'UserPlus', isTrigger: false,
       label: 'Atribuir dono',     description: 'Define o dono do card: rodízio justo, menor carga ou pessoa fixa' },
+    { type: 'action.mark_card_result', category: 'card', iconName: 'Trophy', isTrigger: false,
+      label: 'Marcar resultado do card', description: 'Marca o card como ganho ou perdido (com motivo opcional)' },
     { type: 'action.notify_internal', category: 'card', iconName: 'Bell',    isTrigger: false,
       label: 'Notificar time',        description: 'Cria notificação interna pra alguém do time' },
 

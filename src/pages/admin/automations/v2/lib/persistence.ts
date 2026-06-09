@@ -53,6 +53,7 @@ const NODE_TO_STEP_TYPE: Partial<Record<ActionNodeType, string>> = {
     'action.update_field':        'card_action',
     'action.update_contact_field':'card_action',
     'action.assign_owner':        'card_action',
+    'action.mark_card_result':    'card_action',
     'action.notify_internal':     'card_action',
     'action.start_cadence':       'card_action',
     'action.trigger_n8n_webhook': 'card_action',
@@ -68,6 +69,7 @@ const NODE_TO_CARD_SUB_ACTION: Partial<Record<ActionNodeType, string>> = {
     'action.update_field':        'update_field',
     'action.update_contact_field':'update_contact_field',
     'action.assign_owner':        'assign_owner',
+    'action.mark_card_result':    'mark_result',
     'action.notify_internal':     'notify_internal',
     'action.start_cadence':       'start_cadence',
     'action.trigger_n8n_webhook': 'trigger_n8n_webhook',
@@ -129,6 +131,7 @@ const STEP_TYPE_TO_NODE = (step: {
                 case 'update_field':        return 'action.update_field'
                 case 'update_contact_field':return 'action.update_contact_field'
                 case 'assign_owner':        return 'action.assign_owner'
+                case 'mark_result':         return 'action.mark_card_result'
                 case 'notify_internal':     return 'action.notify_internal'
                 case 'start_cadence':       return 'action.start_cadence'
                 case 'trigger_n8n_webhook': return 'action.trigger_n8n_webhook'
