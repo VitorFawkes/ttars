@@ -5,11 +5,11 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-06-02
+> **Last Updated:** 2026-06-08
 > **Trigger:** ALWAYS ON
-> **Stats:** 210 tabelas | 205 paginas | 355 hooks | 23 views | 844 components
-> **Stats:** 210 tabelas | 205 paginas | 355 hooks | 23 views | 844 components
-> **Stats:** 210 tabelas | 205 paginas | 355 hooks | 23 views | 844 components
+> **Stats:** 210 tabelas | 206 paginas | 358 hooks | 23 views | 845 components
+> **Stats:** 210 tabelas | 206 paginas | 358 hooks | 23 views | 845 components
+> **Stats:** 210 tabelas | 206 paginas | 358 hooks | 23 views | 845 components
 
 ---
 
@@ -171,7 +171,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **355 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **358 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -269,6 +269,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | Hook | File |
 |------|------|
 | `displayedEtapa()` | `displayedEtapa.ts` |
+| `filterContracts()` | `filterContracts.ts` |
 | `forecastToDrillRows()` | `forecastToDrillRows.ts` |
 | `mockHotel()` | `mockHotel.ts` |
 | `types()` | `types.ts` |
@@ -427,6 +428,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useSofiaAgents()` | `useSofiaAgents.ts` |
 | `useSofiaConfig()` | `useSofiaConfig.ts` |
 | `useSofiaKnowledge()` | `useSofiaKnowledge.ts` |
+| `useSofiaPhoneWhitelist()` | `useSofiaPhoneWhitelist.ts` |
+| `useSofiaResetConversation()` | `useSofiaResetConversation.ts` |
 | `useTaskOutcomes()` | `useTaskOutcomes.ts` |
 | `useTasksList()` | `useTasksList.ts` |
 | `useTemplateUsages()` | `useTemplateUsages.ts` |
@@ -605,7 +608,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **205 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **206 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -741,6 +744,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `UnderConstruction` | `src/pages/analytics-new/UnderConstruction.tsx` |
 | `WhatsAppView` | `src/pages/analytics-new/WhatsAppView.tsx` |
 | `WidgetCard` | `src/pages/analytics-new/WidgetCard.tsx` |
+| `HBarChart` | `src/pages/analytics-new/charts/HBarChart.tsx` |
 | `FunnelFilterPanel` | `src/pages/analytics-new/funil/FunnelFilterPanel.tsx` |
 | `FunnelKpis` | `src/pages/analytics-new/funil/FunnelKpis.tsx` |
 | `FunnelKpisEditor` | `src/pages/analytics-new/funil/FunnelKpisEditor.tsx` |
