@@ -14,6 +14,8 @@ export type Ww2Filters = {
   tipos?: string[]
   consultorIds?: string[]
   convidados?: string[]
+  canalSdr?: string[]
+  canalCloser?: string[]
 }
 
 const baseParams = (orgId: string | undefined, f: Ww2Filters) => ({
@@ -601,7 +603,7 @@ export function useWwQualidadeLead(filters: Ww2Filters, eventStageId?: string | 
   // throughput: leads que tiveram stage_changed para eventStageId no período (obrigatório).
   const isThroughput = filters.dateMode === 'throughput'
   return useQuery({
-    queryKey: ['ww', 'qualidade-lead', orgId, filters.dateStart, filters.dateEnd, filters.dateMode, eventStageId ?? null, filters.origins, filters.tipos, minAmostra],
+    queryKey: ['ww', 'qualidade-lead', orgId, filters.dateStart, filters.dateEnd, filters.dateMode, eventStageId ?? null, filters.origins, filters.tipos, filters.canalSdr ?? null, minAmostra],
     queryFn: () => callRpc<WwQualidadeLead>('ww_qualidade_lead', {
       p_date_start: filters.dateStart,
       p_date_end: filters.dateEnd,
@@ -611,6 +613,7 @@ export function useWwQualidadeLead(filters: Ww2Filters, eventStageId?: string | 
       p_event_stage_id: isThroughput ? eventStageId : null,
       p_tipos: filters.tipos?.length ? filters.tipos : null,
       p_min_amostra: minAmostra,
+      p_sdr_canal: filters.canalSdr?.length ? filters.canalSdr : null,
     }),
     enabled: !!orgId && (!isThroughput || !!eventStageId),
     staleTime: 60_000,
@@ -810,11 +813,11 @@ export type WwLeadIdealData = {
   total_historico: number
   total_atual: number
   comparacoes: WwLeadIdealDim[]
-  cruzamentos?: {
-    faixa_x_convidados: WwLeadIdealCruzamentoCell[]
-    faixa_x_destino: WwLeadIdealCruzamentoCell[]
-    convidados_x_destino: WwLeadIdealCruzamentoCell[]
-  }
+  // Cruzamento LIVRE: um único par de eixos escolhido pela UI (p_cruz_x/p_cruz_y).
+  cruzamento?: WwLeadIdealCruzamentoCell[]
+  referencia?: 'ganho' | 'perdido'
+  cruz_x?: string
+  cruz_y?: string
   top_perfis_historico?: WwLeadIdealPerfilTop[]
   top_perfis_atual?: WwLeadIdealPerfilTop[]
   error?: string
@@ -833,16 +836,25 @@ export type WwLeadIdealParams = {
   destinos?: string[]
   convidados?: string[]
   tipos?: string[]
+  sdrCanal?: string[]
+  closerCanal?: string[]
+  referencia?: 'ganho' | 'perdido'
+  cruzX?: string
+  cruzY?: string
 }
 
 export function useWwLeadIdeal(params: WwLeadIdealParams) {
   const orgId = useOrgId()
   const minAmostra = params.minAmostra ?? 2
   const usaJanelaCustom = !!(params.historicoStart && params.historicoEnd)
+  const referencia = params.referencia ?? 'ganho'
+  const cruzX = params.cruzX ?? 'faixa'
+  const cruzY = params.cruzY ?? 'convidados'
   const arr = (v?: string[]) => (v && v.length ? v : null)
   return useQuery({
     queryKey: ['ww', 'lead-ideal-v2', orgId, params.atualStart, params.atualEnd, params.historicoStart ?? null, params.historicoEnd ?? null, params.historicoMeses ?? 12, minAmostra,
-      params.origins ?? null, params.consultorIds ?? null, params.faixas ?? null, params.destinos ?? null, params.convidados ?? null, params.tipos ?? null],
+      params.origins ?? null, params.consultorIds ?? null, params.faixas ?? null, params.destinos ?? null, params.convidados ?? null, params.tipos ?? null,
+      params.sdrCanal ?? null, params.closerCanal ?? null, referencia, cruzX, cruzY],
     queryFn: () => callRpc<WwLeadIdealData>('ww_v2_lead_ideal', {
       p_atual_start: params.atualStart,
       p_atual_end: params.atualEnd,
@@ -857,6 +869,11 @@ export function useWwLeadIdeal(params: WwLeadIdealParams) {
       p_destinos: arr(params.destinos),
       p_convidados: arr(params.convidados),
       p_tipos: arr(params.tipos),
+      p_sdr_canal: arr(params.sdrCanal),
+      p_closer_canal: arr(params.closerCanal),
+      p_referencia: referencia,
+      p_cruz_x: cruzX,
+      p_cruz_y: cruzY,
     }),
     enabled: !!orgId,
     staleTime: 60_000,
@@ -1001,6 +1018,8 @@ export type WwFunilFilterOptions = {
   destinos: string[]
   origens: string[]
   consultores: { id: string; nome: string }[]
+  canais_sdr: string[]
+  canais_closer: string[]
 }
 
 export function useWwFunilFilterOptions() {
