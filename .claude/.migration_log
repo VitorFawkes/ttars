@@ -1137,3 +1137,11 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-06-09T17:12:01Z | supabase/migrations/20260609c_ww_lead_source_leadster.sql | applied_to_prod
 2026-06-09T17:14:24Z | supabase/migrations/20260609a_member_workspaces.sql | applied_to_prod
 2026-06-09T17:20:05Z | supabase/migrations/20260609d_ww_convidados_orcamento_text.sql | applied_to_prod
+2026-06-09T17:27:00Z | supabase/migrations/20260609e_ww_qualificacao_section.sql | applied_to_prod
+2026-06-09T17:50:20Z | supabase/migrations/20260609f_ww_qualificacao_automation.sql | applied_to_prod
+2026-06-09T18:11:15Z | supabase/migrations/20260609g_ww_unify_marketing_section.sql | applied_to_prod
+2026-06-09T18:14:42Z | supabase/migrations/20260609h_ww_remove_form_fields.sql | applied_to_prod
+2026-06-09T18:26:13Z | supabase/migrations/20260609i_ww_sdr_section_rebuild.sql | applied_to_prod
+2026-06-09T18:29:09Z | supabase/migrations/20260609j_ww_sdr_reorder.sql | applied_to_prod
+2026-06-09T18:46:13Z | supabase/migrations/20260609k_ww_sdr_remove_noivo2.sql | applied_to_prod
+2026-06-09T18:47:44Z | supabase/migrations/20260609l_ww_sdr_remove_cpf_principal.sql | applied_to_prod

@@ -9,9 +9,17 @@
  * Conteúdo vem de src/lib/backend-automations-catalog.ts (estático).
  */
 import { useMemo, useState } from 'react'
-import { Search } from 'lucide-react'
+import { Search, Pencil, Loader2 } from 'lucide-react'
 
 import { Input } from '@/components/ui/Input'
+import { Button } from '@/components/ui/Button'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { useAuth } from '@/contexts/AuthContext'
+import {
+  useBackendAutomationSetting,
+  useSaveBackendAutomationSetting,
+} from '@/hooks/useBackendAutomationSettings'
 import { cn } from '@/lib/utils'
 import {
   BACKEND_AUTOMATIONS,
@@ -68,7 +76,123 @@ function AutomationCard({ item }: { item: BackendAutomation }) {
   )
 }
 
+/** Parâmetros editáveis (rótulo amigável) por chave de config, por automação. */
+const EDITABLE_PARAMS: Record<string, { key: string; label: string; hint?: string }[]> = {
+  ww_derive_tipo_casamento: [
+    { key: 'elopement_match', label: 'Resposta de convidados que vira Elopement', hint: 'Ex: Apenas o Casal' },
+    { key: 'elopement_type', label: 'Tipo quando for essa resposta', hint: 'Ex: Elopement' },
+    { key: 'default_type', label: 'Tipo padrão (demais convidados)', hint: 'Ex: Destination Wedding' },
+  ],
+}
+
+const PARAM_DEFAULTS: Record<string, Record<string, string>> = {
+  ww_derive_tipo_casamento: {
+    elopement_match: 'Apenas o Casal',
+    elopement_type: 'Elopement',
+    default_type: 'Destination Wedding',
+  },
+}
+
+function EditableAutomationCard({ item, canEdit }: { item: BackendAutomation; canEdit: boolean }) {
+  const { data: setting, isLoading } = useBackendAutomationSetting(item.id)
+  const save = useSaveBackendAutomationSetting(item.id)
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState<Record<string, string>>({})
+
+  const params = EDITABLE_PARAMS[item.id] ?? []
+  const defaults = PARAM_DEFAULTS[item.id] ?? {}
+  const isActive = setting?.is_active ?? true
+  const config = (setting?.config ?? {}) as Record<string, unknown>
+
+  const startEdit = () => {
+    const initial: Record<string, string> = {}
+    for (const p of params) {
+      initial[p.key] = String(config[p.key] ?? defaults[p.key] ?? '')
+    }
+    setForm(initial)
+    setEditing(true)
+  }
+
+  const onSaveParams = async () => {
+    await save.mutateAsync({ config: { ...defaults, ...config, ...form } })
+    setEditing(false)
+  }
+
+  return (
+    <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-4 hover:shadow-md transition-shadow">
+      <div className="flex items-start justify-between gap-3 mb-2">
+        <h3 className="font-semibold text-slate-900 leading-snug">{item.name}</h3>
+        <CategoryBadge category={item.category} />
+      </div>
+      <p className="text-sm text-slate-600 leading-relaxed">{item.description}</p>
+      <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+        <div>
+          <span className="text-slate-500 font-medium">Quando dispara: </span>
+          <span className="text-slate-700">{item.trigger}</span>
+        </div>
+        {item.tables.length > 0 && (
+          <div>
+            <span className="text-slate-500 font-medium">Afeta: </span>
+            <span className="text-slate-700 font-mono">{item.tables.join(', ')}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={isActive}
+            disabled={!canEdit || isLoading || save.isPending}
+            onCheckedChange={(checked) => save.mutate({ is_active: checked })}
+          />
+          <span className={cn('text-sm font-medium', isActive ? 'text-emerald-700' : 'text-slate-500')}>
+            {isActive ? 'Ativa' : 'Desligada'}
+          </span>
+        </div>
+        {canEdit && params.length > 0 && !editing && (
+          <Button variant="outline" size="sm" onClick={startEdit}>
+            <Pencil className="w-3.5 h-3.5 mr-1.5" />
+            Editar parâmetros
+          </Button>
+        )}
+      </div>
+
+      {editing && (
+        <div className="mt-3 space-y-3 rounded-lg bg-slate-50 border border-slate-200 p-3">
+          {params.map((p) => (
+            <div key={p.key} className="space-y-1">
+              <Label className="text-xs text-slate-600">{p.label}</Label>
+              <Input
+                value={form[p.key] ?? ''}
+                placeholder={p.hint}
+                onChange={(e) => setForm((f) => ({ ...f, [p.key]: e.target.value }))}
+              />
+            </div>
+          ))}
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <Button variant="ghost" size="sm" onClick={() => setEditing(false)} disabled={save.isPending}>
+              Cancelar
+            </Button>
+            <Button size="sm" onClick={onSaveParams} disabled={save.isPending}>
+              {save.isPending && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
+              Salvar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {item.sourceFile && (
+        <p className="text-xs text-slate-400 font-mono mt-2 truncate" title={item.sourceFile}>
+          {item.sourceFile}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export function BackendAutomationsTab() {
+  const { profile } = useAuth()
+  const canEdit = profile?.is_admin === true
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
 
@@ -111,8 +235,8 @@ export function BackendAutomationsTab() {
         <p className="text-sm text-slate-700">
           Catálogo de tudo que o sistema dispara automaticamente em segundo plano.
           Inclui triggers no banco, jobs agendados, edge functions, motor de cadência,
-          agentes IA e filas. <strong>Somente leitura</strong> — pra mudar comportamento,
-          fale com o time de produto.
+          agentes IA e filas. A maioria é <strong>somente leitura</strong>; as marcadas
+          como <strong>editáveis</strong> você liga/desliga e ajusta os parâmetros aqui.
         </p>
       </div>
 
@@ -192,9 +316,13 @@ export function BackendAutomationsTab() {
                   </div>
                 </header>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  {items.map((item) => (
-                    <AutomationCard key={item.id} item={item} />
-                  ))}
+                  {items.map((item) =>
+                    item.editable ? (
+                      <EditableAutomationCard key={item.id} item={item} canEdit={canEdit} />
+                    ) : (
+                      <AutomationCard key={item.id} item={item} />
+                    )
+                  )}
                 </div>
               </section>
             )

@@ -214,60 +214,56 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
                     </button>
                 )}
 
-                {/* Travelers - Only for TRIPS */}
-                {card.produto === 'TRIPS' && (
-                    <>
-                        {travelersVisible && (
-                            <div className="pt-2 border-t">
-                                <div className="flex items-center justify-between mb-1.5">
-                                    <button
-                                        onClick={() => setTravelersExpanded(prev => !prev)}
-                                        className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-700 transition-colors"
-                                    >
-                                        <ChevronDown className={cn("w-3 h-3 transition-transform", !travelersExpanded && "-rotate-90")} />
-                                        Acompanhantes ({adultos} {adultos === 1 ? 'adulto' : 'adultos'}, {criancas} {criancas === 1 ? 'criança' : 'crianças'})
-                                    </button>
-                                    {travelersExpanded && (
-                                        <button
-                                            onClick={() => setSelectorMode('add_traveler')}
-                                            className="text-[10px] flex items-center gap-1 px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600 border-gray-300 hover:bg-gray-100 transition-colors"
-                                        >
-                                            <Plus className="h-3 w-3" />
-                                            Adicionar
-                                        </button>
-                                    )}
-                                </div>
-
-                                {travelersExpanded && (
-                                    <div className="space-y-1.5 mb-2">
-                                        <CardTravelers
-                                            card={{ id: card.id!, produto_data: card.produto_data as Record<string, unknown> | null }}
-                                            embedded={true}
-                                        />
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Travel History Section */}
-                        {historyVisible && (
-                            <div className="pt-3 border-t">
+                {/* Contatos adicionais — TRIPS (acompanhantes) e WEDDING (2º contato/noivo) */}
+                {(card.produto === 'TRIPS' || card.produto === 'WEDDING') && travelersVisible && (
+                    <div className="pt-2 border-t">
+                        <div className="flex items-center justify-between mb-1.5">
+                            <button
+                                onClick={() => setTravelersExpanded(prev => !prev)}
+                                className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-700 transition-colors"
+                            >
+                                <ChevronDown className={cn("w-3 h-3 transition-transform", !travelersExpanded && "-rotate-90")} />
+                                Acompanhantes ({adultos} {adultos === 1 ? 'adulto' : 'adultos'}, {criancas} {criancas === 1 ? 'criança' : 'crianças'})
+                            </button>
+                            {travelersExpanded && (
                                 <button
-                                    onClick={() => setHistoryExpanded(prev => !prev)}
-                                    className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-700 transition-colors mb-1.5"
+                                    onClick={() => setSelectorMode('add_traveler')}
+                                    className="text-[10px] flex items-center gap-1 px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600 border-gray-300 hover:bg-gray-100 transition-colors"
                                 >
-                                    <ChevronDown className={cn("w-3 h-3 transition-transform", !historyExpanded && "-rotate-90")} />
-                                    Histórico de Viagem{tripCount > 0 && ` (${tripCount} ${tripCount === 1 ? 'viagem' : 'viagens'})`}
+                                    <Plus className="h-3 w-3" />
+                                    Adicionar
                                 </button>
-                                {historyExpanded && (
-                                    <TravelHistorySection
-                                        travelers={people || []}
-                                        currentCardId={card.id || undefined}
-                                    />
-                                )}
+                            )}
+                        </div>
+
+                        {travelersExpanded && (
+                            <div className="space-y-1.5 mb-2">
+                                <CardTravelers
+                                    card={{ id: card.id!, produto_data: card.produto_data as Record<string, unknown> | null }}
+                                    embedded={true}
+                                />
                             </div>
                         )}
-                    </>
+                    </div>
+                )}
+
+                {/* Histórico de Viagem — só TRIPS */}
+                {card.produto === 'TRIPS' && historyVisible && (
+                    <div className="pt-3 border-t">
+                        <button
+                            onClick={() => setHistoryExpanded(prev => !prev)}
+                            className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-700 transition-colors mb-1.5"
+                        >
+                            <ChevronDown className={cn("w-3 h-3 transition-transform", !historyExpanded && "-rotate-90")} />
+                            Histórico de Viagem{tripCount > 0 && ` (${tripCount} ${tripCount === 1 ? 'viagem' : 'viagens'})`}
+                        </button>
+                        {historyExpanded && (
+                            <TravelHistorySection
+                                travelers={people || []}
+                                currentCardId={card.id || undefined}
+                            />
+                        )}
+                    </div>
                 )}
             </div>
 
