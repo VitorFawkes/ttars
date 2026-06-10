@@ -17,6 +17,10 @@ const API_KEY = process.env.N8N_API_KEY;
 const SUPABASE_URL = 'https://szyrzxvlptqqheizyrxu.supabase.co';
 const TARGET_WORKFLOW_ID = process.env.SDR_WEDDINGS_WF_ID || '';
 const AGENT_SLUG = 'sofia-weddings';
+// Segredo do webhook: injetado no deploy (process.env), NÃO commitado. O nó Prepara
+// rejeita requests sem o header x-sofia-secret correto ANTES de rodar qualquer IA.
+// Os edges whatsapp-webhook e wsdr-test enviam esse header (env SOFIA_WEBHOOK_SECRET).
+const WEBHOOK_SECRET = process.env.SOFIA_WEBHOOK_SECRET || '';
 
 const OPENAI_CREDENTIAL = { id: 'ZLg8WpP4UNXepE8g', name: 'Vitor TESTE' };
 const SUPABASE_CREDENTIAL = { id: 'SXzk2uSaw8b7BcaN', name: 'WelcomeSupabase' };
@@ -206,6 +210,11 @@ Escreva a próxima mensagem da {{ $('Monta').item.json.persona }} no WhatsApp, s
 // Prepara: normaliza + whitelist + resolve org/agente (default Sofia/Weddings)
 const DEFAULT_ORG_ID = 'b0000000-0000-0000-0000-000000000002'; // Welcome Weddings
 const CODE_PREPARA = `const raw = $input.first().json;
+// Gate de segredo: rejeita quem não enviar o header correto (antes de qualquer IA).
+const __secret = ${JSON.stringify(WEBHOOK_SECRET)};
+const __hdrs = raw.headers || {};
+const __got = __hdrs['x-sofia-secret'] || __hdrs['X-Sofia-Secret'] || '';
+if (__secret && __got !== __secret) { throw new Error('unauthorized: webhook secret invalido'); }
 const body = raw.body || raw;
 const phone = String(body.phone || body.contact_phone || '').replace(/\\D/g, '');
 const allowed = true; // gate de QUEM responde mora no whatsapp-webhook (whitelist no banco); aqui é só metadado
