@@ -14,6 +14,8 @@ import { useOrg } from '../../contexts/OrgContext'
 interface OrgSwitcherProps {
     isCollapsed?: boolean
     onOpenChange?: (open: boolean) => void
+    /** Tom do sidebar onde o switcher está: 'dark' (azul Trips) ou 'light' (champagne Weddings) */
+    tone?: 'dark' | 'light'
 }
 
 const ORG_ICON_BY_SLUG: Record<string, string> = {
@@ -57,11 +59,15 @@ function OrgBadge({
     )
 }
 
-export function OrgSwitcher({ isCollapsed = false, onOpenChange }: OrgSwitcherProps) {
+export function OrgSwitcher({ isCollapsed = false, onOpenChange, tone = 'dark' }: OrgSwitcherProps) {
     const { org } = useOrg()
     const { orgs } = useOrgMembers()
     const switchOrg = useOrgSwitch()
     const [open, setOpen] = useState(false)
+    const onDark = tone === 'dark'
+    const surfaceClass = onDark
+        ? 'bg-white/10 text-white border-white/10'
+        : 'bg-white text-ww-n700 border-ww-gold/30 shadow-sm'
 
     const handleOpenChange = (next: boolean) => {
         setOpen(next)
@@ -80,19 +86,20 @@ export function OrgSwitcher({ isCollapsed = false, onOpenChange }: OrgSwitcherPr
             <div
                 title={isCollapsed ? single.org_name : undefined}
                 className={cn(
-                    "flex items-center rounded-lg bg-white/10 text-sm font-medium text-white border border-white/10 h-10",
+                    "flex items-center rounded-lg text-sm font-medium border h-10",
+                    surfaceClass,
                     isCollapsed ? "w-10 justify-center" : "w-full px-3"
                 )}
             >
                 {isCollapsed ? (
                     ORG_ICON_BY_SLUG[single.org_slug] ? (
-                        <OrgBadge slug={single.org_slug} color={single.branding?.primary_color} size="md" onDark />
+                        <OrgBadge slug={single.org_slug} color={single.branding?.primary_color} size="md" onDark={onDark} />
                     ) : (
-                        <Building2 className="h-5 w-5 text-white/70" />
+                        <Building2 className={cn("h-5 w-5", onDark ? "text-white/70" : "text-ww-gold")} />
                     )
                 ) : (
                     <div className="flex items-center gap-2 whitespace-nowrap overflow-hidden">
-                        <OrgBadge slug={single.org_slug} color={single.branding?.primary_color} size="sm" onDark />
+                        <OrgBadge slug={single.org_slug} color={single.branding?.primary_color} size="sm" onDark={onDark} />
                         <span className="truncate">{single.org_name}</span>
                     </div>
                 )}
@@ -112,17 +119,19 @@ export function OrgSwitcher({ isCollapsed = false, onOpenChange }: OrgSwitcherPr
                     title={isCollapsed ? currentOrg?.org_name : undefined}
                     disabled={switchOrg.isPending}
                     className={cn(
-                        "flex items-center rounded-lg bg-white/10 text-sm font-medium text-white hover:bg-white/20 transition-colors border border-white/10 h-10",
+                        "flex items-center rounded-lg text-sm font-medium transition-colors border h-10",
+                        surfaceClass,
+                        onDark ? "hover:bg-white/20" : "hover:bg-ww-gold-soft",
                         isCollapsed ? "w-10 justify-center" : "w-full justify-between px-3",
                         switchOrg.isPending && "cursor-wait"
                     )}
                 >
                     {isCollapsed ? (
-                        <OrgBadge slug={currentOrg?.org_slug} color={currentOrg?.branding?.primary_color} size="md" onDark />
+                        <OrgBadge slug={currentOrg?.org_slug} color={currentOrg?.branding?.primary_color} size="md" onDark={onDark} />
                     ) : (
                         <>
                             <div className="flex items-center gap-2 whitespace-nowrap overflow-hidden">
-                                <OrgBadge slug={currentOrg?.org_slug} color={currentOrg?.branding?.primary_color} size="sm" onDark />
+                                <OrgBadge slug={currentOrg?.org_slug} color={currentOrg?.branding?.primary_color} size="sm" onDark={onDark} />
                                 <span className="truncate">{currentOrg?.org_name}</span>
                             </div>
                             {switchOrg.isPending ? (

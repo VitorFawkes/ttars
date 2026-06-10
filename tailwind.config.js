@@ -20,14 +20,16 @@ export default {
                 ring: "hsl(var(--ring))",
                 background: "hsl(var(--background))",
                 foreground: "hsl(var(--foreground))",
+                // Marca por workspace via CSS vars (ver index.css):
+                // :root = Trips (azul). .theme-ww em <html> = Weddings (dourado ww-*).
                 primary: {
-                    DEFAULT: "#0f4c81", // Deep sophisticated blue
+                    DEFAULT: "rgb(var(--brand-primary) / <alpha-value>)",
                     foreground: "#ffffff",
-                    dark: "#0a3a5f",
-                    light: "#e0e7ff", // Light blue for backgrounds
+                    dark: "rgb(var(--brand-primary-dark) / <alpha-value>)",
+                    light: "rgb(var(--brand-primary-light) / <alpha-value>)",
                 },
                 secondary: {
-                    DEFAULT: "#00c4cc", // Teal accent
+                    DEFAULT: "rgb(var(--brand-secondary) / <alpha-value>)",
                     foreground: "#ffffff",
                 },
                 surface: {
