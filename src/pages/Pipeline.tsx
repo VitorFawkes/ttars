@@ -119,14 +119,14 @@ export default function Pipeline() {
     return (
         <ErrorBoundary>
             {/* Main Container: Uses h-full to fill the Layout shell */}
-            <div className="flex h-full flex-col relative overflow-hidden bg-gray-50/50">
+            <div className="flex h-full flex-col relative overflow-hidden bg-gray-50/50 ww:bg-ww-paper">
 
                 {/* Header Section: Compact single row */}
-                <div className="flex-shrink-0 py-2 px-6 bg-white border-b border-gray-200 z-10">
+                <div className="flex-shrink-0 py-2 px-6 bg-white border-b border-gray-200 z-10 ww:bg-ww-paper ww:border-ww-sand">
                     <header className="flex items-center justify-between gap-4 mb-1">
                         <div className="flex items-center gap-4">
-                            <h1 className="text-xl font-semibold text-gray-900 tracking-tight">Pipeline</h1>
-                            <span className="text-sm text-gray-400 hidden md:inline">Gerencie suas oportunidades</span>
+                            <h1 className="text-xl font-semibold text-gray-900 tracking-tight ww:font-ww-serif ww:italic ww:text-2xl ww:text-ww-n700">Pipeline</h1>
+                            <span className="text-sm text-gray-400 hidden md:inline ww:text-ww-n500">Gerencie suas oportunidades</span>
                         </div>
 
                         {/* View Type Toggle */}
@@ -170,7 +170,7 @@ export default function Pipeline() {
                                         type="search"
                                         name="pipeline-search"
                                         placeholder="Buscar por nome, viajante, telefone, email, título..."
-                                        className="block w-full pl-10 pr-3 py-1.5 border border-gray-200 rounded-lg leading-5 bg-white placeholder-gray-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition-all shadow-sm [&::-webkit-search-decoration]:hidden [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-results-button]:hidden [&::-webkit-search-results-decoration]:hidden"
+                                        className="block w-full pl-10 pr-3 py-1.5 border border-gray-200 rounded-lg leading-5 bg-white placeholder-gray-400 ww:border-ww-sand-dk ww:placeholder-ww-n500 focus:outline-none focus:bg-white focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition-all shadow-sm [&::-webkit-search-decoration]:hidden [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-results-button]:hidden [&::-webkit-search-results-decoration]:hidden"
                                         value={filters.search || ''}
                                         onChange={(e) => updateFilter({ search: e.target.value })}
                                         autoComplete="off"
@@ -182,14 +182,14 @@ export default function Pipeline() {
                                 </div>
 
                                 {/* View Switcher (Persona Based) — com cascading */}
-                                <div className="flex bg-white rounded-lg p-1 border border-gray-200 shadow-sm">
+                                <div className="flex bg-white rounded-lg p-1 border border-gray-200 shadow-sm ww:border-ww-sand">
                                     <button
                                         onClick={() => setScopeView('AGENT', 'MY_QUEUE')}
                                         className={cn(
                                             "px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200",
                                             viewMode === 'AGENT' && subView === 'MY_QUEUE'
                                                 ? "bg-primary text-white shadow-sm"
-                                                : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                                                : "text-gray-500 hover:text-gray-900 hover:bg-gray-50 ww:text-ww-n500 ww:hover:text-ww-n700 ww:hover:bg-ww-cream"
                                         )}
                                     >
                                         Minha Fila
@@ -201,7 +201,7 @@ export default function Pipeline() {
                                                 "px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200",
                                                 viewMode === 'MANAGER' && subView === 'TEAM_VIEW'
                                                     ? "bg-primary text-white shadow-sm"
-                                                    : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                                                    : "text-gray-500 hover:text-gray-900 hover:bg-gray-50 ww:text-ww-n500 ww:hover:text-ww-n700 ww:hover:bg-ww-cream"
                                             )}
                                         >
                                             Visão de Time
@@ -214,7 +214,7 @@ export default function Pipeline() {
                                                 "px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200",
                                                 subView === 'ALL'
                                                     ? "bg-primary text-white shadow-sm"
-                                                    : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                                                    : "text-gray-500 hover:text-gray-900 hover:bg-gray-50 ww:text-ww-n500 ww:hover:text-ww-n700 ww:hover:bg-ww-cream"
                                             )}
                                         >
                                             Todos
@@ -223,14 +223,14 @@ export default function Pipeline() {
                                 </div>
 
                                 {/* Quick Toggles — tipos de card + ganho direto */}
-                                <div className="flex items-center space-x-2 border-l border-gray-200 pl-4">
+                                <div className="flex items-center space-x-2 border-l border-gray-200 pl-4 ww:border-ww-sand">
                                     <button
                                         onClick={() => setGroupFilters({ ...groupFilters, showGroupMembers: !groupFilters.showGroupMembers })}
                                         className={cn(
                                             "flex items-center px-3 py-1.5 text-xs font-semibold rounded-full border transition-all duration-200",
                                             groupFilters.showGroupMembers
-                                                ? "bg-blue-100 text-blue-700 border-blue-300 shadow-sm"
-                                                : "bg-white text-gray-400 border-gray-200 hover:bg-gray-50"
+                                                ? "bg-blue-100 text-blue-700 border-blue-300 shadow-sm ww:bg-ww-gold-soft ww:text-ww-gold-ink ww:border-ww-gold/40"
+                                                : "bg-white text-gray-400 border-gray-200 hover:bg-gray-50 ww:border-ww-sand ww:text-ww-n400 ww:hover:bg-ww-cream"
                                         )}
                                         title="Viajantes vinculados a um grupo"
                                     >
@@ -242,8 +242,8 @@ export default function Pipeline() {
                                         className={cn(
                                             "flex items-center px-3 py-1.5 text-xs font-semibold rounded-full border transition-all duration-200",
                                             groupFilters.showSubCards
-                                                ? "bg-purple-100 text-purple-700 border-purple-300 shadow-sm"
-                                                : "bg-white text-gray-400 border-gray-200 hover:bg-gray-50"
+                                                ? "bg-purple-100 text-purple-700 border-purple-300 shadow-sm ww:bg-ww-rosewood-soft ww:text-ww-rosewood ww:border-ww-rosewood/30"
+                                                : "bg-white text-gray-400 border-gray-200 hover:bg-gray-50 ww:border-ww-sand ww:text-ww-n400 ww:hover:bg-ww-cream"
                                         )}
                                         title="Sub-cards: vendas adicionais e mudanças"
                                     >
@@ -255,8 +255,8 @@ export default function Pipeline() {
                                         className={cn(
                                             "flex items-center px-3 py-1.5 text-xs font-semibold rounded-full border transition-all duration-200",
                                             groupFilters.showSolo
-                                                ? "bg-emerald-100 text-emerald-700 border-emerald-300 shadow-sm"
-                                                : "bg-white text-gray-400 border-gray-200 hover:bg-gray-50"
+                                                ? "bg-emerald-100 text-emerald-700 border-emerald-300 shadow-sm ww:bg-ww-olive-soft ww:text-ww-olive-ink ww:border-ww-olive/30"
+                                                : "bg-white text-gray-400 border-gray-200 hover:bg-gray-50 ww:border-ww-sand ww:text-ww-n400 ww:hover:bg-ww-cream"
                                         )}
                                         title="Cards avulsos (sem grupo)"
                                     >
@@ -268,8 +268,8 @@ export default function Pipeline() {
                                         className={cn(
                                             "flex items-center px-3 py-1.5 text-xs font-semibold rounded-full border transition-all duration-200",
                                             showWonDirect
-                                                ? "bg-green-100 text-green-700 border-green-300 shadow-sm"
-                                                : "bg-white text-gray-400 border-gray-200 hover:bg-gray-50"
+                                                ? "bg-green-100 text-green-700 border-green-300 shadow-sm ww:bg-ww-olive-soft ww:text-ww-olive-ink ww:border-ww-olive/30"
+                                                : "bg-white text-gray-400 border-gray-200 hover:bg-gray-50 ww:border-ww-sand ww:text-ww-n400 ww:hover:bg-ww-cream"
                                         )}
                                         title={showWonDirect ? `Ocultar ganhos sem ${posVendaLabel}` : `Mostrar ganhos sem ${posVendaLabel}`}
                                     >

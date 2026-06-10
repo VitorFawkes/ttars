@@ -178,9 +178,9 @@ export function FeedbackPopup() {
                 className={cn(
                     btnSize,
                     "rounded-full",
-                    "bg-indigo-600 shadow-lg shadow-indigo-500/30",
+                    "bg-indigo-600 shadow-lg shadow-indigo-500/30 ww:bg-ww-gold ww:shadow-ww-gold/30",
                     "flex items-center justify-center",
-                    "hover:bg-indigo-700 hover:scale-105 active:scale-95",
+                    "hover:bg-indigo-700 hover:scale-105 active:scale-95 ww:hover:bg-ww-gold-ink",
                     "transition-all duration-150",
                     "cursor-grab active:cursor-grabbing",
                     "touch-none select-none"

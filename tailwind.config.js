@@ -1,4 +1,5 @@
 import typography from '@tailwindcss/typography'
+import plugin from 'tailwindcss/plugin'
 
 /** @type {import('tailwindcss').Config} */
 export default {
@@ -129,5 +130,8 @@ export default {
     },
     plugins: [
         typography,
+        // Variante de tema por workspace: `ww:` aplica estilo só quando o tema
+        // Weddings está ativo (.theme-ww no <html>, via useOrgBranding).
+        plugin(({ addVariant }) => addVariant('ww', '.theme-ww &')),
     ],
 }

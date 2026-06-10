@@ -50,15 +50,15 @@ export default function KanbanPhaseGroup({
     return (
         <div className={cn(
             "relative flex shrink-0 flex-col rounded-2xl transition-all duration-300 h-full",
-            isCollapsed ? "w-48 bg-gray-50 border border-gray-200 py-2" : "bg-gray-100 p-2"
+            isCollapsed ? "w-48 bg-gray-50 border border-gray-200 py-2 ww:bg-ww-cream/50 ww:border-ww-sand" : "bg-gray-100 p-2 ww:bg-ww-sand/40"
         )}>
             {/* Header - Always Visible */}
             <div
                 className={cn(
                     "flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer",
                     isCollapsed
-                        ? "bg-gray-100 border-gray-200 hover:bg-gray-200"
-                        : "bg-white border-gray-200 shadow-sm mb-3"
+                        ? "bg-gray-100 border-gray-200 hover:bg-gray-200 ww:bg-ww-cream ww:border-ww-sand ww:hover:bg-ww-sand/60"
+                        : "bg-white border-gray-200 shadow-sm mb-3 ww:border-ww-sand"
                 )}
                 onClick={onToggle}
             >
@@ -69,9 +69,9 @@ export default function KanbanPhaseGroup({
                     )}>
                         <ChevronDown className="w-4 h-4 text-gray-500" />
                     </div>
-                    <h3 className="font-medium text-gray-900 flex items-center gap-2">
+                    <h3 className="font-medium text-gray-900 flex items-center gap-2 ww:font-ww-serif ww:text-ww-n700">
                         {phaseName}
-                        <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200">
+                        <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200 ww:bg-ww-cream ww:border-ww-sand ww:text-ww-n500">
                             {totalCount}
                         </span>
                     </h3>

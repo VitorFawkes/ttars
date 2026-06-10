@@ -72,6 +72,7 @@ export default function KanbanColumn({ stage, cards, phaseColor, phaseSlug, onWi
             ref={setNodeRef}
             className={cn(
                 "flex w-80 min-w-[20rem] shrink-0 flex-col rounded-xl bg-gray-50 border border-gray-200 shadow-sm transition-all duration-300 hover:shadow-md hover:bg-white",
+                "ww:bg-ww-cream/60 ww:border-ww-sand ww:shadow-ww-lift ww:hover:bg-white",
                 "border-t-4 h-full",
                 borderClass,
                 isOver && "ring-2 ring-primary/40 ring-inset bg-primary/5"
@@ -79,9 +80,9 @@ export default function KanbanColumn({ stage, cards, phaseColor, phaseSlug, onWi
             style={style}
         >
             {/* Header with White Strip */}
-            <div className="bg-white border-b border-gray-200 p-4 rounded-t-xl shadow-sm">
+            <div className="bg-white border-b border-gray-200 p-4 rounded-t-xl shadow-sm ww:border-ww-sand">
                 <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-base font-bold text-gray-800 tracking-tight truncate mr-2">{stage.nome}</h3>
+                    <h3 className="text-base font-bold text-gray-800 tracking-tight truncate mr-2 ww:font-ww-serif ww:font-semibold ww:text-ww-n700">{stage.nome}</h3>
                     <div className="flex items-center gap-2 shrink-0">
                         <StageSortPopover
                             currentSort={currentSort}
@@ -89,7 +90,7 @@ export default function KanbanColumn({ stage, cards, phaseColor, phaseSlug, onWi
                             onSortChange={onSortChange}
                             onClear={onClearSort}
                         />
-                        <span className="rounded-full bg-gray-100 border border-gray-200 px-2 py-0.5 text-[10px] font-bold text-gray-500">
+                        <span className="rounded-full bg-gray-100 border border-gray-200 px-2 py-0.5 text-[10px] font-bold text-gray-500 ww:bg-ww-cream ww:border-ww-sand ww:text-ww-n500">
                             {cards.length}
                         </span>
                     </div>
