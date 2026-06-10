@@ -1,6 +1,8 @@
-export type PeriodOption = 'today' | '7d' | '30d' | '90d' | 'mtd' | 'last_month' | '12m' | 'all' | 'custom'
+type BasePeriod = 'today' | '7d' | '30d' | '90d' | 'mtd' | 'last_month' | '12m' | 'all' | 'custom'
+// `ano2025` etc — anos-calendário entram como opção direta no seletor de período.
+export type PeriodOption = BasePeriod | `ano${number}`
 
-export const PERIOD_LABELS: Record<PeriodOption, string> = {
+export const PERIOD_LABELS: Record<BasePeriod, string> = {
   today: 'Hoje',
   '7d': 'Últimos 7 dias',
   '30d': 'Últimos 30 dias',
@@ -9,16 +11,40 @@ export const PERIOD_LABELS: Record<PeriodOption, string> = {
   last_month: 'Mês passado',
   '12m': 'Últimos 12 meses',
   all: 'Tudo (desde 2024)',
-  custom: 'Período custom',
+  custom: 'Datas específicas…',
+}
+
+/** Opções do seletor de período, com os anos-calendário no meio (2024 até o ano atual). */
+export function periodOptions(): { key: PeriodOption; label: string }[] {
+  const anoAtual = new Date().getFullYear()
+  const anos: { key: PeriodOption; label: string }[] = []
+  for (let y = anoAtual; y >= 2024; y--) anos.push({ key: `ano${y}` as PeriodOption, label: String(y) })
+  return [
+    { key: '7d', label: PERIOD_LABELS['7d'] },
+    { key: '30d', label: PERIOD_LABELS['30d'] },
+    { key: '90d', label: PERIOD_LABELS['90d'] },
+    { key: 'mtd', label: PERIOD_LABELS.mtd },
+    { key: 'last_month', label: PERIOD_LABELS.last_month },
+    { key: '12m', label: PERIOD_LABELS['12m'] },
+    ...anos,
+    { key: 'all', label: PERIOD_LABELS.all },
+    { key: 'custom', label: PERIOD_LABELS.custom },
+  ]
+}
+
+export function periodLabel(opt: PeriodOption): string {
+  if (opt.startsWith('ano')) return opt.slice(3)
+  return PERIOD_LABELS[opt as BasePeriod] ?? opt
 }
 
 export function periodToDates(opt: PeriodOption, customStart?: string, customEnd?: string): { dateStart: string; dateEnd: string } {
+  if (opt.startsWith('ano')) return anoJanela(Number(opt.slice(3)))
   const now = new Date()
   const end = new Date(now)
   end.setHours(23, 59, 59, 999)
   const start = new Date(now)
 
-  switch (opt) {
+  switch (opt as BasePeriod) {
     case 'today':
       start.setHours(0, 0, 0, 0)
       break

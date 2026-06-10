@@ -10,7 +10,8 @@ import { formatCurrency, formatNumber } from '../lib/format'
 export function VisaoGeral({ filters, onFiltersChange }: TabProps) {
   return (
     <div className="space-y-4">
-      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'dateMode', 'tipo', 'origem', 'faixa', 'destino']} />
+      {/* Pergunta da aba: "como estamos?" — corta por período/modo, tipo, origem, faixa, destino e consultor */}
+      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'dateMode', 'tipo', 'origem', 'faixa', 'destino', 'consultor']} />
       <VisaoGeralContent filters={filters} />
     </div>
   )
@@ -85,6 +86,7 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
         faixas={filters.faixas}
         destinos={filters.destinos}
         consultorIds={filters.consultorIds}
+        tipos={filters.tipos}
       />
 
       {/* Funil */}

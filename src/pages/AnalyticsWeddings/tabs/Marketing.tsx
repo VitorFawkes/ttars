@@ -11,7 +11,9 @@ import { formatCurrency, formatNumber } from '../lib/format'
 export function Marketing({ filters, onFiltersChange }: TabProps) {
   return (
     <div className="space-y-4">
-      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'dateMode', 'tipo', 'origem']} />
+      {/* Pergunta da aba: "de onde vêm os leads bons?" — leitura sempre por safra
+          (dateMode saiu: metade da tela ignorava o modo e o filtro mentia) */}
+      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'tipo', 'origem']} />
       <MarketingContent filters={filters} />
     </div>
   )

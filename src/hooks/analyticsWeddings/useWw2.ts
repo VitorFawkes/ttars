@@ -277,7 +277,11 @@ export function useWw2LossReasons(filters: Ww2Filters) {
   const orgId = useOrgId()
   return useQuery({
     queryKey: ['ww2', 'loss', orgId, filters],
-    queryFn: () => callRpc<Ww2LossReasons>('ww2_loss_reasons', baseParams(orgId, filters)),
+    queryFn: () => callRpc<Ww2LossReasons>('ww2_loss_reasons', {
+      ...baseParams(orgId, filters),
+      // só envia quando usado — mantém compat com a função antiga até a promoção
+      ...(filters.canalSdr?.length ? { p_sdr_canal: filters.canalSdr } : {}),
+    }),
     enabled: !!orgId,
     staleTime: 60_000,
   })
@@ -759,13 +763,15 @@ export type WwDriftCombos = {
 export function useWwDriftCombos(filters: Ww2Filters) {
   const orgId = useOrgId()
   return useQuery({
-    queryKey: ['ww', 'drift-combos', orgId, filters.dateStart, filters.dateEnd, filters.dateMode, filters.tipos],
+    queryKey: ['ww', 'drift-combos', orgId, filters.dateStart, filters.dateEnd, filters.dateMode, filters.tipos, filters.origins],
     queryFn: () => callRpc<WwDriftCombos>('ww_drift_combos', {
       p_date_start: filters.dateStart,
       p_date_end: filters.dateEnd,
       p_org_id: orgId,
       p_date_mode: filters.dateMode,
       p_tipos: filters.tipos?.length ? filters.tipos : null,
+      // só envia quando usado — mantém compat com a função antiga até a promoção
+      ...(filters.origins?.length ? { p_origins: filters.origins } : {}),
     }),
     enabled: !!orgId,
     staleTime: 60_000,
@@ -1118,13 +1124,14 @@ export type WwSerieParams = {
   destinos?: string[]
   convidados?: string[]
   consultorIds?: string[]
+  tipos?: string[]
 }
 export function useWwSerieTemporal(params: WwSerieParams) {
   const orgId = useOrgId()
   const arr = (v?: string[]) => (v && v.length ? v : null)
   return useQuery({
     queryKey: ['ww', 'serie-temporal', orgId, params.dateStart, params.dateEnd, params.granularidade, params.dateMode,
-      params.incluirElopement ?? true, params.origins ?? null, params.faixas ?? null, params.destinos ?? null, params.convidados ?? null, params.consultorIds ?? null],
+      params.incluirElopement ?? true, params.origins ?? null, params.faixas ?? null, params.destinos ?? null, params.convidados ?? null, params.consultorIds ?? null, params.tipos ?? null],
     queryFn: () => callRpc<WwSerieTemporal>('ww_serie_temporal', {
       p_date_start: params.dateStart,
       p_date_end: params.dateEnd,
@@ -1137,6 +1144,8 @@ export function useWwSerieTemporal(params: WwSerieParams) {
       p_destinos: arr(params.destinos),
       p_convidados: arr(params.convidados),
       p_consultor_ids: arr(params.consultorIds),
+      // só envia quando usado — mantém compat com a função antiga até a promoção
+      ...(params.tipos?.length ? { p_tipos: params.tipos } : {}),
     }),
     enabled: !!orgId,
     staleTime: 60_000,

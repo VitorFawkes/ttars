@@ -27,7 +27,7 @@ const pct = (num: number, den: number) => (den > 0 ? Math.round((1000 * num) / d
 
 export function SerieTemporalChart({
   title, subtitle, dateStart, dateEnd, dateMode, incluirElopement,
-  origins, faixas, destinos, convidados, consultorIds, defaultModo = 'quantidade',
+  origins, faixas, destinos, convidados, consultorIds, tipos, defaultModo = 'quantidade',
 }: {
   title: string
   subtitle?: string
@@ -40,6 +40,7 @@ export function SerieTemporalChart({
   destinos?: string[]
   convidados?: string[]
   consultorIds?: string[]
+  tipos?: string[]
   defaultModo?: Modo
 }) {
   const [gran, setGran] = useState<Gran>('month')
@@ -47,7 +48,7 @@ export function SerieTemporalChart({
 
   const { data, isLoading } = useWwSerieTemporal({
     dateStart, dateEnd, granularidade: gran, dateMode, incluirElopement,
-    origins, faixas, destinos, convidados, consultorIds,
+    origins, faixas, destinos, convidados, consultorIds, tipos,
   })
 
   const rows = useMemo(() => {

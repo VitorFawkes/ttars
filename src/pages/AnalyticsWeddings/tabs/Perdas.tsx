@@ -11,7 +11,9 @@ const LINE_COLORS = ['#4f46e5', '#7c3aed', '#0891b2', '#f59e0b', '#ef4444']
 export function Perdas({ filters, onFiltersChange }: TabProps) {
   return (
     <div className="space-y-4">
-      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'tipo', 'origem', 'faixa']} />
+      {/* Pergunta da aba: "por que estamos perdendo?" — corta por perfil (faixa/destino),
+          origem, tipo e COMO foi a 1ª reunião (canal) */}
+      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'tipo', 'origem', 'faixa', 'destino', 'canal_sdr']} />
       <PerdasContent filters={filters} />
     </div>
   )
