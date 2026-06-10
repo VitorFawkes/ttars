@@ -78,7 +78,7 @@ export function ScoringEditor({ qual, onChange }: { qual: Qual; onChange: (q: Qu
           {/* Config geral */}
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label="Nota mínima pra qualificar" hint={thresholdTooHigh ? `⚠️ Acima da nota máxima possível (${maxScore}) — ninguém vai qualificar. Baixe pra ${maxScore} ou menos.` : 'A partir dessa nota, o casal é considerado qualificado.'}>
-              <Input type="number" value={threshold} onChange={e => set({ threshold: Number(e.target.value) })} className={thresholdTooHigh ? 'border-amber-400 focus-visible:ring-amber-400' : ''} />
+              <Input type="number" min={0} max={maxScore || undefined} value={threshold} onChange={e => { const v = Math.max(0, Number(e.target.value) || 0); set({ threshold: maxScore > 0 ? Math.min(v, maxScore) : v }) }} className={thresholdTooHigh ? 'border-amber-400 focus-visible:ring-amber-400' : ''} />
             </Field>
             <Field label="Teto dos bônus" hint="Quanto os sinais de bônus podem somar juntos, no máximo.">
               <Input type="number" value={maxBonus} onChange={e => set({ max_bonus_points: Number(e.target.value) })} />

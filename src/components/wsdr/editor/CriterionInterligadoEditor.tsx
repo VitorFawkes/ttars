@@ -142,7 +142,14 @@ function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; labe
 function FaixasEditor({ c, onPatch }: { c: QualCriterion; onPatch: (p: Partial<QualCriterion>) => void }) {
   const faixas = c.faixas ?? []
   const setF = (i: number, patch: Partial<CriterionFaixa>) => onPatch({ faixas: faixas.map((f, idx) => idx === i ? { ...f, ...patch } : f) })
-  const num = (v: string): number | null => v.trim() === '' ? null : Number(v)
+  // aceita formato BR: ponto como milhar ("200.000"→200000) e vírgula como decimal ("1,5"→1.5)
+  const num = (v: string): number | null => {
+    const s = v.trim()
+    if (s === '') return null
+    const norm = s.replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.')
+    const n = Number(norm)
+    return Number.isFinite(n) ? n : null
+  }
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-2 text-xs">
