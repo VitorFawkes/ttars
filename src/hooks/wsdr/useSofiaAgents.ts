@@ -43,7 +43,23 @@ export function useSofiaAgents() {
     setLoading(false)
   }, [orgId])
 
-  useEffect(() => { refetch() }, [refetch])
+  // Carga inicial + ao trocar de org. Inline (sem setState síncrono no corpo do efeito)
+  // pra satisfazer react-hooks/set-state-in-effect; o refetch acima fica pro spawn.
+  useEffect(() => {
+    if (!orgId) return
+    let alive = true
+    void (async () => {
+      const { data } = await db
+        .from('wsdr_agents')
+        .select('slug, display_name, role_template, active')
+        .eq('org_id', orgId)
+        .order('created_at', { ascending: true })
+      if (!alive) return
+      setAgents((data as WsdrAgent[]) || [])
+      setLoading(false)
+    })()
+    return () => { alive = false }
+  }, [orgId])
 
   const spawn = useCallback(async (displayName: string, templateSlug = 'sofia-weddings'): Promise<string | null> => {
     if (!orgId) return null
