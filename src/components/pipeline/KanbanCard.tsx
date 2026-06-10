@@ -662,7 +662,7 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
             {...attributes}
             onClick={handleClick}
             className={cn(
-                "group relative flex flex-col gap-2 rounded-lg border bg-white p-3 shadow-sm transition-all duration-200 ease-out hover:shadow-md",
+                "group relative flex flex-col gap-2 rounded-lg border bg-white p-3 shadow-sm transition-all duration-200 ease-out hover:shadow-md ww:shadow-ww-lift",
                 isClosedCard ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
                 isDragging && "opacity-0",
                 conciergeStats?.vencidos && conciergeStats.vencidos > 0 && "border-l-4 border-l-red-300",
@@ -673,10 +673,10 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
                 card.status_comercial === 'perdido' && "border-red-300 bg-red-50/40 opacity-80",
                 !isClosedCard && (
                     (card as any).card_type === 'sub_card'
-                        ? "border-l-4 border-l-purple-400 border-t-gray-200 border-r-gray-200 border-b-gray-200 bg-purple-50/30"
+                        ? "border-l-4 border-l-purple-400 border-t-gray-200 border-r-gray-200 border-b-gray-200 bg-purple-50/30 ww:border-l-ww-rosewood ww:border-t-ww-sand ww:border-r-ww-sand ww:border-b-ww-sand ww:bg-ww-rosewood-soft"
                         : isUnseen
                             ? "border-l-4 border-l-emerald-500 border-t-gray-200 border-r-gray-200 border-b-gray-200 bg-emerald-50/40 hover:border-l-emerald-600"
-                            : "border-gray-200 hover:border-gray-300"
+                            : "border-gray-200 hover:border-gray-300 ww:border-ww-sand ww:hover:border-ww-sand-dk"
                 )
             )}
             title={
