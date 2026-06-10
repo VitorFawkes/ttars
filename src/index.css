@@ -21,6 +21,12 @@
 
 @layer base {
   :root {
+    /* Marca por workspace (RGB triplets p/ alpha do Tailwind). Default = Trips. */
+    --brand-primary: 15 76 129;        /* #0f4c81 azul */
+    --brand-primary-dark: 10 58 95;    /* #0a3a5f */
+    --brand-primary-light: 224 231 255;/* #e0e7ff */
+    --brand-secondary: 0 196 204;      /* #00c4cc teal */
+
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
@@ -66,6 +72,26 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
+  }
+
+  /* Tema Welcome Weddings — aplicado em <html> pelo useOrgBranding quando a org
+     ativa é welcome-weddings. Remapeia a marca p/ champagne/dourado (tokens ww-*). */
+  .theme-ww {
+    --brand-primary: 189 150 92;        /* ww-gold #BD965C */
+    --brand-primary-dark: 163 127 71;   /* ww-gold-ink #a37f47 */
+    --brand-primary-light: 234 225 211; /* ww-sand #EAE1D3 */
+    --brand-secondary: 135 75 82;       /* ww-rosewood #874B52 */
+
+    --background: 34 47% 97%;           /* ww-paper champagne #FBF8F4 */
+    --ring: 36 42% 55%;                 /* dourado */
+    --border: 36 33% 87%;               /* ww-sand */
+    --input: 36 33% 87%;
+    --accent: 36 42% 95%;               /* gold-soft aproximado */
+    --accent-foreground: 30 6% 21%;     /* ww-n700 */
+    --surface-secondary: 34 47% 97%;    /* champagne */
+    --surface-tertiary: 36 33% 91%;     /* ww-cream */
+    --border-subtle: 36 33% 87%;
+    --border-strong: 35 24% 80%;        /* ww-sand-dk */
   }
 
   .dark {

@@ -27,6 +27,11 @@ export function useOrgBranding() {
         const accent = org.branding?.accent_color
         const root = document.documentElement
 
+        // Tema de marca por workspace: Weddings veste a paleta champagne/dourada
+        // (.theme-ww remapeia --brand-* e tokens shadcn no index.css). Aplicado em
+        // <html> para alcançar modais/popovers renderizados em portal.
+        root.classList.toggle('theme-ww', org.slug === 'welcome-weddings')
+
         if (primary) {
             root.style.setProperty('--org-primary', primary)
         }

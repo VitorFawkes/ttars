@@ -102,6 +102,8 @@ export default function Sidebar() {
   const [failedLogoUrls, setFailedLogoUrls] = useState<Set<string>>(new Set());
   const logoFailed = org?.logo_url ? failedLogoUrls.has(org.logo_url) : false;
   const { data: todayCount } = useTodayMeetingCount();
+  // Marca por workspace: Weddings usa a paleta dourada ww-* (champagne/dourado)
+  const isWeddings = org?.slug === "welcome-weddings";
 
   // Persist last visited route for restoring on return
   useEffect(() => {
@@ -177,7 +179,10 @@ export default function Sidebar() {
   return (
     <aside
       className={cn(
-        "group flex h-screen flex-col bg-primary-dark text-white shadow-lg transition-[width] duration-200 ease-out will-change-[width]",
+        "group flex h-screen flex-col shadow-lg transition-[width] duration-200 ease-out will-change-[width]",
+        isWeddings
+          ? "bg-ww-cream text-ww-n700 border-r border-ww-sand"
+          : "bg-primary-dark text-white",
         isExpanded ? "w-64" : "w-16",
       )}
       onMouseEnter={handleMouseEnter}
@@ -214,7 +219,8 @@ export default function Sidebar() {
               src="/icon-light.png"
               alt={org?.name ?? "WelcomeCRM"}
               className={cn(
-                "absolute h-10 w-10 object-contain brightness-0 invert transition-opacity duration-200",
+                "absolute h-10 w-10 object-contain transition-opacity duration-200",
+                isWeddings ? "brightness-0" : "brightness-0 invert",
                 isExpanded ? "opacity-0" : "opacity-100",
               )}
             />
@@ -223,6 +229,7 @@ export default function Sidebar() {
               alt={org?.name ?? "WelcomeCRM"}
               className={cn(
                 "absolute h-25 max-w-[224px] object-contain transition-opacity duration-200",
+                isWeddings && "brightness-0",
                 isExpanded ? "opacity-100" : "opacity-0",
               )}
             />
@@ -240,6 +247,7 @@ export default function Sidebar() {
         <OrgSwitcher
           isCollapsed={!isExpanded}
           onOpenChange={setIsPopoverOpen}
+          tone={isWeddings ? "light" : "dark"}
         />
       </div>
 
@@ -258,8 +266,12 @@ export default function Sidebar() {
               className={cn(
                 "group flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150",
                 isActive
-                  ? "bg-primary text-white shadow-sm"
-                  : "text-primary-light hover:bg-primary hover:text-white",
+                  ? isWeddings
+                    ? "bg-ww-gold text-white shadow-sm"
+                    : "bg-primary text-white shadow-sm"
+                  : isWeddings
+                    ? "text-ww-n600 hover:bg-ww-gold-soft hover:text-ww-n700"
+                    : "text-primary-light hover:bg-primary hover:text-white",
               )}
             >
               <Icon
@@ -267,7 +279,9 @@ export default function Sidebar() {
                   "h-5 w-5 flex-shrink-0 transition-colors",
                   isActive
                     ? "text-white"
-                    : "text-primary-light group-hover:text-white",
+                    : isWeddings
+                      ? "text-ww-gold group-hover:text-ww-gold-ink"
+                      : "text-primary-light group-hover:text-white",
                 )}
               />
               <span
@@ -281,7 +295,8 @@ export default function Sidebar() {
               {item.name === "Agenda" && !!todayCount && todayCount > 0 && (
                 <span
                   className={cn(
-                    "ml-auto flex-shrink-0 bg-purple-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center transition-opacity duration-200",
+                    "ml-auto flex-shrink-0 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center transition-opacity duration-200",
+                    isWeddings ? "bg-ww-rosewood" : "bg-purple-500",
                     isExpanded ? "opacity-100" : "opacity-0",
                   )}
                 >
@@ -295,12 +310,19 @@ export default function Sidebar() {
 
       {/* Platform Admin — só aparece para donos do SaaS */}
       {isPlatformAdmin && (
-        <div className="border-t border-primary/20 p-2">
+        <div
+          className={cn(
+            "border-t p-2",
+            isWeddings ? "border-ww-sand" : "border-primary/20",
+          )}
+        >
           <Link
             to="/platform"
             className={cn(
               "flex items-center gap-3 rounded-lg px-2 py-2 text-sm font-medium transition-colors",
-              "text-indigo-300 hover:bg-indigo-500/10 hover:text-indigo-200",
+              isWeddings
+                ? "text-ww-n500 hover:bg-ww-gold-soft hover:text-ww-gold-ink"
+                : "text-indigo-300 hover:bg-indigo-500/10 hover:text-indigo-200",
               isExpanded ? "" : "justify-center",
             )}
             title={isExpanded ? undefined : "Platform Admin"}
@@ -312,29 +334,53 @@ export default function Sidebar() {
       )}
 
       {/* User section */}
-      <div className="border-t border-primary/20 p-2">
+      <div
+        className={cn(
+          "border-t p-2",
+          isWeddings ? "border-ww-sand" : "border-primary/20",
+        )}
+      >
         <div
           className={cn(
-            "flex items-center gap-3 rounded-lg bg-primary/10 px-2 py-2",
+            "flex items-center gap-3 rounded-lg px-2 py-2",
+            isWeddings ? "bg-ww-gold-soft" : "bg-primary/10",
             isExpanded ? "" : "justify-center",
           )}
         >
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-medium text-white flex-shrink-0">
+          <div
+            className={cn(
+              "flex h-9 w-9 items-center justify-center rounded-full text-sm font-medium text-white flex-shrink-0",
+              isWeddings ? "bg-ww-gold" : "bg-primary",
+            )}
+          >
             {userInitials}
           </div>
           {isExpanded && (
             <>
               <div className="flex flex-1 flex-col overflow-hidden">
-                <span className="text-sm font-medium text-white truncate capitalize">
+                <span
+                  className={cn(
+                    "text-sm font-medium truncate capitalize",
+                    isWeddings ? "text-ww-n700" : "text-white",
+                  )}
+                >
                   {userName}
                 </span>
-                <span className="text-xs text-primary-light truncate">
+                <span
+                  className={cn(
+                    "text-xs truncate",
+                    isWeddings ? "text-ww-n500" : "text-primary-light",
+                  )}
+                >
                   {session?.user?.email}
                 </span>
               </div>
               <button
                 onClick={() => signOut()}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-primary-light hover:bg-red-500/10 hover:text-red-500 transition-colors"
+                className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-lg hover:bg-red-500/10 hover:text-red-500 transition-colors",
+                  isWeddings ? "text-ww-n500" : "text-primary-light",
+                )}
                 title="Sair"
               >
                 <LogOut className="h-4 w-4" />
@@ -346,7 +392,12 @@ export default function Sidebar() {
 
       {/* Expand indicator when collapsed */}
       {!isExpanded && (
-        <div className="absolute top-1/2 right-0 transform -translate-y-1/2 translate-x-1/2 bg-primary rounded-full p-1 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+        <div
+          className={cn(
+            "absolute top-1/2 right-0 transform -translate-y-1/2 translate-x-1/2 rounded-full p-1 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity",
+            isWeddings ? "bg-ww-gold" : "bg-primary",
+          )}
+        >
           <ChevronRight className="h-3 w-3 text-white" />
         </div>
       )}
