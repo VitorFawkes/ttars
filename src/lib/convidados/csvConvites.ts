@@ -1,5 +1,5 @@
-import type { Convite, FaixaKey, LadoKey, TipoKey } from './types'
-import { FAIXAS, LADOS, TIPOS } from './types'
+import type { Convite, FaixaKey, LadoKey, LadoLabels, TipoKey } from './types'
+import { FAIXAS, LADOS, TIPOS, normalizeFaixa } from './types'
 
 function cellEscape(v: unknown): string {
   const s = String(v ?? '')
@@ -7,7 +7,12 @@ function cellEscape(v: unknown): string {
   return s
 }
 
-export function exportConvitesCSV(convites: Convite[]): string {
+export function exportConvitesCSV(convites: Convite[], ladoLabels?: LadoLabels): string {
+  const ladoLabel = (lado: LadoKey | '') => {
+    if (lado === 'noiva' && ladoLabels) return ladoLabels.noiva
+    if (lado === 'noivo' && ladoLabels) return ladoLabels.noivo
+    return LADOS.find((l) => l.key === lado)?.label || ''
+  }
   const header = ['Nome do convite', 'Pessoa', 'Idade', 'Telefone', 'Lado', 'Tipo de relação', 'Observação']
   const rows: string[][] = [header]
   for (const c of convites) {
@@ -18,9 +23,9 @@ export function exportConvitesCSV(convites: Convite[]): string {
         rows.push([
           c.nome,
           p.nome_raw,
-          FAIXAS.find((f) => f.key === p.faixa)?.label || '',
+          FAIXAS.find((f) => f.key === normalizeFaixa(p.faixa))?.label || '',
           p.telefone_raw,
-          LADOS.find((l) => l.key === p.lado)?.label || '',
+          ladoLabel(p.lado),
           TIPOS.find((t) => t.key === p.tipo)?.label || '',
           p.observacoes,
         ])
@@ -143,10 +148,14 @@ export function importConvitesCSV(text: string): ImportedConvite[] {
     if (!nomePessoa) continue
 
     const faixaRaw = (idx.faixa >= 0 ? row[idx.faixa] : 'Adulto')?.trim() || 'Adulto'
+    const faixaLower = faixaRaw.toLowerCase()
     const faixa: FaixaKey =
-      FAIXAS.find((f) => f.label.toLowerCase() === faixaRaw.toLowerCase())?.key ||
-      FAIXAS.find((f) => f.key === faixaRaw.toLowerCase())?.key ||
-      'adulto'
+      FAIXAS.find((f) => f.label.toLowerCase() === faixaLower)?.key ||
+      FAIXAS.find((f) => f.key === faixaLower)?.key ||
+      // Rótulos legados de planilhas antigas
+      (['criança', 'crianca', 'bebê', 'bebe', 'menor', 'menor de idade', 'menor de 18 anos'].includes(faixaLower)
+        ? 'menor'
+        : 'adulto')
 
     let lado: LadoKey | '' = ''
     let tipo: TipoKey | '' = ''

@@ -187,6 +187,41 @@ export function useReorderConvitesPublic(codigo: string | undefined) {
   })
 }
 
+// ── Nomes do casal no campo Lado ────────────────────────────────────────
+
+export function useUpdateLadoNomes(codigo: string | undefined) {
+  const qc = useQueryClient()
+  const queryKey = ['lista-publica', codigo] as const
+  return useMutation<boolean, Error, { label_a: string; label_b: string }, { previous?: ListaCasalResponse }>({
+    mutationFn: async ({ label_a, label_b }) => {
+      const data = await callEdge<{ ok: boolean }>({
+        action: 'update_lado_nomes',
+        codigo,
+        label_a,
+        label_b,
+      })
+      return data.ok
+    },
+    onMutate: async ({ label_a, label_b }) => {
+      await qc.cancelQueries({ queryKey })
+      const previous = qc.getQueryData<ListaCasalResponse>(queryKey)
+      if (previous) {
+        qc.setQueryData<ListaCasalResponse>(queryKey, {
+          ...previous,
+          casal: { ...previous.casal, lado_label_a: label_a || null, lado_label_b: label_b || null },
+        })
+      }
+      return { previous }
+    },
+    onError: (_err, _input, ctx) => {
+      if (ctx?.previous) qc.setQueryData(queryKey, ctx.previous)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey, refetchType: 'none' })
+    },
+  })
+}
+
 // ── Pessoa ──────────────────────────────────────────────────────────────
 
 export interface UpsertPessoaInput {

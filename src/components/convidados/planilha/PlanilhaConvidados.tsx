@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, Plus, Check, X, HelpCircle } from 'lucide-react'
+import { Loader2, Plus, Check, X, HelpCircle, Pencil } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import {
   useUpsertConvitePublic,
   useDeleteConvitePublic,
   useUpsertPessoaPublic,
   useDeletePessoaPublic,
+  useUpdateLadoNomes,
   type UpsertPessoaInput,
 } from '../../../hooks/convidados/casais/useListaCasalPublica'
 import { calcStatsConvites } from '../../../lib/convidados/calcStatsConvites'
@@ -14,6 +15,8 @@ import { StatsStrip } from './StatsStrip'
 import { PlanilhaToolbar } from './PlanilhaToolbar'
 import { ConviteGroup } from './ConviteGroup'
 import { BotaoFinalizarLista } from './BotaoFinalizarLista'
+import { LadoNomesModal } from './LadoNomesModal'
+import { getLadoLabels } from '../../../lib/convidados/types'
 import type { Pessoa, Convite, LadoKey, TipoKey, CasalPublic } from '../../../lib/convidados/types'
 
 interface Props {
@@ -22,7 +25,7 @@ interface Props {
 }
 
 // Grid template compartilhado entre header e linhas
-export const PLANILHA_GRID = '40px minmax(180px, 1.6fr) 110px minmax(160px, 1.1fr) 200px 150px minmax(160px, 1.3fr) 40px'
+export const PLANILHA_GRID = '40px minmax(180px, 1.6fr) 148px minmax(160px, 1.1fr) 200px 150px minmax(160px, 1.3fr) 40px'
 
 export function PlanilhaConvidados({ casal, convites }: Props) {
   const [search, setSearch] = useState('')
@@ -31,11 +34,15 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [savedAt, setSavedAt] = useState<Date | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [ladoNomesOpen, setLadoNomesOpen] = useState(false)
 
   const upsertConvite = useUpsertConvitePublic(casal.codigo)
   const deleteConvite = useDeleteConvitePublic(casal.codigo)
   const upsertPessoa = useUpsertPessoaPublic(casal.codigo)
   const deletePessoa = useDeletePessoaPublic(casal.codigo)
+  const updateLadoNomes = useUpdateLadoNomes(casal.codigo)
+
+  const ladoLabels = useMemo(() => getLadoLabels(casal), [casal])
 
   useEffect(() => {
     if (upsertConvite.isSuccess || deleteConvite.isSuccess || upsertPessoa.isSuccess || deletePessoa.isSuccess) {
@@ -165,9 +172,9 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
   }, [upsertConvite, upsertPessoa, convites.length])
 
   const handleExport = useCallback(() => {
-    const csv = exportConvitesCSV(convites)
+    const csv = exportConvitesCSV(convites, ladoLabels)
     downloadCSV(`lista-${casal.codigo}-${new Date().toISOString().slice(0, 10)}.csv`, csv)
-  }, [convites, casal.codigo])
+  }, [convites, casal.codigo, ladoLabels])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -214,6 +221,7 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
             search={search} setSearch={setSearch}
             filterLado={filterLado} setFilterLado={setFilterLado}
             filterTipo={filterTipo} setFilterTipo={setFilterTipo}
+            ladoLabels={ladoLabels}
             onAddConvite={handleAddConvite} onImport={handleImport} onExport={handleExport}
           />
         </div>
@@ -227,7 +235,18 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
           <span className="py-2.5 px-2 text-center border-l border-ww-sand-dk/60">Pessoa</span>
           <span className="py-2.5 px-2 text-center border-l border-ww-sand-dk/60">Idade</span>
           <span className="py-2.5 px-2 text-center border-l border-ww-sand-dk/60">Telefone</span>
-          <span className="py-2.5 px-2 text-center border-l border-ww-sand-dk/60">Lado</span>
+          <span className="py-2.5 px-2 border-l border-ww-sand-dk/60 inline-flex items-center justify-center gap-1">
+            Lado
+            <button
+              type="button"
+              onClick={() => setLadoNomesOpen(true)}
+              className="p-0.5 rounded text-ww-n400 hover:text-ww-gold-ink hover:bg-ww-gold-soft/60 transition-colors"
+              aria-label="Ajustar os nomes do casal"
+              title={`Ajustar como vocês aparecem (${ladoLabels.noiva} / ${ladoLabels.noivo})`}
+            >
+              <Pencil className="w-3 h-3" />
+            </button>
+          </span>
           <span className="py-2.5 px-2 text-center border-l border-ww-sand-dk/60">Tipo</span>
           <span className="py-2.5 px-2 text-center border-l border-ww-sand-dk/60">Observação</span>
           <span className="py-2.5 px-2 border-l border-ww-sand-dk/60"></span>
@@ -253,6 +272,8 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
               <ConviteGroup
                 key={c.id}
                 convite={c}
+                ladoLabels={ladoLabels}
+                onEditLadoNomes={() => setLadoNomesOpen(true)}
                 isLast={idx === visibleConvites.length - 1}
                 collapsed={!!collapsed[c.id]}
                 onToggleCollapse={() => setCollapsed((s) => ({ ...s, [c.id]: !s[c.id] }))}
@@ -284,6 +305,14 @@ export function PlanilhaConvidados({ casal, convites }: Props) {
         </div>
         <BotaoFinalizarLista codigo={casal.codigo} totalPessoas={stats.totalPessoas} />
       </footer>
+
+      <LadoNomesModal
+        open={ladoNomesOpen}
+        labels={ladoLabels}
+        saving={updateLadoNomes.isPending}
+        onSave={(a, b) => { updateLadoNomes.mutate({ label_a: a, label_b: b }); setLadoNomesOpen(false) }}
+        onClose={() => setLadoNomesOpen(false)}
+      />
 
       {toast && (
         <div className="fixed bottom-16 left-1/2 -translate-x-1/2 z-40 bg-ww-n700 text-white px-4 py-2 rounded-full text-xs shadow-ww-toast">
@@ -393,7 +422,7 @@ function PrimeiraVezBanner({ codigo, listaVazia }: { codigo: string; listaVazia:
         <div>
           <p className="font-semibold text-ww-n700 mb-1">2. Coloque as pessoas dentro</p>
           <p className="text-[13px]">
-            Cada pessoa do grupo vira uma linha, com nome, idade e telefone (se for adulto).
+            Cada pessoa do grupo vira uma linha, com nome, idade e telefone (se for maior de 18).
           </p>
         </div>
         <div>

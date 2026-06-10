@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react'
 import { ChevronDown, ChevronRight, GripVertical, Plus, Trash2, Users } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { PessoaRow } from './PessoaRow'
-import type { Convite, Pessoa } from '../../../lib/convidados/types'
+import type { Convite, Pessoa, LadoLabels } from '../../../lib/convidados/types'
 
 interface Props {
   convite: Convite
+  ladoLabels: LadoLabels
+  onEditLadoNomes: () => void
   isLast: boolean
   collapsed: boolean
   onToggleCollapse: () => void
@@ -20,7 +22,7 @@ interface Props {
 const NOME_GENERICOS = new Set(['', 'Novo convite', 'Convite sem nome'])
 
 export function ConviteGroup({
-  convite, isLast, collapsed,
+  convite, ladoLabels, onEditLadoNomes, isLast, collapsed,
   onToggleCollapse, onRenameConvite, onDeleteConvite,
   onAddPessoa, onDeletePessoa, onChangePessoa, onEnterCreate,
 }: Props) {
@@ -91,6 +93,8 @@ export function ConviteGroup({
                 key={p.id}
                 index={idx + 1}
                 pessoa={p}
+                ladoLabels={ladoLabels}
+                onEditLadoNomes={onEditLadoNomes}
                 isLastOfLastGroup={isLast && idx === convite.pessoas.length - 1}
                 canDelete={convite.pessoas.length > 1}
                 onChange={(patch) => onChangePessoa(p, patch)}

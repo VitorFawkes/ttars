@@ -1,15 +1,20 @@
 // Tipos compartilhados pela feature "Lista de Convidados" (Casais + Planilha)
 
-export type FaixaKey = 'adulto' | 'idoso' | 'crianca' | 'bebe'
+export type FaixaKey = 'adulto' | 'menor'
 export type LadoKey = 'ambos' | 'noiva' | 'noivo'
 export type TipoKey = 'amigo' | 'familia' | 'padrinho'
 
 export const FAIXAS: Array<{ key: FaixaKey; label: string; needsPhone: boolean }> = [
-  { key: 'adulto', label: 'Adulto', needsPhone: true },
-  { key: 'idoso', label: 'Idoso', needsPhone: true },
-  { key: 'crianca', label: 'Criança', needsPhone: false },
-  { key: 'bebe', label: 'Bebê', needsPhone: false },
+  { key: 'adulto', label: 'Maior de 18', needsPhone: true },
+  { key: 'menor', label: 'Menor de 18', needsPhone: false },
 ]
+
+// Dados legados podem chegar com faixas antigas (idoso/crianca/bebe) enquanto
+// houver cache ou snapshot antigo — normaliza pro modelo atual.
+export function normalizeFaixa(raw: string | null | undefined): FaixaKey {
+  if (raw === 'crianca' || raw === 'bebe' || raw === 'menor') return 'menor'
+  return 'adulto'
+}
 
 export const LADOS: Array<{ key: LadoKey; label: string }> = [
   { key: 'ambos', label: 'Ambos' },
@@ -65,6 +70,31 @@ export interface CasalPublic {
   ultima_edicao_casal_em: string | null
   enviado_em?: string | null
   tem_alteracoes_pendentes?: boolean
+  lado_label_a?: string | null
+  lado_label_b?: string | null
+}
+
+// Labels exibidos nos botões de Lado — chaves internas continuam noiva/noivo.
+export interface LadoLabels {
+  noiva: string
+  noivo: string
+}
+
+// Deriva os labels do Lado: customizados pelo casal > primeiros nomes do
+// nome_casal ("Ana & Júlia", "Pedro e João") > fallback Noiva/Noivo.
+export function getLadoLabels(casal: Pick<CasalPublic, 'nome_casal' | 'lado_label_a' | 'lado_label_b'>): LadoLabels {
+  const firstName = (s: string) => s.trim().split(/\s+/)[0] || ''
+  let derivedA = ''
+  let derivedB = ''
+  const parts = (casal.nome_casal || '').split(/\s*&\s*|\s*\+\s*|\s+e\s+/i).map(firstName).filter(Boolean)
+  if (parts.length === 2) {
+    derivedA = parts[0]
+    derivedB = parts[1]
+  }
+  return {
+    noiva: casal.lado_label_a?.trim() || derivedA || 'Noiva',
+    noivo: casal.lado_label_b?.trim() || derivedB || 'Noivo',
+  }
 }
 
 export interface ListaCasalResponse {

@@ -1,17 +1,20 @@
 import { useEffect, useState } from 'react'
-import { AlertCircle, X } from 'lucide-react'
+import { AlertCircle, Pencil, X } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { formatPhoneBR } from '../../../lib/convidados/formatPhoneBR'
-import { isAdultoOuIdoso } from '../../../lib/convidados/calcStatsConvites'
+import { precisaTelefone } from '../../../lib/convidados/calcStatsConvites'
 import { LadoSegmented } from './LadoSegmented'
 import { TipoSelect } from './TipoSelect'
 import { FaixaSelect } from './FaixaSelect'
 import { PLANILHA_GRID } from './PlanilhaConvidados'
-import type { Pessoa, FaixaKey, LadoKey, TipoKey } from '../../../lib/convidados/types'
+import { normalizeFaixa } from '../../../lib/convidados/types'
+import type { Pessoa, FaixaKey, LadoKey, LadoLabels, TipoKey } from '../../../lib/convidados/types'
 
 interface Props {
   index: number
   pessoa: Pessoa
+  ladoLabels: LadoLabels
+  onEditLadoNomes: () => void
   isLastOfLastGroup: boolean
   canDelete: boolean
   onChange: (patch: Partial<Pessoa>) => void
@@ -21,7 +24,7 @@ interface Props {
 
 const cellBaseCls = 'h-9 px-2 flex items-center border-l border-ww-cream'
 
-export function PessoaRow({ index, pessoa, isLastOfLastGroup, canDelete, onChange, onDelete, onEnterCreate }: Props) {
+export function PessoaRow({ index, pessoa, ladoLabels, onEditLadoNomes, isLastOfLastGroup, canDelete, onChange, onDelete, onEnterCreate }: Props) {
   const [nome, setNome] = useState(pessoa.nome_raw || '')
   const [telefone, setTelefone] = useState(formatPhoneBR(pessoa.telefone_raw))
   const [obs, setObs] = useState(pessoa.observacoes || '')
@@ -36,7 +39,7 @@ export function PessoaRow({ index, pessoa, isLastOfLastGroup, canDelete, onChang
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setObs(pessoa.observacoes || '') }, [pessoa.observacoes])
 
-  const needsPhone = isAdultoOuIdoso(pessoa.faixa)
+  const needsPhone = precisaTelefone(pessoa.faixa)
   const missingPhone = needsPhone && !(telefone.trim().length > 0)
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -70,7 +73,7 @@ export function PessoaRow({ index, pessoa, isLastOfLastGroup, canDelete, onChang
         </div>
 
         <div className={cellBaseCls}>
-          <FaixaSelect value={pessoa.faixa} onChange={(faixa: FaixaKey) => onChange({ faixa })} />
+          <FaixaSelect value={normalizeFaixa(pessoa.faixa)} onChange={(faixa: FaixaKey) => onChange({ faixa })} />
         </div>
 
         <div className={cellBaseCls}>
@@ -83,7 +86,7 @@ export function PessoaRow({ index, pessoa, isLastOfLastGroup, canDelete, onChang
         </div>
 
         <div className={cn(cellBaseCls, 'justify-center')}>
-          <LadoSegmented value={pessoa.lado} onChange={(lado: LadoKey | '') => onChange({ lado })} />
+          <LadoSegmented value={pessoa.lado} labels={ladoLabels} onChange={(lado: LadoKey | '') => onChange({ lado })} />
         </div>
 
         <div className={cellBaseCls}>
@@ -145,7 +148,7 @@ export function PessoaRow({ index, pessoa, isLastOfLastGroup, canDelete, onChang
 
         <div className="grid grid-cols-2 gap-2">
           <MobileField label="Idade">
-            <FaixaSelect value={pessoa.faixa} onChange={(faixa: FaixaKey) => onChange({ faixa })} />
+            <FaixaSelect value={normalizeFaixa(pessoa.faixa)} onChange={(faixa: FaixaKey) => onChange({ faixa })} />
           </MobileField>
           <MobileField label="Tipo">
             <TipoSelect value={pessoa.tipo} onChange={(tipo: TipoKey | '') => onChange({ tipo })} />
@@ -161,9 +164,20 @@ export function PessoaRow({ index, pessoa, isLastOfLastGroup, canDelete, onChang
           />
         </MobileField>
 
-        <MobileField label="Lado">
-          <LadoSegmented value={pessoa.lado} onChange={(lado: LadoKey | '') => onChange({ lado })} />
-        </MobileField>
+        <div>
+          <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-ww-n500 mb-1">
+            Lado
+            <button
+              type="button"
+              onClick={onEditLadoNomes}
+              className="p-0.5 rounded text-ww-n400 hover:text-ww-gold-ink transition-colors"
+              aria-label="Ajustar os nomes do casal"
+            >
+              <Pencil className="w-3 h-3" />
+            </button>
+          </span>
+          <LadoSegmented value={pessoa.lado} labels={ladoLabels} onChange={(lado: LadoKey | '') => onChange({ lado })} />
+        </div>
 
         <MobileField label="Observação">
           <input

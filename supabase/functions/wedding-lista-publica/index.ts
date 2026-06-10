@@ -203,6 +203,23 @@ async function handle(req: Request): Promise<Response> {
         return jsonResponse({ ok: data === true });
       }
 
+      case "update_lado_nomes": {
+        const { label_a, label_b } = payload as {
+          label_a?: string;
+          label_b?: string;
+        };
+        const { data, error } = await admin.rpc(
+          "wedding_casal_update_lado_nomes",
+          {
+            p_codigo: codigo,
+            p_label_a: (label_a ?? "").slice(0, 40),
+            p_label_b: (label_b ?? "").slice(0, 40),
+          },
+        );
+        if (error) throw error;
+        return jsonResponse({ ok: data === true });
+      }
+
       case "marcar_pronto": {
         const { data, error } = await admin.rpc(
           "wedding_casal_marcar_pronto",

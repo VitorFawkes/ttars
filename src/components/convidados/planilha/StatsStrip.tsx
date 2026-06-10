@@ -7,10 +7,8 @@ export function StatsStrip({ stats }: Props) {
     <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2 text-xs">
       <Stat label="Convites" value={stats.totalConvites} />
       <Stat label="Convidados" value={stats.totalPessoas} accent />
-      <Stat label="Adultos" value={stats.adultos} />
-      <Stat label="Crianças" value={stats.criancas} />
-      <Stat label="Idosos" value={stats.idosos} />
-      <Stat label="Bebês" value={stats.bebes} />
+      <Stat label="Maiores de 18" value={stats.adultos} />
+      <Stat label="Menores de 18" value={stats.menores} />
       {stats.semTelefone > 0 && <Stat label="Sem telefone" value={stats.semTelefone} warn />}
     </div>
   )

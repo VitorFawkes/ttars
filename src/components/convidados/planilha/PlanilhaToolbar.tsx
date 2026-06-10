@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Search, Tag, Upload, Download, Plus, X } from 'lucide-react'
 import { cn } from '../../../lib/utils'
-import { LADOS, TIPOS, type LadoKey, type TipoKey } from '../../../lib/convidados/types'
+import { TIPOS, type LadoKey, type LadoLabels, type TipoKey } from '../../../lib/convidados/types'
 import { ImportarModal } from './ImportarModal'
 
 interface Props {
@@ -11,13 +11,14 @@ interface Props {
   setFilterLado: (l: LadoKey | '') => void
   filterTipo: TipoKey | ''
   setFilterTipo: (t: TipoKey | '') => void
+  ladoLabels: LadoLabels
   onAddConvite: () => void
   onImport: (csvText: string) => void
   onExport: () => void
 }
 
 export function PlanilhaToolbar({
-  search, setSearch, filterLado, setFilterLado, filterTipo, setFilterTipo,
+  search, setSearch, filterLado, setFilterLado, filterTipo, setFilterTipo, ladoLabels,
   onAddConvite, onImport, onExport,
 }: Props) {
   const [importOpen, setImportOpen] = useState(false)
@@ -42,7 +43,9 @@ export function PlanilhaToolbar({
           <select value={filterLado} onChange={(e) => setFilterLado(e.target.value as LadoKey | '')}
             className="text-[12px] bg-transparent focus:outline-none cursor-pointer text-ww-n600">
             <option value="">Qualquer lado</option>
-            {LADOS.map((l) => <option key={l.key} value={l.key}>{l.label}</option>)}
+            <option value="ambos">Ambos</option>
+            <option value="noiva">{ladoLabels.noiva}</option>
+            <option value="noivo">{ladoLabels.noivo}</option>
           </select>
         </div>
         <div className="inline-flex items-center gap-1 px-2 h-8 border border-ww-sand-dk bg-white rounded-md">
