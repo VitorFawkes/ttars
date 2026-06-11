@@ -10,12 +10,13 @@ export default function LeadsterSettingsPage() {
   const { profile } = useAuth()
   const isAdmin = profile?.is_admin === true
   const { currentProduct } = useProductContext()
-  const isTrips = currentProduct === 'TRIPS'
+  const isSupported = currentProduct === 'TRIPS' || currentProduct === 'WEDDING'
+  const productLabel = currentProduct === 'WEDDING' ? 'Casamentos' : 'Viagens'
 
   const { data: enabled = false, isLoading } = useLeadsterCreateCards()
   const setMutation = useSetLeadsterCreateCards()
 
-  const canToggle = isAdmin && isTrips && !setMutation.isPending
+  const canToggle = isAdmin && isSupported && !setMutation.isPending
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-6">
@@ -25,14 +26,14 @@ export default function LeadsterSettingsPage() {
           Leadster
         </h1>
         <p className="text-sm text-slate-500">
-          Criação automática de leads de Viagens a partir do chatbot do Leadster.
+          Criação automática de leads de {productLabel} a partir do chatbot do Leadster.
         </p>
       </div>
 
-      {!isTrips && (
+      {!isSupported && (
         <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
           <Info className="w-5 h-5 shrink-0 mt-0.5" />
-          <p>Esta configuração existe apenas no workspace <strong>Welcome Trips</strong>. Troque de workspace para ajustá-la.</p>
+          <p>Esta configuração existe apenas nos workspaces <strong>Welcome Trips</strong> e <strong>Welcome Weddings</strong>. Troque de workspace para ajustá-la.</p>
         </div>
       )}
 
@@ -51,7 +52,7 @@ export default function LeadsterSettingsPage() {
                 )}
               </CardTitle>
               <CardDescription className="text-slate-500">
-                Quando ligado, cada lead que chega do Leadster vira um card de Viagens automaticamente
+                Quando ligado, cada lead que chega do Leadster vira um card de {productLabel} automaticamente
                 (sem duplicar quem já tem card aberto). Desligado, o sistema apenas registra o que chega
                 para conferência, sem criar nada.
               </CardDescription>
