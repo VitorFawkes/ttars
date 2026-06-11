@@ -78,7 +78,8 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
     cruzX, cruzY,
   })
 
-  const baseCtx = { dateStart: atualStart, dateEnd: atualEnd }
+  // Auditoria 2026-06-11: drill respeita os filtros ativos da aba (origem/tipo)
+  const baseCtx = { dateStart: atualStart, dateEnd: atualEnd, origins: filters.origins, tipos: filters.tipos }
 
   if (isLoading) return <LoadingSkeleton rows={10} />
   if (error) return <ErrorBanner error={error as Error} />

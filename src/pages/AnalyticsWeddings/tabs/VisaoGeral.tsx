@@ -40,7 +40,13 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
   const resolutionLeads = phasesData.find(p => /resolu/i.test(p.phase))?.leads ?? 0
 
   const openDrill = (ctx: DrillContext) => setDrill(ctx)
-  const baseCtx = { dateStart: filters.dateStart, dateEnd: filters.dateEnd }
+  // Auditoria 2026-06-11: o drill respeita o MESMO recorte dos números clicados (todos os chips)
+  const baseCtx = {
+    dateStart: filters.dateStart, dateEnd: filters.dateEnd, dateMode: filters.dateMode,
+    origins: filters.origins, faixas: filters.faixas, destinos: filters.destinos,
+    convidadosList: filters.convidados, tipos: filters.tipos, consultorIds: filters.consultorIds,
+    canalSdr: filters.canalSdr, canalCloser: filters.canalCloser,
+  }
   // Tendência: janela de 12 meses terminando no fim do período do filtro (trend precisa de range longo)
   const trend12Start = new Date(new Date(filters.dateEnd).getTime() - 365 * 24 * 60 * 60 * 1000).toISOString()
 

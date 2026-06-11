@@ -129,8 +129,6 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
   const [esconderNI, setEsconderNI] = useState(true)
   const isNI = (b: string) => /n[ãa]o\s*informad/i.test(b)
   const canalDim = dim === 'canal_sdr' || dim === 'canal_closer'
-  // Drill por canal não existe no banco — clicar abriria uma lista que MENTE. Desliga o pick.
-  const pick = canalDim ? () => {} : onPick
   // Banco antigo ignora dimensões de canal e devolve faixa no lugar — detecta e avisa em vez de mentir.
   const dimIndisponivel = canalDim && !!rankingB && !(rankingB.dimensoes ?? []).includes(dim)
 
@@ -282,9 +280,9 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
         <EmptyState message="Sem perfis com dados nesses períodos. Amplie a janela ou tire filtros." />
       ) : (
         <>
-          {vista === 'tabela' && <TabelaView linhas={ordenadas} dim={dim} metrica={metrica} selecionado={selecionado} onPick={pick} pequena={pequena} />}
-          {vista === 'lado' && <LadoView linhas={ordenadas} dim={dim} labelA={labelA} labelB={labelB} selecionado={selecionado} onPick={pick} pequena={pequena} />}
-          {vista === 'funis' && <FunisView linhas={ordenadas} dim={dim} selecionado={selecionado} onPick={pick} pequena={pequena} />}
+          {vista === 'tabela' && <TabelaView linhas={ordenadas} dim={dim} metrica={metrica} selecionado={selecionado} onPick={onPick} pequena={pequena} />}
+          {vista === 'lado' && <LadoView linhas={ordenadas} dim={dim} labelA={labelA} labelB={labelB} selecionado={selecionado} onPick={onPick} pequena={pequena} />}
+          {vista === 'funis' && <FunisView linhas={ordenadas} dim={dim} selecionado={selecionado} onPick={onPick} pequena={pequena} />}
 
           {/* Rodapé: contador + legenda */}
           <div className="flex items-start justify-between gap-3 flex-wrap pt-3">

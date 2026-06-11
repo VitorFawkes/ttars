@@ -320,6 +320,16 @@ export type DrillFilters = {
   origem?: string
   consultorId?: string
   motivoPerda?: string
+  // Filtros ATIVOS da barra da aba (arrays) — auditoria 2026-06-11: o drill tem que
+  // respeitar o mesmo recorte que gerou o número clicado (20260611b no banco).
+  origins?: string[]
+  faixas?: string[]
+  destinos?: string[]
+  convidadosList?: string[]
+  tipos?: string[]
+  consultorIds?: string[]
+  canalSdr?: string[]
+  canalCloser?: string[]
   // Filtrados client-side após o fetch (a RPC ww2_drill_down não conhece estes):
   tipo?: string
   campaign?: string
@@ -349,6 +359,15 @@ export function useWw2DrillDown(filters: DrillFilters | null) {
           p_motivo_perda: filters.motivoPerda ?? null,
           p_limit: filters.limit ?? 50,
           p_offset: filters.offset ?? 0,
+          // arrays só quando ativos — compat e payload enxuto
+          ...(filters.origins?.length ? { p_origins: filters.origins } : {}),
+          ...(filters.faixas?.length ? { p_faixas: filters.faixas } : {}),
+          ...(filters.destinos?.length ? { p_destinos: filters.destinos } : {}),
+          ...(filters.convidadosList?.length ? { p_convidados_list: filters.convidadosList } : {}),
+          ...(filters.tipos?.length ? { p_tipos: filters.tipos } : {}),
+          ...(filters.consultorIds?.length ? { p_consultor_ids: filters.consultorIds } : {}),
+          ...(filters.canalSdr?.length ? { p_sdr_canal: filters.canalSdr } : {}),
+          ...(filters.canalCloser?.length ? { p_closer_canal: filters.canalCloser } : {}),
         })
       : Promise.resolve(null),
     enabled: !!orgId && !!filters,
@@ -1128,11 +1147,13 @@ export function useWwFunilRanking(params: {
   consultorIds?: string[]
   canalSdr?: string[]
   canalCloser?: string[]
+  faixas?: string[]
+  convidados?: string[]
+  destinos?: string[]
 }) {
   const orgId = useOrgId()
-  // Dimensão de canal exige a função 20260611a no banco; antes da promoção, a UI não a oferece.
   return useQuery({
-    queryKey: ['ww', 'funil-ranking-combo', orgId, params.dateStart, params.dateEnd, params.dateMode, params.dimensoes, params.origins, params.tipos, params.consultorIds, params.canalSdr ?? null, params.canalCloser ?? null],
+    queryKey: ['ww', 'funil-ranking-combo', orgId, params.dateStart, params.dateEnd, params.dateMode, params.dimensoes, params.origins, params.tipos, params.consultorIds, params.canalSdr ?? null, params.canalCloser ?? null, params.faixas ?? null, params.convidados ?? null, params.destinos ?? null],
     queryFn: () => callRpc<WwFunilRanking>('ww_funil_ranking_combo', {
       p_date_start: params.dateStart,
       p_date_end: params.dateEnd,
@@ -1143,6 +1164,11 @@ export function useWwFunilRanking(params: {
       p_tipos: params.tipos?.length ? params.tipos : null,
       p_consultor_ids: params.consultorIds?.length ? params.consultorIds : null,
       ...canalParams({ canalSdr: params.canalSdr, canalCloser: params.canalCloser }),
+      // Auditoria 2026-06-11: os chips de perfil cortam a MATRIZ também (20260611b) —
+      // antes só a manchete respeitava e os números divergiam na mesma tela.
+      ...(params.faixas?.length ? { p_faixas: params.faixas } : {}),
+      ...(params.convidados?.length ? { p_convidados: params.convidados } : {}),
+      ...(params.destinos?.length ? { p_destinos: params.destinos } : {}),
     }),
     enabled: !!orgId && params.dimensoes.length > 0,
     staleTime: 60_000,

@@ -28,7 +28,12 @@ function EntradaRealidadeContent({ filters }: { filters: AppliedFilters }) {
   const { data, isLoading, error } = useWwDriftVenda(filters)
   const { data: combos } = useWwDriftCombos(filters)
   const [drill, setDrill] = useState<DrillContext | null>(null)
-  const baseCtx = { dateStart: filters.dateStart, dateEnd: filters.dateEnd, dateMode: filters.dateMode }
+  // Auditoria 2026-06-11: drill carrega os filtros ativos da aba junto com o clique
+  const baseCtx = {
+    dateStart: filters.dateStart, dateEnd: filters.dateEnd, dateMode: filters.dateMode,
+    origins: filters.origins, tipos: filters.tipos,
+    canalSdr: filters.canalSdr, canalCloser: filters.canalCloser,
+  }
 
   if (isLoading) return <LoadingSkeleton rows={10} />
   if (error) return <ErrorBanner error={error as Error} />

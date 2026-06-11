@@ -98,7 +98,7 @@ export function ConsultorPill({ icon, options, selected, onChange }: { icon?: Re
       <button onClick={() => setOpen(!open)}
         title={nomes.length > 1 ? `Consultor: ${nomes.join(', ')}` : undefined}
         className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-ww-gold focus-visible:ring-offset-1 ${selected.length > 0 ? 'bg-ww-gold-soft border-ww-gold text-ww-gold-ink' : 'bg-white border-ww-sand text-ww-n600 hover:border-ww-sand-dk'}`}>
-        {icon}👤 Consultor: <span className="font-semibold max-w-[140px] truncate">{display}</span>
+        {icon ?? '👤'} Consultor: <span className="font-semibold max-w-[140px] truncate">{display}</span>
       </button>
       <div className={`absolute z-50 mt-1 left-0 bg-white border border-ww-sand rounded-lg shadow-ww-modal max-h-72 overflow-y-auto w-72 transition-opacity duration-150 ease-out ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} aria-hidden={!open}>
           <div className="p-2 border-b border-ww-sand/70 flex items-center justify-between sticky top-0 bg-white">

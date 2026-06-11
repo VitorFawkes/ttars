@@ -32,7 +32,12 @@ function MarketingContent({ filters }: { filters: AppliedFilters }) {
   if (error) return <ErrorBanner error={error as Error} />
   if (!data) return <EmptyState message="Sem dados" />
 
-  const baseCtx = { dateStart: filters.dateStart, dateEnd: filters.dateEnd }
+  // Auditoria 2026-06-11: drill carrega os filtros ativos da aba junto com o clique
+  const baseCtx = {
+    dateStart: filters.dateStart, dateEnd: filters.dateEnd,
+    origins: filters.origins, tipos: filters.tipos,
+    canalSdr: filters.canalSdr, canalCloser: filters.canalCloser,
+  }
 
   return (
     <div className="space-y-5">

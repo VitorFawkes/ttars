@@ -82,10 +82,20 @@ export function FunilComparado() {
   const b = useWwFunilConversao(filtersB)
 
   // Perfis comparados: ranking nas duas janelas, mesma dimensão (junta no cliente).
-  const rankA = useWwFunilRanking({ dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd, dateMode, dimensoes: [perfilDim], origins, tipos, consultorIds, canalSdr, canalCloser })
-  const rankB = useWwFunilRanking({ dateStart: periodoB.dateStart, dateEnd: periodoB.dateEnd, dateMode, dimensoes: [perfilDim], origins, tipos, consultorIds, canalSdr, canalCloser })
-  // Cruzamento (power tool): só janela A.
-  const cruz = useWwFunilRanking({ dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd, dateMode, dimensoes: [crossX, crossY], origins, tipos, consultorIds, canalSdr, canalCloser })
+  // Quando a dimensão exibida É um filtro ativo (ex: dim=faixa com faixa filtrada), NÃO passa
+  // esse filtro — a matriz mostra todos os baldes pra comparação e o chip destaca a linha.
+  const fFaixas = perfilDim === 'faixa' ? undefined : faixas
+  const fConvidados = perfilDim === 'convidados' ? undefined : convidados
+  const fDestinos = perfilDim === 'destino' ? undefined : destinos
+  const rankA = useWwFunilRanking({ dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd, dateMode, dimensoes: [perfilDim], origins, tipos, consultorIds, canalSdr, canalCloser, faixas: fFaixas, convidados: fConvidados, destinos: fDestinos })
+  const rankB = useWwFunilRanking({ dateStart: periodoB.dateStart, dateEnd: periodoB.dateEnd, dateMode, dimensoes: [perfilDim], origins, tipos, consultorIds, canalSdr, canalCloser, faixas: fFaixas, convidados: fConvidados, destinos: fDestinos })
+  // Cruzamento (power tool): só janela A. Mesma regra: eixos cruzados não entram como filtro.
+  const cruz = useWwFunilRanking({
+    dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd, dateMode, dimensoes: [crossX, crossY], origins, tipos, consultorIds, canalSdr, canalCloser,
+    faixas: crossX === 'faixa' || crossY === 'faixa' ? undefined : faixas,
+    convidados: crossX === 'convidados' || crossY === 'convidados' ? undefined : convidados,
+    destinos: crossX === 'destino' || crossY === 'destino' ? undefined : destinos,
+  })
 
   const marcosA = a.data?.filtrado
   const marcosB = b.data?.filtrado
@@ -93,27 +103,29 @@ export function FunilComparado() {
   const clearAll = () => { setFaixas([]); setConvidados([]); setDestinos([]); setOrigins([]); setConsultorIds([]); setTipos([]); setCanalSdr([]); setCanalCloser([]) }
 
   const setDimFilter = (dim: WwFunilRankingDim, buckets: string[]) => {
-    if (dim === 'faixa') setFaixas(buckets); else if (dim === 'convidados') setConvidados(buckets); else setDestinos(buckets)
+    if (dim === 'faixa') setFaixas(buckets)
+    else if (dim === 'convidados') setConvidados(buckets)
+    else if (dim === 'destino') setDestinos(buckets)
+    else if (dim === 'canal_sdr') setCanalSdr(buckets)
+    else setCanalCloser(buckets)
   }
   // Clicar numa linha do "Funil por perfil" abre a lista de casais daquele
-  // recorte (período B, o em foco), respeitando filtros de perfil ativos.
+  // recorte (período B, o em foco), carregando TODOS os filtros de perfil ativos.
   const onPickPerfil = (dim: WwFunilRankingDim, bucket: string) => {
-    if (dim === 'canal_sdr' || dim === 'canal_closer') return // drill por canal não existe no banco
+    if (/n[ãa]o\s*informad/i.test(bucket)) return // "Não informado" não é filtrável no drill
     const ctx: DrillContext = {
       dateStart: periodoB.dateStart,
       dateEnd: periodoB.dateEnd,
       dateMode,
       title: `Casais — ${bucket}`,
       subtitle: labelB,
+      origins, faixas, destinos, convidadosList: convidados, tipos, consultorIds, canalSdr, canalCloser,
     }
-    if (faixas.length === 1) ctx.faixa = faixas[0]
-    if (convidados.length === 1) ctx.convidados = convidados[0]
-    if (destinos.length === 1) ctx.destino = destinos[0]
-    if (origins.length === 1) ctx.origem = origins[0]
-    if (consultorIds.length === 1) ctx.consultorId = consultorIds[0]
     if (dim === 'faixa') ctx.faixa = bucket
     else if (dim === 'convidados') ctx.convidados = bucket
-    else ctx.destino = bucket
+    else if (dim === 'destino') ctx.destino = bucket
+    else if (dim === 'canal_sdr') ctx.canalSdr = [bucket]
+    else ctx.canalCloser = [bucket]
     setDrill(ctx)
   }
   const onPickCelula = (dx: WwFunilRankingDim, bx: string[], dy: WwFunilRankingDim, by: string[]) => { setDimFilter(dx, bx); setDimFilter(dy, by) }

@@ -50,7 +50,12 @@ function QualidadeContent({ filters }: { filters: AppliedFilters }) {
   }, [stages])
 
   const { data, isLoading, error } = useWwQualidadeLead(filters, eventStageId, minAmostra)
-  const baseCtx = { dateStart: filters.dateStart, dateEnd: filters.dateEnd }
+  // Auditoria 2026-06-11: drill carrega os filtros ativos da aba junto com o clique
+  const baseCtx = {
+    dateStart: filters.dateStart, dateEnd: filters.dateEnd,
+    origins: filters.origins, tipos: filters.tipos,
+    canalSdr: filters.canalSdr, canalCloser: filters.canalCloser,
+  }
 
   if (isThroughput && !eventStageId) {
     return (
@@ -76,7 +81,15 @@ function QualidadeContent({ filters }: { filters: AppliedFilters }) {
 
       {/* Conversão por tipo de reunião (20260611a) — só aparece quando o banco já devolve o breakdown */}
       {((data.por_canal_sdr?.length ?? 0) > 0 || (data.por_canal_closer?.length ?? 0) > 0) && (
-        <ConversaoPorCanal sdr={data.por_canal_sdr ?? []} closer={data.por_canal_closer ?? []} />
+        <ConversaoPorCanal
+          sdr={data.por_canal_sdr ?? []}
+          closer={data.por_canal_closer ?? []}
+          onPick={(kind, canal) => setDrill({
+            ...baseCtx,
+            ...(kind === 'sdr' ? { canalSdr: [canal] } : { canalCloser: [canal] }),
+            title: `Casais — ${kind === 'sdr' ? '1ª reunião' : 'reunião de fechamento'} por ${canal}`,
+          })}
+        />
       )}
 
       {/* Perfil de quem entra vs quem fecha */}
@@ -137,7 +150,7 @@ function QualidadeContent({ filters }: { filters: AppliedFilters }) {
         items={data.por_convidados}
         unidade="convidados"
         outros={data.outros_amostra_pequena?.convidados}
-        onRowClick={(cat) => setDrill({ ...baseCtx, title: `Casais — ${cat} convidados`, /* convidados não tem filtro server-side ainda */ })}
+        onRowClick={(cat) => setDrill({ ...baseCtx, convidados: cat, title: `Casais — ${cat} convidados` })}
       />
 
       <HeatmapFaixaDestino data={data} onCellClick={(faixa, destino) => setDrill({ ...baseCtx, faixa, destino, title: `Casais — ${faixa} × ${destino}` })} />
@@ -219,7 +232,7 @@ function buildDrillForDim(baseCtx: { dateStart: string; dateEnd: string }, dim: 
     case 'destino':    return { ...baseCtx, destino: cat, title }
     case 'origem':     return { ...baseCtx, origem: cat, title }
     case 'tipo':       return { ...baseCtx, tipo: cat, title }
-    case 'convidados': return { ...baseCtx, title }
+    case 'convidados': return { ...baseCtx, convidados: cat, title }
     default:           return { ...baseCtx, title }
   }
 }
@@ -427,26 +440,27 @@ function FunilPorCategoria({ title, subtitle, items, unidade, outros, onRowClick
 
 // Conversão por tipo de reunião — universo = quem FEZ a reunião por aquele canal.
 // A pergunta do diretor: "vale insistir em vídeo? WhatsApp fecha?"
-function ConversaoPorCanal({ sdr, closer }: { sdr: WwQualidadeCanal[]; closer: WwQualidadeCanal[] }) {
+function ConversaoPorCanal({ sdr, closer, onPick }: { sdr: WwQualidadeCanal[]; closer: WwQualidadeCanal[]; onPick?: (kind: 'sdr' | 'closer', canal: string) => void }) {
   return (
     <SectionCard
       title="🎥 Conversão por tipo de reunião"
-      subtitle="Só casais que FIZERAM a reunião. Compara como a reunião aconteceu (Vídeo, WhatsApp, Telefone, Presencial) com quantos viraram contrato."
+      subtitle="Só casais que FIZERAM a reunião. Compara como a reunião aconteceu (Vídeo, WhatsApp, Telefone, Presencial) com quantos viraram contrato. Clique numa linha pra ver os casais."
     >
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <CanalTabela titulo="1ª reunião (SDR)" items={sdr} vazio="Nenhuma reunião de SDR com canal registrado no período" />
+        <CanalTabela titulo="1ª reunião (SDR)" items={sdr} vazio="Nenhuma reunião de SDR com canal registrado no período" onRow={onPick ? (c) => onPick('sdr', c) : undefined} />
         <CanalTabela
           titulo="Reunião de fechamento (Closer)"
           items={closer}
           vazio="Nenhuma reunião de Closer com canal registrado no período"
           nota={closer.length > 0 ? 'O canal da reunião Closer começou a ser registrado em nov/2025 — períodos antigos têm pouca cobertura.' : undefined}
+          onRow={onPick ? (c) => onPick('closer', c) : undefined}
         />
       </div>
     </SectionCard>
   )
 }
 
-function CanalTabela({ titulo, items, vazio, nota }: { titulo: string; items: WwQualidadeCanal[]; vazio: string; nota?: string }) {
+function CanalTabela({ titulo, items, vazio, nota, onRow }: { titulo: string; items: WwQualidadeCanal[]; vazio: string; nota?: string; onRow?: (canal: string) => void }) {
   const max = Math.max(1, ...items.map(i => i.entraram))
   const maxTaxa = Math.max(0.1, ...items.map(i => i.taxa_pct ?? 0))
   return (
@@ -462,7 +476,9 @@ function CanalTabela({ titulo, items, vazio, nota }: { titulo: string; items: Ww
               const taxa = it.taxa_pct ?? 0
               const taxaTom = taxa >= 10 ? 'text-emerald-700' : taxa >= 5 ? 'text-ww-gold-ink' : taxa >= 2 ? 'text-amber-700' : 'text-rose-600'
               return (
-                <div key={it.categoria} className="px-3 py-2.5 bg-white flex items-center gap-2">
+                <div key={it.categoria}
+                     onClick={onRow ? () => onRow(it.categoria) : undefined}
+                     className={`px-3 py-2.5 bg-white flex items-center gap-2 ${onRow ? 'cursor-pointer hover:bg-ww-cream/50 transition-colors' : ''}`}>
                   <span className="text-sm font-medium text-ww-n700">{it.categoria}</span>
                   <span className="flex-1 text-right text-[11px] text-ww-n500 tabular-nums leading-tight">
                     {formatNumber(it.entraram)} reuniões<br />{formatNumber(it.fecharam)} fecharam
@@ -488,7 +504,9 @@ function CanalTabela({ titulo, items, vazio, nota }: { titulo: string; items: Ww
                   const taxa = it.taxa_pct ?? 0
                   const taxaCor = taxa >= 10 ? 'bg-emerald-500' : taxa >= 5 ? 'bg-ww-gold' : taxa >= 2 ? 'bg-amber-400' : 'bg-rose-300'
                   return (
-                    <tr key={it.categoria} className="border-t border-ww-sand/60">
+                    <tr key={it.categoria}
+                        onClick={onRow ? () => onRow(it.categoria) : undefined}
+                        className={`border-t border-ww-sand/60 ${onRow ? 'cursor-pointer hover:bg-ww-cream/40 transition-colors' : ''}`}>
                       <td className="px-3 py-2 text-ww-n700 font-medium whitespace-nowrap">{it.categoria}</td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2">

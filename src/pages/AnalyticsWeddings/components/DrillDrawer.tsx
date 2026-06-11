@@ -17,7 +17,7 @@ export function DrillDrawer({ ctx, onClose }: { ctx: DrillContext | null; onClos
     if (ctx?.campaign) rows = rows.filter(r => (r.campaign ?? '') === ctx.campaign)
     if (ctx?.medium) rows = rows.filter(r => (r.medium ?? '') === ctx.medium)
     return rows
-  }, [data, ctx?.tipo, ctx?.campaign, ctx?.medium])
+  }, [data, ctx])
 
   // Esc fecha o drawer
   useEffect(() => {
@@ -57,7 +57,12 @@ export function DrillDrawer({ ctx, onClose }: { ctx: DrillContext | null; onClos
 
         <div className="flex-1 overflow-y-auto">
           {isLoading && <div className="p-5 text-sm text-slate-500">Carregando casais…</div>}
-          {error && <div className="p-5 text-sm text-rose-600">Erro: {String(error)}</div>}
+          {error != null && (
+            <div className="p-5 text-sm text-rose-600">
+              Não consegui carregar a lista. Tente de novo; se continuar, me avise.
+              <div className="mt-1 text-xs text-rose-400 break-all">{(error as { message?: string })?.message ?? JSON.stringify(error)}</div>
+            </div>
+          )}
           {data && filteredRows.length === 0 && (
             <div className="p-10 text-center text-sm text-slate-400">Nenhum casal encontrado com esses filtros.</div>
           )}
@@ -118,9 +123,12 @@ export function DrillDrawer({ ctx, onClose }: { ctx: DrillContext | null; onClos
             </table>
           )}
         </div>
-        <div className="px-5 py-3 border-t border-slate-200 text-xs text-slate-500 flex items-center justify-between">
-          <span>{data && `Total: ${formatNumber(totalDisplay)}`}</span>
-          <button onClick={onClose} className="text-indigo-600 hover:text-indigo-700 font-medium">Fechar</button>
+        <div className="px-5 py-3 border-t border-slate-200 text-xs text-slate-500 flex items-center justify-between gap-3">
+          <span>
+            {data && `Total: ${formatNumber(totalDisplay)}`}
+            <span className="ml-2 text-slate-400">· a lista vem dos cards do CRM e respeita os filtros da aba; totais podem diferir levemente dos agregados (fonte Active)</span>
+          </span>
+          <button onClick={onClose} className="text-indigo-600 hover:text-indigo-700 font-medium shrink-0">Fechar</button>
         </div>
       </div>
     </>

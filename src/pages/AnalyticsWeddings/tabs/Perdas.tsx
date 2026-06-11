@@ -40,7 +40,13 @@ function PerdasContent({ filters }: { filters: AppliedFilters }) {
   if (error) return <ErrorBanner error={error as Error} />
   if (!data) return <EmptyState message="Sem dados" />
 
-  const baseCtx = { dateStart: filters.dateStart, dateEnd: filters.dateEnd }
+  // Auditoria 2026-06-11: drill carrega TODOS os filtros ativos da aba junto com o clique
+  const baseCtx = {
+    dateStart: filters.dateStart, dateEnd: filters.dateEnd,
+    origins: filters.origins, faixas: filters.faixas, destinos: filters.destinos,
+    convidadosList: filters.convidados, tipos: filters.tipos, consultorIds: filters.consultorIds,
+    canalSdr: filters.canalSdr, canalCloser: filters.canalCloser,
+  }
 
   // Motivo (closer) × Faixa: pivot
   const motivosTop = Array.from(new Set(data.motivo_faixa.map(r => r.motivo))).slice(0, 10)
@@ -122,8 +128,8 @@ function PerdasContent({ filters }: { filters: AppliedFilters }) {
           subtitle="Só casais que FIZERAM a reunião. Mostra se o jeito da reunião (Vídeo, WhatsApp…) muda o motivo da perda."
         >
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <MotivoCanalPivot titulo="1ª reunião (SDR) × motivo SDR" rows={data.motivo_canal ?? []} onCell={(motivo) => setDrill({ ...baseCtx, motivoPerda: motivo, title: `Perdas por: ${motivo}` })} />
-            <MotivoCanalPivot titulo="Reunião de fechamento (Closer) × motivo Closer" rows={data.motivo_canal_closer ?? []} nota="Canal da reunião Closer registrado desde nov/2025 — períodos antigos têm pouca cobertura." onCell={(motivo) => setDrill({ ...baseCtx, motivoPerda: motivo, title: `Perdas por: ${motivo}` })} />
+            <MotivoCanalPivot titulo="1ª reunião (SDR) × motivo SDR" rows={data.motivo_canal ?? []} onCell={(motivo, canal) => setDrill({ ...baseCtx, motivoPerda: motivo, canalSdr: [canal], title: `${motivo} · 1ª reunião por ${canal}` })} />
+            <MotivoCanalPivot titulo="Reunião de fechamento (Closer) × motivo Closer" rows={data.motivo_canal_closer ?? []} nota="Canal da reunião Closer registrado desde nov/2025 — períodos antigos têm pouca cobertura." onCell={(motivo, canal) => setDrill({ ...baseCtx, motivoPerda: motivo, canalCloser: [canal], title: `${motivo} · fechamento por ${canal}` })} />
           </div>
         </SectionCard>
       )}
