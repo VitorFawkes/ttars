@@ -4,10 +4,14 @@ import { fmtPct } from '../lib/funil'
 import { formatNumber } from '../lib/format'
 import { EmptyState, LoadingSkeleton } from './ui'
 
+// Canais existem no tipo da dimensão, mas o cruzamento A/B trabalha só com os 3 eixos de perfil
+// (agrupar "Vídeo+WhatsApp" em A/B não responde pergunta nenhuma — canal cruza no Lead ideal).
 const DIM_LABEL: Record<WwFunilRankingDim, string> = {
   faixa: 'Investimento',
   convidados: 'Convidados',
   destino: 'Destino',
+  canal_sdr: '1ª reunião',
+  canal_closer: 'Reunião fechamento',
 }
 
 // Ordem lógica (ranges) — as opções vêm alfabéticas, aqui ordenamos pra leitura.
@@ -15,13 +19,19 @@ const ORDEM: Record<WwFunilRankingDim, string[]> = {
   convidados: ['Apenas o casal', 'Até 20', '20-50', '50-100', '+100'],
   faixa: ['Até R$50 mil', 'R$50-80 mil', 'R$50-100 mil', 'R$80-100 mil', 'R$100-200 mil', 'R$200-500 mil', '+R$500 mil'],
   destino: [],
+  canal_sdr: [],
+  canal_closer: [],
 }
 
 type Grupo = 0 | 1 | -1 // A | B | fora
 const GRUPO_LABEL = ['Grupo A', 'Grupo B']
 
 function bucketsDe(dim: WwFunilRankingDim, options: WwFunilFilterOptions | undefined): string[] {
-  const disponiveis = dim === 'faixa' ? options?.faixas : dim === 'convidados' ? options?.convidados : options?.destinos
+  const disponiveis = dim === 'faixa' ? options?.faixas
+    : dim === 'convidados' ? options?.convidados
+    : dim === 'canal_sdr' ? options?.canais_sdr
+    : dim === 'canal_closer' ? options?.canais_closer
+    : options?.destinos
   const set = new Set(disponiveis ?? [])
   const ord = ORDEM[dim].filter((b) => set.has(b))
   const resto = (disponiveis ?? []).filter((b) => !ORDEM[dim].includes(b))
@@ -37,7 +47,11 @@ function splitInicial(buckets: string[]): Record<string, Grupo> {
 }
 
 function bucketDaRow(row: WwFunilRankingRow, dim: WwFunilRankingDim): string | null {
-  return dim === 'faixa' ? row.faixa : dim === 'convidados' ? row.convidados : row.destino
+  return (dim === 'faixa' ? row.faixa
+    : dim === 'convidados' ? row.convidados
+    : dim === 'canal_sdr' ? row.canal_sdr
+    : dim === 'canal_closer' ? row.canal_closer
+    : row.destino) ?? null
 }
 
 function corCelula(taxa: number | null): string {

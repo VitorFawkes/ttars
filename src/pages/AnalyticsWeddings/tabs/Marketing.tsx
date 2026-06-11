@@ -6,14 +6,18 @@ import { SectionCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../compon
 import { DrillDrawer, type DrillContext } from '../components/DrillDrawer'
 import { LiftBadge } from '../components/LiftBadge'
 import { ClickableRow } from '../components/ClickableRow'
+import { MatrixHeatmap } from '../components/MatrixHeatmap'
 import { formatCurrency, formatNumber } from '../lib/format'
+
+const FAIXA_ORDER = ['Até R$50 mil', 'R$50-80 mil', 'R$50-100 mil', 'R$80-100 mil', 'R$100-200 mil', 'R$200-500 mil', '+R$500 mil']
 
 export function Marketing({ filters, onFiltersChange }: TabProps) {
   return (
     <div className="space-y-4">
       {/* Pergunta da aba: "de onde vêm os leads bons?" — leitura sempre por safra
-          (dateMode saiu: metade da tela ignorava o modo e o filtro mentia) */}
-      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'tipo', 'origem']} />
+          (dateMode saiu: metade da tela ignorava o modo e o filtro mentia).
+          Canal SDR/Closer entram como recorte: "qual fonte traz lead que faz reunião por vídeo?" */}
+      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'tipo', 'origem', 'canal_sdr', 'canal_closer']} />
       <MarketingContent filters={filters} />
     </div>
   )
@@ -34,6 +38,22 @@ function MarketingContent({ filters }: { filters: AppliedFilters }) {
     <div className="space-y-5">
       {qualidade && !qualidade.error && <QualidadeFonte data={qualidade} onOrigemClick={(origem) => setDrill({ ...baseCtx, origem, title: `Casais — origem ${origem}` })} onCampanhaClick={(campaign) => setDrill({ ...baseCtx, campaign, title: `Casais — campanha ${campaign}` })} />}
       {qualidade && !qualidade.error && <DropOffPorFase data={qualidade} onOrigemClick={(origem) => setDrill({ ...baseCtx, origem, title: `Casais — origem ${origem}` })} />}
+
+      {/* Origem × faixa declarada (20260611a) — só aparece quando o banco já devolve o cruzamento */}
+      {qualidade && !qualidade.error && (qualidade.origem_x_faixa?.length ?? 0) > 0 && (
+        <SectionCard
+          title="💰 × 🎯  Que bolso cada fonte traz"
+          subtitle="Linha = faixa de investimento declarada no site. Coluna = origem do lead. % na célula = taxa de fechamento. Mostra qual fonte traz lead rico — e qual combinação realmente fecha."
+        >
+          <MatrixHeatmap
+            cells={(qualidade.origem_x_faixa ?? []).map(c => ({ linha: c.y, coluna: c.x, entraram: c.entrou, fecharam: c.fechou, taxa_pct: c.taxa_pct }))}
+            rowsOrder={FAIXA_ORDER}
+            rowLabel="Faixa"
+            colLabel="Origem"
+            onCellClick={(faixa, origem) => setDrill({ ...baseCtx, faixa, origem, title: `Casais — ${faixa} via ${origem}` })}
+          />
+        </SectionCard>
+      )}
 
       <SectionCard title="Performance por origem" subtitle="UTM source consolidado. Clique numa linha pra ver os leads.">
         {data.por_origem.length === 0 ? <EmptyState message="Sem dados" /> : (

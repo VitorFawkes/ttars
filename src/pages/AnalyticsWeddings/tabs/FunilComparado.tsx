@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { DollarSign, Users, MapPin, Megaphone, UserRound, X, Search } from 'lucide-react'
+import { DollarSign, Users, MapPin, Megaphone, UserRound, Video, X, Search } from 'lucide-react'
 import { useWwFunilConversao, useWwFunilFilterOptions, useWwFunilRanking, type Ww2Filters, type WwFunilConversaoMarcos, type WwFunilRankingDim } from '@/hooks/analyticsWeddings/useWw2'
 import { MultiPill, ConsultorPill, TipoSegment } from '../components/FilterPills'
 import { PeriodoSeletor } from '../components/PeriodoSeletor'
@@ -59,6 +59,8 @@ export function FunilComparado() {
   const [origins, setOrigins] = useState<string[]>([])
   const [consultorIds, setConsultorIds] = useState<string[]>([])
   const [tipos, setTipos] = useState<string[]>([])
+  const [canalSdr, setCanalSdr] = useState<string[]>([])
+  const [canalCloser, setCanalCloser] = useState<string[]>([])
   const [maisFiltros, setMaisFiltros] = useState(false)
   const [dateMode, setDateMode] = useState<DateMode>('cohort')
   const [perfilDim, setPerfilDim] = useState<WwFunilRankingDim>('faixa')
@@ -73,22 +75,22 @@ export function FunilComparado() {
   const labelB = labelDoPeriodo(periodoB)
 
   const { data: options } = useWwFunilFilterOptions()
-  const perfil = { faixas, convidados, destinos, origins, consultorIds, tipos }
+  const perfil = { faixas, convidados, destinos, origins, consultorIds, tipos, canalSdr, canalCloser }
   const filtersA: Ww2Filters = { ...perfil, dateMode, dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd }
   const filtersB: Ww2Filters = { ...perfil, dateMode, dateStart: periodoB.dateStart, dateEnd: periodoB.dateEnd }
   const a = useWwFunilConversao(filtersA)
   const b = useWwFunilConversao(filtersB)
 
   // Perfis comparados: ranking nas duas janelas, mesma dimensão (junta no cliente).
-  const rankA = useWwFunilRanking({ dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd, dateMode, dimensoes: [perfilDim], origins, tipos, consultorIds })
-  const rankB = useWwFunilRanking({ dateStart: periodoB.dateStart, dateEnd: periodoB.dateEnd, dateMode, dimensoes: [perfilDim], origins, tipos, consultorIds })
+  const rankA = useWwFunilRanking({ dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd, dateMode, dimensoes: [perfilDim], origins, tipos, consultorIds, canalSdr, canalCloser })
+  const rankB = useWwFunilRanking({ dateStart: periodoB.dateStart, dateEnd: periodoB.dateEnd, dateMode, dimensoes: [perfilDim], origins, tipos, consultorIds, canalSdr, canalCloser })
   // Cruzamento (power tool): só janela A.
-  const cruz = useWwFunilRanking({ dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd, dateMode, dimensoes: [crossX, crossY], origins, tipos, consultorIds })
+  const cruz = useWwFunilRanking({ dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd, dateMode, dimensoes: [crossX, crossY], origins, tipos, consultorIds, canalSdr, canalCloser })
 
   const marcosA = a.data?.filtrado
   const marcosB = b.data?.filtrado
-  const hasFilters = faixas.length + convidados.length + destinos.length + origins.length + consultorIds.length + tipos.length > 0
-  const clearAll = () => { setFaixas([]); setConvidados([]); setDestinos([]); setOrigins([]); setConsultorIds([]); setTipos([]) }
+  const hasFilters = faixas.length + convidados.length + destinos.length + origins.length + consultorIds.length + tipos.length + canalSdr.length + canalCloser.length > 0
+  const clearAll = () => { setFaixas([]); setConvidados([]); setDestinos([]); setOrigins([]); setConsultorIds([]); setTipos([]); setCanalSdr([]); setCanalCloser([]) }
 
   const setDimFilter = (dim: WwFunilRankingDim, buckets: string[]) => {
     if (dim === 'faixa') setFaixas(buckets); else if (dim === 'convidados') setConvidados(buckets); else setDestinos(buckets)
@@ -96,6 +98,7 @@ export function FunilComparado() {
   // Clicar numa linha do "Funil por perfil" abre a lista de casais daquele
   // recorte (período B, o em foco), respeitando filtros de perfil ativos.
   const onPickPerfil = (dim: WwFunilRankingDim, bucket: string) => {
+    if (dim === 'canal_sdr' || dim === 'canal_closer') return // drill por canal não existe no banco
     const ctx: DrillContext = {
       dateStart: periodoB.dateStart,
       dateEnd: periodoB.dateEnd,
@@ -131,6 +134,8 @@ export function FunilComparado() {
   if (convidados.length) partes.push(`${convidados.join(' ou ')} convidados`)
   if (destinos.length) partes.push(destinos.join(' ou '))
   if (origins.length) partes.push(origins.join(' ou '))
+  if (canalSdr.length) partes.push(`1ª reunião por ${canalSdr.join(' ou ')}`)
+  if (canalCloser.length) partes.push(`fechamento por ${canalCloser.join(' ou ')}`)
   const resumoPerfil = partes.length ? partes.join(' · ') : 'todos os perfis de lead'
 
   return (
@@ -172,6 +177,8 @@ export function FunilComparado() {
           <button onClick={() => setMaisFiltros((v) => !v)} className="px-3 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 rounded-lg transition">{maisFiltros ? '− menos filtros' : '+ mais filtros'}</button>
           {maisFiltros && <MultiPill label="Origem" icon={<Megaphone className={ic} />} options={options?.origens ?? []} selected={origins} onChange={setOrigins} />}
           {maisFiltros && <ConsultorPill icon={<UserRound className={ic} />} options={options?.consultores ?? []} selected={consultorIds} onChange={setConsultorIds} />}
+          {maisFiltros && <MultiPill label="1ª reunião" icon={<Video className={ic} />} options={options?.canais_sdr ?? []} selected={canalSdr} onChange={setCanalSdr} />}
+          {maisFiltros && <MultiPill label="Reunião fechamento" icon={<Video className={ic} />} options={options?.canais_closer ?? []} selected={canalCloser} onChange={setCanalCloser} />}
           {hasFilters && <button onClick={clearAll} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"><X className={ic} />limpar</button>}
         </div>
         <div className="mt-3 text-sm"><span className="text-slate-400">Olhando:</span> <span className="font-medium text-slate-800">{resumoPerfil}</span></div>
@@ -218,6 +225,9 @@ export function FunilComparado() {
         destinos={destinos}
         convidados={convidados}
         consultorIds={consultorIds}
+        tipos={tipos}
+        canalSdr={canalSdr}
+        canalCloser={canalCloser}
         defaultModo="conversao"
       />
 

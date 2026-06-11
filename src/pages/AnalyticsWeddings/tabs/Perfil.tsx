@@ -7,7 +7,7 @@ import { LiftBadge } from '../components/LiftBadge'
 import { formatNumber } from '../lib/format'
 
 type Dim = 'faixa' | 'destino' | 'convidados'
-type Eixo = 'faixa' | 'convidados' | 'destino' | 'origem' | 'canal_sdr' | 'tipo'
+type Eixo = 'faixa' | 'convidados' | 'destino' | 'origem' | 'canal_sdr' | 'canal_closer' | 'tipo'
 
 // Baldes fundidos (form do site mudou de opções ao longo do tempo) — ver memória
 // project_ww_analytics_pipeline_duravel: NUNCA re-dividir 50-80/80-100.
@@ -21,6 +21,7 @@ const EIXO_OPTS: { id: Eixo; label: string }[] = [
   { id: 'destino', label: '🏝️ Destino' },
   { id: 'origem', label: '🎯 Origem' },
   { id: 'canal_sdr', label: '🎥 1ª reunião' },
+  { id: 'canal_closer', label: '🎥 Reunião fechamento' },
   { id: 'tipo', label: '💍 Tipo' },
 ]
 const eixoLabel = (e: Eixo) => EIXO_OPTS.find(o => o.id === e)?.label ?? e
@@ -88,6 +89,7 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
   const dimDestino = dims.find(d => d.dimensao === 'destino')
   const dimConvidados = dims.find(d => d.dimensao === 'convidados')
   const dimCanal = dims.find(d => d.dimensao === 'canal_sdr')
+  const dimCanalCloser = dims.find(d => d.dimensao === 'canal_closer')
   const cruzCells = data.cruzamento ?? []
   const topHist = data.top_perfis_historico ?? []
   const topAtual = data.top_perfis_atual ?? []
@@ -204,6 +206,13 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
           titulo="🎥 Como foi a 1ª reunião"
           subtitulo={`Canal da 1ª reunião (vídeo, WhatsApp, presencial...) entre quem ${refLabel} vs os leads novos. Cobertura parcial — conta só quem teve reunião registrada.`}
           dim={dimCanal}
+        />
+      )}
+      {dimCanalCloser && (
+        <ComparacaoDimensao
+          titulo="🎥 Como foi a reunião de fechamento"
+          subtitulo={`Canal da reunião com a Closer entre quem ${refLabel} vs os leads novos. Registrado desde nov/2025 — períodos antigos têm pouca cobertura.`}
+          dim={dimCanalCloser}
         />
       )}
 
@@ -591,6 +600,7 @@ function labelDim(d: Dim | string): string {
     case 'convidados': return 'Nº de convidados'
     case 'origem': return 'Origem'
     case 'canal_sdr': return 'Canal da 1ª reunião'
+    case 'canal_closer': return 'Canal da reunião de fechamento'
     case 'tipo': return 'Tipo (DW/Elopement)'
     default: return d
   }

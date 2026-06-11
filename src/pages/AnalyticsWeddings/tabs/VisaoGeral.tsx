@@ -10,8 +10,9 @@ import { formatCurrency, formatNumber } from '../lib/format'
 export function VisaoGeral({ filters, onFiltersChange }: TabProps) {
   return (
     <div className="space-y-4">
-      {/* Pergunta da aba: "como estamos?" — corta por período/modo, tipo, origem, faixa, destino e consultor */}
-      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'dateMode', 'tipo', 'origem', 'faixa', 'destino', 'consultor']} />
+      {/* Pergunta da aba: "como estamos?" — corta por período/modo, tipo, origem, perfil
+          (faixa/convidados/destino), consultor e COMO as reuniões aconteceram (canal SDR/Closer) */}
+      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'dateMode', 'tipo', 'origem', 'faixa', 'convidados', 'destino', 'consultor', 'canal_sdr', 'canal_closer']} />
       <VisaoGeralContent filters={filters} />
     </div>
   )
@@ -85,8 +86,11 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
         origins={filters.origins}
         faixas={filters.faixas}
         destinos={filters.destinos}
+        convidados={filters.convidados}
         consultorIds={filters.consultorIds}
         tipos={filters.tipos}
+        canalSdr={filters.canalSdr}
+        canalCloser={filters.canalCloser}
       />
 
       {/* Funil */}

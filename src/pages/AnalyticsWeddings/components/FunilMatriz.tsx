@@ -14,7 +14,7 @@ import { EmptyState, LoadingSkeleton } from './ui'
 // 3 layouts comutáveis ("Ver como"): Tabela · Lado a lado · Mini-funis.
 // Clicar numa linha preenche o filtro e abre o funil completo (A|B) abaixo.
 
-const DIM_LABEL: Record<WwFunilRankingDim, string> = { faixa: 'Investimento', convidados: 'Convidados', destino: 'Destino' }
+const DIM_LABEL: Record<WwFunilRankingDim, string> = { faixa: 'Investimento', convidados: 'Convidados', destino: 'Destino', canal_sdr: '1ª reunião', canal_closer: 'Reunião closer' }
 type Vista = 'tabela' | 'lado' | 'funis'
 const VISTA_LABEL: Record<Vista, string> = { tabela: 'Tabela', lado: 'Lado a lado', funis: 'Mini-funis' }
 type Metrica = 'passagem' | 'mudanca'
@@ -27,6 +27,8 @@ const BUCKET_ORDER: Record<WwFunilRankingDim, string[]> = {
   faixa: ['Até R$50 mil', 'R$50-100 mil', 'R$100-200 mil', 'R$200-500 mil', '+R$500 mil'],
   convidados: ['Apenas o casal', 'Até 20', '20-50', '50-100', '+100'],
   destino: [],
+  canal_sdr: [],
+  canal_closer: [],
 }
 
 // Rótulos curtos das colunas. "Marcou" = agendou a reunião; "Fez" = aconteceu.
@@ -51,7 +53,12 @@ type Linha = {
 }
 
 function getBucket(row: WwFunilRankingRow, dim: WwFunilRankingDim): string {
-  return (dim === 'faixa' ? row.faixa : dim === 'convidados' ? row.convidados : row.destino) ?? row.label
+  const v = dim === 'faixa' ? row.faixa
+    : dim === 'convidados' ? row.convidados
+    : dim === 'destino' ? row.destino
+    : dim === 'canal_sdr' ? row.canal_sdr
+    : row.canal_closer
+  return v ?? row.label
 }
 function counts(row: WwFunilRankingRow | undefined): number[] {
   if (!row) return [0, 0, 0, 0, 0, 0]
@@ -121,6 +128,11 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
   const [soComAmostra, setSoComAmostra] = useState(false)
   const [esconderNI, setEsconderNI] = useState(true)
   const isNI = (b: string) => /n[ãa]o\s*informad/i.test(b)
+  const canalDim = dim === 'canal_sdr' || dim === 'canal_closer'
+  // Drill por canal não existe no banco — clicar abriria uma lista que MENTE. Desliga o pick.
+  const pick = canalDim ? () => {} : onPick
+  // Banco antigo ignora dimensões de canal e devolve faixa no lugar — detecta e avisa em vez de mentir.
+  const dimIndisponivel = canalDim && !!rankingB && !(rankingB.dimensoes ?? []).includes(dim)
 
   const todas = useMemo<Linha[]>(() => {
     const rowsA = rankingA?.rows ?? []
@@ -195,8 +207,8 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
         </div>
         <div className="shrink-0">
           <div className="text-xs font-medium text-slate-400 mb-1 text-right">Ver por</div>
-          <div className="inline-flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
-            {(['faixa', 'convidados', 'destino'] as WwFunilRankingDim[]).map((d) => (
+          <div className="inline-flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5 flex-wrap">
+            {(['faixa', 'convidados', 'destino', 'canal_sdr', 'canal_closer'] as WwFunilRankingDim[]).map((d) => (
               <button key={d} onClick={() => onDim(d)} className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${dim === d ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{DIM_LABEL[d]}</button>
             ))}
           </div>
@@ -256,15 +268,23 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
         </p>
       )}
 
+      {canalDim && !dimIndisponivel && (
+        <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-3">
+          Cada linha agrupa os casais pelo jeito que a reunião aconteceu — então as etapas <strong>antes</strong> da reunião ficam triviais (todo mundo da linha fez). A leitura útil é <strong>dali pra frente</strong>: de quem fez por Vídeo vs WhatsApp, quantos avançam e fecham.
+        </p>
+      )}
+
       {isLoading ? (
         <LoadingSkeleton rows={6} />
+      ) : dimIndisponivel ? (
+        <EmptyState message="Ver por tipo de reunião fica disponível depois da próxima atualização do banco de dados. Os outros agrupamentos seguem normais." />
       ) : ordenadas.length === 0 ? (
         <EmptyState message="Sem perfis com dados nesses períodos. Amplie a janela ou tire filtros." />
       ) : (
         <>
-          {vista === 'tabela' && <TabelaView linhas={ordenadas} dim={dim} metrica={metrica} selecionado={selecionado} onPick={onPick} pequena={pequena} />}
-          {vista === 'lado' && <LadoView linhas={ordenadas} dim={dim} labelA={labelA} labelB={labelB} selecionado={selecionado} onPick={onPick} pequena={pequena} />}
-          {vista === 'funis' && <FunisView linhas={ordenadas} dim={dim} selecionado={selecionado} onPick={onPick} pequena={pequena} />}
+          {vista === 'tabela' && <TabelaView linhas={ordenadas} dim={dim} metrica={metrica} selecionado={selecionado} onPick={pick} pequena={pequena} />}
+          {vista === 'lado' && <LadoView linhas={ordenadas} dim={dim} labelA={labelA} labelB={labelB} selecionado={selecionado} onPick={pick} pequena={pequena} />}
+          {vista === 'funis' && <FunisView linhas={ordenadas} dim={dim} selecionado={selecionado} onPick={pick} pequena={pequena} />}
 
           {/* Rodapé: contador + legenda */}
           <div className="flex items-start justify-between gap-3 flex-wrap pt-3">
