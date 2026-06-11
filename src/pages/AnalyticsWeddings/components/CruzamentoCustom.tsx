@@ -16,7 +16,7 @@ const DIM_LABEL: Record<WwFunilRankingDim, string> = {
 
 // Ordem lógica (ranges) — as opções vêm alfabéticas, aqui ordenamos pra leitura.
 const ORDEM: Record<WwFunilRankingDim, string[]> = {
-  convidados: ['Apenas o casal', 'Até 20', '20-50', '50-100', '+100'],
+  convidados: ['Apenas o casal', 'Até 20', '20-50', '50-100', '50-80', '80-100', '+100'],
   faixa: ['Até R$50 mil', 'R$50-80 mil', 'R$50-100 mil', 'R$80-100 mil', 'R$100-200 mil', 'R$200-500 mil', '+R$500 mil'],
   destino: [],
   canal_sdr: [],
@@ -79,7 +79,7 @@ function Chips({ dim, buckets, grupos, onCycle }: { dim: WwFunilRankingDim; buck
       <div className="flex flex-wrap gap-1.5">
         {buckets.map((b) => {
           const g = grupos[b] ?? -1
-          const cls = g === 0 ? 'bg-indigo-100 text-indigo-700 border-indigo-300'
+          const cls = g === 0 ? 'bg-ww-gold-soft text-ww-gold-ink border-ww-gold'
             : g === 1 ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
             : 'bg-slate-100 text-slate-400 border-slate-200 line-through'
           return (
@@ -127,10 +127,10 @@ export function CruzamentoCustom({ eixoX, eixoY, onEixos, options, data, isLoadi
   const dims: WwFunilRankingDim[] = ['faixa', 'convidados', 'destino']
 
   return (
-    <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5">
-      <h3 className="text-sm font-semibold text-slate-900 tracking-tight mb-1">Cruzamento personalizado</h3>
+    <div className="bg-white border border-ww-sand shadow-ww-lift rounded-xl p-5">
+      <h3 className="font-ww-serif text-[15px] font-semibold text-ww-n700 tracking-tight mb-1">Cruzamento personalizado</h3>
       <p className="text-xs text-slate-500 mb-4">
-        Junte as faixinhas como quiser nos dois eixos pra cada quadrante ter casos de sobra — depois clique num quadrante pra comparar com agora.
+        Junte as faixinhas como quiser nos dois eixos pra cada quadrante ter casos de sobra — depois clique num quadrante pra abrir a lista de casais.
       </p>
 
       {/* eixos */}
@@ -196,7 +196,7 @@ export function CruzamentoCustom({ eixoX, eixoY, onEixos, options, data, isLoadi
                         <button
                           disabled={vazio}
                           onClick={() => onPickCelula(eixoX, membrosX(gxg as Grupo), eixoY, membrosY(gyg as Grupo))}
-                          className={`w-full rounded-lg p-3 text-left transition ${vazio ? 'bg-slate-50 text-slate-300 cursor-default' : `${corCelula(t)} hover:ring-2 hover:ring-indigo-300`}`}
+                          className={`w-full rounded-lg p-3 text-left transition ${vazio ? 'bg-slate-50 text-slate-300 cursor-default' : `${corCelula(t)} hover:ring-2 hover:ring-ww-gold`}`}
                         >
                           <div className="text-lg font-semibold tabular-nums">{vazio ? '—' : fmtPct(t)}</div>
                           {!vazio && (

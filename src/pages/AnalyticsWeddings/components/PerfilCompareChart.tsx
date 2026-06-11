@@ -6,6 +6,8 @@ type Props = {
   dimensao: string
   onCategoriaClick?: (categoria: string) => void
   minSample?: number
+  /** Ordem canônica p/ dimensões ordinais (faixa/convidados). Sem ela, ordena por volume. */
+  order?: string[]
 }
 
 /**
@@ -13,9 +15,17 @@ type Props = {
  * "fecharam". Lift no centro. Verde = sobre-representado em vendas; rosa = sub.
  * Clicar numa linha aciona o drill (se onCategoriaClick passado).
  */
-export function PerfilCompareChart({ dados, dimensao, onCategoriaClick, minSample = 1 }: Props) {
+export function PerfilCompareChart({ dados, dimensao, onCategoriaClick, minSample = 1, order }: Props) {
   const filtered = dados.filter(d => d.entrada_qtd >= minSample || d.fechou_qtd >= 1)
-  const sorted = [...filtered].sort((a, b) => b.entrada_qtd - a.entrada_qtd)
+  const sorted = order
+    ? [...filtered].sort((a, b) => {
+        const ia = order.indexOf(a.categoria); const ib = order.indexOf(b.categoria)
+        if (ia === -1 && ib === -1) return b.entrada_qtd - a.entrada_qtd
+        if (ia === -1) return 1
+        if (ib === -1) return -1
+        return ia - ib
+      })
+    : [...filtered].sort((a, b) => b.entrada_qtd - a.entrada_qtd)
   if (sorted.length === 0) {
     return <div className="text-xs text-slate-400 p-4 text-center">Sem dados suficientes nessa dimensão</div>
   }
@@ -44,7 +54,7 @@ export function PerfilCompareChart({ dados, dimensao, onCategoriaClick, minSampl
             <Wrap
               key={d.categoria}
               onClick={onCategoriaClick ? () => onCategoriaClick(d.categoria) : undefined}
-              className={`w-full grid grid-cols-12 items-center px-3 py-2.5 text-xs ${onCategoriaClick ? 'hover:bg-indigo-50/60 cursor-pointer text-left' : ''}`}
+              className={`w-full grid grid-cols-12 items-center px-3 py-2.5 text-xs ${onCategoriaClick ? 'hover:bg-ww-cream/50 cursor-pointer text-left' : ''}`}
               title={onCategoriaClick ? `Ver casais — ${d.categoria}` : undefined}
             >
               <div className="col-span-3 font-medium text-slate-900 truncate" title={d.categoria}>{d.categoria}</div>

@@ -25,11 +25,17 @@ export function MatrixHeatmap({ cells, rowsOrder, colsOrder, rowLabel, colLabel,
     return <div className="text-xs text-slate-400 p-6 text-center">{emptyMessage}</div>
   }
 
-  const linhas = rowsOrder
-    ? rowsOrder.filter(r => cells.some(c => c.linha === r))
-    : Array.from(new Set(cells.map(c => c.linha)))
+  // Ordem canônica + qualquer bucket fora dela vai pro FIM (nunca some da tabela —
+  // já perdemos o balde '50-100' inteiro por ele não estar no mapa de ordem).
+  const ordenarCom = (order: string[] | undefined, valores: string[]): string[] => {
+    if (!order) return valores
+    const conhecidos = order.filter(v => valores.includes(v))
+    const desconhecidos = valores.filter(v => !order.includes(v))
+    return [...conhecidos, ...desconhecidos]
+  }
+  const linhas = ordenarCom(rowsOrder, Array.from(new Set(cells.map(c => c.linha))))
   const colunas = colsOrder
-    ? colsOrder.filter(c => cells.some(x => x.coluna === c))
+    ? ordenarCom(colsOrder, Array.from(new Set(cells.map(c => c.coluna))))
     : Array.from(new Set(cells.map(c => c.coluna))).sort((a, b) => {
         const sa = cells.filter(c => c.coluna === a).reduce((s, c) => s + c.entraram, 0)
         const sb = cells.filter(c => c.coluna === b).reduce((s, c) => s + c.entraram, 0)
@@ -74,7 +80,7 @@ export function MatrixHeatmap({ cells, rowsOrder, colsOrder, rowLabel, colLabel,
                       title={`${cell.entraram} entraram · ${cell.fecharam} fecharam · ${taxa}%`}>
                     <Cell
                       onClick={onCellClick ? () => onCellClick(l, c) : undefined}
-                      className={`w-full h-full px-2 py-2 text-center block ${onCellClick ? 'cursor-pointer hover:ring-2 hover:ring-indigo-400 focus:ring-2 focus:ring-indigo-400 focus:outline-none' : ''}`}
+                      className={`w-full h-full px-2 py-2 text-center block ${onCellClick ? 'cursor-pointer hover:ring-2 hover:ring-ww-gold focus:ring-2 focus:ring-ww-gold focus:outline-none' : ''}`}
                     >
                       <div className="font-semibold text-sm">{taxa}%</div>
                       <div className="text-[10px] opacity-75 mt-0.5">{cell.entraram} → {cell.fecharam}</div>

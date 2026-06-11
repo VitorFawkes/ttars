@@ -25,7 +25,7 @@ export function ClickableRow({ onClick, children, className = '', title }: Props
       onClick={onClick}
       onKeyDown={handleKey}
       title={title}
-      className={`cursor-pointer hover:bg-indigo-50/60 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-indigo-50/60 transition-colors ${className}`}
+      className={`cursor-pointer hover:bg-ww-cream/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ww-gold focus:bg-ww-cream/50 transition-colors ${className}`}
     >
       {children}
     </tr>

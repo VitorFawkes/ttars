@@ -1,5 +1,5 @@
 import type { WwFunilConversaoMarcos } from '@/hooks/analyticsWeddings/useWw2'
-import { toLinhas, deltasPassagem, MARCO_KEYS, MARCO_LABELS, fmtPct, fmtDeltaPp } from '../lib/funil'
+import { toLinhas, deltasPassagem, MARCO_KEYS, MARCO_LABELS, fmtPct, fmtDeltaPp, type MarcoKey } from '../lib/funil'
 import { formatNumber } from '../lib/format'
 import { EmptyState, ErrorBanner, LoadingSkeleton } from './ui'
 
@@ -19,30 +19,42 @@ type Props = {
   dropIdx: number | null
   aRecente?: boolean
   bRecente?: boolean
+  /** Clique numa barra de etapa → lista de casais daquele marco/período */
+  onEtapaClick?: (marco: MarcoKey, periodo: 'A' | 'B') => void
 }
 
-export function FunilUnificado({ marcosA, marcosB, labelA, labelB, isLoading, error, dropIdx }: Props) {
+export function FunilUnificado({ marcosA, marcosB, labelA, labelB, isLoading, error, dropIdx, onEtapaClick }: Props) {
   const linhasA = marcosA ? toLinhas(marcosA) : []
   const linhasB = marcosB ? toLinhas(marcosB) : []
   const deltas = marcosA && marcosB ? deltasPassagem(marcosA, marcosB) : []
   const entrouA = marcosA?.entrou ?? 0
   const entrouB = marcosB?.entrou ?? 0
 
-  const Linha = ({ label, w, count, pct, pctCls, barCls, strong }: {
-    label: string; w: number; count: number; pct: number | null; pctCls: string; barCls: string; strong?: boolean
-  }) => (
-    <div className="flex items-center gap-2.5">
-      <span className={`w-28 shrink-0 text-[11px] truncate ${strong ? 'text-slate-500 font-medium' : 'text-slate-400'}`} title={label}>{label}</span>
-      <div className="flex-1 h-4 rounded bg-slate-100 overflow-hidden">
-        <div className={`h-full rounded ${barCls}`} style={{ width: `${w}%` }} />
-      </div>
-      <span className="w-14 shrink-0 text-right text-xs tabular-nums text-slate-500">{formatNumber(count)}</span>
-      <span className={`w-16 shrink-0 text-right text-sm font-bold tabular-nums ${pctCls}`}>{fmtPct(pct)}</span>
-    </div>
-  )
+  const Linha = ({ label, w, count, pct, pctCls, barCls, strong, onClick }: {
+    label: string; w: number; count: number; pct: number | null; pctCls: string; barCls: string; strong?: boolean; onClick?: () => void
+  }) => {
+    const inner = (
+      <>
+        <span className={`w-28 shrink-0 text-[11px] truncate ${strong ? 'text-slate-500 font-medium' : 'text-slate-400'}`} title={label}>{label}</span>
+        <div className="flex-1 h-4 rounded bg-slate-100 overflow-hidden">
+          <div className={`h-full rounded ${barCls}`} style={{ width: `${w}%` }} />
+        </div>
+        <span className="w-14 shrink-0 text-right text-xs tabular-nums text-slate-500">{formatNumber(count)}</span>
+        <span className={`w-16 shrink-0 text-right text-sm font-bold tabular-nums ${pctCls}`}>{fmtPct(pct)}</span>
+      </>
+    )
+    if (onClick) {
+      return (
+        <button onClick={onClick} className="w-full flex items-center gap-2.5 text-left rounded hover:bg-slate-50 transition-colors" title={`Ver casais — ${label}`}>
+          {inner}
+        </button>
+      )
+    }
+    return <div className="flex items-center gap-2.5">{inner}</div>
+  }
 
   return (
-    <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5">
+    <div className="bg-white border border-ww-sand shadow-ww-lift rounded-xl p-5">
       {isLoading ? (
         <LoadingSkeleton rows={6} />
       ) : error ? (
@@ -56,14 +68,14 @@ export function FunilUnificado({ marcosA, marcosB, labelA, labelB, isLoading, er
             <div className="min-w-0">
               <div className="text-sm text-slate-500">Entraram no funil</div>
               <div className="mt-1.5 flex items-baseline gap-x-6 gap-y-1 flex-wrap">
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-2xl font-bold text-slate-900 tabular-nums leading-none">{formatNumber(entrouB)}</span>
+                <button className="flex items-baseline gap-1.5 group" onClick={onEtapaClick ? () => onEtapaClick('entrou', 'B') : undefined} disabled={!onEtapaClick} title="Ver casais que entraram">
+                  <span className={`text-2xl font-bold text-slate-900 tabular-nums leading-none ${onEtapaClick ? 'group-hover:text-ww-gold-ink transition-colors' : ''}`}>{formatNumber(entrouB)}</span>
                   <span className="text-xs font-medium text-slate-500">{labelB}</span>
-                </div>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-2xl font-bold text-slate-400 tabular-nums leading-none">{formatNumber(entrouA)}</span>
+                </button>
+                <button className="flex items-baseline gap-1.5 group" onClick={onEtapaClick ? () => onEtapaClick('entrou', 'A') : undefined} disabled={!onEtapaClick} title="Ver casais que entraram">
+                  <span className={`text-2xl font-bold text-slate-400 tabular-nums leading-none ${onEtapaClick ? 'group-hover:text-ww-gold-ink transition-colors' : ''}`}>{formatNumber(entrouA)}</span>
                   <span className="text-xs font-medium text-slate-400">{labelA}</span>
-                </div>
+                </button>
               </div>
             </div>
             <span className="shrink-0 text-xs text-slate-400">base · 100%</span>
@@ -116,8 +128,10 @@ export function FunilUnificado({ marcosA, marcosB, labelA, labelB, isLoading, er
                 </div>
 
                 <div className="space-y-1.5">
-                  <Linha label={labelA} w={wA} count={la?.count ?? 0} pct={stepA} pctCls={pctA} barCls={barA} />
-                  <Linha label={labelB} w={wB} count={lb?.count ?? 0} pct={stepB} pctCls={pctB} barCls={barB} strong />
+                  <Linha label={labelA} w={wA} count={la?.count ?? 0} pct={stepA} pctCls={pctA} barCls={barA}
+                    onClick={onEtapaClick ? () => onEtapaClick(key, 'A') : undefined} />
+                  <Linha label={labelB} w={wB} count={lb?.count ?? 0} pct={stepB} pctCls={pctB} barCls={barB} strong
+                    onClick={onEtapaClick ? () => onEtapaClick(key, 'B') : undefined} />
                 </div>
 
                 {/* do topo — sutil */}

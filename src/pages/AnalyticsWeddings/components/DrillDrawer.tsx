@@ -1,23 +1,26 @@
-import { useMemo, useEffect } from 'react'
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { useWw2DrillDown, type DrillFilters, type Ww2DrillRow } from '@/hooks/analyticsWeddings/useWw2'
+import { useWwDrillCasais, type DrillFilters, type WwDrillCasalRow } from '@/hooks/analyticsWeddings/useWw2'
 import { formatCurrency, formatNumber } from '../lib/format'
 import { OpenInACButton } from './OpenInACButton'
 
 export type DrillContext = DrillFilters & { title: string; subtitle?: string }
 
-export function DrillDrawer({ ctx, onClose }: { ctx: DrillContext | null; onClose: () => void }) {
-  const { data, isLoading, error } = useWw2DrillDown(ctx)
+// Situação do casal no funil — derivada dos marcos (mais avançado vence)
+function etapaDoCasal(r: WwDrillCasalRow): { label: string; date: string | null; cls: string } {
+  if (r.ganho) return { label: 'Ganhou', date: r.ganho_at, cls: 'bg-emerald-50 text-emerald-700' }
+  if (r.is_perdido) return { label: 'Perdido', date: null, cls: 'bg-rose-50 text-rose-600' }
+  if (r.fez_closer_at) return { label: 'Fez reunião closer', date: r.fez_closer_at, cls: 'bg-ww-cream text-ww-gold-ink' }
+  if (r.agendou_closer_at) return { label: 'Marcou closer', date: r.agendou_closer_at, cls: 'bg-ww-cream text-ww-gold-ink' }
+  if (r.fez_sdr_at) return { label: 'Fez 1ª reunião', date: r.fez_sdr_at, cls: 'bg-slate-100 text-slate-600' }
+  if (r.agendou_sdr_at) return { label: 'Marcou 1ª reunião', date: r.agendou_sdr_at, cls: 'bg-slate-100 text-slate-600' }
+  return { label: 'Lead', date: r.lead_created_at, cls: 'bg-slate-50 text-slate-500' }
+}
 
-  // Filtros que a RPC ww2_drill_down ainda não conhece — aplicados client-side.
-  const filteredRows = useMemo<Ww2DrillRow[]>(() => {
-    if (!data?.rows) return []
-    let rows = data.rows
-    if (ctx?.tipo) rows = rows.filter(r => r.tipo_casamento === ctx.tipo)
-    if (ctx?.campaign) rows = rows.filter(r => (r.campaign ?? '') === ctx.campaign)
-    if (ctx?.medium) rows = rows.filter(r => (r.medium ?? '') === ctx.medium)
-    return rows
-  }, [data, ctx])
+const fmtData = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : null)
+
+export function DrillDrawer({ ctx, onClose }: { ctx: DrillContext | null; onClose: () => void }) {
+  const { data, isLoading, error } = useWwDrillCasais(ctx)
 
   // Esc fecha o drawer
   useEffect(() => {
@@ -29,11 +32,7 @@ export function DrillDrawer({ ctx, onClose }: { ctx: DrillContext | null; onClos
 
   if (!ctx) return null
 
-  const totalDisplay = data ? (
-    filteredRows.length === data.rows.length
-      ? data.total
-      : filteredRows.length
-  ) : 0
+  const rows = data?.rows ?? []
 
   return (
     <>
@@ -45,8 +44,8 @@ export function DrillDrawer({ ctx, onClose }: { ctx: DrillContext | null; onClos
             {ctx.subtitle && <p className="text-xs text-slate-500 mt-0.5">{ctx.subtitle}</p>}
             {data && (
               <p className="text-xs text-slate-500 mt-0.5">
-                {formatNumber(totalDisplay)} casal{totalDisplay !== 1 ? 'is' : ''} encontrado{totalDisplay !== 1 ? 's' : ''}
-                {data.total > data.rows.length && ` · mostrando primeiros ${data.rows.length}`}
+                {formatNumber(data.total)} casal{data.total !== 1 ? 'is' : ''} encontrado{data.total !== 1 ? 's' : ''}
+                {data.total > rows.length && ` · mostrando primeiros ${rows.length}`}
               </p>
             )}
           </div>
@@ -63,70 +62,84 @@ export function DrillDrawer({ ctx, onClose }: { ctx: DrillContext | null; onClos
               <div className="mt-1 text-xs text-rose-400 break-all">{(error as { message?: string })?.message ?? JSON.stringify(error)}</div>
             </div>
           )}
-          {data && filteredRows.length === 0 && (
+          {data && rows.length === 0 && (
             <div className="p-10 text-center text-sm text-slate-400">Nenhum casal encontrado com esses filtros.</div>
           )}
-          {data && filteredRows.length > 0 && (
+          {data && rows.length > 0 && (
             <table className="w-full text-xs">
               <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
                 <tr className="text-left text-slate-600">
-                  <th className="px-4 py-2 font-medium">Casal · Card</th>
-                  <th className="px-2 py-2 font-medium">Etapa</th>
-                  <th className="px-2 py-2 font-medium">Dono</th>
-                  <th className="px-2 py-2 font-medium text-center">Valor</th>
-                  <th className="px-2 py-2 font-medium text-center">Parado</th>
+                  <th className="px-4 py-2 font-medium">Casal</th>
+                  <th className="px-2 py-2 font-medium">Situação</th>
+                  <th className="px-2 py-2 font-medium">Consultor</th>
+                  <th className="px-2 py-2 font-medium text-right">Valor</th>
+                  <th className="px-2 py-2 font-medium text-right">Entrou</th>
                   <th className="px-2 py-2 font-medium text-center">Active</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredRows.map(r => (
-                  <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50/60">
-                    <td className="px-4 py-2.5">
-                      <Link
-                        to={`/cards/${r.id}`}
-                        className="text-indigo-700 hover:underline font-medium block"
-                        title={r.titulo}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {r.titulo.length > 48 ? r.titulo.slice(0, 48) + '…' : r.titulo}
-                      </Link>
-                      <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500">
-                        {r.contato_nome && <span className="font-medium text-slate-700">{r.contato_nome}</span>}
-                        {r.contato_telefone && <span>· {r.contato_telefone}</span>}
-                      </div>
-                      <div className="text-[10px] text-slate-400 mt-0.5">
-                        {r.faixa && <span className="mr-2">{r.faixa}</span>}
-                        {r.destino && <span className="mr-2">{r.destino}</span>}
-                        {r.origem && r.origem !== 'Desconhecida' && <span className="mr-2">{r.origem}</span>}
-                        {r.tipo_casamento && <span className="mr-2">· {r.tipo_casamento}</span>}
-                      </div>
-                    </td>
-                    <td className="px-2 py-2.5">
-                      <div className="text-slate-700">{r.stage_name}</div>
-                      <div className="text-[11px] text-slate-400">{r.phase_label}</div>
-                    </td>
-                    <td className="px-2 py-2.5 text-slate-700">{r.dono_nome ?? <span className="text-slate-400">—</span>}</td>
-                    <td className="px-2 py-2.5 text-right tabular-nums">
-                      {r.valor_final ? formatCurrency(r.valor_final) : r.valor_estimado ? <span className="text-slate-500">~{formatCurrency(r.valor_estimado)}</span> : <span className="text-slate-300">—</span>}
-                    </td>
-                    <td className="px-2 py-2.5 text-right tabular-nums">
-                      <span className={r.dias_parado > 14 ? 'text-rose-600 font-medium' : r.dias_parado > 7 ? 'text-amber-600' : 'text-slate-500'}>
-                        {r.dias_parado}d
-                      </span>
-                    </td>
-                    <td className="px-2 py-2.5 text-center">
-                      <OpenInACButton dealId={r.ac_deal_id} externalId={r.contato_external_id} contactName={r.contato_nome} />
-                    </td>
-                  </tr>
-                ))}
+                {rows.map(r => {
+                  const titulo = r.deal_title || r.contato_nome || 'Casal sem nome'
+                  const etapa = etapaDoCasal(r)
+                  return (
+                    <tr key={r.contact_id} className="border-b border-slate-100 hover:bg-slate-50/60">
+                      <td className="px-4 py-2.5">
+                        {r.card_id ? (
+                          <Link
+                            to={`/cards/${r.card_id}`}
+                            className="text-indigo-700 hover:underline font-medium block"
+                            title={titulo}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {titulo.length > 48 ? titulo.slice(0, 48) + '…' : titulo}
+                          </Link>
+                        ) : (
+                          <span className="font-medium text-slate-800 block" title={titulo}>
+                            {titulo.length > 48 ? titulo.slice(0, 48) + '…' : titulo}
+                          </span>
+                        )}
+                        {(r.contato_nome || r.contato_telefone) && (
+                          <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500">
+                            {r.contato_nome && <span className="font-medium text-slate-700">{r.contato_nome}</span>}
+                            {r.contato_telefone && <span>· {r.contato_telefone}</span>}
+                          </div>
+                        )}
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          {r.faixa && <span className="mr-2">{r.faixa}</span>}
+                          {r.destino && <span className="mr-2">{r.destino}</span>}
+                          {r.convidados && <span className="mr-2">{r.convidados} conv.</span>}
+                          {r.origem && r.origem !== 'Desconhecida' && <span className="mr-2">{r.origem}</span>}
+                          {r.tipo && <span className="mr-2">· {r.tipo}</span>}
+                        </div>
+                        {r.motivo_perda && (
+                          <div className="text-[10px] text-rose-500/80 mt-0.5" title={`Motivo de perda: ${r.motivo_perda}`}>
+                            ✕ {r.motivo_perda.length > 56 ? r.motivo_perda.slice(0, 56) + '…' : r.motivo_perda}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-2 py-2.5">
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-[11px] font-medium whitespace-nowrap ${etapa.cls}`}>{etapa.label}</span>
+                        {etapa.date && <div className="text-[10px] text-slate-400 mt-0.5 tabular-nums">{fmtData(etapa.date)}</div>}
+                      </td>
+                      <td className="px-2 py-2.5 text-slate-700">{r.consultor_nome ?? <span className="text-slate-400">—</span>}</td>
+                      <td className="px-2 py-2.5 text-right tabular-nums">
+                        {r.valor_final ? formatCurrency(r.valor_final) : <span className="text-slate-300">—</span>}
+                      </td>
+                      <td className="px-2 py-2.5 text-right tabular-nums text-slate-500">{fmtData(r.lead_created_at) ?? '—'}</td>
+                      <td className="px-2 py-2.5 text-center">
+                        <OpenInACButton dealId={r.ac_deal_id} externalId={r.contact_id} contactName={r.contato_nome ?? r.deal_title} />
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           )}
         </div>
         <div className="px-5 py-3 border-t border-slate-200 text-xs text-slate-500 flex items-center justify-between gap-3">
           <span>
-            {data && `Total: ${formatNumber(totalDisplay)}`}
-            <span className="ml-2 text-slate-400">· a lista vem dos cards do CRM e respeita os filtros da aba; totais podem diferir levemente dos agregados (fonte Active)</span>
+            {data && `Total: ${formatNumber(data.total)}`}
+            <span className="ml-2 text-slate-400">· lista alinhada à fonte Active (mesma conta dos agregados); nome em azul abre o card no CRM</span>
           </span>
           <button onClick={onClose} className="text-indigo-600 hover:text-indigo-700 font-medium shrink-0">Fechar</button>
         </div>

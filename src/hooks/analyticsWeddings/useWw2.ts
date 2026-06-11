@@ -184,44 +184,6 @@ export type Ww2LossReasons = {
   tendencia: Ww2Tendencia[]
 }
 
-export type Ww2DrillRow = {
-  id: string
-  titulo: string
-  created_at: string
-  updated_at: string
-  valor_estimado: number | null
-  valor_final: number | null
-  status_comercial: string | null
-  stage_name: string
-  phase_label: string
-  dono_nome: string | null
-  faixa: string | null
-  destino: string | null
-  origem: string
-  dias_parado: number
-  motivo_perda: string | null
-  // Enriquecimentos da Onda 1 (migration 20260527s_ww2_drill_down_enrich)
-  contato_id: string | null
-  contato_nome: string | null
-  contato_email: string | null
-  contato_telefone: string | null
-  contato_external_id: string | null
-  ac_deal_id: string | null
-  data_venda: string | null
-  monde_venda: string | null
-  tipo_casamento: string | null
-  campaign: string | null
-  medium: string | null
-  content: string | null
-}
-
-export type Ww2DrillDown = {
-  total: number
-  limit: number
-  offset: number
-  rows: Ww2DrillRow[]
-}
-
 export type Ww2FilterOptions = {
   origens: string[]
   faixas: string[]
@@ -307,6 +269,8 @@ export function useWw2LossReasons(filters: Ww2Filters) {
   })
 }
 
+export type DrillMarco = 'entrou' | 'marcou_sdr' | 'fez_sdr' | 'marcou_closer' | 'fez_closer' | 'ganho' | 'perdido' | 'aberto'
+
 export type DrillFilters = {
   dateStart: string
   dateEnd: string
@@ -314,12 +278,17 @@ export type DrillFilters = {
   stageId?: string
   phaseSlug?: string
   status?: 'aberto' | 'ganho' | 'perdido' | 'fechado_efetivo'
+  // Marco do funil (drill v2 — ww_drill_casais): mesma régua cumulativa dos agregados.
+  // Quando presente, vence o `status` (que vira só compat das telas antigas).
+  marco?: DrillMarco
   faixa?: string
   destino?: string
   convidados?: string
   origem?: string
   consultorId?: string
   motivoPerda?: string
+  /** Recorta o motivo ao funil: lista SDR vs lista Closer (drill v2) */
+  motivoRole?: 'sdr' | 'closer'
   // Filtros ATIVOS da barra da aba (arrays) — auditoria 2026-06-11: o drill tem que
   // respeitar o mesmo recorte que gerou o número clicado (20260611b no banco).
   origins?: string[]
@@ -330,7 +299,7 @@ export type DrillFilters = {
   consultorIds?: string[]
   canalSdr?: string[]
   canalCloser?: string[]
-  // Filtrados client-side após o fetch (a RPC ww2_drill_down não conhece estes):
+  // Singulares server-side no drill v2 (eram client-side no drill antigo):
   tipo?: string
   campaign?: string
   medium?: string
@@ -338,28 +307,81 @@ export type DrillFilters = {
   offset?: number
 }
 
-export function useWw2DrillDown(filters: DrillFilters | null) {
+// ── Drill v2 — ww_drill_casais (universo ACTIVE, alinhado aos agregados) ─────
+// Lista os casais por trás de QUALQUER número clicado: mesma régua de período
+// (cohort/throughput), marcos cumulativos do ww_funil_conversao_v1, throughput
+// por data do marco (ww_serie_temporal). Toda linha tem ac_deal_id → botão Active.
+
+export type WwDrillCasalRow = {
+  contact_id: string
+  deal_title: string | null
+  tipo: string | null
+  lead_created_at: string | null
+  faixa: string | null
+  convidados: string | null
+  destino: string | null
+  origem: string | null
+  consultor_nome: string | null
+  canal_sdr: string | null
+  canal_closer: string | null
+  agendou_sdr_at: string | null
+  fez_sdr_at: string | null
+  agendou_closer_at: string | null
+  fez_closer_at: string | null
+  ganho_at: string | null
+  ganho: boolean
+  is_perdido: boolean
+  ac_deal_id: string | null
+  campaign: string | null
+  medium: string | null
+  motivo_perda: string | null
+  card_id: string | null
+  valor_final: number | null
+  contato_nome: string | null
+  contato_telefone: string | null
+}
+
+export type WwDrillCasais = {
+  total: number
+  limit: number
+  offset: number
+  rows: WwDrillCasalRow[]
+}
+
+// Compat: telas antigas passam `status`; o universo Active fala em marco.
+const statusParaMarco = (f: DrillFilters): DrillMarco | null => {
+  if (f.marco) return f.marco
+  if (f.status === 'ganho' || f.status === 'fechado_efetivo') return 'ganho'
+  if (f.status === 'perdido') return 'perdido'
+  if (f.status === 'aberto') return 'aberto'
+  return null
+}
+
+export function useWwDrillCasais(filters: DrillFilters | null) {
   const orgId = useOrgId()
   return useQuery({
-    queryKey: ['ww2', 'drill', orgId, filters],
+    queryKey: ['ww', 'drill-casais', orgId, filters],
     queryFn: () => filters
-      ? callRpc<Ww2DrillDown>('ww2_drill_down', {
+      ? callRpc<WwDrillCasais>('ww_drill_casais', {
           p_date_start: filters.dateStart,
           p_date_end: filters.dateEnd,
           p_date_mode: filters.dateMode ?? 'cohort',
           p_org_id: orgId,
-          p_stage_id: filters.stageId ?? null,
+          p_marco: statusParaMarco(filters),
           p_phase_slug: filters.phaseSlug ?? null,
-          p_status: filters.status ?? null,
           p_faixa: filters.faixa ?? null,
           p_destino: filters.destino ?? null,
           p_convidados: filters.convidados ?? null,
           p_origem: filters.origem ?? null,
-          p_consultor_id: filters.consultorId ?? null,
+          p_tipo: filters.tipo ?? null,
+          p_campaign: filters.campaign ?? null,
+          p_medium: filters.medium ?? null,
           p_motivo_perda: filters.motivoPerda ?? null,
+          p_motivo_role: filters.motivoRole ?? null,
+          p_consultor_id: filters.consultorId ?? null,
           p_limit: filters.limit ?? 50,
           p_offset: filters.offset ?? 0,
-          // arrays só quando ativos — compat e payload enxuto
+          // arrays só quando ativos — payload enxuto
           ...(filters.origins?.length ? { p_origins: filters.origins } : {}),
           ...(filters.faixas?.length ? { p_faixas: filters.faixas } : {}),
           ...(filters.destinos?.length ? { p_destinos: filters.destinos } : {}),

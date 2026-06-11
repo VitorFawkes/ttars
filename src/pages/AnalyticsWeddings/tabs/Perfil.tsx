@@ -144,7 +144,7 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
           <select
             value={cruzX}
             onChange={e => setCruzX(e.target.value as Eixo)}
-            className="px-2.5 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="px-2.5 py-1.5 text-xs font-medium bg-white border border-ww-sand rounded-lg focus:outline-none focus:ring-2 focus:ring-ww-gold"
           >
             {EIXO_OPTS.filter(o => o.id !== cruzY).map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
           </select>
@@ -152,7 +152,7 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
           <select
             value={cruzY}
             onChange={e => setCruzY(e.target.value as Eixo)}
-            className="px-2.5 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="px-2.5 py-1.5 text-xs font-medium bg-white border border-ww-sand rounded-lg focus:outline-none focus:ring-2 focus:ring-ww-gold"
           >
             {EIXO_OPTS.filter(o => o.id !== cruzX).map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
           </select>
@@ -176,9 +176,18 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <TopPerfisCard
           titulo={`🏆 Top 10 perfis de quem ${refUpper} (referência)`}
-          subtitulo={`Combos (faixa + destino + convidados) mais frequentes entre quem ${refLabel} no período de referência.`}
+          subtitulo={`Combos (faixa + destino + convidados) mais frequentes entre quem ${refLabel} no período de referência. Clique pra ver os casais.`}
           perfis={topHist}
           accent="emerald"
+          onPerfilClick={(p) => setDrill({
+            dateStart: histStart, dateEnd: histEnd,
+            dateMode: referencia === 'ganho' ? 'throughput' : 'cohort',
+            origins: filters.origins, tipos: filters.tipos,
+            faixa: p.faixa, destino: p.destino, convidados: p.convidados,
+            marco: referencia === 'perdido' ? 'perdido' : 'ganho',
+            title: `Quem ${refLabel} — ${p.faixa} + ${p.destino} + ${p.convidados}`,
+            subtitle: 'período de referência',
+          })}
         />
         <TopPerfisCard
           titulo="📥 Top 10 perfis dos LEADS NOVOS"
@@ -214,6 +223,7 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
           titulo="🎥 Como foi a 1ª reunião"
           subtitulo={`Canal da 1ª reunião (vídeo, WhatsApp, presencial...) entre quem ${refLabel} vs os leads novos. Cobertura parcial — conta só quem teve reunião registrada.`}
           dim={dimCanal}
+          onCategoriaClick={(cat) => setDrill({ ...baseCtx, canalSdr: [cat], title: `Leads novos — 1ª reunião por "${cat}"` })}
         />
       )}
       {dimCanalCloser && (
@@ -221,6 +231,7 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
           titulo="🎥 Como foi a reunião de fechamento"
           subtitulo={`Canal da reunião com a Closer entre quem ${refLabel} vs os leads novos. Registrado desde nov/2025 — períodos antigos têm pouca cobertura.`}
           dim={dimCanalCloser}
+          onCategoriaClick={(cat) => setDrill({ ...baseCtx, canalCloser: [cat], title: `Leads novos — fechamento por "${cat}"` })}
         />
       )}
 
@@ -494,7 +505,7 @@ function HeatmapDuplo({ cells, xOrder, yOrder, xLabel, yLabel, onCellClick }: {
                   return (
                     <td key={x} className={`p-0 ${bg}`} title={`Hist: ${cell.hist_qtd} (${hp}%) · Atual: ${cell.atual_qtd} (${ap}%) · Δ ${delta >= 0 ? '+' : ''}${delta.toFixed(1)}pp`}>
                       {onCellClick ? (
-                        <button onClick={() => onCellClick(x, y)} className="w-full h-full px-2 py-2 text-center block cursor-pointer hover:ring-2 hover:ring-indigo-400 focus:ring-2 focus:ring-indigo-400 focus:outline-none">
+                        <button onClick={() => onCellClick(x, y)} className="w-full h-full px-2 py-2 text-center block cursor-pointer hover:ring-2 hover:ring-ww-gold focus:ring-2 focus:ring-ww-gold focus:outline-none">
                           <div className="text-[11px] tabular-nums">
                             <span className="text-emerald-700 font-medium">{hp}%</span>
                             <span className="text-slate-400 mx-0.5">/</span>
@@ -614,7 +625,7 @@ function ComparacaoDimensao({ titulo, subtitulo, dim, ordenarPor, onCategoriaCli
               <Wrap
                 key={d.categoria}
                 onClick={onCategoriaClick ? () => onCategoriaClick(d.categoria) : undefined}
-                className={`w-full grid grid-cols-12 items-center px-3 py-2.5 text-xs text-left ${onCategoriaClick ? 'hover:bg-indigo-50/60 cursor-pointer' : ''}`}
+                className={`w-full grid grid-cols-12 items-center px-3 py-2.5 text-xs text-left ${onCategoriaClick ? 'hover:bg-ww-cream/50 cursor-pointer' : ''}`}
                 title={onCategoriaClick ? `Ver leads novos — ${d.categoria}` : undefined}
               >
                 <div className="col-span-3 font-medium text-slate-900 truncate" title={d.categoria}>{d.categoria}</div>
