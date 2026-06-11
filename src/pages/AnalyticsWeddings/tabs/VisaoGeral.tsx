@@ -62,13 +62,13 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
           onClick={() => openDrill({ ...baseCtx, title: 'Leads criados no período' })}
         />
         <KpiCard
-          label="Reuniões"
+          label="Reuniões SDR feitas"
           value={formatNumber(kpis.reunioes)}
           prevValue={kpis.reunioes_prev}
           hint={`Anterior: ${formatNumber(kpis.reunioes_prev)}`}
         />
         <KpiCard
-          label="Propostas enviadas"
+          label="Marcou reunião Closer"
           value={formatNumber(kpis.propostas)}
           prevValue={kpis.propostas_prev}
           hint={`Anterior: ${formatNumber(kpis.propostas_prev)}`}
@@ -126,7 +126,12 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
           )}
         </SectionCard>
 
-        <SectionCard title="Conversão entre fases" subtitle="Taxa de avanço de uma fase pra próxima">
+        <SectionCard
+          title="Conversão entre fases"
+          subtitle={filters.dateMode === 'cohort'
+            ? 'Safra: dos leads que chegaram no período, até onde eles foram (mesmo que depois)'
+            : 'O que aconteceu dentro do período, etapa a etapa — mesma régua dos cartões de cima'}
+        >
           {conversoes.length === 0 ? <EmptyState message="Sem dados" /> : (
             <div className="space-y-2">
               {conversoes.map((c, idx) => (
