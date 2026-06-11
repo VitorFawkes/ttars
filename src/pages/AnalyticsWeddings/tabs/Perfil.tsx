@@ -37,8 +37,10 @@ const monthsAgo = (n: number) => { const d = new Date(); d.setMonth(d.getMonth()
 export function Perfil({ filters, onFiltersChange }: TabProps) {
   return (
     <div className="space-y-4">
-      {/* período é controlado pelos seletores próprios da aba (Referência × Pipeline) — só filtros de perfil aqui */}
-      <FilterBar value={filters} onChange={onFiltersChange} show={['tipo', 'origem', 'faixa', 'convidados', 'destino', 'consultor', 'canal_sdr', 'canal_closer']} />
+      {/* período vem dos seletores próprios da aba (Referência × Pipeline). Só recorte que NÃO é dimensão
+          comparada: filtrar faixa/convidados/destino/canal degenera a própria comparação, e consultor/canais
+          quase não existem em lead novo (27%/4%/2% preenchidos) — zerariam o lado "quem está entrando". */}
+      <FilterBar value={filters} onChange={onFiltersChange} show={['tipo', 'origem']} />
       <PerfilContent filters={filters} />
     </div>
   )
