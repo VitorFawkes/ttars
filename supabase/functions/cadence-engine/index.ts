@@ -763,10 +763,37 @@ async function processEntryQueue(supabaseClient: SupabaseClient) {
                     .update({
                         status: "cancelled",
                         processed_at: new Date().toISOString(),
-                        error_message: "Trigger desativado antes da execução"
+                        last_error: "Trigger desativado antes da execução"
                     })
                     .eq("id", item.id);
                 results.push({ id: item.id, success: true, skipped: true, reason: "trigger_inactive" });
+                continue;
+            }
+
+            // Re-validar o card na hora da execução: lixeira/arquivado cancela
+            // o item antes de qualquer ação (card pode ter sido excluído entre
+            // o enqueue e a execução — ex.: gatilho temporal enfileirado de
+            // madrugada e card excluído de manhã).
+            const { data: entryCard } = await supabaseClient
+                .from("cards")
+                .select("card_type, deleted_at, archived_at")
+                .eq("id", item.card_id)
+                .maybeSingle();
+            const entryCardDead = !entryCard ? 'card_not_found'
+                : entryCard.deleted_at ? 'card_deleted'
+                : entryCard.archived_at ? 'card_archived'
+                : null;
+            if (entryCardDead) {
+                console.log(`[CadenceEngine] Skipping entry item ${item.id}: ${entryCardDead}`);
+                await supabaseClient
+                    .from("cadence_entry_queue")
+                    .update({
+                        status: "cancelled",
+                        processed_at: new Date().toISOString(),
+                        last_error: entryCardDead
+                    })
+                    .eq("id", item.id);
+                results.push({ id: item.id, success: true, skipped: true, reason: entryCardDead });
                 continue;
             }
 
@@ -775,12 +802,7 @@ async function processEntryQueue(supabaseClient: SupabaseClient) {
             // via converter_sub_card_em_principal, por exemplo).
             const applicableCardTypes: string[] | null = trigger.applicable_card_types ?? null;
             if (applicableCardTypes && applicableCardTypes.length > 0) {
-                const { data: cardRow } = await supabaseClient
-                    .from("cards")
-                    .select("card_type")
-                    .eq("id", item.card_id)
-                    .single();
-                const currentType = cardRow?.card_type ?? null;
+                const currentType = entryCard?.card_type ?? null;
                 if (!currentType || !applicableCardTypes.includes(currentType)) {
                     console.log(`[CadenceEngine] Skipping entry item ${item.id}: card_type mismatch (current=${currentType}, allowed=${applicableCardTypes.join(',')})`);
                     await supabaseClient
@@ -788,7 +810,7 @@ async function processEntryQueue(supabaseClient: SupabaseClient) {
                         .update({
                             status: "cancelled",
                             processed_at: new Date().toISOString(),
-                            error_message: `card_type_filter_mismatch (card_type=${currentType ?? 'NULL'}, applicable=${applicableCardTypes.join(',')})`
+                            last_error: `card_type_filter_mismatch (card_type=${currentType ?? 'NULL'}, applicable=${applicableCardTypes.join(',')})`
                         })
                         .eq("id", item.id);
                     results.push({ id: item.id, success: true, skipped: true, reason: "card_type_mismatch" });
@@ -1021,6 +1043,13 @@ async function executeCreateTaskAction(
             .single();
 
         if (taskError) {
+            // Reunião já existe nesse card+horário (índice tarefas_unique_meeting_slot)
+            // ou colisão equivalente: pula sem falhar o trigger de entrada.
+            if (taskError.code === '23505') {
+                console.log(`[CadenceEngine] Tarefa "${taskTipo}" já existe para card ${cardId} no mesmo horário — pulando (23505).`);
+                skipped.push({ tipo: taskTipo, reason: 'duplicate_slot' });
+                continue;
+            }
             throw new Error(`Failed to create task "${taskTipo}": ${taskError.message}`);
         }
 
@@ -2830,6 +2859,48 @@ async function executeStep(supabaseClient: SupabaseClient, queueItem: any) {
         throw new Error(`Card not found: ${instance.card_id}`);
     }
 
+    // Card morto → cancela a cadência DE VEZ (não só pula o step).
+    // Cobre: lixeira (deleted_at), arquivado (archived_at) e negócio perdido
+    // (status_comercial='perdido'). Sem isso, cadência no meio de uma espera
+    // continuava até o fim e mandava mensagem pra card excluído/perdido.
+    // ATENÇÃO: se um dia existir cadência legítima para cards perdidos
+    // (winback), transformar o caso 'perdido' em flag por template.
+    const deadCardReason = card.deleted_at ? 'card_deleted'
+        : card.archived_at ? 'card_archived'
+        : card.status_comercial === 'perdido' ? 'card_perdido'
+        : null;
+    if (deadCardReason) {
+        await supabaseClient
+            .from('cadence_instances')
+            .update({
+                status: 'cancelled',
+                cancelled_at: new Date().toISOString(),
+                cancelled_reason: deadCardReason,
+            })
+            .eq('id', instance.id);
+        await supabaseClient
+            .from('cadence_queue')
+            .update({ status: 'cancelled' })
+            .eq('instance_id', instance.id)
+            .in('status', ['pending', 'processing']);
+        await logEvent(supabaseClient, {
+            instance_id: instance.id,
+            card_id: card.id,
+            event_type: 'cadence_cancelled',
+            event_source: 'cadence_engine',
+            event_data: {
+                reason: deadCardReason,
+                step_key: step.step_key,
+                deleted_at: card.deleted_at,
+                archived_at: card.archived_at,
+                status_comercial: card.status_comercial,
+            },
+            action_taken: 'cancel_cadence',
+        });
+        console.log(`[CadenceEngine] Instance ${instance.id} cancelled: ${deadCardReason} (card ${card.id})`);
+        return { skipped: true, reason: deadCardReason };
+    }
+
     // Executar baseado no tipo de step
     switch (step.step_type) {
         case 'task':
@@ -3109,8 +3180,9 @@ async function executeTaskStep(
 
     if (taskError) {
         if (taskError.code === '23505') {
-            console.log(`[CadenceEngine] Tarefa já existe para step ${step.id} no card ${card.id} (execução paralela). Recuperando ID existente.`);
-            const { data: existing } = await supabaseClient
+            console.log(`[CadenceEngine] Tarefa já existe para step ${step.id} no card ${card.id} (execução paralela ou reunião já criada). Recuperando.`);
+            // 1) Mesma cadência/step (índice tarefas_unique_cadence_step).
+            let { data: existing } = await supabaseClient
                 .from("tarefas")
                 .select("*")
                 .eq("card_id", card.id)
@@ -3118,7 +3190,27 @@ async function executeTaskStep(
                 .is("rescheduled_from_id", null)
                 .contains("metadata", { cadence_instance_id: instance.id, cadence_step_id: step.id })
                 .limit(1)
-                .single();
+                .maybeSingle();
+            // 2) Reunião já criada nesse horário por outra origem — ex.: tarefa do
+            //    AC ou de outra instância (índice tarefas_unique_meeting_slot). O
+            //    step é considerado satisfeito pela reunião que já existe.
+            if (!existing && taskTipo.startsWith('reuniao')) {
+                const { data: slotTask } = await supabaseClient
+                    .from("tarefas")
+                    .select("*")
+                    .eq("card_id", card.id)
+                    .like("tipo", "reuniao%")
+                    .eq("data_vencimento", taskDueDate.toISOString())
+                    .is("deleted_at", null)
+                    .is("rescheduled_from_id", null)
+                    .order("created_at", { ascending: true })
+                    .limit(1)
+                    .maybeSingle();
+                existing = slotTask;
+                if (existing) {
+                    console.log(`[CadenceEngine] Reunião já existe nesse horário (tarefa ${existing.id}); step ${step.id} considerado satisfeito.`);
+                }
+            }
             if (!existing) {
                 throw new Error(`Failed to create task and could not recover existing: ${taskError.message}`);
             }
@@ -3312,6 +3404,7 @@ function buildBranchCondition(config: any) {
     switch (type) {
         case 'card_in_stage':           return { type, stage_id: config.stage_id };
         case 'card_in_stages':          return { type, stage_ids: config.stage_ids };
+        case 'card_in_phase':           return { type, phase_id: config.phase_id };
         case 'task_outcome':            return { type, outcome: config.outcome };
         case 'successful_contacts_gte': return { type, value: config.min_contacts ?? config.value ?? 1 };
         case 'total_contacts_gte':      return { type, value: config.value };
@@ -4647,6 +4740,34 @@ async function evaluateCondition(
                 result
             });
             return result;
+
+        case 'card_in_phase': {
+            // Card está em qualquer etapa da fase (macro-fase do pipeline).
+            // Resolve etapa atual → phase_id; etapa nova criada na fase passa
+            // a contar automaticamente (diferente de card_in_stages).
+            if (!condition.phase_id || !card?.pipeline_stage_id) {
+                console.log(`[CadenceEngine] evaluateCondition: card_in_phase`, {
+                    ...logContext,
+                    expected_phase: condition.phase_id,
+                    result: false,
+                    reason: 'phase_id ou pipeline_stage_id ausente'
+                });
+                return false;
+            }
+            const { data: stageRow } = await supabaseClient
+                .from('pipeline_stages')
+                .select('phase_id')
+                .eq('id', card.pipeline_stage_id)
+                .maybeSingle();
+            result = stageRow?.phase_id === condition.phase_id;
+            console.log(`[CadenceEngine] evaluateCondition: card_in_phase`, {
+                ...logContext,
+                expected_phase: condition.phase_id,
+                actual_phase: stageRow?.phase_id,
+                result
+            });
+            return result;
+        }
 
         case 'successful_contacts_gte':
             result = instance.successful_contacts >= condition.value;

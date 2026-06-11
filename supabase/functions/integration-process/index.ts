@@ -792,30 +792,32 @@ Deno.serve(async (req) => {
                             .eq('external_source', 'active_campaign')
                             .maybeSingle();
 
-                        // Dedup pra reunioes: AC tem automacoes que criam 2 tasks
-                        // identicas (mesmo deal, mesmo titulo, mesma data, AC IDs
-                        // diferentes ~0.5s apart). Se nao for um update de tarefa
-                        // existente E ja tem uma tarefa identica recente pro mesmo
-                        // card no mesmo horario, pula a criacao.
+                        // Dedup de reuniao CROSS-SOURCE: a reuniao de SDR e criada
+                        // tanto pela cadencia do CRM (external_source NULL) quanto
+                        // pelo AC. Decisao de produto: a tarefa da cadencia e a
+                        // oficial — se ja existe QUALQUER reuniao neste card no mesmo
+                        // horario (qualquer origem), nao criamos outra. Tambem cobre o
+                        // AC mandar 2 deal_tasks ~0.2s apart pro mesmo deal. O check de
+                        // existingTarefa (por external_id) ja mandou updates do mesmo
+                        // AC task pro caminho de UPDATE, entao aqui so tratamos insercoes
+                        // novas. (Backstop atomico: indice tarefas_unique_meeting_slot.)
                         if (!existingTarefa
                             && (crmTipo === 'reuniao' || crmTipo === 'reuniao_video' || crmTipo === 'reuniao_presencial' || crmTipo === 'reuniao_telefone')
                             && acDueDate) {
                             const { data: dupTarefa } = await supabase
                                 .from('tarefas')
-                                .select('id, external_id')
+                                .select('id, external_id, external_source')
                                 .eq('card_id', taskCard.id)
-                                .eq('tipo', crmTipo)
+                                .like('tipo', 'reuniao%')
                                 .eq('data_vencimento', new Date(acDueDate as string).toISOString())
-                                .eq('external_source', 'active_campaign')
                                 .is('deleted_at', null)
-                                .neq('external_id', String(acTaskId))
                                 .order('created_at', { ascending: true })
                                 .limit(1)
                                 .maybeSingle();
                             if (dupTarefa) {
-                                console.log(`[ac-dedup] Skipping duplicate ${crmTipo} for card ${taskCard.id} at ${acDueDate}: kept ${dupTarefa.external_id}, dropped ${acTaskId}`);
+                                console.log(`[ac-dedup] Skipping duplicate reuniao for card ${taskCard.id} at ${acDueDate}: kept ${dupTarefa.id} (source=${dupTarefa.external_source ?? 'cadencia/manual'}), dropped AC ${acTaskId}`);
                                 stats.ignored = (stats.ignored || 0) + 1;
-                                await updateEventStatus(event.id, 'ignored', `Duplicate ${crmTipo} for card at ${acDueDate}, kept AC ${dupTarefa.external_id}`);
+                                await updateEventStatus(event.id, 'ignored', `Duplicate reuniao for card at ${acDueDate}, kept tarefa ${dupTarefa.id}`);
                                 continue;
                             }
                         }
@@ -851,15 +853,31 @@ Deno.serve(async (req) => {
                             }
                             log = `Updated tarefa ${existingTarefa.id} from AC task ${acTaskId}`;
                         } else {
-                            // INSERT new tarefa
-                            if (pgSql) {
-                                const cols = Object.keys(tarefaPayload);
-                                await pgSql.begin(async (tx: any) => {
-                                    await tx`SELECT set_config('app.update_source', 'integration', true)`;
-                                    await tx`INSERT INTO tarefas ${pgSql(tarefaPayload, cols)}`;
-                                });
-                            } else {
-                                await supabase.from('tarefas').insert(tarefaPayload);
+                            // INSERT new tarefa. Pode bater no indice
+                            // tarefas_unique_meeting_slot se outra origem (cadencia ou
+                            // outro deal_task do AC numa corrida) ja criou a reuniao
+                            // nesse horario. Nesse caso tratamos como duplicata e
+                            // ignoramos o evento em vez de lancar erro.
+                            try {
+                                if (pgSql) {
+                                    const cols = Object.keys(tarefaPayload);
+                                    await pgSql.begin(async (tx: any) => {
+                                        await tx`SELECT set_config('app.update_source', 'integration', true)`;
+                                        await tx`INSERT INTO tarefas ${pgSql(tarefaPayload, cols)}`;
+                                    });
+                                } else {
+                                    const { error: supaErr } = await supabase.from('tarefas').insert(tarefaPayload);
+                                    if (supaErr) throw supaErr;
+                                }
+                            } catch (insErr) {
+                                const code = (insErr as { code?: string })?.code;
+                                if (code === '23505') {
+                                    console.log(`[ac-dedup] Reuniao ja existe nesse horario para card ${taskCard.id} (indice unique). Dropando AC ${acTaskId}.`);
+                                    stats.ignored = (stats.ignored || 0) + 1;
+                                    await updateEventStatus(event.id, 'ignored', `Duplicate reuniao slot for card, dropped AC ${acTaskId}`);
+                                    continue;
+                                }
+                                throw insErr;
                             }
                             log = `Created tarefa from AC task ${acTaskId} (tipo: ${crmTipo})`;
                         }
