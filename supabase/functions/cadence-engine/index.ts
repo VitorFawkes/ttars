@@ -3312,6 +3312,7 @@ function buildBranchCondition(config: any) {
     switch (type) {
         case 'card_in_stage':           return { type, stage_id: config.stage_id };
         case 'card_in_stages':          return { type, stage_ids: config.stage_ids };
+        case 'card_in_phase':           return { type, phase_id: config.phase_id };
         case 'task_outcome':            return { type, outcome: config.outcome };
         case 'successful_contacts_gte': return { type, value: config.min_contacts ?? config.value ?? 1 };
         case 'total_contacts_gte':      return { type, value: config.value };
@@ -4647,6 +4648,34 @@ async function evaluateCondition(
                 result
             });
             return result;
+
+        case 'card_in_phase': {
+            // Card está em qualquer etapa da fase (macro-fase do pipeline).
+            // Resolve etapa atual → phase_id; etapa nova criada na fase passa
+            // a contar automaticamente (diferente de card_in_stages).
+            if (!condition.phase_id || !card?.pipeline_stage_id) {
+                console.log(`[CadenceEngine] evaluateCondition: card_in_phase`, {
+                    ...logContext,
+                    expected_phase: condition.phase_id,
+                    result: false,
+                    reason: 'phase_id ou pipeline_stage_id ausente'
+                });
+                return false;
+            }
+            const { data: stageRow } = await supabaseClient
+                .from('pipeline_stages')
+                .select('phase_id')
+                .eq('id', card.pipeline_stage_id)
+                .maybeSingle();
+            result = stageRow?.phase_id === condition.phase_id;
+            console.log(`[CadenceEngine] evaluateCondition: card_in_phase`, {
+                ...logContext,
+                expected_phase: condition.phase_id,
+                actual_phase: stageRow?.phase_id,
+                result
+            });
+            return result;
+        }
 
         case 'successful_contacts_gte':
             result = instance.successful_contacts >= condition.value;

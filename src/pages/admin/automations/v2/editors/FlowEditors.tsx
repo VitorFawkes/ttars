@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input'
 import { Select as CustomSelect } from '@/components/ui/Select'
 import { Switch } from '@/components/ui/switch'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
+import { usePipelinePhases } from '@/hooks/usePipelinePhases'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { supabase } from '@/lib/supabase'
 
@@ -140,6 +141,7 @@ export const EndEditor: React.FC<ConfigEditorProps> = ({ config, onChange }) => 
 export const BranchEditor: React.FC<ConfigEditorProps> = ({ config, onChange }) => {
     const { pipelineId } = useCurrentProductMeta()
     const { data: branchStages = [] } = usePipelineStages(pipelineId)
+    const { data: branchPhases = [] } = usePipelinePhases(pipelineId)
     const set = (patch: Record<string, unknown>) => onChange({ ...config, ...patch })
     const conditionType = (config.condition_type as string) || 'task_outcome'
 
@@ -152,12 +154,55 @@ export const BranchEditor: React.FC<ConfigEditorProps> = ({ config, onChange }) 
                     onChange={(v) => set({ condition_type: v })}
                     options={[
                         { value: 'task_outcome',          label: 'Resultado da tarefa anterior' },
+                        { value: 'card_in_phase',         label: 'Card está na fase X' },
                         { value: 'card_in_stage',         label: 'Card está na etapa X' },
+                        { value: 'card_in_stages',        label: 'Card está em uma das etapas' },
                         { value: 'successful_contacts_gte', label: 'Contatos com sucesso ≥ N' },
                     ]}
                 />
             </div>
 
+            {conditionType === 'card_in_phase' && (
+                <div className="space-y-2">
+                    <Label className="text-xs">Fase</Label>
+                    <CustomSelect
+                        value={(config.phase_id as string) || ''}
+                        onChange={(v) => set({ phase_id: v || null })}
+                        options={[
+                            { value: '', label: 'Selecionar fase...' },
+                            ...branchPhases.map((p) => ({ value: p.id, label: p.name })),
+                        ]}
+                    />
+                    <p className="text-xs text-slate-500">
+                        Vale para qualquer etapa da fase — etapas criadas depois contam automaticamente.
+                    </p>
+                </div>
+            )}
+            {conditionType === 'card_in_stages' && (
+                <div className="space-y-2">
+                    <Label className="text-xs">Etapas aceitas</Label>
+                    <div className="grid grid-cols-1 gap-1 max-h-72 overflow-y-auto border rounded-md p-2">
+                        {branchStages.map((s) => {
+                            const selected = Array.isArray(config.stage_ids) ? (config.stage_ids as string[]) : []
+                            const checked = selected.includes(s.id)
+                            return (
+                                <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 px-2 py-1 rounded">
+                                    <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={(e) => set({
+                                            stage_ids: e.target.checked
+                                                ? [...selected, s.id]
+                                                : selected.filter((id) => id !== s.id),
+                                        })}
+                                    />
+                                    <span>{s.nome}</span>
+                                </label>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
             {conditionType === 'card_in_stage' && (
                 <div className="space-y-2">
                     <Label className="text-xs">Etapa</Label>
