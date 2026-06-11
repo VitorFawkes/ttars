@@ -938,10 +938,11 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
                 </div>
             )}
 
-            {/* Contato Principal — fixo abaixo do título, controlado via pipeline_card_settings */}
+            {/* Contato Principal — fixo abaixo do título, controlado via pipeline_card_settings.
+                Ícone User (1 pessoa), o mesmo da aba Contatos no sidebar. */}
             {card.pessoa_nome && fieldsToShow.includes('pessoa_nome') && (
                 <div className="flex items-center text-xs text-gray-500 -mt-0.5">
-                    <Users className="mr-1.5 h-3 w-3 flex-shrink-0 text-indigo-500" />
+                    <User className="mr-1.5 h-3 w-3 flex-shrink-0 text-indigo-500" />
                     <span className="truncate text-gray-700 font-medium">{card.pessoa_nome}</span>
                 </div>
             )}
