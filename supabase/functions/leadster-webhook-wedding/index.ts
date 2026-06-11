@@ -211,6 +211,30 @@ async function processLeadsterLead(
     marketing[k] = v;
   }
 
+  // 4c2. produto_data = campos estruturados da seção Qualificação.
+  // Os valores crus continuam em marketing_data (auditoria). Orçamento é o
+  // único que precisa normalizar: o form manda faixas por extenso e o campo
+  // ww_orcamento_faixa tem opções fixas (Até R$50k, R$50-80k, ...).
+  const ORCAMENTO_FORM_PARA_FAIXA: Record<string, string> = {
+    "Até R$50 mil": "Até R$50k",
+    "Entre R$50 e R$80 mil": "R$50-80k",
+    "Entre R$80 e R$100 mil": "R$80-100k",
+    "Entre R$100 e R$200 mil": "R$100-200k",
+    "Entre R$200 e R$500 mil": "Acima R$200k",
+    "Mais de R$500 mil": "Acima R$200k",
+  };
+  const produtoData: Record<string, unknown> = {};
+  const qDestino = pick(p, "Onde Casar", "Destino");
+  const qConvidados = pick(p, "Convidados 2");
+  const qInvestimento = pick(p, "Investimento 2");
+  const qCidade = pick(p, "Cidade");
+  if (qDestino) produtoData.ww_destino = qDestino;
+  if (qConvidados) produtoData.ww_num_convidados = qConvidados;
+  if (qInvestimento && ORCAMENTO_FORM_PARA_FAIXA[qInvestimento]) {
+    produtoData.ww_orcamento_faixa = ORCAMENTO_FORM_PARA_FAIXA[qInvestimento];
+  }
+  if (qCidade) produtoData.ww_sdr_cidade = qCidade;
+
   // 4d. Criar card WEDDING.
   const { data: card, error: cardErr } = await supabase
     .from("cards")
@@ -225,6 +249,7 @@ async function processLeadsterLead(
       status_comercial: "aberto",
       moeda: "BRL",
       marketing_data: marketing,
+      produto_data: produtoData,
     })
     .select("id").single();
   if (cardErr) return { plan: `ERRO ao criar card: ${cardErr.message}`, createdCardId: null };
