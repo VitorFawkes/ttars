@@ -40,6 +40,7 @@ interface KanbanCardProps {
 import { GroupBadge } from './GroupBadge'
 import SubCardBadge from './SubCardBadge'
 import { KanbanCardPendenciaFaixa } from './KanbanCardPendenciaFaixa'
+import { MapMarkerIcon } from '../icons/QualificacaoIcons'
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 
@@ -621,7 +622,7 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
                 if (fieldId === 'dias_ate_viagem') Icon = Calendar
                 if (fieldId === 'forma_pagamento') Icon = DollarSign
                 // Qualificação Weddings (preenchidos pelo webhook Leadster)
-                if (fieldId === 'ww_destino') { Icon = MapPin; iconCls = 'text-rose-500' }
+                if (fieldId === 'ww_destino') { Icon = MapMarkerIcon; iconCls = 'text-rose-500' }
                 if (fieldId === 'ww_num_convidados') { Icon = Users; iconCls = 'text-violet-500' }
                 if (fieldId === 'ww_orcamento_faixa') { Icon = DollarSign; iconCls = 'text-emerald-600' }
                 if (fieldId === 'ww_sdr_cidade') { Icon = Building; iconCls = 'text-sky-500' }
