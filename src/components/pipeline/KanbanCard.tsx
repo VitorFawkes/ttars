@@ -615,15 +615,16 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
             default: // text, select, etc
                 // Special icons for specific fields
                 let Icon = null
+                let iconCls = 'text-gray-400'
                 if (fieldId === 'origem') Icon = Link
                 if (fieldId === 'tempo_sem_contato') Icon = Clock
                 if (fieldId === 'dias_ate_viagem') Icon = Calendar
                 if (fieldId === 'forma_pagamento') Icon = DollarSign
                 // Qualificação Weddings (preenchidos pelo webhook Leadster)
-                if (fieldId === 'ww_destino') Icon = MapPin
-                if (fieldId === 'ww_num_convidados') Icon = Users
-                if (fieldId === 'ww_orcamento_faixa') Icon = DollarSign
-                if (fieldId === 'ww_sdr_cidade') Icon = Building
+                if (fieldId === 'ww_destino') { Icon = MapPin; iconCls = 'text-rose-500' }
+                if (fieldId === 'ww_num_convidados') { Icon = Users; iconCls = 'text-violet-500' }
+                if (fieldId === 'ww_orcamento_faixa') { Icon = DollarSign; iconCls = 'text-emerald-600' }
+                if (fieldId === 'ww_sdr_cidade') { Icon = Building; iconCls = 'text-sky-500' }
 
                 // Guard: never render raw objects
                 const displayStr = (typeof value === 'object' && value !== null)
@@ -633,7 +634,7 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
 
                 return (
                     <div key={fieldId} className="flex items-center text-xs text-gray-500 mt-1">
-                        {Icon && <Icon className="mr-1.5 h-3 w-3 flex-shrink-0 text-gray-400" />}
+                        {Icon && <Icon className={cn("mr-1.5 h-3 w-3 flex-shrink-0", iconCls)} />}
                         <span className="truncate block flex-1 text-gray-600">{displayStr}</span>
                     </div>
                 )
