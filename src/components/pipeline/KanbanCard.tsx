@@ -619,6 +619,11 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
                 if (fieldId === 'tempo_sem_contato') Icon = Clock
                 if (fieldId === 'dias_ate_viagem') Icon = Calendar
                 if (fieldId === 'forma_pagamento') Icon = DollarSign
+                // Qualificação Weddings (preenchidos pelo webhook Leadster)
+                if (fieldId === 'ww_destino') Icon = MapPin
+                if (fieldId === 'ww_num_convidados') Icon = Users
+                if (fieldId === 'ww_orcamento_faixa') Icon = DollarSign
+                if (fieldId === 'ww_sdr_cidade') Icon = Building
 
                 // Guard: never render raw objects
                 const displayStr = (typeof value === 'object' && value !== null)
