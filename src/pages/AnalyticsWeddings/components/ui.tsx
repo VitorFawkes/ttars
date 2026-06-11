@@ -59,10 +59,15 @@ export function LoadingSkeleton({ rows = 4 }: { rows?: number }) {
   )
 }
 
-export function ErrorBanner({ error }: { error: string | Error }) {
+export function ErrorBanner({ error }: { error: string | Error | unknown }) {
+  // Erros do Supabase (PostgrestError) são objetos planos — String() vira "[object Object]".
+  const msg = typeof error === 'string' ? error
+    : (error as { message?: string })?.message
+      ?? (() => { try { return JSON.stringify(error) } catch { return 'erro desconhecido' } })()
   return (
     <div className="bg-rose-50 border border-rose-200 rounded-lg p-3 text-xs text-rose-800">
-      <strong>Erro:</strong> {String(error)}
+      <strong>Não consegui carregar esta parte.</strong> Tente recarregar a página; se continuar, me avise com o texto abaixo.
+      <div className="mt-1 text-rose-600/80 break-all">{msg}</div>
     </div>
   )
 }

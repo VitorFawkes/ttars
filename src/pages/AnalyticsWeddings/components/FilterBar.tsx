@@ -1,7 +1,8 @@
 import { useSearchParams } from 'react-router-dom'
 import { useMemo } from 'react'
+import { ChevronDown, SlidersHorizontal } from 'lucide-react'
 import { useWwFunilFilterOptions } from '@/hooks/analyticsWeddings/useWw2'
-import { type PeriodOption, PERIOD_LABELS, periodToDates } from '../lib/dates'
+import { type PeriodOption, periodOptions, periodToDates } from '../lib/dates'
 import { MultiPill, ConsultorPill, TipoSegment } from './FilterPills'
 
 // Helpers de período custom — ISO ↔ YYYY-MM-DD pra input[type=date]
@@ -67,6 +68,13 @@ export type FilterKey = 'period' | 'dateMode' | 'origem' | 'faixa' | 'convidados
 // Conjunto padrão (compat para quem não passa `show`).
 const DEFAULT_SHOW: FilterKey[] = ['period', 'dateMode', 'origem', 'faixa', 'destino', 'consultor']
 
+// Quantos filtros de RECORTE estão ativos (período/modo não contam — sempre existem).
+// eslint-disable-next-line react-refresh/only-export-components
+export function countActiveFilters(f: AppliedFilters): number {
+  return f.origins.length + f.faixas.length + f.convidados.length + f.destinos.length +
+    f.tipos.length + f.consultorIds.length + f.canalSdr.length + f.canalCloser.length
+}
+
 // FilterBar CONTROLADO — cada aba passa seu próprio estado e o conjunto de filtros
 // que faz sentido pra ela (`show`). Opções vêm do AC (ww_funil_casal).
 export function FilterBar({ value, onChange, show = DEFAULT_SHOW }: { value: AppliedFilters; onChange: (next: AppliedFilters) => void; show?: FilterKey[] }) {
@@ -93,56 +101,20 @@ export function FilterBar({ value, onChange, show = DEFAULT_SHOW }: { value: App
 
   const hasPeriodControls = has('period') || has('dateMode')
 
-  return (
-    <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3 flex flex-wrap items-center gap-2">
-      {has('period') && (
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-xs text-slate-500 font-medium px-1">📅</span>
-          <select
-            value={value.period}
-            onChange={(e) => setPeriod(e.target.value as PeriodOption)}
-            className="px-2.5 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            {Object.entries(PERIOD_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </select>
-          {value.period === 'custom' && (
-            <div className="inline-flex items-center gap-1.5">
-              <input
-                type="date"
-                value={toDateInput(value.dateStart)}
-                onChange={(e) => e.target.value && set({ dateStart: fromDateInputStart(e.target.value) })}
-                className="px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              <span className="text-xs text-slate-400">até</span>
-              <input
-                type="date"
-                value={toDateInput(value.dateEnd)}
-                onChange={(e) => e.target.value && set({ dateEnd: fromDateInputEnd(e.target.value) })}
-                className="px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-          )}
-        </div>
-      )}
-      {has('dateMode') && (
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-slate-500 font-medium px-1">📊</span>
-          <select
-            value={value.dateMode}
-            onChange={(e) => set({ dateMode: e.target.value as 'cohort' | 'throughput' })}
-            className="px-2.5 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            title="Por safra (criação): leads que ENTRARAM no período. Por período (entrada na etapa): o que ACONTECEU no período (agendou/fez/fechou)."
-          >
-            <option value="cohort">Data de criação (safra)</option>
-            <option value="throughput">Data de entrada na etapa (período)</option>
-          </select>
-        </div>
-      )}
+  // Identidade da barra: deixa explícito que o filtro vale SÓ pra aba aberta.
+  const identidade = (
+    <div
+      className="flex items-center gap-2 pr-3 border-r border-ww-sand select-none"
+      title="Estes filtros valem só para esta aba. Cada aba tem os filtros que fazem sentido para a pergunta dela."
+    >
+      <SlidersHorizontal className="w-4 h-4 text-ww-gold" strokeWidth={2.2} />
+      <span className="text-sm font-semibold text-ww-n700 tracking-tight">Filtros</span>
+      <span className="text-[11px] text-ww-n500">valem só nesta aba</span>
+    </div>
+  )
 
-      {hasPeriodControls && <div className="w-px h-6 bg-slate-200 mx-1" />}
-
+  const chips = (
+    <>
       {has('tipo') && <TipoSegment selected={value.tipos} onChange={(v) => set({ tipos: v })} />}
       {has('origem') && <MultiPill label="🎯 Origem" options={options?.origens ?? []} selected={value.origins} onChange={(v) => set({ origins: v })} />}
       {has('faixa') && <MultiPill label="💰 Faixa" options={options?.faixas ?? []} selected={value.faixas} onChange={(v) => set({ faixas: v })} />}
@@ -151,14 +123,88 @@ export function FilterBar({ value, onChange, show = DEFAULT_SHOW }: { value: App
       {has('consultor') && <ConsultorPill options={options?.consultores ?? []} selected={value.consultorIds} onChange={(v) => set({ consultorIds: v })} />}
       {has('canal_sdr') && <MultiPill label="🎥 1ª reunião" options={options?.canais_sdr ?? []} selected={value.canalSdr} onChange={(v) => set({ canalSdr: v })} />}
       {has('canal_closer') && <MultiPill label="🎥 Reunião fechamento" options={options?.canais_closer ?? []} selected={value.canalCloser} onChange={(v) => set({ canalCloser: v })} />}
-
       {activeCount > 0 && (
         <button
           onClick={() => onChange(defaultFilters(value.period, value.dateMode))}
-          className="ml-auto px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+          className="ml-auto px-3 py-1.5 text-xs font-medium text-ww-n500 hover:text-ww-n700 hover:bg-ww-cream rounded-lg transition-colors active:scale-[0.98]"
         >
-          ✕ Limpar
+          ✕ Limpar filtros
         </button>
+      )}
+    </>
+  )
+
+  return (
+    <div className="bg-white border border-ww-sand rounded-xl shadow-ww-lift">
+      {/* Fila 1 — contexto: quando e como contar */}
+      <div className="px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+        {identidade}
+
+        {has('period') && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-xs text-ww-n600 font-medium">📅 Período</span>
+            <span className="relative inline-flex items-center">
+              <select
+                value={value.period}
+                onChange={(e) => setPeriod(e.target.value as PeriodOption)}
+                className="appearance-none pl-2.5 pr-7 py-1.5 text-xs font-medium bg-white border border-ww-sand rounded-lg text-ww-n700 hover:border-ww-sand-dk focus:outline-none focus:ring-2 focus:ring-ww-gold transition-colors cursor-pointer"
+              >
+                {periodOptions().map(o => (
+                  <option key={o.key} value={o.key}>{o.label}</option>
+                ))}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-ww-n400 absolute right-2 pointer-events-none" strokeWidth={2.2} />
+            </span>
+            {value.period === 'custom' && (
+              <div className="inline-flex items-center gap-1.5">
+                <input
+                  type="date"
+                  value={toDateInput(value.dateStart)}
+                  onChange={(e) => e.target.value && set({ dateStart: fromDateInputStart(e.target.value) })}
+                  className="px-2 py-1.5 text-xs bg-white border border-ww-sand rounded-lg text-ww-n700 focus:outline-none focus:ring-2 focus:ring-ww-gold"
+                />
+                <span className="text-xs text-ww-n400">até</span>
+                <input
+                  type="date"
+                  value={toDateInput(value.dateEnd)}
+                  onChange={(e) => e.target.value && set({ dateEnd: fromDateInputEnd(e.target.value) })}
+                  className="px-2 py-1.5 text-xs bg-white border border-ww-sand rounded-lg text-ww-n700 focus:outline-none focus:ring-2 focus:ring-ww-gold"
+                />
+              </div>
+            )}
+          </div>
+        )}
+        {has('dateMode') && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-ww-n600 font-medium">Contar</span>
+            <div className="inline-flex items-center gap-0.5 bg-ww-cream rounded-lg p-0.5">
+              <button
+                onClick={() => set({ dateMode: 'cohort' })}
+                title="Conta os casais que CHEGARAM no período escolhido e acompanha o que aconteceu com eles depois (mesmo fora do período)."
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-ww-gold ${value.dateMode === 'cohort' ? 'bg-ww-gold text-white shadow-sm' : 'text-ww-n600 hover:text-ww-n700'}`}
+              >
+                Leads do período
+              </button>
+              <button
+                onClick={() => set({ dateMode: 'throughput' })}
+                title="Conta o que ACONTECEU dentro do período — reuniões feitas, fechamentos — não importa quando o lead chegou."
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-ww-gold ${value.dateMode === 'throughput' ? 'bg-ww-gold text-white shadow-sm' : 'text-ww-n600 hover:text-ww-n700'}`}
+              >
+                O que aconteceu no período
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Sem controles de período (ex.: Lead ideal) — recortes sobem pra fila única */}
+        {!hasPeriodControls && chips}
+      </div>
+
+      {/* Fila 2 — recortes de perfil (zona própria, levemente champagne) */}
+      {hasPeriodControls && (
+        <div className="px-3 py-2 border-t border-ww-sand/70 bg-ww-paper/60 rounded-b-xl flex flex-wrap items-center gap-2">
+          {chips}
+        </div>
       )}
     </div>
   )

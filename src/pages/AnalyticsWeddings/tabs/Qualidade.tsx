@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { FilterBar, type TabProps, type AppliedFilters } from '../components/FilterBar'
-import { useWwQualidadeLead, type WwQualidadeLead, type WwQualidadeCategoria, type WwPerfilCompareDimensao } from '@/hooks/analyticsWeddings/useWw2'
+import { useWwQualidadeLead, type WwQualidadeLead, type WwQualidadeCategoria, type WwQualidadeCanal, type WwPerfilCompareDimensao } from '@/hooks/analyticsWeddings/useWw2'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
 import { SectionCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
@@ -22,7 +22,9 @@ type Dim = 'faixa' | 'destino' | 'convidados' | 'origem' | 'tipo'
 export function Qualidade({ filters, onFiltersChange }: TabProps) {
   return (
     <div className="space-y-4">
-      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'dateMode', 'tipo', 'origem', 'canal_sdr']} />
+      {/* Pergunta da aba: "que lead converte?" — não filtra por faixa/destino/convidados porque
+          são as PRÓPRIAS dimensões analisadas. Canal SDR e Closer entram como recorte. */}
+      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'dateMode', 'tipo', 'origem', 'canal_sdr', 'canal_closer']} />
       <QualidadeContent filters={filters} />
     </div>
   )
@@ -48,7 +50,12 @@ function QualidadeContent({ filters }: { filters: AppliedFilters }) {
   }, [stages])
 
   const { data, isLoading, error } = useWwQualidadeLead(filters, eventStageId, minAmostra)
-  const baseCtx = { dateStart: filters.dateStart, dateEnd: filters.dateEnd }
+  // Auditoria 2026-06-11: drill carrega os filtros ativos da aba junto com o clique
+  const baseCtx = {
+    dateStart: filters.dateStart, dateEnd: filters.dateEnd,
+    origins: filters.origins, tipos: filters.tipos,
+    canalSdr: filters.canalSdr, canalCloser: filters.canalCloser,
+  }
 
   if (isThroughput && !eventStageId) {
     return (
@@ -71,6 +78,19 @@ function QualidadeContent({ filters }: { filters: AppliedFilters }) {
       <StageSelector isThroughput={isThroughput} stages={stagesSelecionaveis} value={eventStageId} onChange={setEventStageId} />
       <Controls minAmostra={minAmostra} onMinAmostra={setMinAmostra} data={data} />
       <UniversoHeader data={data} isThroughput={isThroughput} stageNome={stageNome} />
+
+      {/* Conversão por tipo de reunião (20260611a) — só aparece quando o banco já devolve o breakdown */}
+      {((data.por_canal_sdr?.length ?? 0) > 0 || (data.por_canal_closer?.length ?? 0) > 0) && (
+        <ConversaoPorCanal
+          sdr={data.por_canal_sdr ?? []}
+          closer={data.por_canal_closer ?? []}
+          onPick={(kind, canal) => setDrill({
+            ...baseCtx,
+            ...(kind === 'sdr' ? { canalSdr: [canal] } : { canalCloser: [canal] }),
+            title: `Casais — ${kind === 'sdr' ? '1ª reunião' : 'reunião de fechamento'} por ${canal}`,
+          })}
+        />
+      )}
 
       {/* Perfil de quem entra vs quem fecha */}
       {perfilCompare.length > 0 && (
@@ -130,7 +150,7 @@ function QualidadeContent({ filters }: { filters: AppliedFilters }) {
         items={data.por_convidados}
         unidade="convidados"
         outros={data.outros_amostra_pequena?.convidados}
-        onRowClick={(cat) => setDrill({ ...baseCtx, title: `Casais — ${cat} convidados`, /* convidados não tem filtro server-side ainda */ })}
+        onRowClick={(cat) => setDrill({ ...baseCtx, convidados: cat, title: `Casais — ${cat} convidados` })}
       />
 
       <HeatmapFaixaDestino data={data} onCellClick={(faixa, destino) => setDrill({ ...baseCtx, faixa, destino, title: `Casais — ${faixa} × ${destino}` })} />
@@ -212,7 +232,7 @@ function buildDrillForDim(baseCtx: { dateStart: string; dateEnd: string }, dim: 
     case 'destino':    return { ...baseCtx, destino: cat, title }
     case 'origem':     return { ...baseCtx, origem: cat, title }
     case 'tipo':       return { ...baseCtx, tipo: cat, title }
-    case 'convidados': return { ...baseCtx, title }
+    case 'convidados': return { ...baseCtx, convidados: cat, title }
     default:           return { ...baseCtx, title }
   }
 }
@@ -350,9 +370,9 @@ function FunilPorCategoria({ title, subtitle, items, unidade, outros, onRowClick
 
   return (
     <SectionCard title={title} subtitle={subtitle}>
-      <div className="border border-slate-200 rounded-lg overflow-hidden">
+      <div className="border border-ww-sand rounded-lg overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+          <thead className="bg-ww-cream/60 text-xs uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-3 py-2 text-center font-medium">Categoria que o lead declarou</th>
               <th className="px-3 py-2 text-center font-medium" style={{ minWidth: 220 }}>Entraram no período</th>
@@ -415,6 +435,106 @@ function FunilPorCategoria({ title, subtitle, items, unidade, outros, onRowClick
         </table>
       </div>
     </SectionCard>
+  )
+}
+
+// Conversão por tipo de reunião — universo = quem FEZ a reunião por aquele canal.
+// A pergunta do diretor: "vale insistir em vídeo? WhatsApp fecha?"
+function ConversaoPorCanal({ sdr, closer, onPick }: { sdr: WwQualidadeCanal[]; closer: WwQualidadeCanal[]; onPick?: (kind: 'sdr' | 'closer', canal: string) => void }) {
+  return (
+    <SectionCard
+      title="🎥 Conversão por tipo de reunião"
+      subtitle="Só casais que FIZERAM a reunião. Compara como a reunião aconteceu (Vídeo, WhatsApp, Telefone, Presencial) com quantos viraram contrato. Clique numa linha pra ver os casais."
+    >
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <CanalTabela titulo="1ª reunião (SDR)" items={sdr} vazio="Nenhuma reunião de SDR com canal registrado no período" onRow={onPick ? (c) => onPick('sdr', c) : undefined} />
+        <CanalTabela
+          titulo="Reunião de fechamento (Closer)"
+          items={closer}
+          vazio="Nenhuma reunião de Closer com canal registrado no período"
+          nota={closer.length > 0 ? 'O canal da reunião Closer começou a ser registrado em nov/2025 — períodos antigos têm pouca cobertura.' : undefined}
+          onRow={onPick ? (c) => onPick('closer', c) : undefined}
+        />
+      </div>
+    </SectionCard>
+  )
+}
+
+function CanalTabela({ titulo, items, vazio, nota, onRow }: { titulo: string; items: WwQualidadeCanal[]; vazio: string; nota?: string; onRow?: (canal: string) => void }) {
+  const max = Math.max(1, ...items.map(i => i.entraram))
+  const maxTaxa = Math.max(0.1, ...items.map(i => i.taxa_pct ?? 0))
+  return (
+    <div>
+      <h4 className="font-ww-serif text-base font-semibold text-ww-n700 mb-2">{titulo}</h4>
+      {items.length === 0 ? (
+        <p className="text-xs text-ww-n400 italic py-3">{vazio}</p>
+      ) : (
+        <>
+          {/* Mobile: lista compacta — a taxa (o número que importa) sempre visível */}
+          <div className="sm:hidden border border-ww-sand rounded-lg overflow-hidden divide-y divide-ww-sand/60">
+            {items.map(it => {
+              const taxa = it.taxa_pct ?? 0
+              const taxaTom = taxa >= 10 ? 'text-emerald-700' : taxa >= 5 ? 'text-ww-gold-ink' : taxa >= 2 ? 'text-amber-700' : 'text-rose-600'
+              return (
+                <div key={it.categoria}
+                     onClick={onRow ? () => onRow(it.categoria) : undefined}
+                     className={`px-3 py-2.5 bg-white flex items-center gap-2 ${onRow ? 'cursor-pointer hover:bg-ww-cream/50 transition-colors' : ''}`}>
+                  <span className="text-sm font-medium text-ww-n700">{it.categoria}</span>
+                  <span className="flex-1 text-right text-[11px] text-ww-n500 tabular-nums leading-tight">
+                    {formatNumber(it.entraram)} reuniões<br />{formatNumber(it.fecharam)} fecharam
+                  </span>
+                  <span className={`w-14 text-right text-base font-semibold tabular-nums ${taxaTom}`}>{taxa}%</span>
+                </div>
+              )
+            })}
+          </div>
+          {/* Desktop: tabela com barras comparativas */}
+          <div className="hidden sm:block border border-ww-sand rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-ww-cream/60 text-xs uppercase tracking-wide text-ww-n500">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">Como foi</th>
+                  <th className="px-3 py-2 text-left font-medium min-w-[140px]">Fizeram reunião</th>
+                  <th className="px-3 py-2 text-right font-medium">Fecharam</th>
+                  <th className="px-3 py-2 text-left font-medium min-w-[140px] whitespace-nowrap">Reunião → contrato</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map(it => {
+                  const taxa = it.taxa_pct ?? 0
+                  const taxaCor = taxa >= 10 ? 'bg-emerald-500' : taxa >= 5 ? 'bg-ww-gold' : taxa >= 2 ? 'bg-amber-400' : 'bg-rose-300'
+                  return (
+                    <tr key={it.categoria}
+                        onClick={onRow ? () => onRow(it.categoria) : undefined}
+                        className={`border-t border-ww-sand/60 ${onRow ? 'cursor-pointer hover:bg-ww-cream/40 transition-colors' : ''}`}>
+                      <td className="px-3 py-2 text-ww-n700 font-medium whitespace-nowrap">{it.categoria}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-4 bg-ww-cream rounded overflow-hidden">
+                            <div className="h-full bg-ww-n400/60" style={{ width: `${(it.entraram / max) * 100}%` }} />
+                          </div>
+                          <span className="text-xs tabular-nums text-ww-n700 w-10 text-right font-medium">{formatNumber(it.entraram)}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-ww-n700 font-medium">{formatNumber(it.fecharam)}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-4 bg-ww-cream rounded overflow-hidden">
+                            <div className={`h-full ${taxaCor}`} style={{ width: `${(taxa / maxTaxa) * 100}%` }} />
+                          </div>
+                          <span className="text-xs tabular-nums w-12 text-right font-semibold text-ww-n700">{taxa}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+      {nota && <p className="text-[11px] text-ww-n400 mt-1.5">{nota}</p>}
+    </div>
   )
 }
 

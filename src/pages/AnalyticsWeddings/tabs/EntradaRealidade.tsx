@@ -15,7 +15,10 @@ const CONV_ORDER = ['Apenas o casal', 'Até 20', '20-50', '50-100', '+100']
 export function EntradaRealidade({ filters, onFiltersChange }: TabProps) {
   return (
     <div className="space-y-4">
-      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'dateMode', 'tipo', 'origem']} />
+      {/* Pergunta da aba: "o que disse no site × o que virou" — faixa/convidados/destino são as
+          dimensões comparadas (não filtram). Canal SDR/Closer recortam: "vendas que nasceram de
+          reunião por vídeo mantêm o orçamento declarado?" */}
+      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'dateMode', 'tipo', 'origem', 'canal_sdr', 'canal_closer']} />
       <EntradaRealidadeContent filters={filters} />
     </div>
   )
@@ -25,7 +28,12 @@ function EntradaRealidadeContent({ filters }: { filters: AppliedFilters }) {
   const { data, isLoading, error } = useWwDriftVenda(filters)
   const { data: combos } = useWwDriftCombos(filters)
   const [drill, setDrill] = useState<DrillContext | null>(null)
-  const baseCtx = { dateStart: filters.dateStart, dateEnd: filters.dateEnd, dateMode: filters.dateMode }
+  // Auditoria 2026-06-11: drill carrega os filtros ativos da aba junto com o clique
+  const baseCtx = {
+    dateStart: filters.dateStart, dateEnd: filters.dateEnd, dateMode: filters.dateMode,
+    origins: filters.origins, tipos: filters.tipos,
+    canalSdr: filters.canalSdr, canalCloser: filters.canalCloser,
+  }
 
   if (isLoading) return <LoadingSkeleton rows={10} />
   if (error) return <ErrorBanner error={error as Error} />

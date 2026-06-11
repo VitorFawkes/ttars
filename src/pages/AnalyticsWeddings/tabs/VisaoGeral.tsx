@@ -10,7 +10,9 @@ import { formatCurrency, formatNumber } from '../lib/format'
 export function VisaoGeral({ filters, onFiltersChange }: TabProps) {
   return (
     <div className="space-y-4">
-      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'dateMode', 'tipo', 'origem', 'faixa', 'destino']} />
+      {/* Pergunta da aba: "como estamos?" — corta por período/modo, tipo, origem, perfil
+          (faixa/convidados/destino), consultor e COMO as reuniões aconteceram (canal SDR/Closer) */}
+      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'dateMode', 'tipo', 'origem', 'faixa', 'convidados', 'destino', 'consultor', 'canal_sdr', 'canal_closer']} />
       <VisaoGeralContent filters={filters} />
     </div>
   )
@@ -38,7 +40,13 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
   const resolutionLeads = phasesData.find(p => /resolu/i.test(p.phase))?.leads ?? 0
 
   const openDrill = (ctx: DrillContext) => setDrill(ctx)
-  const baseCtx = { dateStart: filters.dateStart, dateEnd: filters.dateEnd }
+  // Auditoria 2026-06-11: o drill respeita o MESMO recorte dos números clicados (todos os chips)
+  const baseCtx = {
+    dateStart: filters.dateStart, dateEnd: filters.dateEnd, dateMode: filters.dateMode,
+    origins: filters.origins, faixas: filters.faixas, destinos: filters.destinos,
+    convidadosList: filters.convidados, tipos: filters.tipos, consultorIds: filters.consultorIds,
+    canalSdr: filters.canalSdr, canalCloser: filters.canalCloser,
+  }
   // Tendência: janela de 12 meses terminando no fim do período do filtro (trend precisa de range longo)
   const trend12Start = new Date(new Date(filters.dateEnd).getTime() - 365 * 24 * 60 * 60 * 1000).toISOString()
 
@@ -54,13 +62,13 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
           onClick={() => openDrill({ ...baseCtx, title: 'Leads criados no período' })}
         />
         <KpiCard
-          label="Reuniões"
+          label="Reuniões SDR feitas"
           value={formatNumber(kpis.reunioes)}
           prevValue={kpis.reunioes_prev}
           hint={`Anterior: ${formatNumber(kpis.reunioes_prev)}`}
         />
         <KpiCard
-          label="Propostas enviadas"
+          label="Marcou reunião Closer"
           value={formatNumber(kpis.propostas)}
           prevValue={kpis.propostas_prev}
           hint={`Anterior: ${formatNumber(kpis.propostas_prev)}`}
@@ -84,7 +92,11 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
         origins={filters.origins}
         faixas={filters.faixas}
         destinos={filters.destinos}
+        convidados={filters.convidados}
         consultorIds={filters.consultorIds}
+        tipos={filters.tipos}
+        canalSdr={filters.canalSdr}
+        canalCloser={filters.canalCloser}
       />
 
       {/* Funil */}
@@ -114,7 +126,12 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
           )}
         </SectionCard>
 
-        <SectionCard title="Conversão entre fases" subtitle="Taxa de avanço de uma fase pra próxima">
+        <SectionCard
+          title="Conversão entre fases"
+          subtitle={filters.dateMode === 'cohort'
+            ? 'Safra: dos leads que chegaram no período, até onde eles foram (mesmo que depois)'
+            : 'O que aconteceu dentro do período, etapa a etapa — mesma régua dos cartões de cima'}
+        >
           {conversoes.length === 0 ? <EmptyState message="Sem dados" /> : (
             <div className="space-y-2">
               {conversoes.map((c, idx) => (
