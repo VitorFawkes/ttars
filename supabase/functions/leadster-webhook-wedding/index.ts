@@ -229,15 +229,44 @@ async function processLeadsterLead(
     .select("id").single();
   if (cardErr) return { plan: `ERRO ao criar card: ${cardErr.message}`, createdCardId: null };
 
-  // 4e. Ligar contato ao card.
-  await supabase.from("cards_contatos").insert({
-    card_id: card.id,
-    contato_id: contactId,
-    tipo_viajante: "adulto",
-    ordem: 0,
-  });
+  // NOTA: o contato principal NÃO entra em cards_contatos — vive em
+  // cards.pessoa_principal_id, e um trigger do banco bloqueia a duplicação
+  // ("already the Main Contact"). cards_contatos guarda só os adicionais.
 
-  return { plan: `CRIADO card WEDDING ${card.id} (contato ${contactId})`, createdCardId: card.id };
+  // 4e. Criar o(a) Noivo(a) 2 como segundo contato do card (acompanhante),
+  // a partir da pergunta "Nome dos noivos" do formulário. Só o nome — a SDR
+  // completa e-mail/telefone depois (origem 'leadster' é isenta do check de
+  // campos obrigatórios). Sem dedup: sem email/telefone não há como casar
+  // com contato existente, e este caminho só roda na criação do card.
+  let parceiroPlan = "";
+  const nomeNoivos = pick(p, "Nome dos noivos", "nome_dos_noivos");
+  if (nomeNoivos && nomeNoivos.toLowerCase() !== (nome ?? "").toLowerCase()) {
+    const pparts = nomeNoivos.split(/\s+/);
+    const { data: parceiro, error: pErr } = await supabase
+      .from("contatos")
+      .insert({
+        org_id: SHARED_CONTACT_ORG_ID,
+        nome: pparts[0],
+        sobrenome: pparts.length > 1 ? pparts.slice(1).join(" ") : null,
+        tipo_pessoa: "adulto",
+        origem: "leadster",
+        tags: ["leadster"],
+      })
+      .select("id").single();
+    if (pErr) {
+      parceiroPlan = `; ERRO ao criar Noivo(a) 2: ${pErr.message}`;
+    } else {
+      await supabase.from("cards_contatos").insert({
+        card_id: card.id,
+        contato_id: parceiro.id,
+        tipo_viajante: "acompanhante",
+        ordem: 1,
+      });
+      parceiroPlan = `; Noivo(a) 2 criado como acompanhante (contato ${parceiro.id})`;
+    }
+  }
+
+  return { plan: `CRIADO card WEDDING ${card.id} (contato ${contactId})${parceiroPlan}`, createdCardId: card.id };
 }
 
 Deno.serve(async (req) => {

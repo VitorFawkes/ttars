@@ -230,13 +230,9 @@ async function processLeadsterLead(
     .select("id").single();
   if (cardErr) return { plan: `ERRO ao criar card: ${cardErr.message}`, createdCardId: null };
 
-  // 4e. Ligar contato ao card.
-  await supabase.from("cards_contatos").insert({
-    card_id: card.id,
-    contato_id: contactId,
-    tipo_viajante: "adulto",
-    ordem: 0,
-  });
+  // NOTA: o contato principal NÃO entra em cards_contatos — vive em
+  // cards.pessoa_principal_id, e um trigger do banco bloqueia a duplicação
+  // ("already the Main Contact"). cards_contatos guarda só os adicionais.
 
   return { plan: `CRIADO card TRIPS ${card.id} (contato ${contactId})`, createdCardId: card.id };
 }
