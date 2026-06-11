@@ -235,11 +235,18 @@ async function processLeadsterLead(
   }
   if (qCidade) produtoData.ww_sdr_cidade = qCidade;
 
+  // Título no padrão do funil WW (igual aos cards vindos do Active):
+  //   "Elopement | Nome" quando o form responde "Apenas o casal";
+  //   "DW | Nome" (Destination Wedding) para os demais.
+  const isElopement = (qConvidados ?? "").trim().toLowerCase() === "apenas o casal";
+  produtoData.ww_tipo_casamento = isElopement ? "Elopement" : "Destination Wedding";
+  const titulo = `${isElopement ? "Elopement" : "DW"} | ${nome ?? "Lead Leadster"}`;
+
   // 4d. Criar card WEDDING.
   const { data: card, error: cardErr } = await supabase
     .from("cards")
     .insert({
-      titulo: nome ?? "Lead Leadster",
+      titulo,
       pessoa_principal_id: contactId,
       org_id: WEDDING_CARD_ORG_ID,
       pipeline_id: WEDDING_PIPELINE_ID,
