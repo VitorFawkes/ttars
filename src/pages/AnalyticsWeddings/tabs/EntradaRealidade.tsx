@@ -7,10 +7,33 @@ import { SectionCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../compon
 import { DrillDrawer, type DrillContext } from '../components/DrillDrawer'
 import { OpenInACButton } from '../components/OpenInACButton'
 import { ClickableRow } from '../components/ClickableRow'
-import { formatCurrency, formatNumber } from '../lib/format'
+import { formatCurrency, formatMes, formatNumber } from '../lib/format'
 
+// Inclui os baldes FUNDIDOS ('R$50-100 mil', '50-100') e variantes legadas (refinado da
+// closer ainda produz '50-80'/'80-100'/'Ate 20' sem acento) — bucket fora da lista vai
+// pro FIM das matrizes, nunca some (já perdemos a linha '50-100' inteira por isso).
 const FAIXA_ORDER = ['Até R$50 mil', 'R$50-80 mil', 'R$50-100 mil', 'R$80-100 mil', 'R$100-200 mil', 'R$200-500 mil', '+R$500 mil']
-const CONV_ORDER = ['Apenas o casal', 'Até 20', '20-50', '50-100', '+100']
+const CONV_ORDER = ['Apenas o casal', 'Até 20', 'Ate 20', '20-50', '50-80', '50-100', '80-100', '+100']
+// Ordem canônica + desconhecidos no fim — nunca dropar categoria com dado.
+const comOrdem = (order: string[] | undefined, valores: string[]): string[] => {
+  if (!order) return valores
+  return [...order.filter(v => valores.includes(v)), ...valores.filter(v => !order.includes(v))]
+}
+// Faixa REAL de convidados de cada balde (o declarado usa baldes fundidos '50-100'; o refinado
+// da closer ainda usa '50-80'/'80-100'). Comparar por intervalo evita classificar como
+// "aumentou" um casal que declarou 50-100 e refinou 80-100 (mesma banda).
+const CONV_RANGE: Record<string, [number, number]> = {
+  'Apenas o casal': [0, 2], 'Até 20': [3, 20], 'Ate 20': [3, 20], '20-50': [20, 50],
+  '50-80': [50, 80], '80-100': [80, 100], '50-100': [50, 100], '+100': [100, 9999],
+}
+type DriftDirecao = 'manteve' | 'subiu' | 'desceu' | null
+const convDrift = (declarado: string, refinado: string): DriftDirecao => {
+  const e = CONV_RANGE[declarado]; const r = CONV_RANGE[refinado]
+  if (!e || !r) return null
+  if (r[0] >= e[1] && r[1] > e[1]) return 'subiu'
+  if (r[1] <= e[0] && r[0] < e[0]) return 'desceu'
+  return 'manteve' // intervalos se sobrepõem = mesma banda
+}
 
 export function EntradaRealidade({ filters, onFiltersChange }: TabProps) {
   return (
@@ -42,7 +65,11 @@ function EntradaRealidadeContent({ filters }: { filters: AppliedFilters }) {
   return (
     <div className="space-y-5">
       <FonteV2Banner data={data} />
-      <UniversoHeader data={data} />
+      <UniversoHeader
+        data={data}
+        onLeadsClick={() => setDrill({ ...baseCtx, marco: 'entrou', title: 'Leads que entraram no período' })}
+        onFechadosClick={() => setDrill({ ...baseCtx, marco: 'ganho', title: 'Casais que fecharam contrato' })}
+      />
       <BreakdownTipo data={data} onTipoClick={(tipo) => setDrill({ ...baseCtx, tipo, status: 'ganho', title: `Casais — ${tipo} fechados` })} />
 
       {/* Análises cruzadas (Onda 6) — Investimento × Convidados × Destino */}
@@ -101,12 +128,11 @@ function FonteV2Banner({ data }: { data: WwDriftVenda }) {
       <div className="flex items-start gap-3">
         <span className="text-emerald-600 text-lg">✨</span>
         <div className="flex-1">
-          <p className="font-medium">Fonte: ActiveCampaign direto (snapshot 28/05/2026)</p>
+          <p className="font-medium">Fonte: ActiveCampaign direto (sincroniza sozinho ao longo do dia)</p>
           <p className="text-emerald-700 text-xs mt-1">
-            Universo de {data.total_fechados ?? 150} casamentos fechados — mesma lógica do{' '}
-            <a href="https://weddings-kpi.vercel.app/" target="_blank" rel="noreferrer" className="underline">weddings-kpi.vercel.app</a>
-            {' '}+ <strong>orçamento total real</strong> (contato AC field 376) e <strong>previsão de convidados</strong> (field 121).
-            O CRM continua defasado pra esses ganhos antigos, mas a análise aqui usa AC como fonte de verdade.
+            Universo de <strong>{formatNumber(data.total_fechados)} casamentos fechados</strong> no recorte —
+            com o <strong>orçamento real</strong> e a <strong>previsão de convidados</strong> que a closer registrou.
+            O CRM pode estar defasado pra ganhos antigos; a análise aqui usa o Active como fonte de verdade.
           </p>
         </div>
       </div>
@@ -200,11 +226,9 @@ function HeatmapTaxaConversao({ titulo, subtitulo, cells, xLabel, yLabel, xOrder
       </SectionCard>
     )
   }
-  const xs = xOrder
-    ? xOrder.filter(v => cells.some(c => c.x === v))
-    : Array.from(new Set(cells.map(c => c.x)))
+  const xs = comOrdem(xOrder, Array.from(new Set(cells.map(c => c.x))))
   const ys = yOrder
-    ? yOrder.filter(v => cells.some(c => c.y === v))
+    ? comOrdem(yOrder, Array.from(new Set(cells.map(c => c.y))))
     : Array.from(new Set(cells.map(c => c.y))).sort((a, b) => {
         const sa = cells.filter(c => c.y === a).reduce((s, c) => s + c.entrou, 0)
         const sb = cells.filter(c => c.y === b).reduce((s, c) => s + c.entrou, 0)
@@ -257,7 +281,7 @@ function HeatmapTaxaConversao({ titulo, subtitulo, cells, xLabel, yLabel, xOrder
                     return (
                       <td key={x} className={`p-0 ${bg}`} title={`${cell.entrou} entraram · ${cell.fechou} fecharam · ${taxa}%`}>
                         {onCellClick ? (
-                          <button onClick={() => onCellClick(x, y)} className="w-full h-full px-2 py-2 text-center block cursor-pointer hover:ring-2 hover:ring-indigo-400 focus:ring-2 focus:ring-indigo-400 focus:outline-none">
+                          <button onClick={() => onCellClick(x, y)} className="w-full h-full px-2 py-2 text-center block cursor-pointer hover:ring-2 hover:ring-ww-gold focus:ring-2 focus:ring-ww-gold focus:outline-none">
                             <div className="font-semibold text-sm">{taxa}%</div>
                             <div className="text-[10px] opacity-75 mt-0.5">{cell.entrou} → {cell.fechou}</div>
                           </button>
@@ -313,7 +337,7 @@ function BreakdownTipo({ data, onTipoClick }: { data: WwDriftVenda; onTipoClick?
             <Wrap
               key={b.tipo}
               onClick={onTipoClick ? () => onTipoClick(b.tipo) : undefined}
-              className={`border border-slate-200 rounded-xl p-4 bg-white text-left w-full ${onTipoClick ? 'hover:border-indigo-300 hover:bg-indigo-50/30 cursor-pointer transition' : ''}`}
+              className={`border border-slate-200 rounded-xl p-4 bg-white text-left w-full ${onTipoClick ? 'hover:border-ww-gold hover:bg-ww-gold-soft/40 cursor-pointer transition-colors' : ''}`}
             >
               <div className="text-xs uppercase tracking-wide text-slate-500 font-medium">{b.tipo}</div>
               <div className="mt-1 flex items-baseline gap-2">
@@ -355,7 +379,7 @@ function VendasFechadasList({ data }: { data: WwDriftVenda }) {
           </thead>
           <tbody>
             {data.vendas_lista.map(v => (
-              <tr key={v.card_id} className="border-t border-slate-100 hover:bg-slate-50/60">
+              <tr key={v.card_id} className="border-t border-slate-100 hover:bg-ww-cream/40 transition-colors">
                 <td className="px-3 py-2 text-slate-700 tabular-nums whitespace-nowrap">
                   {v.data_venda ? new Date(v.data_venda).toLocaleDateString('pt-BR') : '—'}
                 </td>
@@ -502,9 +526,9 @@ function DriftPorMes({ data }: { data: WwDriftVenda }) {
       <ResponsiveContainer width="100%" height={280}>
         <LineChart data={data.drift_por_mes}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-          <XAxis dataKey="mes" stroke="#64748b" fontSize={11} />
+          <XAxis dataKey="mes" stroke="#64748b" fontSize={11} tickFormatter={(v) => formatMes(String(v))} />
           <YAxis stroke="#64748b" fontSize={11} unit="%" />
-          <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} />
+          <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} labelFormatter={(v) => formatMes(String(v))} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <Line type="monotone" dataKey="manteve_pct" name="Manteve" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
           <Line type="monotone" dataKey="subiu_pct" name="Subiu (upsell)" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} />
@@ -515,20 +539,21 @@ function DriftPorMes({ data }: { data: WwDriftVenda }) {
   )
 }
 
-function UniversoHeader({ data }: { data: WwDriftVenda }) {
+function UniversoHeader({ data, onLeadsClick, onFechadosClick }: { data: WwDriftVenda; onLeadsClick?: () => void; onFechadosClick?: () => void }) {
   const isCohort = data.date_mode === 'cohort'
   const total = data.total_leads
   const fechados = data.total_fechados
+  const numBtn = 'underline decoration-dotted decoration-slate-300 underline-offset-2 hover:decoration-solid hover:decoration-current cursor-pointer'
   return (
-    <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 rounded-xl p-5">
+    <div className="bg-gradient-to-r from-ww-cream/80 to-white border border-ww-sand rounded-xl p-5">
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div className="max-w-3xl">
           <h2 className="text-base font-semibold text-slate-900">🔄 Entrada × Realidade</h2>
           {isCohort ? (
             <>
               <p className="text-sm text-slate-600 mt-1">
-                Universo: <strong>{formatNumber(total)} leads</strong> que entraram no período.
-                Desses, <strong className="text-emerald-700">{formatNumber(fechados)} fecharam contrato</strong>.
+                Universo: <strong className={onLeadsClick ? numBtn : ''} onClick={onLeadsClick} title="Ver os casais">{formatNumber(total)} leads</strong> que entraram no período.
+                Desses, <strong className={`text-emerald-700 ${onFechadosClick ? numBtn : ''}`} onClick={onFechadosClick} title="Ver os casais">{formatNumber(fechados)} fecharam contrato</strong>.
               </p>
               <p className="text-xs text-slate-500 mt-1">
                 Pra ver quantas vendas fecharam dentro do período (independente de quando o lead entrou), troca pra "Data de evento".
@@ -536,7 +561,7 @@ function UniversoHeader({ data }: { data: WwDriftVenda }) {
             </>
           ) : (
             <p className="text-sm text-slate-600 mt-1">
-              Universo: <strong className="text-emerald-700">{formatNumber(fechados)} vendas fechadas</strong> nesse período.
+              Universo: <strong className={`text-emerald-700 ${onFechadosClick ? numBtn : ''}`} onClick={onFechadosClick} title="Ver os casais">{formatNumber(fechados)} vendas fechadas</strong> nesse período.
             </p>
           )}
           <p className="text-[11px] text-slate-400 mt-1">
@@ -544,13 +569,13 @@ function UniversoHeader({ data }: { data: WwDriftVenda }) {
           </p>
         </div>
         <div className="flex flex-col gap-2 items-end">
-          <div className="bg-emerald-600 text-white rounded-xl px-4 py-2.5 shadow-sm">
+          <button onClick={onFechadosClick} disabled={!onFechadosClick} className={`bg-emerald-600 text-white rounded-xl px-4 py-2.5 shadow-sm text-left ${onFechadosClick ? 'hover:bg-emerald-700 transition-colors active:scale-[0.98]' : ''}`} title="Ver os casais">
             <div className="text-[10px] uppercase tracking-wide opacity-90 font-medium">Ganhos analisados</div>
             <div className="text-2xl font-bold tabular-nums leading-tight">{formatNumber(fechados)}</div>
             <div className="text-[10px] opacity-90 mt-0.5">no período filtrado</div>
-          </div>
-          <div className="text-xs bg-white border border-indigo-200 rounded-lg px-3 py-1.5 text-indigo-700 whitespace-nowrap">
-            📅 Modo: <strong>{isCohort ? 'Entrada do lead (cohort)' : 'Data da venda (throughput)'}</strong>
+          </button>
+          <div className="text-xs bg-white border border-ww-sand rounded-lg px-3 py-1.5 text-ww-gold-ink whitespace-nowrap">
+            📅 Modo: <strong>{isCohort ? 'Entrada do lead' : 'Data da venda'}</strong>
           </div>
         </div>
       </div>
@@ -574,9 +599,9 @@ function InvestimentoDrift({ data, onCellClick }: { data: WwDriftVenda; onCellCl
     )
   }
 
-  // Matriz: faixas presentes na entrada e nas vendidas, na ordem canônica
-  const faixasEntrada = FAIXA_ORDER.filter(f => matriz.some(m => m.faixa_e === f))
-  const faixasVendida = FAIXA_ORDER.filter(f => matriz.some(m => m.faixa_v === f))
+  // Matriz: faixas presentes na entrada e nas vendidas, na ordem canônica (desconhecidas no fim)
+  const faixasEntrada = comOrdem(FAIXA_ORDER, Array.from(new Set(matriz.map(m => m.faixa_e))))
+  const faixasVendida = comOrdem(FAIXA_ORDER, Array.from(new Set(matriz.map(m => m.faixa_v))))
   const matrizMap = new Map(matriz.map(m => [`${m.faixa_e}|${m.faixa_v}`, m]))
 
   return (
@@ -655,7 +680,7 @@ function InvestimentoDrift({ data, onCellClick }: { data: WwDriftVenda; onCellCl
                               <td key={fv} className={`p-0 ${bg} ${qtd === 0 ? 'text-slate-300' : ''}`}
                                   title={qtd > 0 ? `${qtd} venda(s) — ${pctLinha}% da linha` : 'Nenhuma venda nessa combinação'}>
                                 {isClick ? (
-                                  <button onClick={() => onCellClick(fe, fv)} className="w-full h-full px-3 py-2 text-center cursor-pointer hover:ring-2 hover:ring-indigo-400 focus:ring-2 focus:ring-indigo-400 focus:outline-none">
+                                  <button onClick={() => onCellClick(fe, fv)} className="w-full h-full px-3 py-2 text-center cursor-pointer hover:ring-2 hover:ring-ww-gold focus:ring-2 focus:ring-ww-gold focus:outline-none">
                                     <div className="font-semibold text-sm">{qtd}</div>
                                     <div className="text-[10px] opacity-75">{pctLinha}%</div>
                                   </button>
@@ -782,7 +807,7 @@ function DestinoDrift({ data, onCellClick }: { data: WwDriftVenda; onCellClick?:
                               <td key={dv} className={`p-0 ${bg}`}
                                   title={qtd > 0 ? `${qtd} venda(s) — ${pctLinha}% da linha` : 'Nenhuma venda'}>
                                 {isClick ? (
-                                  <button onClick={() => onCellClick(de, dv)} className="w-full h-full px-3 py-2 text-center cursor-pointer hover:ring-2 hover:ring-indigo-400 focus:ring-2 focus:ring-indigo-400 focus:outline-none">
+                                  <button onClick={() => onCellClick(de, dv)} className="w-full h-full px-3 py-2 text-center cursor-pointer hover:ring-2 hover:ring-ww-gold focus:ring-2 focus:ring-ww-gold focus:outline-none">
                                     <div className="font-semibold text-sm">{qtd}</div>
                                     <div className="text-[10px] opacity-75">{pctLinha}%</div>
                                   </button>
@@ -836,8 +861,8 @@ function ConvidadosDrift({ data }: { data: WwDriftVenda }) {
 
   if (data.total_leads === 0) return null
 
-  const convE = CONV_ORDER.filter(c => matriz.some(m => m.conv_e === c))
-  const convR = CONV_ORDER.filter(c => matriz.some(m => m.conv_r === c))
+  const convE = comOrdem(CONV_ORDER, Array.from(new Set(matriz.map(m => m.conv_e))))
+  const convR = comOrdem(CONV_ORDER, Array.from(new Set(matriz.map(m => m.conv_r))))
 
   return (
     <SectionCard
@@ -888,13 +913,13 @@ function ConvidadosDrift({ data }: { data: WwDriftVenda }) {
                           {convR.map(cr => {
                             const qtd = matrizMap.get(`${ce}|${cr}`) ?? 0
                             const pctLinha = rowTotal > 0 ? Math.round(100 * qtd / rowTotal) : 0
-                            const eIdx = CONV_ORDER.indexOf(ce)
-                            const rIdx = CONV_ORDER.indexOf(cr)
+                            const dir = convDrift(ce, cr)
                             let bg = qtd === 0 ? 'bg-slate-50 text-slate-300' : ''
                             if (qtd > 0) {
-                              if (eIdx === rIdx) bg = 'bg-emerald-100 text-emerald-900'
-                              else if (rIdx > eIdx) bg = 'bg-indigo-50 text-indigo-900'
-                              else bg = 'bg-amber-50 text-amber-900'
+                              if (dir === 'manteve') bg = 'bg-emerald-100 text-emerald-900'
+                              else if (dir === 'subiu') bg = 'bg-indigo-50 text-indigo-900'
+                              else if (dir === 'desceu') bg = 'bg-amber-50 text-amber-900'
+                              else bg = 'bg-slate-100 text-slate-700'
                             }
                             return (
                               <td key={cr} className={`px-3 py-2 text-center ${bg}`}

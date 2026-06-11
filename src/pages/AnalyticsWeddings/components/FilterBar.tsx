@@ -1,5 +1,5 @@
 import { useSearchParams } from 'react-router-dom'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { ChevronDown, SlidersHorizontal } from 'lucide-react'
 import { useWwFunilFilterOptions } from '@/hooks/analyticsWeddings/useWw2'
 import { type PeriodOption, periodOptions, periodToDates } from '../lib/dates'
@@ -80,6 +80,9 @@ export function countActiveFilters(f: AppliedFilters): number {
 export function FilterBar({ value, onChange, show = DEFAULT_SHOW }: { value: AppliedFilters; onChange: (next: AppliedFilters) => void; show?: FilterKey[] }) {
   const { data: options } = useWwFunilFilterOptions()
   const has = (k: FilterKey) => show.includes(k)
+  // Mobile: a pilha de 8 chips ocupava a tela inteira antes de qualquer dado aparecer.
+  // Recortes ficam colapsados num botão "Recortes (N)"; período/modo sempre visíveis.
+  const [recortesAbertoMobile, setRecortesAbertoMobile] = useState(false)
 
   const set = (patch: Partial<AppliedFilters>) => onChange({ ...value, ...patch })
   const setPeriod = (p: PeriodOption) => {
@@ -200,11 +203,31 @@ export function FilterBar({ value, onChange, show = DEFAULT_SHOW }: { value: App
         {!hasPeriodControls && chips}
       </div>
 
-      {/* Fila 2 — recortes de perfil (zona própria, levemente champagne) */}
+      {/* Fila 2 — recortes de perfil (zona própria, levemente champagne).
+          Desktop: sempre aberta. Mobile: colapsada num botão "Recortes (N)". */}
       {hasPeriodControls && (
-        <div className="px-3 py-2 border-t border-ww-sand/70 bg-ww-paper/60 rounded-b-xl flex flex-wrap items-center gap-2">
-          {chips}
-        </div>
+        <>
+          <div className="sm:hidden px-3 py-2 border-t border-ww-sand/70 bg-ww-paper/60 rounded-b-xl">
+            <button
+              onClick={() => setRecortesAbertoMobile(v => !v)}
+              className="w-full flex items-center justify-between text-xs font-medium text-ww-n600 active:scale-[0.99] transition-transform"
+            >
+              <span className={`inline-flex items-center gap-1.5 ${activeCount > 0 ? 'text-ww-gold-ink font-semibold' : ''}`}>
+                <SlidersHorizontal className={`w-3.5 h-3.5 ${activeCount > 0 ? 'text-ww-gold' : 'text-ww-n400'}`} strokeWidth={2.2} />
+                {activeCount > 0 ? `Recortes · ${activeCount} ativo${activeCount > 1 ? 's' : ''}` : 'Recortes'}
+              </span>
+              <ChevronDown className={`w-3.5 h-3.5 text-ww-n400 transition-transform duration-150 ease-out ${recortesAbertoMobile ? 'rotate-180' : ''}`} strokeWidth={2.2} />
+            </button>
+            {recortesAbertoMobile && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {chips}
+              </div>
+            )}
+          </div>
+          <div className="hidden sm:flex px-3 py-2 border-t border-ww-sand/70 bg-ww-paper/60 rounded-b-xl flex-wrap items-center gap-2">
+            {chips}
+          </div>
+        </>
       )}
     </div>
   )

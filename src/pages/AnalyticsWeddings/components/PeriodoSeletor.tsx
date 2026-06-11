@@ -41,8 +41,8 @@ function keyDeJanela(j: Janela): string {
   return 'custom'
 }
 
-const selectCls = 'px-3 py-1.5 text-sm font-medium bg-white border border-slate-200 rounded-lg text-slate-800 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500'
-const dateCls = 'px-2 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
+const selectCls = 'px-3 py-1.5 text-sm font-medium bg-white border border-ww-sand rounded-lg text-ww-n700 hover:border-ww-sand-dk focus:outline-none focus:ring-2 focus:ring-ww-gold transition-colors'
+const dateCls = 'px-2 py-1 text-xs border border-ww-sand rounded-lg focus:outline-none focus:ring-2 focus:ring-ww-gold transition-colors'
 
 function PeriodoSelect({ value, onChange }: { value: Janela; onChange: (v: Janela) => void }) {
   const derivado = keyDeJanela(value)
