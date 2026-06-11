@@ -1737,6 +1737,18 @@ Deno.serve(async (req) => {
                         log += `Updated Card ${existingCard.id} (Pipeline: ${topology?.pipelineName})`;
 
                     } else {
+                        // Trigger update_only nunca cria card: a criação é responsabilidade
+                        // do CRM (ex.: leads de Weddings entram pelo webhook do Leadster).
+                        // Sem esta guarda, um deal_update sem card correspondente cairia
+                        // na criação e o Active voltaria a criar cards por fora.
+                        if (matchedTrigger?.action_type === 'update_only') {
+                            stats.ignored_by_trigger++;
+                            log += ` [UPDATE_ONLY_NO_CARD: deal ${dealId} sem card correspondente — criação é do CRM, evento ignorado]`;
+                            await updateEventStatus(event.id, 'ignored', log, matchedTrigger.id);
+                            results.push({ id: event.id, status: 'ignored', reason: 'update_only trigger: no matching card, creation skipped' });
+                            continue;
+                        }
+
                         if (!topology) throw new Error("Cannot create card: Missing Topology (Stage/Pipeline/Product)");
 
                         cardPayload.external_id = dealId;
