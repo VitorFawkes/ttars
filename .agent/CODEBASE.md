@@ -5,11 +5,11 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-06-09
+> **Last Updated:** 2026-06-11
 > **Trigger:** ALWAYS ON
-> **Stats:** 234 tabelas | 207 paginas | 360 hooks | 28 views | 845 components
-> **Stats:** 234 tabelas | 207 paginas | 360 hooks | 28 views | 845 components
-> **Stats:** 234 tabelas | 207 paginas | 360 hooks | 28 views | 845 components
+> **Stats:** 234 tabelas | 207 paginas | 361 hooks | 28 views | 847 components
+> **Stats:** 234 tabelas | 207 paginas | 361 hooks | 28 views | 847 components
+> **Stats:** 234 tabelas | 207 paginas | 361 hooks | 28 views | 847 components
 
 ---
 
@@ -171,7 +171,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **360 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **361 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -344,6 +344,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useDateFeatureSettings()` | `useDateFeatureSettings.ts` |
 | `useDebouncedValue()` | `useDebouncedValue.ts` |
 | `useDisparoActions()` | `useDisparoActions.ts` |
+| `useDisparoSaudeLinhas()` | `useDisparoSaudeLinhas.ts` |
 | `useDisparos()` | `useDisparos.ts` |
 | `useEchoCatalogs()` | `useEchoCatalogs.ts` |
 | `useEditarDescricaoTarefa()` | `useEditarDescricaoTarefa.ts` |
