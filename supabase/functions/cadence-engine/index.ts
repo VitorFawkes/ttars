@@ -763,10 +763,37 @@ async function processEntryQueue(supabaseClient: SupabaseClient) {
                     .update({
                         status: "cancelled",
                         processed_at: new Date().toISOString(),
-                        error_message: "Trigger desativado antes da execução"
+                        last_error: "Trigger desativado antes da execução"
                     })
                     .eq("id", item.id);
                 results.push({ id: item.id, success: true, skipped: true, reason: "trigger_inactive" });
+                continue;
+            }
+
+            // Re-validar o card na hora da execução: lixeira/arquivado cancela
+            // o item antes de qualquer ação (card pode ter sido excluído entre
+            // o enqueue e a execução — ex.: gatilho temporal enfileirado de
+            // madrugada e card excluído de manhã).
+            const { data: entryCard } = await supabaseClient
+                .from("cards")
+                .select("card_type, deleted_at, archived_at")
+                .eq("id", item.card_id)
+                .maybeSingle();
+            const entryCardDead = !entryCard ? 'card_not_found'
+                : entryCard.deleted_at ? 'card_deleted'
+                : entryCard.archived_at ? 'card_archived'
+                : null;
+            if (entryCardDead) {
+                console.log(`[CadenceEngine] Skipping entry item ${item.id}: ${entryCardDead}`);
+                await supabaseClient
+                    .from("cadence_entry_queue")
+                    .update({
+                        status: "cancelled",
+                        processed_at: new Date().toISOString(),
+                        last_error: entryCardDead
+                    })
+                    .eq("id", item.id);
+                results.push({ id: item.id, success: true, skipped: true, reason: entryCardDead });
                 continue;
             }
 
@@ -775,12 +802,7 @@ async function processEntryQueue(supabaseClient: SupabaseClient) {
             // via converter_sub_card_em_principal, por exemplo).
             const applicableCardTypes: string[] | null = trigger.applicable_card_types ?? null;
             if (applicableCardTypes && applicableCardTypes.length > 0) {
-                const { data: cardRow } = await supabaseClient
-                    .from("cards")
-                    .select("card_type")
-                    .eq("id", item.card_id)
-                    .single();
-                const currentType = cardRow?.card_type ?? null;
+                const currentType = entryCard?.card_type ?? null;
                 if (!currentType || !applicableCardTypes.includes(currentType)) {
                     console.log(`[CadenceEngine] Skipping entry item ${item.id}: card_type mismatch (current=${currentType}, allowed=${applicableCardTypes.join(',')})`);
                     await supabaseClient
@@ -788,7 +810,7 @@ async function processEntryQueue(supabaseClient: SupabaseClient) {
                         .update({
                             status: "cancelled",
                             processed_at: new Date().toISOString(),
-                            error_message: `card_type_filter_mismatch (card_type=${currentType ?? 'NULL'}, applicable=${applicableCardTypes.join(',')})`
+                            last_error: `card_type_filter_mismatch (card_type=${currentType ?? 'NULL'}, applicable=${applicableCardTypes.join(',')})`
                         })
                         .eq("id", item.id);
                     results.push({ id: item.id, success: true, skipped: true, reason: "card_type_mismatch" });
@@ -2828,6 +2850,48 @@ async function executeStep(supabaseClient: SupabaseClient, queueItem: any) {
 
     if (cardError || !card) {
         throw new Error(`Card not found: ${instance.card_id}`);
+    }
+
+    // Card morto → cancela a cadência DE VEZ (não só pula o step).
+    // Cobre: lixeira (deleted_at), arquivado (archived_at) e negócio perdido
+    // (status_comercial='perdido'). Sem isso, cadência no meio de uma espera
+    // continuava até o fim e mandava mensagem pra card excluído/perdido.
+    // ATENÇÃO: se um dia existir cadência legítima para cards perdidos
+    // (winback), transformar o caso 'perdido' em flag por template.
+    const deadCardReason = card.deleted_at ? 'card_deleted'
+        : card.archived_at ? 'card_archived'
+        : card.status_comercial === 'perdido' ? 'card_perdido'
+        : null;
+    if (deadCardReason) {
+        await supabaseClient
+            .from('cadence_instances')
+            .update({
+                status: 'cancelled',
+                cancelled_at: new Date().toISOString(),
+                cancelled_reason: deadCardReason,
+            })
+            .eq('id', instance.id);
+        await supabaseClient
+            .from('cadence_queue')
+            .update({ status: 'cancelled' })
+            .eq('instance_id', instance.id)
+            .in('status', ['pending', 'processing']);
+        await logEvent(supabaseClient, {
+            instance_id: instance.id,
+            card_id: card.id,
+            event_type: 'cadence_cancelled',
+            event_source: 'cadence_engine',
+            event_data: {
+                reason: deadCardReason,
+                step_key: step.step_key,
+                deleted_at: card.deleted_at,
+                archived_at: card.archived_at,
+                status_comercial: card.status_comercial,
+            },
+            action_taken: 'cancel_cadence',
+        });
+        console.log(`[CadenceEngine] Instance ${instance.id} cancelled: ${deadCardReason} (card ${card.id})`);
+        return { skipped: true, reason: deadCardReason };
     }
 
     // Executar baseado no tipo de step
