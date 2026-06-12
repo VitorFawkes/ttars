@@ -115,8 +115,8 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
 
       {/* Tendência ao longo do tempo (#7) — vendas/reuniões/leads por período */}
       <SerieTemporalChart
-        title="📈 Ao longo do tempo — leads, reuniões e vendas"
-        subtitle="Últimos 12 meses. Quantos entraram, fizeram reunião e fecharam em cada período. Troque mês/semana e quantidade/conversão. Clique numa barra pra ver os casais."
+        title="📈 Ao longo do tempo — o funil completo"
+        subtitle="Últimos 12 meses: leads, reuniões marcadas e feitas (SDR e Closer) e vendas em cada período. Troque mês/semana e quantidade/conversão. Clique numa barra pra ver os casais."
         dateStart={trend12Start}
         dateEnd={filters.dateEnd}
         dateMode={filters.dateMode}
