@@ -101,24 +101,30 @@ Deno.serve(async (req) => {
         .or(`and(closer_agendou_at.gte.${cutoff},closer_agendou_at.lte.${nowIso},closer_fez.eq.false),and(sdr_agendou_at.gte.${cutoff},sdr_agendou_at.lte.${nowIso},sdr_fez.eq.false)`)
         .limit(400)
       if (susErr) console.warn('passo 0 select:', susErr.message)
-      type Cfd = { customFieldId: string | number; fieldValue: unknown }
+      type Cfd = { customFieldId: string | number; fieldValue: unknown; createdTimestamp?: string | null; updatedTimestamp?: string | null }
       for (const s of suspeitos ?? []) {
         if (Date.now() - startedAt > 55000) break // deixa folga pro passo 1
         camposVistos++
         try {
           const j = await acFetch<{ dealCustomFieldData?: Cfd[] }>(`/api/3/deals/${s.ac_deal_id}/dealCustomFieldData`)
           const byId = new Map<string, unknown>()
-          for (const f of j.dealCustomFieldData ?? []) byId.set(String(f.customFieldId), f.fieldValue)
+          const regById = new Map<string, string | null>()
+          for (const f of j.dealCustomFieldData ?? []) {
+            byId.set(String(f.customFieldId), f.fieldValue)
+            regById.set(String(f.customFieldId), (f.updatedTimestamp ?? f.createdTimestamp) ?? null)
+          }
           const upd: Record<string, unknown> = {}
           const sdrVals = fieldValues(byId.get(FIELD_SDR_COMO))
           if (sdrVals.length) {
             upd.sdr_canal = realChannels(sdrVals)
             if (isRealMeeting(sdrVals)) upd.sdr_fez = true
+            if (regById.get(FIELD_SDR_COMO)) upd.sdr_como_registrado_at = regById.get(FIELD_SDR_COMO)
           }
           const closerVals = fieldValues(byId.get(FIELD_CLOSER_COMO))
           if (closerVals.length) {
             upd.closer_canal = closerVals[0]
             if (isRealMeeting(closerVals)) upd.closer_fez = true
+            if (regById.get(FIELD_CLOSER_COMO)) upd.closer_como_registrado_at = regById.get(FIELD_CLOSER_COMO)
           }
           const mSdr = fieldValues(byId.get(FIELD_MOTIVO_SDR))[0]
           const mCloser = fieldValues(byId.get(FIELD_MOTIVO_CLOSER))[0]

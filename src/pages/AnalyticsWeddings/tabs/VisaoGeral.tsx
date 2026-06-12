@@ -1,9 +1,12 @@
 import { useState } from 'react'
-import { useWw2Overview, type Ww2Conversao, type DrillMarco } from '@/hooks/analyticsWeddings/useWw2'
+import { Link } from 'react-router-dom'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import { useWw2Overview, useWwAgenda, type Ww2Conversao, type DrillMarco, type WwAgendaItem, type WwAgendaPorDia, type WwAgendaDesfechos } from '@/hooks/analyticsWeddings/useWw2'
 import { FilterBar, type TabProps, type AppliedFilters } from '../components/FilterBar'
 import { SectionCard, KpiCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
 import { DrillDrawer, type DrillContext } from '../components/DrillDrawer'
 import { SerieTemporalChart } from '../components/SerieTemporalChart'
+import { OpenInACButton } from '../components/OpenInACButton'
 import { formatCurrency, formatNumber } from '../lib/format'
 
 // Etapas do funil (ordem da RPC ww2_overview 'conversoes') → marco do drill
@@ -95,6 +98,9 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
           onClick={() => openDrill({ ...baseCtx, marco: 'ganho', title: 'Casamentos fechados' })}
         />
       </div>
+
+      {/* Agenda — o FUTURO: reuniões marcadas (campo 6 = SDR, campo 18 = Closer) + vencidas sem registro */}
+      <AgendaReunioes filters={filters} />
 
       {/* Tendência ao longo do tempo (#7) — vendas/reuniões/leads por período */}
       <SerieTemporalChart
@@ -209,6 +215,276 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
       </SectionCard>
 
       <DrillDrawer ctx={drill} onClose={() => setDrill(null)} />
+    </div>
+  )
+}
+
+// ── Agenda de reuniões — próximos dias + vencidas sem registro ──────────────
+const TZ = 'America/Sao_Paulo'
+const diaLabel = (iso: string): string => {
+  const d = new Date(iso)
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
+  const amanha = new Date(hoje); amanha.setDate(amanha.getDate() + 1)
+  const dia = new Date(d); dia.setHours(0, 0, 0, 0)
+  if (dia.getTime() === hoje.getTime()) return 'Hoje'
+  if (dia.getTime() === amanha.getTime()) return 'Amanhã'
+  return d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', timeZone: TZ })
+}
+const horaLabel = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: TZ })
+
+function ReuniaoChip({ reuniao }: { reuniao: 'sdr' | 'closer' }) {
+  return reuniao === 'sdr'
+    ? <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-ww-gold-soft text-ww-gold-ink">SDR</span>
+    : <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-ww-rosewood/10 text-ww-rosewood">Closer</span>
+}
+
+function AgendaLinha({ it, extra, mostrarDia = false }: { it: WwAgendaItem; extra?: React.ReactNode; mostrarDia?: boolean }) {
+  const nome = (it.casal ?? 'Casal sem nome').replace(/^(DW|EW|Elopement)\s*\|\s*/i, '')
+  const dataTxt = new Date(it.quando).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: TZ })
+  return (
+    <div className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-ww-cream/50 transition-colors">
+      {mostrarDia ? (
+        <span className="w-12 sm:w-[88px] shrink-0 text-xs tabular-nums text-ww-n600 font-medium">
+          {dataTxt}<span className="hidden sm:inline"> {horaLabel(it.quando)}</span>
+        </span>
+      ) : (
+        <span className="w-12 shrink-0 text-xs tabular-nums text-ww-n600 font-medium">{horaLabel(it.quando)}</span>
+      )}
+      <ReuniaoChip reuniao={it.reuniao} />
+      {it.card_id
+        ? <Link to={`/cards/${it.card_id}`} className="flex-1 min-w-0 truncate text-sm text-slate-800 hover:text-ww-gold-ink hover:underline" title={it.casal ?? ''}>{nome}</Link>
+        : <span className="flex-1 min-w-0 truncate text-sm text-slate-800" title={it.casal ?? ''}>{nome}</span>}
+      {it.tipo && !mostrarDia && <span className="hidden sm:inline shrink-0 text-[10px] text-ww-n400">{it.tipo}</span>}
+      {extra}
+      <OpenInACButton dealId={it.ac_deal_id} contactName={it.casal} />
+    </div>
+  )
+}
+
+// chave YYYY-MM-DD do dia em Brasília (en-CA formata como ISO)
+const diaKeyBRT = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: TZ })
+
+// a lista mostra só 7 dias; a janela da RPC é maior (28d) pra alimentar o gráfico
+const filtraProximos7d = (itens: WwAgendaItem[]) => {
+  const corte = Date.now() + 7 * 86_400_000
+  return itens.filter(p => new Date(p.quando).getTime() <= corte)
+}
+
+const COR_SDR = '#BD965C'    // mesmas cores da série temporal — legenda já ensinada
+const COR_CLOSER = '#874B52'
+
+function AgendaGrafico({ porDia }: { porDia: WwAgendaPorDia[] }) {
+  const [escala, setEscala] = useState<'dia' | 'semana'>('dia')
+  const mapa = new Map(porDia.map(d => [d.dia, d]))
+
+  let rows: { label: string; SDR: number; Closer: number }[]
+  if (escala === 'dia') {
+    rows = Array.from({ length: 14 }, (_, i) => {
+      const d = new Date(); d.setDate(d.getDate() + i)
+      const key = diaKeyBRT(d)
+      const v = mapa.get(key)
+      const wd = d.toLocaleDateString('pt-BR', { weekday: 'short', timeZone: TZ }).replace('.', '')
+      const dm = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: TZ })
+      return { label: `${wd} ${dm.slice(0, 5)}`, SDR: v?.sdr ?? 0, Closer: v?.closer ?? 0 }
+    })
+  } else {
+    const semanas = new Map<string, { label: string; SDR: number; Closer: number }>()
+    for (let i = 0; i < 28; i++) {
+      const d = new Date(); d.setDate(d.getDate() + i)
+      const key = diaKeyBRT(d)
+      const [y, m, dd] = key.split('-').map(Number)
+      const local = new Date(y, m - 1, dd, 12)
+      const seg = new Date(local); seg.setDate(seg.getDate() - ((seg.getDay() + 6) % 7))
+      const segKey = `${seg.getFullYear()}-${String(seg.getMonth() + 1).padStart(2, '0')}-${String(seg.getDate()).padStart(2, '0')}`
+      if (!semanas.has(segKey)) {
+        const dom = new Date(seg); dom.setDate(dom.getDate() + 6)
+        const fmt = (x: Date) => `${String(x.getDate()).padStart(2, '0')}/${String(x.getMonth() + 1).padStart(2, '0')}`
+        semanas.set(segKey, { label: `${fmt(seg)}–${fmt(dom)}`, SDR: 0, Closer: 0 })
+      }
+      const v = mapa.get(key)
+      if (v) { const s = semanas.get(segKey)!; s.SDR += v.sdr; s.Closer += v.closer }
+    }
+    rows = [...semanas.values()]
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-1 mb-3">
+        {(['dia', 'semana'] as const).map(e => (
+          <button
+            key={e}
+            onClick={() => setEscala(e)}
+            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${escala === e ? 'bg-ww-gold-soft text-ww-gold-ink' : 'text-ww-n500 hover:bg-ww-cream'}`}
+          >
+            {e === 'dia' ? 'Por dia (14 dias)' : 'Por semana (4 semanas)'}
+          </button>
+        ))}
+      </div>
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={rows} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+          <XAxis dataKey="label" stroke="#64748b" fontSize={10} tickLine={false} interval={0} angle={escala === 'dia' ? -38 : 0} textAnchor={escala === 'dia' ? 'end' : 'middle'} height={escala === 'dia' ? 46 : 24} />
+          <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+          <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          <Bar dataKey="SDR" stackId="a" fill={COR_SDR} maxBarSize={28} />
+          <Bar dataKey="Closer" stackId="a" fill={COR_CLOSER} radius={[3, 3, 0, 0]} maxBarSize={28} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
+// rótulos/cores das categorias de desfecho (contagem usa plural, item usa singular)
+const DESFECHO_CATS = [
+  { conta: 'feitas', item: 'feita', label: 'Feitas', dot: 'bg-emerald-500' },
+  { conta: 'nao_aconteceu', item: 'nao_aconteceu', label: 'Não aconteceu (registrado)', dot: 'bg-amber-500' },
+  { conta: 'reagendando', item: 'reagendando', label: 'Em reagendamento', dot: 'bg-sky-500' },
+  { conta: 'perdidas', item: 'perdida', label: 'Perdidas', dot: 'bg-rose-500' },
+  { conta: 'sem_registro', item: 'sem_registro', label: 'Sem registro', dot: 'bg-slate-400' },
+] as const
+
+function DesfechosCard({ desfechos }: { desfechos: WwAgendaDesfechos }) {
+  const pct = (n: number, base: number) => base > 0 ? `${Math.round((n / base) * 100)}%` : '—'
+  const itens = desfechos.itens ?? []
+  return (
+    <div className="space-y-3">
+      <table className="w-full text-xs">
+        <thead className="text-slate-500">
+          <tr>
+            <th className="py-1.5 font-medium text-left">Desfecho</th>
+            <th className="py-1.5 font-medium text-right">SDR</th>
+            <th className="py-1.5 font-medium text-right">Closer</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr className="border-t border-slate-100">
+            <td className="py-1.5 font-medium text-slate-700">Marcadas</td>
+            <td className="py-1.5 text-right font-semibold tabular-nums">{desfechos.sdr.marcadas}</td>
+            <td className="py-1.5 text-right font-semibold tabular-nums">{desfechos.closer.marcadas}</td>
+          </tr>
+          {DESFECHO_CATS.map(c => (
+            <tr key={c.conta} className="border-t border-slate-100">
+              <td className="py-1.5">
+                <span className="inline-flex items-center gap-1.5 text-slate-700">
+                  <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />{c.label}
+                </span>
+              </td>
+              <td className="py-1.5 text-right tabular-nums">
+                {desfechos.sdr[c.conta]}{c.conta === 'feitas' && <span className="text-ww-n400"> · {pct(desfechos.sdr.feitas, desfechos.sdr.marcadas)}</span>}
+              </td>
+              <td className="py-1.5 text-right tabular-nums">
+                {desfechos.closer[c.conta]}{c.conta === 'feitas' && <span className="text-ww-n400"> · {pct(desfechos.closer.feitas, desfechos.closer.marcadas)}</span>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {DESFECHO_CATS.filter(c => c.conta !== 'feitas').map(c => {
+        const lista = itens.filter(i => i.categoria === c.item)
+        if (lista.length === 0) return null
+        return (
+          <details key={c.item} className="group">
+            <summary className="cursor-pointer text-[11px] font-medium text-ww-n500 hover:text-ww-gold-ink transition-colors select-none">
+              Ver {c.label.toLowerCase()} ({lista.length})
+            </summary>
+            <div className="mt-1 space-y-0.5">
+              {lista.map(it => (
+                <div key={`${it.ac_deal_id}-${it.reuniao}`}>
+                  <AgendaLinha it={it} mostrarDia />
+                  {it.motivo && <div className="pl-2 -mt-1 pb-1 text-[10px] text-ww-n400 truncate" title={it.motivo}>↳ {it.motivo}</div>}
+                </div>
+              ))}
+            </div>
+          </details>
+        )
+      })}
+    </div>
+  )
+}
+
+function AgendaReunioes({ filters }: { filters: AppliedFilters }) {
+  const { data, isLoading } = useWwAgenda({
+    origins: filters.origins, tipos: filters.tipos, faixas: filters.faixas,
+    destinos: filters.destinos, convidados: filters.convidados, consultorIds: filters.consultorIds,
+  })
+  if (isLoading) return <LoadingSkeleton rows={3} />
+  if (!data || data.error) return null
+
+  const proximas = filtraProximos7d(data.proximas ?? [])
+  const pendentes = data.pendentes ?? []
+  const hoje = proximas.filter(p => diaLabel(p.quando) === 'Hoje')
+  const porDia = proximas.reduce((acc, p) => {
+    const k = diaLabel(p.quando)
+    ;(acc[k] = acc[k] ?? []).push(p)
+    return acc
+  }, {} as Record<string, WwAgendaItem[]>)
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <SectionCard
+          className="lg:col-span-2"
+          title="📅 Agenda de reuniões — próximos 7 dias"
+          subtitle={`Reuniões marcadas no Active (1ª reunião do SDR e fechamento da Closer). Hoje: ${hoje.filter(p => p.reuniao === 'sdr').length} SDR · ${hoje.filter(p => p.reuniao === 'closer').length} Closer. Filtros de tipo de reunião não se aplicam aqui — a reunião ainda vai acontecer.`}
+        >
+          {proximas.length === 0 ? (
+            <EmptyState message="Nenhuma reunião marcada para os próximos 7 dias." />
+          ) : (
+            <div className="space-y-3">
+              {Object.entries(porDia).map(([dia, itens]) => (
+                <div key={dia}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`text-xs font-semibold uppercase tracking-wide ${dia === 'Hoje' ? 'text-ww-gold-ink' : 'text-ww-n500'}`}>{dia}</span>
+                    <span className="text-[11px] text-ww-n400 tabular-nums">{itens.length} reuni{itens.length === 1 ? 'ão' : 'ões'}</span>
+                    <span className="flex-1 border-t border-ww-sand/60" />
+                  </div>
+                  <div className="space-y-0.5">
+                    {itens.map(it => <AgendaLinha key={`${it.ac_deal_id}-${it.reuniao}`} it={it} />)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </SectionCard>
+
+        <SectionCard
+          title="⏰ Vencidas sem registro"
+          subtitle="A data passou e ninguém registrou como foi nem moveu o casal. Cobre o registro ou remarque — sem isso a reunião não conta no placar."
+        >
+          {pendentes.length === 0 ? (
+            <EmptyState message="Nada vencido — registros em dia." />
+          ) : (
+            <div className="space-y-0.5">
+              {pendentes.map(it => (
+                <AgendaLinha
+                  key={`${it.ac_deal_id}-${it.reuniao}`}
+                  it={it}
+                  mostrarDia
+                  extra={<span className="shrink-0 text-[11px] font-medium tabular-nums text-rose-600">{(it.dias_atraso ?? 0) === 0 ? 'hoje' : `${it.dias_atraso}d`}</span>}
+                />
+              ))}
+            </div>
+          )}
+        </SectionCard>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <SectionCard
+          className="lg:col-span-2"
+          title="📆 Volume de reuniões marcadas — dias e semanas à frente"
+          subtitle="Quantas reuniões já estão na agenda do time. Dia vazio = espaço pra agendar mais."
+        >
+          <AgendaGrafico porDia={data.por_dia ?? []} />
+        </SectionCard>
+
+        <SectionCard
+          title={`🧭 Desfechos — últimos ${data.desfechos?.janela_dias ?? 30} dias`}
+          subtitle="O que aconteceu com cada reunião marcada: feita, não aconteceu, em reagendamento, perdida ou ainda sem registro."
+        >
+          {data.desfechos ? <DesfechosCard desfechos={data.desfechos} /> : <EmptyState message="Sem reuniões marcadas no período." />}
+        </SectionCard>
+      </div>
     </div>
   )
 }

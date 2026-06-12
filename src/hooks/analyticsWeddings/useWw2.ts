@@ -1274,3 +1274,71 @@ export function useWwSerieTemporal(params: WwSerieParams) {
     staleTime: 60_000,
   })
 }
+
+// ── Agenda de reuniões (futuro + vencidas sem registro) — 20260612a ─────────
+export type WwAgendaItem = {
+  quando: string
+  reuniao: 'sdr' | 'closer'
+  casal: string | null
+  tipo: string | null
+  ac_deal_id: string
+  contact_id: string | null
+  card_id: string | null
+  consultor_nome?: string | null
+  dias_atraso?: number
+}
+
+export type WwAgendaPorDia = { dia: string; sdr: number; closer: number }
+
+export type WwAgendaDesfechoContagem = {
+  marcadas: number
+  feitas: number
+  nao_aconteceu: number
+  reagendando: number
+  perdidas: number
+  sem_registro: number
+}
+
+export type WwAgendaDesfechoItem = WwAgendaItem & {
+  motivo: string | null
+  categoria: 'feita' | 'nao_aconteceu' | 'reagendando' | 'perdida' | 'sem_registro'
+}
+
+export type WwAgendaDesfechos = {
+  janela_dias: number
+  sdr: WwAgendaDesfechoContagem
+  closer: WwAgendaDesfechoContagem
+  itens: WwAgendaDesfechoItem[]
+}
+
+export type WwAgenda = {
+  proximas: WwAgendaItem[]
+  pendentes: WwAgendaItem[]
+  por_dia: WwAgendaPorDia[]
+  desfechos: WwAgendaDesfechos
+  gerado_em: string
+  error?: string
+}
+
+// Agenda usa os filtros de PERFIL da aba (origem/tipo/faixa/convidados/destino/consultor).
+// Canal de reunião NÃO se aplica: reunião futura ainda não tem canal registrado (intencional).
+export function useWwAgenda(filters: Pick<Ww2Filters, 'origins' | 'tipos' | 'faixas' | 'destinos' | 'convidados' | 'consultorIds'>, diasFuturo = 28, diasPendentes = 14, diasDesfechos = 30) {
+  const orgId = useOrgId()
+  return useQuery({
+    queryKey: ['ww', 'agenda', orgId, filters.origins ?? null, filters.tipos ?? null, filters.faixas ?? null, filters.destinos ?? null, filters.convidados ?? null, filters.consultorIds ?? null, diasFuturo, diasPendentes, diasDesfechos],
+    queryFn: () => callRpc<WwAgenda>('ww_agenda_reunioes', {
+      p_org_id: orgId,
+      p_dias_futuro: diasFuturo,
+      p_dias_pendentes: diasPendentes,
+      p_dias_desfechos: diasDesfechos,
+      p_origins: filters.origins?.length ? filters.origins : null,
+      p_tipos: filters.tipos?.length ? filters.tipos : null,
+      p_faixas: filters.faixas?.length ? filters.faixas : null,
+      p_destinos: filters.destinos?.length ? filters.destinos : null,
+      p_convidados: filters.convidados?.length ? filters.convidados : null,
+      p_consultor_ids: filters.consultorIds?.length ? filters.consultorIds : null,
+    }),
+    enabled: !!orgId,
+    staleTime: 60_000,
+  })
+}

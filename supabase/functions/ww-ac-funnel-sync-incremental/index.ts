@@ -152,7 +152,7 @@ Deno.serve(async (req) => {
     // 1. Buscar deal + custom field data em paralelo
     const [dealRes, fieldsRes] = await Promise.all([
       acFetch<{ deal: Deal | null }>(`/api/3/deals/${dealId}`),
-      acFetch<{ dealCustomFieldData: Array<{ customFieldId: string | number; fieldValue: string | null }> }>(
+      acFetch<{ dealCustomFieldData: Array<{ customFieldId: string | number; fieldValue: string | null; createdTimestamp?: string | null; updatedTimestamp?: string | null }> }>(
         `/api/3/deals/${dealId}/dealCustomFieldData`
       ),
     ])
@@ -173,10 +173,15 @@ Deno.serve(async (req) => {
     const groupId = deal.group ? parseInt(deal.group, 10) : null
     const isWw = groupId !== null && WW_PIPELINE_GROUPS.has(groupId)
 
-    // 2. Construir mapa de campos do deal
+    // 2. Construir mapa de campos do deal (+ quando o registro 17/299 foi escrito — régua de datas 20260612a)
     const fieldMap: Record<string, string | null> = {}
+    const regMap: Record<string, string | null> = {}
     for (const f of (fieldsRes.dealCustomFieldData ?? [])) {
-      fieldMap[String(f.customFieldId)] = f.fieldValue == null ? null : String(f.fieldValue)
+      const fid = String(f.customFieldId)
+      fieldMap[fid] = f.fieldValue == null ? null : String(f.fieldValue)
+      if (fid === FIELD_SDR_COMO || fid === FIELD_CLOSER_COMO) {
+        regMap[fid] = (f.updatedTimestamp ?? f.createdTimestamp) ?? null
+      }
     }
 
     // 3. Buscar contact fields (Welcome Form + UTMs) se for WW e tiver contato
@@ -230,6 +235,8 @@ Deno.serve(async (req) => {
       closer_agendou_at: parseDateTime(fieldMap[FIELD_CLOSER_AGEN]),
       closer_fez: closer.fez,
       closer_canal: closer.canal,
+      sdr_como_registrado_at: parseDateTime(regMap[FIELD_SDR_COMO]),
+      closer_como_registrado_at: parseDateTime(regMap[FIELD_CLOSER_COMO]),
       ganho_at: parseDateTime(fieldMap[FIELD_GANHO]),
       real_orcamento_raw: orcamentoRaw,
       real_orcamento_parsed: parseOrcamento(orcamentoRaw),
