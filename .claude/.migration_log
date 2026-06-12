@@ -1207,3 +1207,7 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-06-12T13:27:07Z | supabase/migrations/20260612a_ww_status_lead_e_fase_atual.sql | applied_to_prod
 2026-06-12T13:57:35Z | supabase/migrations/20260612a_ww_agenda_e_data_real_reuniao.sql | applied_to_prod
 2026-06-12T14:17:59Z | supabase/migrations/20260612b_ww_funil_casal_so_ww.sql | applied_to_prod
+2026-06-12T14:32:39Z | supabase/migrations/20260612b_ww_agenda_grafico_desfechos.sql | applied_to_prod
+2026-06-12T14:34:23Z | supabase/migrations/20260612b_ww_agenda_grafico_desfechos.sql | applied_to_prod
+2026-06-12T14:35:06Z | supabase/migrations/20260612b_ww_agenda_grafico_desfechos.sql | applied_to_prod
+2026-06-12T16:30:54Z | supabase/migrations/20260612c_ww_serie_funil_completo.sql | applied_to_prod
