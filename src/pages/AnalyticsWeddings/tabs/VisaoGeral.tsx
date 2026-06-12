@@ -24,7 +24,7 @@ export function VisaoGeral({ filters, onFiltersChange }: TabProps) {
     <div className="space-y-4">
       {/* Pergunta da aba: "como estamos?" — corta por período/modo, tipo, origem, perfil
           (faixa/convidados/destino), consultor e COMO as reuniões aconteceram (canal SDR/Closer) */}
-      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'dateMode', 'tipo', 'origem', 'faixa', 'convidados', 'destino', 'consultor', 'canal_sdr', 'canal_closer']} />
+      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'dateMode', 'status', 'tipo', 'origem', 'faixa', 'convidados', 'destino', 'consultor', 'canal_sdr', 'canal_closer']} />
       <VisaoGeralContent filters={filters} />
     </div>
   )
@@ -57,7 +57,7 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
     dateStart: filters.dateStart, dateEnd: filters.dateEnd, dateMode: filters.dateMode,
     origins: filters.origins, faixas: filters.faixas, destinos: filters.destinos,
     convidadosList: filters.convidados, tipos: filters.tipos, consultorIds: filters.consultorIds,
-    canalSdr: filters.canalSdr, canalCloser: filters.canalCloser,
+    canalSdr: filters.canalSdr, canalCloser: filters.canalCloser, statusLead: filters.statusLead,
   }
   // Tendência: janela de 12 meses terminando no fim do período do filtro (trend precisa de range longo)
   const trend12Start = new Date(new Date(filters.dateEnd).getTime() - 365 * 24 * 60 * 60 * 1000).toISOString()
@@ -111,6 +111,7 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
         tipos={filters.tipos}
         canalSdr={filters.canalSdr}
         canalCloser={filters.canalCloser}
+        statusLead={filters.statusLead}
         onPointClick={(p, marco, janela) => openDrill({
           ...baseCtx,
           dateStart: janela.dateStart,
@@ -153,7 +154,8 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
                 return activePhases.map(p => (
                   <button
                     key={p.phase}
-                    onClick={() => openDrill({ ...baseCtx, phaseSlug: p.slug, title: `Leads na fase ${p.phase}` })}
+                    // O bloco conta a SAFRA do período (independe do modo) — o drill espelha
+                    onClick={() => openDrill({ ...baseCtx, dateMode: 'cohort', phaseSlug: p.slug, title: `Leads na fase ${p.phase}` })}
                     className="w-full text-left group"
                     title={`Ver casais — ${p.phase}`}
                   >

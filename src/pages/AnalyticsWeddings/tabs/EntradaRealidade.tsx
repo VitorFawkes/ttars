@@ -70,12 +70,12 @@ function EntradaRealidadeContent({ filters }: { filters: AppliedFilters }) {
         onLeadsClick={() => setDrill({ ...baseCtx, marco: 'entrou', title: 'Leads que entraram no período' })}
         onFechadosClick={() => setDrill({ ...baseCtx, marco: 'ganho', title: 'Casais que fecharam contrato' })}
       />
-      <BreakdownTipo data={data} onTipoClick={(tipo) => setDrill({ ...baseCtx, tipo, status: 'ganho', title: `Casais — ${tipo} fechados` })} />
+      <BreakdownTipo data={data} onTipoClick={(tipo) => setDrill({ ...baseCtx, tipo, marco: 'ganho', title: `Casais — ${tipo} fechados` })} />
 
       {/* Análises cruzadas (Onda 6) — Investimento × Convidados × Destino */}
       {combos && !combos.error && (
         <>
-          <TopCombosFechados combos={combos} onComboClick={(faixa, destino) => setDrill({ ...baseCtx, faixa, destino, status: 'ganho', title: `Vendas — ${faixa} + ${destino}` })} />
+          <TopCombosFechados combos={combos} onComboClick={(faixa, destino) => setDrill({ ...baseCtx, faixa, destino, marco: 'ganho', title: `Vendas — ${faixa} + ${destino}` })} />
           <HeatmapTaxaConversao
             titulo="🔥 Onde a conversão acontece — Faixa × Convidados"
             subtitulo="Cada célula mostra entraram → fecharam (taxa). Quanto mais verde, melhor a combinação."
@@ -84,7 +84,7 @@ function EntradaRealidadeContent({ filters }: { filters: AppliedFilters }) {
             yLabel="Convidados"
             xOrder={FAIXA_ORDER}
             yOrder={CONV_ORDER}
-            onCellClick={(faixa, convidados) => setDrill({ ...baseCtx, faixa, convidados, status: 'ganho', title: `Vendas — ${faixa} · ${convidados} convidados` })}
+            onCellClick={(faixa, convidados) => setDrill({ ...baseCtx, faixa, convidados, marco: 'ganho', title: `Vendas — ${faixa} · ${convidados} convidados` })}
           />
           <HeatmapTaxaConversao
             titulo="🔥 Onde a conversão acontece — Faixa × Destino"
@@ -93,7 +93,7 @@ function EntradaRealidadeContent({ filters }: { filters: AppliedFilters }) {
             xLabel="Faixa"
             yLabel="Destino"
             xOrder={FAIXA_ORDER}
-            onCellClick={(faixa, destino) => setDrill({ ...baseCtx, faixa, destino, status: 'ganho', title: `Vendas — ${faixa} + ${destino}` })}
+            onCellClick={(faixa, destino) => setDrill({ ...baseCtx, faixa, destino, marco: 'ganho', title: `Vendas — ${faixa} + ${destino}` })}
           />
           <HeatmapTaxaConversao
             titulo="🔥 Onde a conversão acontece — Convidados × Destino"
@@ -102,15 +102,15 @@ function EntradaRealidadeContent({ filters }: { filters: AppliedFilters }) {
             xLabel="Convidados"
             yLabel="Destino"
             xOrder={CONV_ORDER}
-            onCellClick={(convidados, destino) => setDrill({ ...baseCtx, convidados, destino, status: 'ganho', title: `Vendas — ${destino} · ${convidados} convidados` })}
+            onCellClick={(convidados, destino) => setDrill({ ...baseCtx, convidados, destino, marco: 'ganho', title: `Vendas — ${destino} · ${convidados} convidados` })}
           />
         </>
       )}
 
-      <InvestimentoDrift data={data} onCellClick={(fe, fv) => setDrill({ ...baseCtx, faixa: fe, status: 'ganho', title: `Casais — entrou em ${fe}, vendeu em ${fv}` })} />
-      <DestinoDrift data={data} onCellClick={(de, dv) => setDrill({ ...baseCtx, destino: de, status: 'ganho', title: `Casais — declarou ${de}, vendeu ${dv}` })} />
+      <InvestimentoDrift data={data} onCellClick={(fe, fv) => setDrill({ ...baseCtx, faixa: fe, marco: 'ganho', title: `Casais — entrou em ${fe}, vendeu em ${fv}` })} />
+      <DestinoDrift data={data} onCellClick={(de, dv) => setDrill({ ...baseCtx, destino: de, marco: 'ganho', title: `Casais — declarou ${de}, vendeu ${dv}` })} />
       <ConvidadosDrift data={data} />
-      <DriftPorConsultor data={data} onConsultorClick={(consultor_id, consultor_nome) => setDrill({ ...baseCtx, consultorId: consultor_id, status: 'ganho', title: `Vendas — ${consultor_nome ?? 'consultor'}` })} />
+      <DriftPorConsultor data={data} onConsultorClick={(consultor_id, consultor_nome) => setDrill({ ...baseCtx, consultorId: consultor_id, marco: 'ganho', title: `Vendas — ${consultor_nome ?? 'consultor'}` })} />
       <DriftPorMes data={data} />
       <VendasFechadasList data={data} />
       <DrillDrawer ctx={drill} onClose={() => setDrill(null)} />
