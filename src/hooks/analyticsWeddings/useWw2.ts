@@ -1215,11 +1215,14 @@ export function useWwFunilRanking(params: {
 
 
 // ── Série temporal (semana/mês) — alimenta os gráficos de #3 e #7 ────────────
+// 20260612c: funil completo — marcou_sdr/marcou_closer entre os marcos existentes
 export type WwSeriePonto = {
   periodo: string
   label: string
   entrou: number
+  marcou_sdr: number
   fez_sdr: number
+  marcou_closer: number
   fez_closer: number
   ganho: number
 }
@@ -1227,7 +1230,7 @@ export type WwSerieTemporal = {
   granularidade: 'week' | 'month'
   date_mode: DateMode
   series: WwSeriePonto[]
-  totais: { entrou: number; fez_sdr: number; fez_closer: number; ganho: number }
+  totais: { entrou: number; marcou_sdr: number; fez_sdr: number; marcou_closer: number; fez_closer: number; ganho: number }
   error?: string
 }
 export type WwSerieParams = {

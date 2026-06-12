@@ -9,38 +9,74 @@ import { formatNumber } from '../lib/format'
 type Gran = 'week' | 'month'
 type Modo = 'quantidade' | 'conversao'
 
-// Paleta da marca ww: neutro → champagne → rosewood; venda fica verde (semântico)
+// Paleta da marca ww — funil completo em pares (marcada = tom claro, feita = tom cheio);
+// neutro → champagne → rosewood; venda fica verde (semântico)
 const MET = [
   { key: 'entrou', label: 'Leads', color: '#94a3b8' },
-  { key: 'fez_sdr', label: 'Reuniões SDR', color: '#BD965C' },
-  { key: 'fez_closer', label: 'Reuniões Closer', color: '#874B52' },
+  { key: 'marcou_sdr', label: 'Marcadas SDR', color: '#DCC49A' },
+  { key: 'fez_sdr', label: 'Feitas SDR', color: '#BD965C' },
+  { key: 'marcou_closer', label: 'Marcadas Closer', color: '#B2858C' },
+  { key: 'fez_closer', label: 'Feitas Closer', color: '#874B52' },
   { key: 'ganho', label: 'Vendas', color: '#10b981' },
 ] as const
 
-// Conversão "de barra pra barra" — a passagem entre etapas consecutivas (em barras, não linha)
+// Conversão "de barra pra barra" — a passagem entre etapas consecutivas do funil completo
 const CONV_BARRAS = [
-  { key: 'taxa_sdr', label: 'Lead → Reunião SDR', color: '#BD965C' },
-  { key: 'taxa_closer', label: 'Reunião SDR → Closer', color: '#874B52' },
-  { key: 'taxa_ganho', label: 'Reunião Closer → Venda', color: '#10b981' },
+  { key: 'taxa_marcou_sdr', label: 'Lead → Marcada SDR', color: '#DCC49A' },
+  { key: 'taxa_fez_sdr', label: 'Marcada → Feita SDR', color: '#BD965C' },
+  { key: 'taxa_marcou_closer', label: 'Feita SDR → Marcada Closer', color: '#B2858C' },
+  { key: 'taxa_fez_closer', label: 'Marcada → Feita Closer', color: '#874B52' },
+  { key: 'taxa_ganho', label: 'Feita Closer → Venda', color: '#10b981' },
 ] as const
 
 const pct = (num: number, den: number) => (den > 0 ? Math.round((1000 * num) / den) / 10 : 0)
 
 // O tooltip do Recharts ordena por nome do dataKey (alfabético) — "fez_closer" vinha antes de
 // "fez_sdr". Força a ordem do funil em ambos os modos.
-const TOOLTIP_ORDER = ['entrou', 'fez_sdr', 'fez_closer', 'ganho', 'taxa_sdr', 'taxa_closer', 'taxa_ganho']
+const TOOLTIP_ORDER = [
+  'entrou', 'marcou_sdr', 'fez_sdr', 'marcou_closer', 'fez_closer', 'ganho',
+  'taxa_marcou_sdr', 'taxa_fez_sdr', 'taxa_marcou_closer', 'taxa_fez_closer', 'taxa_ganho',
+]
 const tooltipSorter = (item: unknown) =>
   TOOLTIP_ORDER.indexOf(String((item as { dataKey?: string | number })?.dataKey ?? ''))
 
-// Número em cima da barra (some quando 0 pra não poluir)
-const labelValor = (v: unknown) => { const n = Number(v); return n > 0 ? formatNumber(n) : '' }
-const labelPct = (v: unknown) => { const n = Number(v); return n > 0 ? `${n}%` : '' }
+// Número em cima da barra — só desenha quando a barra é larga o bastante (com 6 séries
+// × 13 meses os rótulos colidiam; o tooltip cobre o resto). Some quando 0 pra não poluir.
+const labelSeLarga = (fmt: (n: number) => string) => (props: unknown) => {
+  const { x, y, width, value } = (props ?? {}) as { x?: number | string; y?: number | string; width?: number | string; value?: number | string }
+  const w = Number(width ?? 0)
+  const n = Number(value ?? 0)
+  if (w < 13 || !(n > 0)) return <g />
+  return (
+    <text x={Number(x) + w / 2} y={Number(y) - 4} textAnchor="middle" fontSize={9} fill="#64748b">
+      {fmt(n)}
+    </text>
+  )
+}
+const labelValor = labelSeLarga(formatNumber)
+const labelPct = labelSeLarga((n) => `${n}%`)
 
-export type SerieMarco = 'entrou' | 'fez_sdr' | 'fez_closer' | 'ganho'
+// Legenda na ORDEM DO FUNIL — o recharts monta a legenda em ordem alfabética do dataKey
+// (e ignora payload custom nesta versão), então desenhamos a nossa.
+function LegendaFunil({ itens }: { itens: ReadonlyArray<{ readonly key: string; readonly label: string; readonly color: string }> }) {
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 pt-2">
+      {itens.map(i => (
+        <span key={i.key} className="inline-flex items-center gap-1 text-[11px] text-slate-600">
+          <span className="w-2.5 h-2.5 rounded-[3px]" style={{ background: i.color }} />
+          {i.label}
+        </span>
+      ))}
+    </div>
+  )
+}
 
-// No modo conversão, clicar na taxa abre a lista do NUMERADOR (quem fez a etapa no período)
+export type SerieMarco = 'entrou' | 'marcou_sdr' | 'fez_sdr' | 'marcou_closer' | 'fez_closer' | 'ganho'
+
+// No modo conversão, clicar na taxa abre a lista do NUMERADOR (quem passou a etapa no período)
 const TAXA_PARA_MARCO: Record<string, SerieMarco> = {
-  taxa_sdr: 'fez_sdr', taxa_closer: 'fez_closer', taxa_ganho: 'ganho',
+  taxa_marcou_sdr: 'marcou_sdr', taxa_fez_sdr: 'fez_sdr',
+  taxa_marcou_closer: 'marcou_closer', taxa_fez_closer: 'fez_closer', taxa_ganho: 'ganho',
 }
 
 export function SerieTemporalChart({
@@ -95,8 +131,10 @@ export function SerieTemporalChart({
     if (modo === 'quantidade') return s
     return s.map((p: WwSeriePonto) => ({
       ...p,
-      taxa_sdr: pct(p.fez_sdr, p.entrou),
-      taxa_closer: pct(p.fez_closer, p.fez_sdr),
+      taxa_marcou_sdr: pct(p.marcou_sdr ?? 0, p.entrou),
+      taxa_fez_sdr: pct(p.fez_sdr, p.marcou_sdr ?? 0),
+      taxa_marcou_closer: pct(p.marcou_closer ?? 0, p.fez_sdr),
+      taxa_fez_closer: pct(p.fez_closer, p.marcou_closer ?? 0),
       taxa_ganho: pct(p.ganho, p.fez_closer),
       taxa_total: pct(p.ganho, p.entrou),
     }))
@@ -135,12 +173,12 @@ export function SerieTemporalChart({
                 formatter={(v: number, n: string) => [formatNumber(v), n]}
                 itemSorter={tooltipSorter}
               />
-              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+              <Legend content={<LegendaFunil itens={MET} />} />
               {MET.map((m) => (
-                <Bar key={m.key} dataKey={m.key} name={m.label} fill={m.color} radius={[3, 3, 0, 0]} maxBarSize={26}
+                <Bar key={m.key} dataKey={m.key} name={m.label} fill={m.color} radius={[3, 3, 0, 0]} maxBarSize={22}
                   onClick={onPointClick ? handleBar(m.key) : undefined}
                   cursor={onPointClick ? 'pointer' : undefined}>
-                  <LabelList dataKey={m.key} position="top" fontSize={9} fill="#64748b" formatter={labelValor} />
+                  <LabelList dataKey={m.key} content={labelValor} />
                 </Bar>
               ))}
             </BarChart>
@@ -153,12 +191,12 @@ export function SerieTemporalChart({
                 formatter={(v: number, n: string) => [`${v}%`, n]}
                 itemSorter={tooltipSorter}
               />
-              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+              <Legend content={<LegendaFunil itens={CONV_BARRAS} />} />
               {CONV_BARRAS.map((c) => (
                 <Bar key={c.key} dataKey={c.key} name={c.label} fill={c.color} radius={[3, 3, 0, 0]} maxBarSize={22}
                   onClick={onPointClick ? handleBar(TAXA_PARA_MARCO[c.key]) : undefined}
                   cursor={onPointClick ? 'pointer' : undefined}>
-                  <LabelList dataKey={c.key} position="top" fontSize={9} fill="#64748b" formatter={labelPct} />
+                  <LabelList dataKey={c.key} content={labelPct} />
                 </Bar>
               ))}
             </BarChart>
