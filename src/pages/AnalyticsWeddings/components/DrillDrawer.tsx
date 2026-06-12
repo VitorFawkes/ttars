@@ -111,7 +111,10 @@ export function DrillDrawer({ ctx, onClose }: { ctx: DrillContext | null; onClos
                           {r.origem && r.origem !== 'Desconhecida' && <span className="mr-2">{r.origem}</span>}
                           {r.tipo && <span className="mr-2">· {r.tipo}</span>}
                         </div>
-                        {r.motivo_perda && (
+                        {/* Motivo só quando o casal está PERDIDO — casal com cadastro antigo morto
+                            (ex: perdeu em 2024, voltou e fechou em 2026) carrega o motivo velho no
+                            agregado; mostrar isso num casal ganho confunde (caso Larissa, deal 28884). */}
+                        {r.motivo_perda && r.is_perdido && !r.ganho && (
                           <div className="text-[10px] text-rose-500/80 mt-0.5" title={`Motivo de perda: ${r.motivo_perda}`}>
                             ✕ {r.motivo_perda.length > 56 ? r.motivo_perda.slice(0, 56) + '…' : r.motivo_perda}
                           </div>
