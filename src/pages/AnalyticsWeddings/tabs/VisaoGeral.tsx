@@ -22,6 +22,17 @@ const MARCO_TITULO: Record<string, string> = {
   ganho: 'Vendas',
 }
 
+// No modo atividade as reuniões contam pela DATA da reunião dentro do período —
+// os rótulos respondem direto "quantas marcaram × quantas aconteceram" (comparecimento).
+const ROTULO_ATIVIDADE: Record<number, string> = {
+  1: 'Entrou',
+  2: '1ª reunião marcada',
+  3: '1ª reunião aconteceu',
+  4: 'Reunião closer marcada',
+  5: 'Reunião closer aconteceu',
+  6: 'Ganhou',
+}
+
 export function VisaoGeral({ filters, onFiltersChange }: TabProps) {
   return (
     <div className="space-y-4">
@@ -134,11 +145,13 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
           title="Funil de vendas — etapa por etapa"
           subtitle={filters.dateMode === 'cohort'
             ? 'Dos leads que chegaram no período, até onde cada um foi (mesmo que depois). A % é a passagem da etapa anterior. Clique numa etapa pra ver os casais.'
-            : 'O que aconteceu dentro do período, etapa a etapa. A % é a passagem da etapa anterior. Clique numa etapa pra ver os casais.'}
+            : 'O que aconteceu no período — reuniões contam pela DATA da reunião. A % entre "marcada" e "aconteceu" é o comparecimento. Clique numa etapa pra ver os casais.'}
         >
           {conversoes.length === 0 ? <EmptyState message="Sem dados" /> : (
             <FunilEtapas
-              conversoes={conversoes}
+              conversoes={filters.dateMode === 'throughput'
+                ? conversoes.map(c => ({ ...c, phase_label: ROTULO_ATIVIDADE[c.phase_order] ?? c.phase_label }))
+                : conversoes}
               onEtapaClick={(c) => {
                 const marco = ETAPA_MARCO[c.phase_order]
                 if (marco) openDrill({ ...baseCtx, marco, title: `${c.phase_label} — casais da etapa` })
