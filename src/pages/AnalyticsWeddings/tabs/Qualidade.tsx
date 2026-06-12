@@ -26,7 +26,7 @@ export function Qualidade({ filters, onFiltersChange }: TabProps) {
     <div className="space-y-4">
       {/* Pergunta da aba: "que lead converte?" — não filtra por faixa/destino/convidados porque
           são as PRÓPRIAS dimensões analisadas. Canal SDR e Closer entram como recorte. */}
-      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'dateMode', 'tipo', 'origem', 'canal_sdr', 'canal_closer']} />
+      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'dateMode', 'status', 'tipo', 'origem', 'canal_sdr', 'canal_closer']} />
       <QualidadeContent filters={filters} />
     </div>
   )
@@ -53,10 +53,11 @@ function QualidadeContent({ filters }: { filters: AppliedFilters }) {
 
   const { data, isLoading, error } = useWwQualidadeLead(filters, eventStageId, minAmostra)
   // Auditoria 2026-06-11: drill carrega os filtros ativos da aba junto com o clique
+  // (dateMode incluso — em throughput o drill conta o marco pela data do próprio evento)
   const baseCtx = {
-    dateStart: filters.dateStart, dateEnd: filters.dateEnd,
+    dateStart: filters.dateStart, dateEnd: filters.dateEnd, dateMode: filters.dateMode,
     origins: filters.origins, tipos: filters.tipos,
-    canalSdr: filters.canalSdr, canalCloser: filters.canalCloser,
+    canalSdr: filters.canalSdr, canalCloser: filters.canalCloser, statusLead: filters.statusLead,
   }
 
   if (isThroughput && !eventStageId) {

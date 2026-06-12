@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, LabelList,
 } from 'recharts'
-import { useWwSerieTemporal, type DateMode, type WwSeriePonto } from '@/hooks/analyticsWeddings/useWw2'
+import { useWwSerieTemporal, type DateMode, type WwSeriePonto, type StatusLead } from '@/hooks/analyticsWeddings/useWw2'
 import { SectionCard, EmptyState, LoadingSkeleton } from './ui'
 import { formatNumber } from '../lib/format'
 
@@ -26,6 +26,16 @@ const CONV_BARRAS = [
 
 const pct = (num: number, den: number) => (den > 0 ? Math.round((1000 * num) / den) / 10 : 0)
 
+// O tooltip do Recharts ordena por nome do dataKey (alfabético) — "fez_closer" vinha antes de
+// "fez_sdr". Força a ordem do funil em ambos os modos.
+const TOOLTIP_ORDER = ['entrou', 'fez_sdr', 'fez_closer', 'ganho', 'taxa_sdr', 'taxa_closer', 'taxa_ganho']
+const tooltipSorter = (item: unknown) =>
+  TOOLTIP_ORDER.indexOf(String((item as { dataKey?: string | number })?.dataKey ?? ''))
+
+// Número em cima da barra (some quando 0 pra não poluir)
+const labelValor = (v: unknown) => { const n = Number(v); return n > 0 ? formatNumber(n) : '' }
+const labelPct = (v: unknown) => { const n = Number(v); return n > 0 ? `${n}%` : '' }
+
 export type SerieMarco = 'entrou' | 'fez_sdr' | 'fez_closer' | 'ganho'
 
 // No modo conversão, clicar na taxa abre a lista do NUMERADOR (quem fez a etapa no período)
@@ -35,7 +45,7 @@ const TAXA_PARA_MARCO: Record<string, SerieMarco> = {
 
 export function SerieTemporalChart({
   title, subtitle, dateStart, dateEnd, dateMode, incluirElopement,
-  origins, faixas, destinos, convidados, consultorIds, tipos, canalSdr, canalCloser, defaultModo = 'quantidade',
+  origins, faixas, destinos, convidados, consultorIds, tipos, canalSdr, canalCloser, statusLead, defaultModo = 'quantidade',
   onPointClick,
 }: {
   title: string
@@ -52,6 +62,7 @@ export function SerieTemporalChart({
   tipos?: string[]
   canalSdr?: string[]
   canalCloser?: string[]
+  statusLead?: StatusLead | ''
   defaultModo?: Modo
   /** Clique numa barra → drill da lista de casais daquele período/marco */
   onPointClick?: (ponto: WwSeriePonto, marco: SerieMarco, janela: { dateStart: string; dateEnd: string }) => void
@@ -76,7 +87,7 @@ export function SerieTemporalChart({
 
   const { data, isLoading } = useWwSerieTemporal({
     dateStart, dateEnd, granularidade: gran, dateMode, incluirElopement,
-    origins, faixas, destinos, convidados, consultorIds, tipos, canalSdr, canalCloser,
+    origins, faixas, destinos, convidados, consultorIds, tipos, canalSdr, canalCloser, statusLead,
   })
 
   const rows = useMemo(() => {
@@ -116,35 +127,39 @@ export function SerieTemporalChart({
       ) : (
         <ResponsiveContainer width="100%" height={300}>
           {modo === 'quantidade' ? (
-            <BarChart data={rows} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+            <BarChart data={rows} margin={{ top: 16, right: 12, left: 0, bottom: 4 }}>
               <XAxis dataKey="label" stroke="#64748b" fontSize={11} tickLine={false} />
               <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
               <Tooltip
                 contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }}
                 formatter={(v: number, n: string) => [formatNumber(v), n]}
+                itemSorter={tooltipSorter}
               />
               <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
               {MET.map((m) => (
                 <Bar key={m.key} dataKey={m.key} name={m.label} fill={m.color} radius={[3, 3, 0, 0]} maxBarSize={26}
                   onClick={onPointClick ? handleBar(m.key) : undefined}
-                  cursor={onPointClick ? 'pointer' : undefined} />
+                  cursor={onPointClick ? 'pointer' : undefined}>
+                  <LabelList dataKey={m.key} position="top" fontSize={9} fill="#64748b" formatter={labelValor} />
+                </Bar>
               ))}
             </BarChart>
           ) : (
-            <BarChart data={rows} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+            <BarChart data={rows} margin={{ top: 16, right: 12, left: 0, bottom: 4 }}>
               <XAxis dataKey="label" stroke="#64748b" fontSize={11} tickLine={false} />
               <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} unit="%" />
               <Tooltip
                 contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }}
                 formatter={(v: number, n: string) => [`${v}%`, n]}
+                itemSorter={tooltipSorter}
               />
               <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
               {CONV_BARRAS.map((c) => (
                 <Bar key={c.key} dataKey={c.key} name={c.label} fill={c.color} radius={[3, 3, 0, 0]} maxBarSize={22}
                   onClick={onPointClick ? handleBar(TAXA_PARA_MARCO[c.key]) : undefined}
-                  cursor={onPointClick ? 'pointer' : undefined} />
+                  cursor={onPointClick ? 'pointer' : undefined}>
+                  <LabelList dataKey={c.key} position="top" fontSize={9} fill="#64748b" formatter={labelPct} />
+                </Bar>
               ))}
             </BarChart>
           )}

@@ -181,6 +181,8 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
           accent="emerald"
           onPerfilClick={(p) => setDrill({
             dateStart: histStart, dateEnd: histEnd,
+            // A aba não tem seletor de modo: o universo de referência é "quem fechou NO período
+            // histórico" → ganho pela data do ganho (throughput); perdido não tem data própria → safra.
             dateMode: referencia === 'ganho' ? 'throughput' : 'cohort',
             origins: filters.origins, tipos: filters.tipos,
             faixa: p.faixa, destino: p.destino, convidados: p.convidados,

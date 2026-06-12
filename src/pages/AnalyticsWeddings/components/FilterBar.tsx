@@ -1,7 +1,7 @@
 import { useSearchParams } from 'react-router-dom'
 import { useMemo, useState } from 'react'
 import { ChevronDown, SlidersHorizontal } from 'lucide-react'
-import { useWwFunilFilterOptions } from '@/hooks/analyticsWeddings/useWw2'
+import { useWwFunilFilterOptions, type StatusLead } from '@/hooks/analyticsWeddings/useWw2'
 import { type PeriodOption, periodOptions, periodToDates } from '../lib/dates'
 import { MultiPill, ConsultorPill, TipoSegment } from './FilterPills'
 
@@ -22,6 +22,8 @@ export type AppliedFilters = {
   consultorIds: string[]
   canalSdr: string[]
   canalCloser: string[]
+  /** '' = todos · 'aberto' = nem ganhou nem perdeu · 'perdido' */
+  statusLead: StatusLead | ''
   period: PeriodOption
 }
 
@@ -34,7 +36,7 @@ export type TabProps = {
 // eslint-disable-next-line react-refresh/only-export-components
 export function defaultFilters(period: PeriodOption = '30d', dateMode: 'cohort' | 'throughput' = 'cohort'): AppliedFilters {
   const { dateStart, dateEnd } = periodToDates(period)
-  return { period, dateMode, dateStart, dateEnd, origins: [], faixas: [], convidados: [], destinos: [], tipos: [], consultorIds: [], canalSdr: [], canalCloser: [] }
+  return { period, dateMode, dateStart, dateEnd, origins: [], faixas: [], convidados: [], destinos: [], tipos: [], consultorIds: [], canalSdr: [], canalCloser: [], statusLead: '' }
 }
 
 function parseList(v: string | null): string[] {
@@ -58,13 +60,14 @@ export function useFilterParams(): AppliedFilters {
     consultorIds: parseList(params.get('consultorIds')),
     canalSdr: parseList(params.get('canalSdr')),
     canalCloser: parseList(params.get('canalCloser')),
+    statusLead: (params.get('statusLead') as StatusLead) || '',
   }
 }
 
 // Chaves de filtro que uma aba pode pedir. Cada aba mostra SÓ o que responde à
 // pergunta dela (regra: filtro que não muda a resposta não entra). Não é filtro
 // global — cada aba tem o seu estado e o seu conjunto.
-export type FilterKey = 'period' | 'dateMode' | 'origem' | 'faixa' | 'convidados' | 'destino' | 'tipo' | 'consultor' | 'canal_sdr' | 'canal_closer'
+export type FilterKey = 'period' | 'dateMode' | 'origem' | 'faixa' | 'convidados' | 'destino' | 'tipo' | 'consultor' | 'canal_sdr' | 'canal_closer' | 'status'
 // Conjunto padrão (compat para quem não passa `show`).
 const DEFAULT_SHOW: FilterKey[] = ['period', 'dateMode', 'origem', 'faixa', 'destino', 'consultor']
 
@@ -72,7 +75,8 @@ const DEFAULT_SHOW: FilterKey[] = ['period', 'dateMode', 'origem', 'faixa', 'des
 // eslint-disable-next-line react-refresh/only-export-components
 export function countActiveFilters(f: AppliedFilters): number {
   return f.origins.length + f.faixas.length + f.convidados.length + f.destinos.length +
-    f.tipos.length + f.consultorIds.length + f.canalSdr.length + f.canalCloser.length
+    f.tipos.length + f.consultorIds.length + f.canalSdr.length + f.canalCloser.length +
+    (f.statusLead ? 1 : 0)
 }
 
 // FilterBar CONTROLADO — cada aba passa seu próprio estado e o conjunto de filtros
@@ -100,7 +104,8 @@ export function FilterBar({ value, onChange, show = DEFAULT_SHOW }: { value: App
     (has('tipo') ? value.tipos.length : 0) +
     (has('consultor') ? value.consultorIds.length : 0) +
     (has('canal_sdr') ? value.canalSdr.length : 0) +
-    (has('canal_closer') ? value.canalCloser.length : 0)
+    (has('canal_closer') ? value.canalCloser.length : 0) +
+    (has('status') && value.statusLead ? 1 : 0)
 
   const hasPeriodControls = has('period') || has('dateMode')
 
@@ -116,8 +121,25 @@ export function FilterBar({ value, onChange, show = DEFAULT_SHOW }: { value: App
     </div>
   )
 
+  const statusSeg = (st: StatusLead | '', rotulo: string, titulo: string) => (
+    <button
+      onClick={() => set({ statusLead: st })}
+      title={titulo}
+      className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-ww-gold ${(value.statusLead || '') === st ? 'bg-ww-gold text-white shadow-sm' : 'text-ww-n600 hover:text-ww-n700'}`}
+    >
+      {rotulo}
+    </button>
+  )
+
   const chips = (
     <>
+      {has('status') && (
+        <div className="inline-flex items-center gap-0.5 bg-ww-cream rounded-lg p-0.5" title="Status do lead">
+          {statusSeg('', 'Todos', 'Todos os leads do recorte')}
+          {statusSeg('aberto', 'Abertos', 'Só quem ainda não ganhou nem perdeu')}
+          {statusSeg('perdido', 'Perdidos', 'Só quem foi perdido')}
+        </div>
+      )}
       {has('tipo') && <TipoSegment selected={value.tipos} onChange={(v) => set({ tipos: v })} />}
       {has('origem') && <MultiPill label="🎯 Origem" options={options?.origens ?? []} selected={value.origins} onChange={(v) => set({ origins: v })} />}
       {has('faixa') && <MultiPill label="💰 Faixa" options={options?.faixas ?? []} selected={value.faixas} onChange={(v) => set({ faixas: v })} />}

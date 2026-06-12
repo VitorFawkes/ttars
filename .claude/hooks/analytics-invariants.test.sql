@@ -31,6 +31,7 @@ DECLARE
     v_period_start TIMESTAMPTZ;
     v_period_end TIMESTAMPTZ;
     v_overview_leads INT; v_overview_fech INT;
+    v_funil_entrou INT; v_funil_ganho INT;
     v_journey_entrou INT; v_journey_ganho INT;
     v_drift_leads INT; v_drift_fech INT;
 
@@ -100,8 +101,11 @@ BEGIN
     END IF;
 
     -- ── INVARIANT 3: Paridade entre RPCs (cohort 12m fechado) ─────────────────
-    -- overview, journey e drift_venda em cohort 12m devem retornar mesmo total_leads e fechados.
-    -- Foi exatamente esse o bug "universos divergentes" que apareceu em maio/2026.
+    -- v2 (20260612a): a Visão geral passou a contar por CASAL (ww_funil_casal, mesma régua
+    -- do drill ww_drill_casais — "número clicado = lista aberta", pedido do Vitor 12/06).
+    -- Logo a paridade agora é em DOIS universos:
+    --   a) overview ≡ ww_funil_conversao_v1 (casal): leads/fechados batem com o funil.
+    --   b) journey ≡ drift_venda (deal/vw): seguem deal-level e batem entre si.
     SELECT id INTO v_ww_org_id FROM organizations WHERE slug = 'welcome-weddings' LIMIT 1;
     IF v_ww_org_id IS NULL THEN
         v_failures := v_failures || 'INVARIANT 3 (paridade): org welcome-weddings nao encontrada — setup quebrado.';
@@ -113,6 +117,20 @@ BEGIN
                (((ww2_overview(v_period_start, v_period_end, 'cohort', v_ww_org_id, NULL,NULL,NULL,NULL,NULL))::jsonb)->'kpis'->>'fechados')::int
           INTO v_overview_leads, v_overview_fech;
 
+        -- (a) universo CASAL: funil v1 tem que bater com o overview
+        SELECT (((ww_funil_conversao_v1(v_period_start, v_period_end, 'cohort', v_ww_org_id))::jsonb)->'baseline'->>'entrou')::int,
+               (((ww_funil_conversao_v1(v_period_start, v_period_end, 'cohort', v_ww_org_id))::jsonb)->'baseline'->>'ganho')::int
+          INTO v_funil_entrou, v_funil_ganho;
+
+        IF ABS(v_overview_leads - v_funil_entrou) > 1
+           OR ABS(v_overview_fech - v_funil_ganho) > 1 THEN
+            v_failures := v_failures || format(
+                'INVARIANT 3a (paridade CASAL cohort 12m): overview leads=%s/fech=%s vs funil v1 entrou=%s/ganho=%s. Overview e funil/drill divergiram — verificar ww_funil_casal.',
+                v_overview_leads, v_overview_fech, v_funil_entrou, v_funil_ganho
+            );
+        END IF;
+
+        -- (b) universo DEAL: journey e drift continuam batendo entre si
         SELECT (((ww2_journey(v_period_start, v_period_end, 'cohort', v_ww_org_id, NULL,NULL,NULL,NULL,NULL))::jsonb)->'funil_real'->0->>'cards')::int,
                (((ww2_journey(v_period_start, v_period_end, 'cohort', v_ww_org_id, NULL,NULL,NULL,NULL,NULL))::jsonb)->'funil_real'->5->>'cards')::int
           INTO v_journey_entrou, v_journey_ganho;
@@ -121,15 +139,11 @@ BEGIN
                (((ww_v2_drift_venda(v_period_start, v_period_end, v_ww_org_id, NULL, 'cohort', NULL))::jsonb)->>'total_fechados')::int
           INTO v_drift_leads, v_drift_fech;
 
-        -- Permitir até 1 unidade de diferença (arredondamento de timezone), mas >1 é bug
-        IF ABS(v_overview_leads - v_journey_entrou) > 1
-           OR ABS(v_overview_leads - v_drift_leads) > 1
-           OR ABS(v_overview_fech  - v_journey_ganho) > 1
-           OR ABS(v_overview_fech  - v_drift_fech)  > 1 THEN
+        IF ABS(v_journey_entrou - v_drift_leads) > 1
+           OR ABS(v_journey_ganho - v_drift_fech) > 1 THEN
             v_failures := v_failures || format(
-                'INVARIANT 3 (paridade RPCs cohort 12m): leads overview=%s journey=%s drift=%s | fechados overview=%s journey=%s drift=%s. Universos divergentes — verificar vw_ww_funnel_base.',
-                v_overview_leads, v_journey_entrou, v_drift_leads,
-                v_overview_fech, v_journey_ganho, v_drift_fech
+                'INVARIANT 3b (paridade DEAL cohort 12m): journey entrou=%s/ganho=%s vs drift leads=%s/fech=%s. Universos deal-level divergentes — verificar vw_ww_funnel_base.',
+                v_journey_entrou, v_journey_ganho, v_drift_leads, v_drift_fech
             );
         END IF;
     END IF;

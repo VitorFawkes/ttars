@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { DollarSign, Users, MapPin, Megaphone, UserRound, Video, X, Search } from 'lucide-react'
-import { useWwFunilConversao, useWwFunilFilterOptions, useWwFunilRanking, type Ww2Filters, type WwFunilConversaoMarcos, type WwFunilRankingDim, type DrillMarco } from '@/hooks/analyticsWeddings/useWw2'
+import { useWwFunilConversao, useWwFunilFilterOptions, useWwFunilRanking, type Ww2Filters, type WwFunilConversaoMarcos, type WwFunilRankingDim, type DrillMarco, type StatusLead } from '@/hooks/analyticsWeddings/useWw2'
 import { MultiPill, ConsultorPill, TipoSegment } from '../components/FilterPills'
 import { PeriodoSeletor } from '../components/PeriodoSeletor'
 import { FunilMatriz } from '../components/FunilMatriz'
@@ -62,6 +62,7 @@ export function FunilComparado() {
   const [tipos, setTipos] = useState<string[]>([])
   const [canalSdr, setCanalSdr] = useState<string[]>([])
   const [canalCloser, setCanalCloser] = useState<string[]>([])
+  const [statusLead, setStatusLead] = useState<StatusLead | ''>('')
   const [maisFiltros, setMaisFiltros] = useState(false)
   const [dateMode, setDateMode] = useState<DateMode>('cohort')
   const [perfilDim, setPerfilDim] = useState<WwFunilRankingDim>('faixa')
@@ -76,7 +77,7 @@ export function FunilComparado() {
   const labelB = labelDoPeriodo(periodoB)
 
   const { data: options } = useWwFunilFilterOptions()
-  const perfil = { faixas, convidados, destinos, origins, consultorIds, tipos, canalSdr, canalCloser }
+  const perfil = { faixas, convidados, destinos, origins, consultorIds, tipos, canalSdr, canalCloser, statusLead }
   const filtersA: Ww2Filters = { ...perfil, dateMode, dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd }
   const filtersB: Ww2Filters = { ...perfil, dateMode, dateStart: periodoB.dateStart, dateEnd: periodoB.dateEnd }
   const a = useWwFunilConversao(filtersA)
@@ -88,11 +89,11 @@ export function FunilComparado() {
   const fFaixas = perfilDim === 'faixa' ? undefined : faixas
   const fConvidados = perfilDim === 'convidados' ? undefined : convidados
   const fDestinos = perfilDim === 'destino' ? undefined : destinos
-  const rankA = useWwFunilRanking({ dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd, dateMode, dimensoes: [perfilDim], origins, tipos, consultorIds, canalSdr, canalCloser, faixas: fFaixas, convidados: fConvidados, destinos: fDestinos })
-  const rankB = useWwFunilRanking({ dateStart: periodoB.dateStart, dateEnd: periodoB.dateEnd, dateMode, dimensoes: [perfilDim], origins, tipos, consultorIds, canalSdr, canalCloser, faixas: fFaixas, convidados: fConvidados, destinos: fDestinos })
+  const rankA = useWwFunilRanking({ dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd, dateMode, dimensoes: [perfilDim], origins, tipos, consultorIds, canalSdr, canalCloser, statusLead, faixas: fFaixas, convidados: fConvidados, destinos: fDestinos })
+  const rankB = useWwFunilRanking({ dateStart: periodoB.dateStart, dateEnd: periodoB.dateEnd, dateMode, dimensoes: [perfilDim], origins, tipos, consultorIds, canalSdr, canalCloser, statusLead, faixas: fFaixas, convidados: fConvidados, destinos: fDestinos })
   // Cruzamento (power tool): só janela A. Mesma regra: eixos cruzados não entram como filtro.
   const cruz = useWwFunilRanking({
-    dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd, dateMode, dimensoes: [crossX, crossY], origins, tipos, consultorIds, canalSdr, canalCloser,
+    dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd, dateMode, dimensoes: [crossX, crossY], origins, tipos, consultorIds, canalSdr, canalCloser, statusLead,
     faixas: crossX === 'faixa' || crossY === 'faixa' ? undefined : faixas,
     convidados: crossX === 'convidados' || crossY === 'convidados' ? undefined : convidados,
     destinos: crossX === 'destino' || crossY === 'destino' ? undefined : destinos,
@@ -100,8 +101,8 @@ export function FunilComparado() {
 
   const marcosA = a.data?.filtrado
   const marcosB = b.data?.filtrado
-  const hasFilters = faixas.length + convidados.length + destinos.length + origins.length + consultorIds.length + tipos.length + canalSdr.length + canalCloser.length > 0
-  const clearAll = () => { setFaixas([]); setConvidados([]); setDestinos([]); setOrigins([]); setConsultorIds([]); setTipos([]); setCanalSdr([]); setCanalCloser([]) }
+  const hasFilters = faixas.length + convidados.length + destinos.length + origins.length + consultorIds.length + tipos.length + canalSdr.length + canalCloser.length + (statusLead ? 1 : 0) > 0
+  const clearAll = () => { setFaixas([]); setConvidados([]); setDestinos([]); setOrigins([]); setConsultorIds([]); setTipos([]); setCanalSdr([]); setCanalCloser([]); setStatusLead('') }
 
   // Clicar numa linha do "Funil por perfil" abre a lista de casais daquele
   // recorte (período B, o em foco), carregando TODOS os filtros de perfil ativos.
@@ -112,7 +113,7 @@ export function FunilComparado() {
       dateMode,
       title: `Casais — ${bucket}`,
       subtitle: labelB,
-      origins, faixas, destinos, convidadosList: convidados, tipos, consultorIds, canalSdr, canalCloser,
+      origins, faixas, destinos, convidadosList: convidados, tipos, consultorIds, canalSdr, canalCloser, statusLead,
     }
     if (dim === 'faixa') ctx.faixa = bucket
     else if (dim === 'convidados') ctx.convidados = bucket
@@ -125,7 +126,7 @@ export function FunilComparado() {
   const drillMarco = (janela: Janela, rotulo: string, marco: DrillMarco, titulo: string) => setDrill({
     dateStart: janela.dateStart, dateEnd: janela.dateEnd, dateMode,
     title: titulo, subtitle: rotulo,
-    origins, faixas, destinos, convidadosList: convidados, tipos, consultorIds, canalSdr, canalCloser,
+    origins, faixas, destinos, convidadosList: convidados, tipos, consultorIds, canalSdr, canalCloser, statusLead,
     marco,
   })
   // Clicar num quadrante do cruzamento abre a LISTA de casais daquele grupo×grupo
@@ -135,7 +136,7 @@ export function FunilComparado() {
       dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd, dateMode,
       title: `Casais — ${bx.join(' + ')} × ${by.join(' + ')}`,
       subtitle: labelA,
-      origins, tipos, consultorIds, canalSdr: [...canalSdr], canalCloser: [...canalCloser],
+      origins, tipos, consultorIds, canalSdr: [...canalSdr], canalCloser: [...canalCloser], statusLead,
       faixas: dx === 'faixa' || dy === 'faixa' ? undefined : faixas,
       convidadosList: dx === 'convidados' || dy === 'convidados' ? undefined : convidados,
       destinos: dx === 'destino' || dy === 'destino' ? undefined : destinos,
@@ -164,6 +165,7 @@ export function FunilComparado() {
   const amostraPequena = ((marcosB?.entrou ?? 0) > 0 && (marcosB?.entrou ?? 0) < 5) || ((marcosA?.entrou ?? 0) > 0 && (marcosA?.entrou ?? 0) < 5)
 
   const partes: string[] = []
+  if (statusLead) partes.push(statusLead === 'aberto' ? 'só abertos' : 'só perdidos')
   if (faixas.length) partes.push(faixas.join(' ou '))
   if (convidados.length) partes.push(`${convidados.join(' ou ')} convidados`)
   if (destinos.length) partes.push(destinos.join(' ou '))
@@ -203,6 +205,19 @@ export function FunilComparado() {
       <div className="bg-white border border-ww-sand shadow-ww-lift rounded-xl p-4">
         <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Perfil de lead <span className="font-normal normal-case text-slate-400">(vale para os dois lados)</span></div>
         <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex items-center gap-0.5 bg-ww-cream rounded-lg p-0.5" title="Status do lead">
+            {([['', 'Todos', 'Todos os leads do recorte'], ['aberto', 'Abertos', 'Só quem ainda não ganhou nem perdeu'], ['perdido', 'Perdidos', 'Só quem foi perdido']] as const).map(([st, rotulo, titulo]) => (
+              <button
+                key={rotulo}
+                onClick={() => setStatusLead(st)}
+                title={titulo}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-ww-gold ${statusLead === st ? 'bg-ww-gold text-white shadow-sm' : 'text-ww-n600 hover:text-ww-n700'}`}
+              >
+                {rotulo}
+              </button>
+            ))}
+          </div>
+          <div className="w-px h-6 bg-slate-200" />
           <TipoSegment selected={tipos} onChange={setTipos} />
           <div className="w-px h-6 bg-slate-200" />
           <MultiPill label="Investimento" icon={<DollarSign className={ic} />} options={options?.faixas ?? []} selected={faixas} onChange={setFaixas} />
@@ -272,11 +287,12 @@ export function FunilComparado() {
         tipos={tipos}
         canalSdr={canalSdr}
         canalCloser={canalCloser}
+        statusLead={statusLead}
         defaultModo="conversao"
         onPointClick={(p, marco, janela) => setDrill({
           dateStart: janela.dateStart, dateEnd: janela.dateEnd, dateMode,
           title: `${MARCO_LABELS[marco]} — ${p.label}`,
-          origins, faixas, destinos, convidadosList: convidados, tipos, consultorIds, canalSdr, canalCloser,
+          origins, faixas, destinos, convidadosList: convidados, tipos, consultorIds, canalSdr, canalCloser, statusLead,
           marco,
         })}
       />

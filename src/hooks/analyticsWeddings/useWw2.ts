@@ -4,6 +4,8 @@ import { useOrg } from '@/contexts/OrgContext'
 
 export type DateMode = 'cohort' | 'throughput'
 
+export type StatusLead = 'aberto' | 'perdido'
+
 export type Ww2Filters = {
   dateStart: string
   dateEnd: string
@@ -16,7 +18,13 @@ export type Ww2Filters = {
   convidados?: string[]
   canalSdr?: string[]
   canalCloser?: string[]
+  /** Status do lead (20260612a): aberto = nem ganhou nem perdeu · perdido = is_perdido */
+  statusLead?: StatusLead | ''
 }
+
+// p_status_lead só vai quando usado — compat com funções antigas até a promoção
+const statusParam = (f: Pick<Ww2Filters, 'statusLead'>) =>
+  (f.statusLead ? { p_status_lead: f.statusLead } : {})
 
 const baseParams = (orgId: string | undefined, f: Ww2Filters) => ({
   p_date_start: f.dateStart,
@@ -213,6 +221,7 @@ export function useWw2Overview(filters: Ww2Filters) {
     queryFn: () => callRpc<Ww2Overview>('ww2_overview', {
       ...baseParams(orgId, filters),
       ...canalParams(filters),
+      ...statusParam(filters),
       // só envia quando usado — compat com a função antiga até a promoção
       ...(filters.convidados?.length ? { p_convidados: filters.convidados } : {}),
     }),
@@ -289,6 +298,8 @@ export type DrillFilters = {
   motivoPerda?: string
   /** Recorta o motivo ao funil: lista SDR vs lista Closer (drill v2) */
   motivoRole?: 'sdr' | 'closer'
+  /** Status do lead (drill v4): mesmo recorte do filtro da aba */
+  statusLead?: StatusLead | ''
   // Filtros ATIVOS da barra da aba (arrays) — auditoria 2026-06-11: o drill tem que
   // respeitar o mesmo recorte que gerou o número clicado (20260611b no banco).
   origins?: string[]
@@ -379,6 +390,7 @@ export function useWwDrillCasais(filters: DrillFilters | null) {
           p_motivo_perda: filters.motivoPerda ?? null,
           p_motivo_role: filters.motivoRole ?? null,
           p_consultor_id: filters.consultorId ?? null,
+          p_status_lead: filters.statusLead || null,
           p_limit: filters.limit ?? 50,
           p_offset: filters.offset ?? 0,
           // arrays só quando ativos — payload enxuto
@@ -678,7 +690,7 @@ export function useWwQualidadeLead(filters: Ww2Filters, eventStageId?: string | 
   // throughput: leads que tiveram stage_changed para eventStageId no período (obrigatório).
   const isThroughput = filters.dateMode === 'throughput'
   return useQuery({
-    queryKey: ['ww', 'qualidade-lead', orgId, filters.dateStart, filters.dateEnd, filters.dateMode, eventStageId ?? null, filters.origins, filters.tipos, filters.canalSdr ?? null, filters.canalCloser ?? null, minAmostra],
+    queryKey: ['ww', 'qualidade-lead', orgId, filters.dateStart, filters.dateEnd, filters.dateMode, eventStageId ?? null, filters.origins, filters.tipos, filters.canalSdr ?? null, filters.canalCloser ?? null, filters.statusLead ?? null, minAmostra],
     queryFn: () => callRpc<WwQualidadeLead>('ww_qualidade_lead', {
       p_date_start: filters.dateStart,
       p_date_end: filters.dateEnd,
@@ -691,6 +703,7 @@ export function useWwQualidadeLead(filters: Ww2Filters, eventStageId?: string | 
       p_sdr_canal: filters.canalSdr?.length ? filters.canalSdr : null,
       // só envia quando usado — compat com a função antiga até a promoção
       ...(filters.canalCloser?.length ? { p_closer_canal: filters.canalCloser } : {}),
+      ...statusParam(filters),
     }),
     enabled: !!orgId && (!isThroughput || !!eventStageId),
     staleTime: 60_000,
@@ -1079,7 +1092,7 @@ export function useWwFunilConversao(filters: Ww2Filters) {
   return useQuery({
     queryKey: ['ww', 'funil-conversao-v1', orgId, filters.dateStart, filters.dateEnd, filters.dateMode,
       filters.faixas, filters.convidados, filters.destinos, filters.origins, filters.tipos, filters.consultorIds,
-      filters.canalSdr ?? null, filters.canalCloser ?? null],
+      filters.canalSdr ?? null, filters.canalCloser ?? null, filters.statusLead ?? null],
     queryFn: () => callRpc<WwFunilConversaoData>('ww_funil_conversao_v1', {
       p_date_start: filters.dateStart,
       p_date_end: filters.dateEnd,
@@ -1092,6 +1105,7 @@ export function useWwFunilConversao(filters: Ww2Filters) {
       p_tipos: filters.tipos?.length ? filters.tipos : null,
       p_consultor_ids: filters.consultorIds?.length ? filters.consultorIds : null,
       ...canalParams(filters),
+      ...statusParam(filters),
     }),
     enabled: !!orgId,
     staleTime: 60_000,
@@ -1172,10 +1186,11 @@ export function useWwFunilRanking(params: {
   faixas?: string[]
   convidados?: string[]
   destinos?: string[]
+  statusLead?: StatusLead | ''
 }) {
   const orgId = useOrgId()
   return useQuery({
-    queryKey: ['ww', 'funil-ranking-combo', orgId, params.dateStart, params.dateEnd, params.dateMode, params.dimensoes, params.origins, params.tipos, params.consultorIds, params.canalSdr ?? null, params.canalCloser ?? null, params.faixas ?? null, params.convidados ?? null, params.destinos ?? null],
+    queryKey: ['ww', 'funil-ranking-combo', orgId, params.dateStart, params.dateEnd, params.dateMode, params.dimensoes, params.origins, params.tipos, params.consultorIds, params.canalSdr ?? null, params.canalCloser ?? null, params.faixas ?? null, params.convidados ?? null, params.destinos ?? null, params.statusLead ?? null],
     queryFn: () => callRpc<WwFunilRanking>('ww_funil_ranking_combo', {
       p_date_start: params.dateStart,
       p_date_end: params.dateEnd,
@@ -1191,6 +1206,7 @@ export function useWwFunilRanking(params: {
       ...(params.faixas?.length ? { p_faixas: params.faixas } : {}),
       ...(params.convidados?.length ? { p_convidados: params.convidados } : {}),
       ...(params.destinos?.length ? { p_destinos: params.destinos } : {}),
+      ...statusParam(params),
     }),
     enabled: !!orgId && params.dimensoes.length > 0,
     staleTime: 60_000,
@@ -1228,6 +1244,7 @@ export type WwSerieParams = {
   tipos?: string[]
   canalSdr?: string[]
   canalCloser?: string[]
+  statusLead?: StatusLead | ''
 }
 export function useWwSerieTemporal(params: WwSerieParams) {
   const orgId = useOrgId()
@@ -1235,7 +1252,7 @@ export function useWwSerieTemporal(params: WwSerieParams) {
   return useQuery({
     queryKey: ['ww', 'serie-temporal', orgId, params.dateStart, params.dateEnd, params.granularidade, params.dateMode,
       params.incluirElopement ?? true, params.origins ?? null, params.faixas ?? null, params.destinos ?? null, params.convidados ?? null, params.consultorIds ?? null, params.tipos ?? null,
-      params.canalSdr ?? null, params.canalCloser ?? null],
+      params.canalSdr ?? null, params.canalCloser ?? null, params.statusLead ?? null],
     queryFn: () => callRpc<WwSerieTemporal>('ww_serie_temporal', {
       p_date_start: params.dateStart,
       p_date_end: params.dateEnd,
@@ -1251,6 +1268,7 @@ export function useWwSerieTemporal(params: WwSerieParams) {
       // só envia quando usado — mantém compat com a função antiga até a promoção
       ...(params.tipos?.length ? { p_tipos: params.tipos } : {}),
       ...canalParams({ canalSdr: params.canalSdr, canalCloser: params.canalCloser }),
+      ...statusParam(params),
     }),
     enabled: !!orgId,
     staleTime: 60_000,

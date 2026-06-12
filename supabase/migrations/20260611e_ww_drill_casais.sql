@@ -35,6 +35,10 @@
 -- v2 (mesmo dia): TODA condição de DELETE com data envolvida ganha COALESCE(..., FALSE) —
 -- lógica de 3 valores deixava linha com *_at NULL escapar do filtro (fez_sdr mai/2026 dava 76
 -- no drill vs 63 na série; consertado, bate 63). Mesma classe do feedback_record_is_not_null.
+-- v3 (mesmo dia, revisão adversarial): filtro de consultor casa pelo dono do ACTIVE
+-- (ww_funil_casal.consultor_id, backfill parcial) OU pelos donos do CARD
+-- (dono_atual/sdr_owner/vendas_owner/pos_owner) — a aba Equipe conta por dono de card
+-- (ww2_team_performance) e o drill zerava quando o owner do Active divergia/faltava.
 
 DROP FUNCTION IF EXISTS public.ww_drill_casais(TIMESTAMPTZ, TIMESTAMPTZ, TEXT, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, UUID, TEXT[], TEXT[], TEXT[], TEXT[], TEXT[], UUID[], TEXT[], TEXT[], INT, INT);
 
@@ -158,7 +162,19 @@ BEGIN
     END IF;
     IF p_origem IS NOT NULL THEN DELETE FROM _ww_dc WHERE origem IS DISTINCT FROM p_origem; END IF;
     IF p_tipo IS NOT NULL THEN DELETE FROM _ww_dc WHERE tipo IS DISTINCT FROM p_tipo; END IF;
-    IF p_consultor_id IS NOT NULL THEN DELETE FROM _ww_dc WHERE consultor_id IS DISTINCT FROM p_consultor_id; END IF;
+    -- consultor: dono no Active OU dono do card (Equipe conta por dono de card)
+    IF p_consultor_id IS NOT NULL THEN
+        DELETE FROM _ww_dc t WHERE NOT COALESCE(
+            t.consultor_id = p_consultor_id
+            OR EXISTS (
+                SELECT 1 FROM cards c2
+                 WHERE c2.external_source = 'active_campaign' AND c2.org_id = v_org_id AND c2.deleted_at IS NULL
+                   AND c2.external_id IN (SELECT fc5.ac_deal_id FROM ww_ac_deal_funnel_cache fc5
+                                           WHERE fc5.contact_id = t.contact_id AND fc5.is_ww)
+                   AND (c2.dono_atual_id = p_consultor_id OR c2.sdr_owner_id = p_consultor_id
+                        OR c2.vendas_owner_id = p_consultor_id OR c2.pos_owner_id = p_consultor_id)
+            ), FALSE);
+    END IF;
 
     -- campanha / medium: qualquer deal do casal no cache (server-side; antes era client-side)
     IF p_campaign IS NOT NULL THEN
@@ -193,7 +209,18 @@ BEGIN
     IF p_destinos IS NOT NULL THEN DELETE FROM _ww_dc WHERE destino IS NULL OR destino != ALL(p_destinos); END IF;
     IF p_convidados_list IS NOT NULL THEN DELETE FROM _ww_dc WHERE convidados IS NULL OR convidados != ALL(p_convidados_list); END IF;
     IF p_tipos IS NOT NULL THEN DELETE FROM _ww_dc WHERE tipo IS NULL OR tipo != ALL(p_tipos); END IF;
-    IF p_consultor_ids IS NOT NULL THEN DELETE FROM _ww_dc WHERE consultor_id IS NULL OR consultor_id != ALL(p_consultor_ids); END IF;
+    IF p_consultor_ids IS NOT NULL THEN
+        DELETE FROM _ww_dc t WHERE NOT COALESCE(
+            t.consultor_id = ANY(p_consultor_ids)
+            OR EXISTS (
+                SELECT 1 FROM cards c2
+                 WHERE c2.external_source = 'active_campaign' AND c2.org_id = v_org_id AND c2.deleted_at IS NULL
+                   AND c2.external_id IN (SELECT fc6.ac_deal_id FROM ww_ac_deal_funnel_cache fc6
+                                           WHERE fc6.contact_id = t.contact_id AND fc6.is_ww)
+                   AND (c2.dono_atual_id = ANY(p_consultor_ids) OR c2.sdr_owner_id = ANY(p_consultor_ids)
+                        OR c2.vendas_owner_id = ANY(p_consultor_ids) OR c2.pos_owner_id = ANY(p_consultor_ids))
+            ), FALSE);
+    END IF;
     IF p_sdr_canal IS NOT NULL THEN DELETE FROM _ww_dc WHERE canal_sdr IS NULL OR canal_sdr != ALL(p_sdr_canal); END IF;
     IF p_closer_canal IS NOT NULL THEN DELETE FROM _ww_dc WHERE canal_closer IS NULL OR canal_closer != ALL(p_closer_canal); END IF;
 

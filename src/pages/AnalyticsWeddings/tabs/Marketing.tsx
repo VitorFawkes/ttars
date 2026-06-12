@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useWw2Marketing, useWwMarketingQualidade, type WwMarketingQualidade } from '@/hooks/analyticsWeddings/useWw2'
 import { FilterBar, type TabProps, type AppliedFilters } from '../components/FilterBar'
 import { SectionCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
@@ -106,8 +106,7 @@ function MarketingContent({ filters }: { filters: AppliedFilters }) {
           {data.por_campaign.length === 0 ? <EmptyState message="Sem dados de campanha" /> : (
             <ResponsiveContainer width="100%" height={Math.max(220, data.por_campaign.length * 22)}>
               <BarChart data={data.por_campaign} layout="vertical" margin={{ top: 5, right: 50, left: 100, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis type="number" stroke="#64748b" fontSize={10} />
+                <XAxis type="number" stroke="#64748b" fontSize={10} hide />
                 <YAxis dataKey="campaign" type="category" stroke="#64748b" fontSize={9} width={140}
                        tickFormatter={(v) => String(v).length > 25 ? String(v).slice(0, 25) + '…' : String(v)} />
                 <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 11 }} />
@@ -115,7 +114,9 @@ function MarketingContent({ filters }: { filters: AppliedFilters }) {
                   onClick={(d: unknown) => {
                     const c = (d as { payload?: { campaign?: string } })?.payload?.campaign
                     if (c) setDrill({ ...baseCtx, campaign: c, title: `Casais — campanha ${c}` })
-                  }} />
+                  }}>
+                  <LabelList dataKey="leads" position="right" fontSize={10} fill="#64748b" formatter={(v: unknown) => formatNumber(Number(v))} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -124,16 +125,17 @@ function MarketingContent({ filters }: { filters: AppliedFilters }) {
         <SectionCard title="Por medium" subtitle="UTM medium (CPC, organic, email…). Clique numa barra pra ver os casais.">
           {data.por_medium.length === 0 ? <EmptyState message="Sem dados" /> : (
             <ResponsiveContainer width="100%" height={Math.max(180, data.por_medium.length * 32)}>
-              <BarChart data={data.por_medium} layout="vertical" margin={{ top: 5, right: 30, left: 80, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis type="number" stroke="#64748b" fontSize={11} />
+              <BarChart data={data.por_medium} layout="vertical" margin={{ top: 5, right: 40, left: 80, bottom: 5 }}>
+                <XAxis type="number" stroke="#64748b" fontSize={11} hide />
                 <YAxis dataKey="medium" type="category" stroke="#64748b" fontSize={11} width={120} />
                 <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} />
                 <Bar dataKey="leads" fill="#BD965C" radius={[0, 4, 4, 0]} cursor="pointer"
                   onClick={(d: unknown) => {
                     const m = (d as { payload?: { medium?: string } })?.payload?.medium
                     if (m) setDrill({ ...baseCtx, medium: m, title: `Casais — medium ${m}` })
-                  }} />
+                  }}>
+                  <LabelList dataKey="leads" position="right" fontSize={10} fill="#64748b" formatter={(v: unknown) => formatNumber(Number(v))} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           )}

@@ -44,7 +44,7 @@ export function DrillDrawer({ ctx, onClose }: { ctx: DrillContext | null; onClos
             {ctx.subtitle && <p className="text-xs text-slate-500 mt-0.5">{ctx.subtitle}</p>}
             {data && (
               <p className="text-xs text-slate-500 mt-0.5">
-                {formatNumber(data.total)} casal{data.total !== 1 ? 'is' : ''} encontrado{data.total !== 1 ? 's' : ''}
+                {formatNumber(data.total)} {data.total === 1 ? 'casal encontrado' : 'casais encontrados'}
                 {data.total > rows.length && ` · mostrando primeiros ${rows.length}`}
               </p>
             )}
