@@ -26,7 +26,10 @@ export function Qualidade({ filters, onFiltersChange }: TabProps) {
     <div className="space-y-4">
       {/* Pergunta da aba: "que lead converte?" — não filtra por faixa/destino/convidados porque
           são as PRÓPRIAS dimensões analisadas. Canal SDR e Closer entram como recorte. */}
-      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'dateMode', 'status', 'tipo', 'origem', 'canal_sdr', 'canal_closer']} />
+      {/* Sem alternância criação/entrada: qualidade do lead é uma taxa de conversão — sempre
+          sobre o lead que entrou (safra). "O que aconteceu no período" dividia fechamentos do
+          período por entradas do período (cohortes diferentes → taxa sem sentido). Fica só safra. */}
+      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'status', 'tipo', 'origem', 'canal_sdr', 'canal_closer']} />
       <QualidadeContent filters={filters} />
     </div>
   )
@@ -78,7 +81,8 @@ function QualidadeContent({ filters }: { filters: AppliedFilters }) {
 
   return (
     <div className="space-y-5">
-      <StageSelector isThroughput={isThroughput} stages={stagesSelecionaveis} value={eventStageId} onChange={setEventStageId} />
+      {/* StageSelector (escolher etapa de gatilho) era só do modo "data de evento", removido desta
+          aba — qualidade é sempre por safra. Mantido no early-return acima caso o modo volte. */}
       <Controls minAmostra={minAmostra} onMinAmostra={setMinAmostra} data={data} />
       <UniversoHeader
         data={data}

@@ -159,7 +159,9 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
   const pequena = (l: Linha) => l.entrouB < AMOSTRA_MIN && l.entrouA < AMOSTRA_MIN
   const niLinha = todas.find((l) => isNI(l.bucket)) ?? null
   const perfis = todas.filter((l) => !isNI(l.bucket))
-  const baseLinhas = (esconderNI ? perfis : todas).filter((l) => l.entrouA > 0 || l.entrouB > 0) // esconde baldes zerados
+  // esconde baldes 100% zerados; no "o que aconteceu no período" mantém quem teve atividade
+  // (reunião/venda) mesmo sem ter ENTRADO na janela — pra bater com o funil da mesma aba
+  const baseLinhas = (esconderNI ? perfis : todas).filter((l) => l.entrouA > 0 || l.entrouB > 0 || l.countsA.some((n) => n > 0) || l.countsB.some((n) => n > 0))
   const visiveis = soComAmostra ? baseLinhas.filter((l) => !pequena(l)) : baseLinhas
   const escondidas = baseLinhas.length - visiveis.length
 

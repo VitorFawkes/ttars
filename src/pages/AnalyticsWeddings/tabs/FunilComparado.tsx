@@ -59,7 +59,7 @@ export function FunilComparado() {
   const [destinos, setDestinos] = useState<string[]>([])
   const [origins, setOrigins] = useState<string[]>([])
   const [consultorIds, setConsultorIds] = useState<string[]>([])
-  const [tipos, setTipos] = useState<string[]>([])
+  const [tipos, setTipos] = useState<string[]>(['DW']) // tipo é lente; DW é o padrão Weddings
   const [canalSdr, setCanalSdr] = useState<string[]>([])
   const [canalCloser, setCanalCloser] = useState<string[]>([])
   const [statusLead, setStatusLead] = useState<StatusLead | ''>('')
@@ -101,8 +101,9 @@ export function FunilComparado() {
 
   const marcosA = a.data?.filtrado
   const marcosB = b.data?.filtrado
-  const hasFilters = faixas.length + convidados.length + destinos.length + origins.length + consultorIds.length + tipos.length + canalSdr.length + canalCloser.length + (statusLead ? 1 : 0) > 0
-  const clearAll = () => { setFaixas([]); setConvidados([]); setDestinos([]); setOrigins([]); setConsultorIds([]); setTipos([]); setCanalSdr([]); setCanalCloser([]); setStatusLead('') }
+  // tipo (DW/Elopement) é lente — não conta como recorte e "limpar" não mexe nela
+  const hasFilters = faixas.length + convidados.length + destinos.length + origins.length + consultorIds.length + canalSdr.length + canalCloser.length + (statusLead ? 1 : 0) > 0
+  const clearAll = () => { setFaixas([]); setConvidados([]); setDestinos([]); setOrigins([]); setConsultorIds([]); setCanalSdr([]); setCanalCloser([]); setStatusLead('') }
 
   // Clicar numa linha do "Funil por perfil" abre a lista de casais daquele
   // recorte (período B, o em foco), carregando TODOS os filtros de perfil ativos.

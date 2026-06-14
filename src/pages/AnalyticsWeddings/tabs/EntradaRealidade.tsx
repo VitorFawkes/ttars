@@ -41,7 +41,11 @@ export function EntradaRealidade({ filters, onFiltersChange }: TabProps) {
       {/* Pergunta da aba: "o que disse no site × o que virou" — faixa/convidados/destino são as
           dimensões comparadas (não filtram). Canal SDR/Closer recortam: "vendas que nasceram de
           reunião por vídeo mantêm o orçamento declarado?" */}
-      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'dateMode', 'tipo', 'origem', 'canal_sdr', 'canal_closer']} />
+      {/* Sem alternância criação/entrada: Entrada×Realidade compara o que o lead DECLAROU na
+          entrada × o que virou na venda — é sempre sobre o lead que entrou (safra). O modo
+          "o que aconteceu no período" deixava metade da tela contar por venda fechada e metade
+          por entrada (números brigavam) — mesmo motivo pelo qual Marketing tirou o botão. */}
+      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'tipo', 'origem', 'canal_sdr', 'canal_closer']} />
       <EntradaRealidadeContent filters={filters} />
     </div>
   )
