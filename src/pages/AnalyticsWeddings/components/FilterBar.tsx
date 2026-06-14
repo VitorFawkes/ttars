@@ -33,10 +33,13 @@ export type TabProps = {
   onFiltersChange: (next: AppliedFilters) => void
 }
 
+// tipo (DW × Elopement) é uma LENTE primária — como período/modo, sempre tem valor. Padrão: DW
+// (foco do negócio Weddings). Elopement/Todos são escolha explícita. `defaultFilters` mantém o
+// tipo passado para que "Limpar filtros" não tire o usuário da lente atual.
 // eslint-disable-next-line react-refresh/only-export-components
-export function defaultFilters(period: PeriodOption = '30d', dateMode: 'cohort' | 'throughput' = 'cohort'): AppliedFilters {
+export function defaultFilters(period: PeriodOption = '30d', dateMode: 'cohort' | 'throughput' = 'cohort', tipos: string[] = ['DW']): AppliedFilters {
   const { dateStart, dateEnd } = periodToDates(period)
-  return { period, dateMode, dateStart, dateEnd, origins: [], faixas: [], convidados: [], destinos: [], tipos: [], consultorIds: [], canalSdr: [], canalCloser: [], statusLead: '' }
+  return { period, dateMode, dateStart, dateEnd, origins: [], faixas: [], convidados: [], destinos: [], tipos, consultorIds: [], canalSdr: [], canalCloser: [], statusLead: '' }
 }
 
 function parseList(v: string | null): string[] {
@@ -71,11 +74,11 @@ export type FilterKey = 'period' | 'dateMode' | 'origem' | 'faixa' | 'convidados
 // Conjunto padrão (compat para quem não passa `show`).
 const DEFAULT_SHOW: FilterKey[] = ['period', 'dateMode', 'origem', 'faixa', 'destino', 'consultor']
 
-// Quantos filtros de RECORTE estão ativos (período/modo não contam — sempre existem).
+// Quantos filtros de RECORTE estão ativos (período/modo/tipo não contam — são lentes, sempre existem).
 // eslint-disable-next-line react-refresh/only-export-components
 export function countActiveFilters(f: AppliedFilters): number {
   return f.origins.length + f.faixas.length + f.convidados.length + f.destinos.length +
-    f.tipos.length + f.consultorIds.length + f.canalSdr.length + f.canalCloser.length +
+    f.consultorIds.length + f.canalSdr.length + f.canalCloser.length +
     (f.statusLead ? 1 : 0)
 }
 
@@ -101,7 +104,7 @@ export function FilterBar({ value, onChange, show = DEFAULT_SHOW }: { value: App
     (has('faixa') ? value.faixas.length : 0) +
     (has('convidados') ? value.convidados.length : 0) +
     (has('destino') ? value.destinos.length : 0) +
-    (has('tipo') ? value.tipos.length : 0) +
+    // tipo (DW/Elopement) é lente, não recorte — não entra na contagem
     (has('consultor') ? value.consultorIds.length : 0) +
     (has('canal_sdr') ? value.canalSdr.length : 0) +
     (has('canal_closer') ? value.canalCloser.length : 0) +
@@ -150,7 +153,7 @@ export function FilterBar({ value, onChange, show = DEFAULT_SHOW }: { value: App
       {has('canal_closer') && <MultiPill label="🎥 Reunião fechamento" options={options?.canais_closer ?? []} selected={value.canalCloser} onChange={(v) => set({ canalCloser: v })} />}
       {activeCount > 0 && (
         <button
-          onClick={() => onChange(defaultFilters(value.period, value.dateMode))}
+          onClick={() => onChange(defaultFilters(value.period, value.dateMode, value.tipos))}
           className="ml-auto px-3 py-1.5 text-xs font-medium text-ww-n500 hover:text-ww-n700 hover:bg-ww-cream rounded-lg transition-colors active:scale-[0.98]"
         >
           ✕ Limpar filtros
