@@ -101,30 +101,24 @@ Deno.serve(async (req) => {
         .or(`and(closer_agendou_at.gte.${cutoff},closer_agendou_at.lte.${nowIso},closer_fez.eq.false),and(sdr_agendou_at.gte.${cutoff},sdr_agendou_at.lte.${nowIso},sdr_fez.eq.false)`)
         .limit(400)
       if (susErr) console.warn('passo 0 select:', susErr.message)
-      type Cfd = { customFieldId: string | number; fieldValue: unknown; createdTimestamp?: string | null; updatedTimestamp?: string | null }
+      type Cfd = { customFieldId: string | number; fieldValue: unknown }
       for (const s of suspeitos ?? []) {
         if (Date.now() - startedAt > 55000) break // deixa folga pro passo 1
         camposVistos++
         try {
           const j = await acFetch<{ dealCustomFieldData?: Cfd[] }>(`/api/3/deals/${s.ac_deal_id}/dealCustomFieldData`)
           const byId = new Map<string, unknown>()
-          const regById = new Map<string, string | null>()
-          for (const f of j.dealCustomFieldData ?? []) {
-            byId.set(String(f.customFieldId), f.fieldValue)
-            regById.set(String(f.customFieldId), (f.updatedTimestamp ?? f.createdTimestamp) ?? null)
-          }
+          for (const f of j.dealCustomFieldData ?? []) byId.set(String(f.customFieldId), f.fieldValue)
           const upd: Record<string, unknown> = {}
           const sdrVals = fieldValues(byId.get(FIELD_SDR_COMO))
           if (sdrVals.length) {
             upd.sdr_canal = realChannels(sdrVals)
             if (isRealMeeting(sdrVals)) upd.sdr_fez = true
-            if (regById.get(FIELD_SDR_COMO)) upd.sdr_como_registrado_at = regById.get(FIELD_SDR_COMO)
           }
           const closerVals = fieldValues(byId.get(FIELD_CLOSER_COMO))
           if (closerVals.length) {
             upd.closer_canal = closerVals[0]
             if (isRealMeeting(closerVals)) upd.closer_fez = true
-            if (regById.get(FIELD_CLOSER_COMO)) upd.closer_como_registrado_at = regById.get(FIELD_CLOSER_COMO)
           }
           const mSdr = fieldValues(byId.get(FIELD_MOTIVO_SDR))[0]
           const mCloser = fieldValues(byId.get(FIELD_MOTIVO_CLOSER))[0]
@@ -141,6 +135,45 @@ Deno.serve(async (req) => {
         }
         await sleep(PACING_MS)
       }
+    }
+
+    // ── PASSO 1.5: STATUS do Active (rede de segurança p/ perdas) ──────────────
+    // 20260612d: deal marcado PERDIDO no Active (status=2) sem motivo escrito não
+    // gera evento de jornada (esp. esteira SDR) — o webhook pode perder. Aqui varre
+    // os deals modificados mais recentemente (mdate DESC) e atualiza ac_status no
+    // cache (UPDATE só atinge linhas existentes). Bounded: ~8 páginas / 15s.
+    let statusVistos = 0, statusAtualizados = 0
+    try {
+      const statusDeadline = startedAt + 70000 // antes do passo 1 (que vai até 125s)
+      for (let page = 0; page < 8; page++) {
+        if (Date.now() > statusDeadline) break
+        const j = await acFetch<{ deals?: Array<{ id: string | number; status?: string | number }> }>(
+          `/api/3/deals?limit=100&offset=${page * 100}&orders[mdate]=DESC`
+        )
+        const deals = j.deals ?? []
+        if (deals.length === 0) break
+        // agrupa por status p/ poucos UPDATEs
+        const byStatus = new Map<number, string[]>()
+        for (const d of deals) {
+          const st = d.status != null ? parseInt(String(d.status), 10) : null
+          if (st == null) continue
+          if (!byStatus.has(st)) byStatus.set(st, [])
+          byStatus.get(st)!.push(String(d.id))
+        }
+        for (const [st, ids] of byStatus) {
+          statusVistos += ids.length
+          const { error, count } = await supabase
+            .from('ww_ac_deal_funnel_cache')
+            .update({ ac_status: st }, { count: 'exact' })
+            .in('ac_deal_id', ids)
+            .neq('ac_status', st)
+          if (error) { console.warn('passo 1.5 update:', error.message); continue }
+          statusAtualizados += count ?? 0
+        }
+        await sleep(PACING_MS)
+      }
+    } catch (e) {
+      console.warn('passo 1.5 status sweep:', (e as Error).message)
     }
 
     // 1) coletar deals ativos nas esteiras de fechamento (paginado)
@@ -204,6 +237,7 @@ Deno.serve(async (req) => {
       ok: true, hour, total_ativos: all.length, fatia_da_hora: slice.length,
       reconciliados: ok, erros: err, pulados, eventos_upsert: ev,
       campos_vistos: camposVistos, campos_atualizados: camposAtualizados,
+      status_vistos: statusVistos, status_atualizados: statusAtualizados,
       duration_ms: Date.now() - startedAt,
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (e) {
