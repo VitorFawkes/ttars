@@ -36,7 +36,11 @@ const FIELD_GANHO            = '87'
 const FIELD_DEAL_PACOTE_CONV = '62'  // Fallback de convidados quando Contact 121 vazio
 const FIELD_DEAL_MOTIVO_CLOSER = '47' // [WW] [Closer] Motivo de Perda (dropdown)
 const FIELD_DEAL_MOTIVO_SDR    = '56' // SDR WT - Motivo de Perda (dropdown)
-const RELEVANT_FIELDS = new Set([FIELD_SDR_AGENDOU, FIELD_SDR_COMO, FIELD_CLOSER_AGEN, FIELD_CLOSER_COMO, FIELD_GANHO, FIELD_DEAL_PACOTE_CONV, FIELD_DEAL_MOTIVO_CLOSER, FIELD_DEAL_MOTIVO_SDR])
+const FIELD_DEAL_ORCAMENTO     = '27' // Quanto você pensa em investir? (form do site)
+const FIELD_DEAL_CONV_FORM     = '26' // Quantas pessoas vão no seu casamento? (form)
+const FIELD_DEAL_DESTINO       = '28' // Onde você quer casar? (form)
+const FIELD_DEAL_TIPO          = '30' // DW ou Elopment? (declarado)
+const RELEVANT_FIELDS = new Set([FIELD_SDR_AGENDOU, FIELD_SDR_COMO, FIELD_CLOSER_AGEN, FIELD_CLOSER_COMO, FIELD_GANHO, FIELD_DEAL_PACOTE_CONV, FIELD_DEAL_MOTIVO_CLOSER, FIELD_DEAL_MOTIVO_SDR, FIELD_DEAL_ORCAMENTO, FIELD_DEAL_CONV_FORM, FIELD_DEAL_DESTINO, FIELD_DEAL_TIPO])
 
 // Contact fields (Welcome Form pós-venda + atribuição de origem)
 const CONTACT_FIELD_CONVIDADOS = '121'  // DW - Previsão nº de convidados
@@ -47,7 +51,7 @@ const CONTACT_FIELD_UTM_CAMPAIGN = '48'
 const CONTACT_FIELD_ORIGEM_CONVERSAO = '137'
 
 type DealCustomFieldData = { dealId: number; customFieldId: number; fieldValue: string | null }
-type Deal = { id: string; group: string | null; title: string | null; contact?: string | null }
+type Deal = { id: string; group: string | null; title: string | null; contact?: string | null; cdate?: string | null }
 type ContactFieldValue = { contact: string; field: string; value: string | null }
 
 function parseDateTime(v: string | null | undefined): string | null {
@@ -293,6 +297,8 @@ Deno.serve(async (req) => {
         contact_id: deal?.contact ?? null,
         pipeline_group_id: groupId,
         is_ww: isWw,
+        // 20260612d: status do Active (0=aberto,1=ganho,2/3=perdido) — usado por is_perdido
+        ac_status: deal?.status != null ? parseInt(String(deal.status), 10) : null,
         deal_title: deal?.title ?? null,
         sdr_agendou_at: parseDateTime(data[FIELD_SDR_AGENDOU]),
         sdr_fez: sdrFez,
@@ -301,6 +307,13 @@ Deno.serve(async (req) => {
         closer_fez: closer.fez,
         closer_canal: closer.canal,
         ganho_at: parseDateTime(data[FIELD_GANHO]),
+        // Dimensões DECLARADAS no form do site (campos do DEAL) — só p/ deals WW.
+        // Cru (a limpeza/normalização acontece depois, no refresh_ww_funil_casal).
+        faixa_raw:      isWw ? (data[FIELD_DEAL_ORCAMENTO] ?? null) : null,
+        convidados_raw: isWw ? (data[FIELD_DEAL_CONV_FORM] ?? null) : null,
+        destino_raw:    isWw ? (data[FIELD_DEAL_DESTINO]   ?? null) : null,
+        tipo_casamento: isWw ? (data[FIELD_DEAL_TIPO]      ?? null) : null,
+        deal_created_at: parseDateTime(deal?.cdate),
         real_orcamento_raw: orcamentoRaw,
         real_orcamento_parsed: orcamentoParsed,
         real_convidados_raw: convidadosRaw,
