@@ -62,7 +62,7 @@ export function Equipe() {
 
   return (
     <div className="space-y-5">
-      <SectionCard title="SDR — Qualificação inicial" subtitle="Quantos leads cada SDR atendeu e qual % foi qualificado pra Closer.">
+      <SectionCard title="SDR: Qualificação inicial" subtitle="Quantos leads cada SDR atendeu e qual % foi qualificado pra Closer.">
         {data.sdr.length === 0 ? <EmptyState message="Sem dados de SDR no período." /> : (
           <Table<Ww2TeamRow>
             rows={data.sdr}
@@ -79,7 +79,7 @@ export function Equipe() {
         )}
       </SectionCard>
 
-      <SectionCard title="Closer — Negociação e fechamento" subtitle="Performance de quem fecha venda.">
+      <SectionCard title="Closer: Negociação e fechamento" subtitle="Performance de quem fecha venda.">
         {data.closer.length === 0 ? <EmptyState message="Sem dados de Closer no período." /> : (
           <Table<Ww2TeamRow>
             rows={data.closer}

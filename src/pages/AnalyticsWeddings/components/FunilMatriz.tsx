@@ -220,7 +220,7 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
         <div className="mt-3 mb-1 rounded-lg bg-ww-gold-soft/60 border border-ww-gold/30 px-3.5 py-2.5">
           <p className="text-sm text-slate-800">
             <strong className="text-ww-gold-ink">{insight.leader.bucket}</strong> é quem mais fecha (<strong>{fmtPct(insight.leader.taxaB)}</strong>).
-            {insight.gargalo && <> A etapa que mais trava no geral é <strong className="text-rose-700">{insight.gargalo.label}</strong> — só <strong>{fmtPct(insight.gargalo.p)}</strong> avançam.</>}
+            {insight.gargalo && <> A etapa que mais trava no geral é <strong className="text-rose-700">{insight.gargalo.label}</strong>, só <strong>{fmtPct(insight.gargalo.p)}</strong> avançam.</>}
           </p>
         </div>
       )}
@@ -264,13 +264,13 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
 
       {bRecente && (
         <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
-          O período mais recente ainda está amadurecendo — as etapas finais (Fez closer, Ganho) tendem a subir conforme os casamentos fecham. Compare com cautela.
+          O período mais recente ainda está amadurecendo, as etapas finais (Fez closer, Ganho) tendem a subir conforme os casamentos fecham. Compare com cautela.
         </p>
       )}
 
       {canalDim && !dimIndisponivel && (
         <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-3">
-          Cada linha agrupa os casais pelo jeito que a reunião aconteceu — então as etapas <strong>antes</strong> da reunião ficam triviais (todo mundo da linha fez). A leitura útil é <strong>dali pra frente</strong>: de quem fez por Vídeo vs WhatsApp, quantos avançam e fecham.
+          Cada linha agrupa os casais pelo jeito que a reunião aconteceu, então as etapas <strong>antes</strong> da reunião ficam triviais (todo mundo da linha fez). A leitura útil é <strong>dali pra frente</strong>: de quem fez por Vídeo vs WhatsApp, quantos avançam e fecham.
         </p>
       )}
 

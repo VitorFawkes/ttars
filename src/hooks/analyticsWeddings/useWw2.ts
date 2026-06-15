@@ -65,7 +65,8 @@ export type Ww2FunnelStage = {
   phase_label: string
   phase_order: number | null
   phase_slug: string
-  stage_id: string
+  stage_id: string | null
+  stage_slug: string
   stage_name: string
   stage_order: number | null
   stage_active: boolean
@@ -88,6 +89,7 @@ export type Ww2Alerta = {
   phase_label: string
   dias_parado: number
   valor_estimado: number | null
+  ac_deal_id: string | null
 }
 
 export type Ww2Overview = {
@@ -875,6 +877,10 @@ export type WwLeadIdealItem = {
   atual_pct: number | null
   lift: number | null
   delta_pp: number | null
+  // Variante "entradas" (leads que entravam na referência) — opcional: só vem
+  // quando a RPC devolve o lado de leads históricos além de quem fechou.
+  historico_leads_qtd?: number | null
+  historico_leads_pct?: number | null
 }
 
 export type WwLeadIdealDim = {
@@ -889,6 +895,10 @@ export type WwLeadIdealCruzamentoCell = {
   hist_pct: number | null
   atual_qtd: number
   atual_pct: number | null
+  // Lente "leads antes" (entrada na janela de referência) — opcional: só vem
+  // quando a RPC devolve o terceiro número (além de vendas e leads agora).
+  hist_leads_qtd?: number | null
+  hist_leads_pct?: number | null
 }
 
 export type WwLeadIdealPerfilTop = {
@@ -897,6 +907,20 @@ export type WwLeadIdealPerfilTop = {
   convidados: string
   qtd: number
   pct: number | null
+}
+
+// Top perfis UNIFICADO: combo (faixa+destino+convidados) com os 3 números na mesma
+// linha — vendas (referência), leads que entravam antes, leads que entram agora.
+export type WwLeadIdealPerfilUnif = {
+  faixa: string
+  destino: string
+  convidados: string
+  vendas: number
+  vendas_pct: number | null
+  leads_ref: number
+  leads_ref_pct: number | null
+  leads_agora: number
+  leads_agora_pct: number | null
 }
 
 export type WwLeadIdealData = {
@@ -914,6 +938,9 @@ export type WwLeadIdealData = {
   cruz_y?: string
   top_perfis_historico?: WwLeadIdealPerfilTop[]
   top_perfis_atual?: WwLeadIdealPerfilTop[]
+  // Top perfis unificado (vendas + leads antes + leads agora na mesma linha) —
+  // opcional: só vem quando a RPC monta o ranking unificado.
+  top_perfis_unificado?: WwLeadIdealPerfilUnif[]
   error?: string
 }
 

@@ -73,23 +73,23 @@ function PerdasContent({ filters }: { filters: AppliedFilters }) {
             onClick={() => setDrill({ ...baseCtx, motivoRole: 'sdr', title: 'Perdas na qualificação (SDR)' })} />
           <ResumoCard label="Perdas na negociação (Closer)" valor={totalCloser} destaque
             onClick={() => setDrill({ ...baseCtx, motivoRole: 'closer', title: 'Perdas na negociação (Closer)' })} />
-          <ResumoMotivoCard label="Motivo nº 1 — SDR" motivo={topSdr} total={totalSdr}
+          <ResumoMotivoCard label="Motivo nº 1: SDR" motivo={topSdr} total={totalSdr}
             onClick={topSdr ? () => setDrill({ ...baseCtx, motivoPerda: topSdr.motivo, motivoRole: 'sdr', title: `Perdas por: ${topSdr.motivo}` }) : undefined} />
-          <ResumoMotivoCard label="Motivo nº 1 — Closer" motivo={topCloser} total={totalCloser}
+          <ResumoMotivoCard label="Motivo nº 1: Closer" motivo={topCloser} total={totalCloser}
             onClick={topCloser ? () => setDrill({ ...baseCtx, motivoPerda: topCloser.motivo, motivoRole: 'closer', title: `Perdas por: ${topCloser.motivo}` }) : undefined} />
         </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <MotivosLista
-          titulo="Motivos de perda — SDR"
+          titulo="Motivos de perda: SDR"
           subtitulo="Por que leads caíram na qualificação inicial. Clique pra ver os casais."
           motivos={data.motivos_sdr}
           total={totalSdr}
           onPick={(motivo) => setDrill({ ...baseCtx, motivoPerda: motivo, motivoRole: 'sdr', title: `Perdas por: ${motivo}` })}
         />
         <MotivosLista
-          titulo="Motivos de perda — Closer"
+          titulo="Motivos de perda: Closer"
           subtitulo="Por que leads caíram na negociação. Clique pra ver os casais."
           motivos={data.motivos_closer}
           total={totalCloser}
@@ -140,7 +140,7 @@ function PerdasContent({ filters }: { filters: AppliedFilters }) {
         >
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <MotivoCanalPivot titulo="1ª reunião (SDR) × motivo SDR" rows={data.motivo_canal ?? []} onCell={(motivo, canal) => setDrill({ ...baseCtx, motivoPerda: motivo, motivoRole: 'sdr', canalSdr: [canal], title: `${motivo} · 1ª reunião por ${canal}` })} />
-            <MotivoCanalPivot titulo="Reunião de fechamento (Closer) × motivo Closer" rows={data.motivo_canal_closer ?? []} nota="Canal da reunião Closer registrado desde nov/2025 — períodos antigos têm pouca cobertura." onCell={(motivo, canal) => setDrill({ ...baseCtx, motivoPerda: motivo, motivoRole: 'closer', canalCloser: [canal], title: `${motivo} · fechamento por ${canal}` })} />
+            <MotivoCanalPivot titulo="Reunião de fechamento (Closer) × motivo Closer" rows={data.motivo_canal_closer ?? []} nota="Canal da reunião Closer registrado desde nov/2025; períodos antigos têm pouca cobertura." onCell={(motivo, canal) => setDrill({ ...baseCtx, motivoPerda: motivo, motivoRole: 'closer', canalCloser: [canal], title: `${motivo} · fechamento por ${canal}` })} />
           </div>
         </SectionCard>
       )}
@@ -175,7 +175,7 @@ function ResumoCard({ label, valor, destaque, onClick }: { label: string; valor:
       <div className="mt-0.5 text-xs text-slate-400">no recorte atual</div>
     </div>
   )
-  if (onClick) return <button onClick={onClick} className="text-left w-full active:scale-[0.99] transition-transform" title={`Ver casais — ${label}`}>{inner}</button>
+  if (onClick) return <button onClick={onClick} className="text-left w-full active:scale-[0.99] transition-transform" title={`Ver casais: ${label}`}>{inner}</button>
   return inner
 }
 
@@ -194,7 +194,7 @@ function ResumoMotivoCard({ label, motivo, total, onClick }: { label: string; mo
       )}
     </div>
   )
-  if (onClick && motivo) return <button onClick={onClick} className="text-left w-full active:scale-[0.99] transition-transform" title={`Ver casais — ${motivo.motivo}`}>{inner}</button>
+  if (onClick && motivo) return <button onClick={onClick} className="text-left w-full active:scale-[0.99] transition-transform" title={`Ver casais: ${motivo.motivo}`}>{inner}</button>
   return inner
 }
 
@@ -218,7 +218,7 @@ function MotivosLista({ titulo, subtitulo, motivos, total, onPick }: {
                 <li key={m.motivo}
                     className="px-2 py-1.5 rounded cursor-pointer hover:bg-ww-cream/60 transition-colors"
                     onClick={() => onPick(m.motivo)}
-                    title={`Ver casais — ${m.motivo}`}>
+                    title={`Ver casais: ${m.motivo}`}>
                   <div className="flex items-center gap-2 text-sm">
                     <span className="flex-1 text-slate-700 truncate">{m.motivo}</span>
                     <span className="text-slate-900 font-medium tabular-nums shrink-0">{formatNumber(m.qtd)}</span>

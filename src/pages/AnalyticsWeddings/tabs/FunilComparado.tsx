@@ -22,10 +22,10 @@ function interpretarQueda(a: WwFunilConversaoMarcos | undefined, b: WwFunilConve
   const ratio = entrouB / entrouA
   const ratioTxt = ratio >= 1.1 ? `${ratio.toFixed(ratio >= 10 ? 0 : 1).replace('.', ',')}× mais leads` : ratio <= 0.9 ? `${(1 / ratio).toFixed(1).replace('.', ',')}× menos leads` : 'volume parecido'
   if (dropKey === 'marcou_sdr') {
-    if (ratio >= 1.5) return { titulo: 'Parece mudança de mix de leads', texto: `Entrou ${ratioTxt} agora, mas a maior parte nem agenda a primeira conversa — costuma ser qualidade/intenção do lead que chega, não o time. Veja o ranking de perfis e a aba Marketing.` }
-    return { titulo: 'A queda está logo na entrada', texto: 'A maior perda é em marcar a primeira conversa. Com volume parecido, costuma ser qualidade/intenção do lead — olhe origem (Marketing) e os perfis acima.' }
+    if (ratio >= 1.5) return { titulo: 'Parece mudança de mix de leads', texto: `Entrou ${ratioTxt} agora, mas a maior parte nem agenda a primeira conversa. Costuma ser qualidade/intenção do lead que chega, não o time. Veja o ranking de perfis e a aba Marketing.` }
+    return { titulo: 'A queda está logo na entrada', texto: 'A maior perda é em marcar a primeira conversa. Com volume parecido, costuma ser qualidade/intenção do lead. Olhe origem (Marketing) e os perfis acima.' }
   }
-  return { titulo: 'A queda está depois da primeira conversa', texto: `A maior perda é em "${MARCO_LABELS[dropKey]}", já dentro do processo — costuma ser execução: vale ouvir as conversas e revisar a abordagem (volume: ${ratioTxt}).` }
+  return { titulo: 'A queda está depois da primeira conversa', texto: `A maior perda é em "${MARCO_LABELS[dropKey]}", já dentro do processo. Costuma ser execução: vale ouvir as conversas e revisar a abordagem (volume: ${ratioTxt}).` }
 }
 
 function MetricaInline({ label, a, b, isPct, onClickA, onClickB }: { label: string; a: number | null; b: number | null; isPct?: boolean; onClickA?: () => void; onClickB?: () => void }) {
@@ -112,7 +112,7 @@ export function FunilComparado() {
       dateStart: periodoB.dateStart,
       dateEnd: periodoB.dateEnd,
       dateMode,
-      title: `Casais — ${bucket}`,
+      title: `Casais: ${bucket}`,
       subtitle: labelB,
       origins, faixas, destinos, convidadosList: convidados, tipos, consultorIds, canalSdr, canalCloser, statusLead,
     }
@@ -135,7 +135,7 @@ export function FunilComparado() {
   const onPickCelula = (dx: WwFunilRankingDim, bx: string[], dy: WwFunilRankingDim, by: string[]) => {
     const ctx: DrillContext = {
       dateStart: periodoA.dateStart, dateEnd: periodoA.dateEnd, dateMode,
-      title: `Casais — ${bx.join(' + ')} × ${by.join(' + ')}`,
+      title: `Casais: ${bx.join(' + ')} × ${by.join(' + ')}`,
       subtitle: labelA,
       origins, tipos, consultorIds, canalSdr: [...canalSdr], canalCloser: [...canalCloser], statusLead,
       faixas: dx === 'faixa' || dy === 'faixa' ? undefined : faixas,
@@ -197,7 +197,7 @@ export function FunilComparado() {
         <PeriodoSeletor periodoA={periodoA} periodoB={periodoB} onPeriodoA={setPeriodoA} onPeriodoB={setPeriodoB} />
         <p className="text-xs text-slate-400 mt-2">
           {dateMode === 'cohort'
-            ? 'Contamos os leads pela data de criação — a "safra" que entrou em cada período.'
+            ? 'Contamos os leads pela data de criação, a "safra" que entrou em cada período.'
             : 'Contamos pelo que aconteceu no período: quem agendou, fez reunião ou fechou dentro da janela.'}
         </p>
       </div>
@@ -260,7 +260,7 @@ export function FunilComparado() {
           ) : (
             <div className="mt-3 bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm text-emerald-800">A conversão se manteve ou melhorou em todas as etapas neste recorte.</div>
           )}
-          {amostraPequena && <p className="mt-2 text-xs text-amber-700">⚠️ Amostra pequena (menos de 5 leads em um dos períodos) — os percentuais podem variar muito.</p>}
+          {amostraPequena && <p className="mt-2 text-xs text-amber-700">⚠️ Amostra pequena (menos de 5 leads em um dos períodos). Os percentuais podem variar muito.</p>}
         </div>
       )}
 
@@ -270,12 +270,12 @@ export function FunilComparado() {
           periodo === 'A' ? periodoA : periodoB,
           periodo === 'A' ? labelA : labelB,
           key,
-          `${MARCO_LABELS[key]} — casais`,
+          `${MARCO_LABELS[key]}: casais`,
         )} />
 
       {/* Evolução do funil mês a mês (#3) — barras por etapa + toggle quantidade/conversão */}
       <SerieTemporalChart
-        title="📊 Evolução do funil — período a período"
+        title="📊 Evolução do funil: período a período"
         subtitle="Leads → reuniões → vendas em cada período. Troque mês/semana e quantidade/conversão."
         dateStart={new Date(new Date(periodoB.dateEnd).getTime() - 365 * 24 * 60 * 60 * 1000).toISOString()}
         dateEnd={periodoB.dateEnd}
@@ -292,7 +292,7 @@ export function FunilComparado() {
         defaultModo="conversao"
         onPointClick={(p, marco, janela) => setDrill({
           dateStart: janela.dateStart, dateEnd: janela.dateEnd, dateMode,
-          title: `${MARCO_LABELS[marco]} — ${p.label}`,
+          title: `${MARCO_LABELS[marco]}: ${p.label}`,
           origins, faixas, destinos, convidadosList: convidados, tipos, consultorIds, canalSdr, canalCloser, statusLead,
           marco,
         })}

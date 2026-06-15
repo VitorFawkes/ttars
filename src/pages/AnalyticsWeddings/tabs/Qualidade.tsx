@@ -100,7 +100,7 @@ function QualidadeContent({ filters }: { filters: AppliedFilters }) {
           onPick={(kind, canal) => setDrill({
             ...baseCtx,
             ...(kind === 'sdr' ? { canalSdr: [canal] } : { canalCloser: [canal] }),
-            title: `Casais — ${kind === 'sdr' ? '1ª reunião' : 'reunião de fechamento'} por ${canal}`,
+            title: `Casais: ${kind === 'sdr' ? '1ª reunião' : 'reunião de fechamento'} por ${canal}`,
           })}
         />
       )}
@@ -139,35 +139,35 @@ function QualidadeContent({ filters }: { filters: AppliedFilters }) {
       <FunilPorCategoria
         title="💰 Por faixa de investimento declarada"
         subtitle={isThroughput
-          ? `Dos leads que chegaram em ${stageNome} no período, quantos fecharam — agrupados pela faixa que declararam no site.`
-          : `Dos leads que entraram no período, quantos fecharam — agrupados pela faixa declarada no site.`}
+          ? `Dos leads que chegaram em ${stageNome} no período, quantos fecharam, agrupados pela faixa que declararam no site.`
+          : `Dos leads que entraram no período, quantos fecharam, agrupados pela faixa declarada no site.`}
         items={data.por_faixa}
         unidade="faixa"
         outros={data.outros_amostra_pequena?.faixa}
-        onRowClick={(cat) => setDrill({ ...baseCtx, faixa: cat, title: `Casais — faixa "${cat}"` })}
+        onRowClick={(cat) => setDrill({ ...baseCtx, faixa: cat, title: `Casais: faixa "${cat}"` })}
       />
       <FunilPorCategoria
         title="🏝️  Por destino declarado"
         subtitle={isThroughput
-          ? `Dos leads que chegaram em ${stageNome} no período, quantos fecharam — por destino declarado.`
-          : `Dos leads que entraram no período, quantos fecharam — por destino declarado.`}
+          ? `Dos leads que chegaram em ${stageNome} no período, quantos fecharam por destino declarado.`
+          : `Dos leads que entraram no período, quantos fecharam por destino declarado.`}
         items={data.por_destino}
         unidade="destino"
         outros={data.outros_amostra_pequena?.destino}
-        onRowClick={(cat) => setDrill({ ...baseCtx, destino: cat, title: `Casais — destino "${cat}"` })}
+        onRowClick={(cat) => setDrill({ ...baseCtx, destino: cat, title: `Casais: destino "${cat}"` })}
       />
       <FunilPorCategoria
         title="👥 Por número de convidados declarado"
         subtitle={isThroughput
-          ? `Dos leads que chegaram em ${stageNome} no período, quantos fecharam — por tamanho de celebração.`
-          : `Dos leads que entraram no período, quantos fecharam — por tamanho de celebração.`}
+          ? `Dos leads que chegaram em ${stageNome} no período, quantos fecharam por tamanho de celebração.`
+          : `Dos leads que entraram no período, quantos fecharam por tamanho de celebração.`}
         items={data.por_convidados}
         unidade="convidados"
         outros={data.outros_amostra_pequena?.convidados}
-        onRowClick={(cat) => setDrill({ ...baseCtx, convidados: cat, title: `Casais — ${cat} convidados` })}
+        onRowClick={(cat) => setDrill({ ...baseCtx, convidados: cat, title: `Casais: ${cat} convidados` })}
       />
 
-      <HeatmapFaixaDestino data={data} onCellClick={(faixa, destino) => setDrill({ ...baseCtx, faixa, destino, title: `Casais — ${faixa} × ${destino}` })} />
+      <HeatmapFaixaDestino data={data} onCellClick={(faixa, destino) => setDrill({ ...baseCtx, faixa, destino, title: `Casais: ${faixa} × ${destino}` })} />
 
       {/* Cruzamentos novos */}
       {data.cruzamentos?.faixa_x_origem && data.cruzamentos.faixa_x_origem.length > 0 && (
@@ -180,7 +180,7 @@ function QualidadeContent({ filters }: { filters: AppliedFilters }) {
             rowsOrder={FAIXA_ORDER}
             rowLabel="Faixa"
             colLabel="Origem"
-            onCellClick={(faixa, origem) => setDrill({ ...baseCtx, faixa, origem, title: `Casais — ${faixa} via ${origem}` })}
+            onCellClick={(faixa, origem) => setDrill({ ...baseCtx, faixa, origem, title: `Casais: ${faixa} via ${origem}` })}
           />
         </SectionCard>
       )}
@@ -194,7 +194,7 @@ function QualidadeContent({ filters }: { filters: AppliedFilters }) {
             cells={data.cruzamentos.destino_x_origem}
             rowLabel="Destino"
             colLabel="Origem"
-            onCellClick={(destino, origem) => setDrill({ ...baseCtx, destino, origem, title: `Casais — ${destino} via ${origem}` })}
+            onCellClick={(destino, origem) => setDrill({ ...baseCtx, destino, origem, title: `Casais: ${destino} via ${origem}` })}
           />
         </SectionCard>
       )}
@@ -209,7 +209,7 @@ function QualidadeContent({ filters }: { filters: AppliedFilters }) {
             rowsOrder={FAIXA_ORDER}
             rowLabel="Faixa"
             colLabel="Tipo"
-            onCellClick={(faixa, tipo) => setDrill({ ...baseCtx, faixa, tipo, title: `Casais — ${faixa} (${tipo})` })}
+            onCellClick={(faixa, tipo) => setDrill({ ...baseCtx, faixa, tipo, title: `Casais: ${faixa} (${tipo})` })}
           />
         </SectionCard>
       )}
@@ -224,7 +224,7 @@ function QualidadeContent({ filters }: { filters: AppliedFilters }) {
             rowsOrder={CONV_ORDER}
             rowLabel="Convidados"
             colLabel="Origem"
-            onCellClick={(_conv, origem) => setDrill({ ...baseCtx, origem, title: `Casais — origem ${origem}` })}
+            onCellClick={(_conv, origem) => setDrill({ ...baseCtx, origem, title: `Casais: origem ${origem}` })}
           />
         </SectionCard>
       )}
@@ -240,7 +240,7 @@ function QualidadeContent({ filters }: { filters: AppliedFilters }) {
 }
 
 function buildDrillForDim(baseCtx: { dateStart: string; dateEnd: string }, dim: Dim, cat: string): DrillContext {
-  const title = `Casais — ${labelDim(dim)} "${cat}"`
+  const title = `Casais: ${labelDim(dim)} "${cat}"`
   switch (dim) {
     case 'faixa':      return { ...baseCtx, faixa: cat, title }
     case 'destino':    return { ...baseCtx, destino: cat, title }
@@ -298,7 +298,7 @@ function StageSelector({ isThroughput, stages, value, onChange }: {
   if (!isThroughput) {
     return (
       <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-600">
-        Modo <strong>Data de criação</strong> — universo são leads pelo dia em que foram criados.
+        Modo <strong>Data de criação</strong>: universo são leads pelo dia em que foram criados.
         Pra ver "leads que chegaram em uma etapa específica no período", troque pra <strong>Data de evento</strong> na barra de filtros.
       </div>
     )
@@ -450,7 +450,7 @@ function FunilPorCategoria({ title, subtitle, items, unidade, outros, onRowClick
                   key={it.categoria}
                   onClick={() => onRowClick(it.categoria)}
                   className="border-t border-slate-100"
-                  title={`Ver casais — ${it.categoria}`}
+                  title={`Ver casais: ${it.categoria}`}
                 >
                   {cells}
                 </ClickableRow>
@@ -461,7 +461,7 @@ function FunilPorCategoria({ title, subtitle, items, unidade, outros, onRowClick
             {hasOutros && (
               <tr className="border-t border-slate-100 bg-slate-50/50">
                 <td className="px-3 py-2 text-slate-500 italic" title={(outros?.categorias_agrupadas ?? []).join(', ')}>
-                  Outros (amostra pequena) — {outros?.categorias_agrupadas?.length ?? 0} categoria{(outros?.categorias_agrupadas?.length ?? 0) !== 1 ? 's' : ''}
+                  Outros (amostra pequena): {outros?.categorias_agrupadas?.length ?? 0} categoria{(outros?.categorias_agrupadas?.length ?? 0) !== 1 ? 's' : ''}
                 </td>
                 <td className="px-3 py-2 text-slate-500 text-right tabular-nums">{formatNumber(outros?.entraram ?? 0)}</td>
                 <td className="px-3 py-2 text-slate-500 text-right tabular-nums">{formatNumber(outros?.fecharam ?? 0)}</td>
@@ -490,7 +490,7 @@ function ConversaoPorCanal({ sdr, closer, onPick }: { sdr: WwQualidadeCanal[]; c
           titulo="Reunião de fechamento (Closer)"
           items={closer}
           vazio="Nenhuma reunião de Closer com canal registrado no período"
-          nota={closer.length > 0 ? 'O canal da reunião Closer começou a ser registrado em nov/2025 — períodos antigos têm pouca cobertura.' : undefined}
+          nota={closer.length > 0 ? 'O canal da reunião Closer começou a ser registrado em nov/2025; períodos antigos têm pouca cobertura.' : undefined}
           onRow={onPick ? (c) => onPick('closer', c) : undefined}
         />
       </div>
@@ -592,7 +592,7 @@ function HeatmapFaixaDestino({ data, onCellClick }: { data: WwQualidadeLead; onC
   }))
   return (
     <SectionCard
-      title="🔥 Combos faixa × destino — onde a conversão acontece"
+      title="🔥 Combos faixa × destino: onde a conversão acontece"
       subtitle="Linha = faixa de investimento que o lead declarou. Coluna = destino que o lead declarou. % na célula = taxa de fechamento."
     >
       <MatrixHeatmap

@@ -75,7 +75,7 @@ type Props = {
 function Chips({ dim, buckets, grupos, onCycle }: { dim: WwFunilRankingDim; buckets: string[]; grupos: Record<string, Grupo>; onCycle: (b: string) => void }) {
   return (
     <div>
-      <div className="text-xs font-medium text-slate-600 mb-1.5">{DIM_LABEL[dim]} <span className="font-normal text-slate-400">— toque pra agrupar (A → B → fora)</span></div>
+      <div className="text-xs font-medium text-slate-600 mb-1.5">{DIM_LABEL[dim]} <span className="font-normal text-slate-400">toque pra agrupar (A → B → fora)</span></div>
       <div className="flex flex-wrap gap-1.5">
         {buckets.map((b) => {
           const g = grupos[b] ?? -1
@@ -130,7 +130,7 @@ export function CruzamentoCustom({ eixoX, eixoY, onEixos, options, data, isLoadi
     <div className="bg-white border border-ww-sand shadow-ww-lift rounded-xl p-5">
       <h3 className="font-ww-serif text-[15px] font-semibold text-ww-n700 tracking-tight mb-1">Cruzamento personalizado</h3>
       <p className="text-xs text-slate-500 mb-4">
-        Junte as faixinhas como quiser nos dois eixos pra cada quadrante ter casos de sobra — depois clique num quadrante pra abrir a lista de casais.
+        Junte as faixinhas como quiser nos dois eixos pra cada quadrante ter casos de sobra, depois clique num quadrante pra abrir a lista de casais.
       </p>
 
       {/* eixos */}

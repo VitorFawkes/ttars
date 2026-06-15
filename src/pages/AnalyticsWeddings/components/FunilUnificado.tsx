@@ -45,7 +45,7 @@ export function FunilUnificado({ marcosA, marcosB, labelA, labelB, isLoading, er
     )
     if (onClick) {
       return (
-        <button onClick={onClick} className="w-full flex items-center gap-2.5 text-left rounded hover:bg-slate-50 transition-colors" title={`Ver casais — ${label}`}>
+        <button onClick={onClick} className="w-full flex items-center gap-2.5 text-left rounded hover:bg-slate-50 transition-colors" title={`Ver casais: ${label}`}>
           {inner}
         </button>
       )
@@ -143,7 +143,7 @@ export function FunilUnificado({ marcosA, marcosB, labelA, labelB, isLoading, er
           })}
 
           <p className="text-[11px] text-slate-400 pt-3">
-            Cada linha = um período, na mesma escala. À direita: <strong className="font-semibold text-slate-600">pessoas</strong> e <strong className="font-semibold text-slate-600">conversão</strong> da etapa anterior — a melhor em <strong className="font-semibold text-emerald-600">verde</strong>, a pior em <strong className="font-semibold text-rose-600">vermelho</strong>. O Δ pp no topo é {labelB} vs {labelA}.
+            Cada linha = um período, na mesma escala. À direita: <strong className="font-semibold text-slate-600">pessoas</strong> e <strong className="font-semibold text-slate-600">conversão</strong> da etapa anterior, a melhor em <strong className="font-semibold text-emerald-600">verde</strong>, a pior em <strong className="font-semibold text-rose-600">vermelho</strong>. O Δ pp no topo é {labelB} vs {labelA}.
           </p>
         </>
       )}

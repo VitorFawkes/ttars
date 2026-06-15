@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
-import { useWw2Overview, useWwAgenda, type Ww2Conversao, type DrillMarco, type WwAgendaItem, type WwAgendaPorDia, type WwAgendaDesfechos } from '@/hooks/analyticsWeddings/useWw2'
+import { useWw2Overview, useWwAgenda, type Ww2Conversao, type DrillMarco, type WwAgendaItem, type WwAgendaPorDia, type WwAgendaDesfechos, type WwAgendaDesfechoItem } from '@/hooks/analyticsWeddings/useWw2'
 import { FilterBar, type TabProps, type AppliedFilters } from '../components/FilterBar'
 import { SectionCard, KpiCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
 import { DrillDrawer, type DrillContext } from '../components/DrillDrawer'
@@ -54,16 +54,26 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
 
   const { kpis, funnel, conversoes, alertas } = data
 
-  // Funil: agregar por fase, separar Resolução
-  const byPhase = funnel.reduce((acc, f) => {
-    const k = f.phase_label
-    if (!acc[k]) acc[k] = { phase: k, leads: 0, order: f.phase_order ?? 999, slug: f.phase_slug }
-    acc[k].leads += f.leads_count
-    return acc
-  }, {} as Record<string, { phase: string; leads: number; order: number; slug: string }>)
-  const phasesData = Object.values(byPhase).sort((a, b) => a.order - b.order)
-  const activePhases = phasesData.filter(p => !/resolu/i.test(p.phase))
-  const resolutionLeads = phasesData.find(p => /resolu/i.test(p.phase))?.leads ?? 0
+  // "Onde estão agora" (v9): cada linha do funnel é uma ETAPA real ("SDR · Lead", "Closer · Negociação"…).
+  // Agrupa por macro (phase_slug = sdr/closer), tira o prefixo do rótulo e ordena pela ordem do funil.
+  const semPrefixo = (s: string) => s.replace(/^(SDR|Closer)\s*·\s*/i, '')
+  const macroMap = new Map<string, { slug: string; total: number; stages: { slug: string; label: string; n: number; order: number }[] }>()
+  for (const f of funnel) {
+    if (f.phase_slug !== 'sdr' && f.phase_slug !== 'closer') continue
+    let m = macroMap.get(f.phase_slug)
+    if (!m) { m = { slug: f.phase_slug, total: 0, stages: [] }; macroMap.set(f.phase_slug, m) }
+    m.total += f.leads_count
+    m.stages.push({ slug: f.stage_slug, label: semPrefixo(f.stage_name), n: f.leads_count, order: f.stage_order ?? 0 })
+  }
+  const MACRO_META: Record<string, { nome: string; sub: string; barra: string; ponto: string; texto: string }> = {
+    sdr:    { nome: 'SDR',    sub: 'Pré-venda',  barra: 'bg-ww-gold',     ponto: 'bg-ww-gold',     texto: 'text-ww-gold-ink' },
+    closer: { nome: 'Closer', sub: 'Fechamento', barra: 'bg-ww-rosewood', ponto: 'bg-ww-rosewood', texto: 'text-ww-rosewood' },
+  }
+  const macros = (['sdr', 'closer'] as const)
+    .map(slug => macroMap.get(slug))
+    .filter((m): m is NonNullable<typeof m> => !!m)
+    .map(m => ({ ...m, ...MACRO_META[m.slug], stages: [...m.stages].sort((a, b) => a.order - b.order) }))
+  const totalAtivos = macros.reduce((s, m) => s + m.total, 0)
 
   const openDrill = (ctx: DrillContext) => setDrill(ctx)
   // Auditoria 2026-06-11: o drill respeita o MESMO recorte dos números clicados (todos os chips)
@@ -73,8 +83,6 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
     convidadosList: filters.convidados, tipos: filters.tipos, consultorIds: filters.consultorIds,
     canalSdr: filters.canalSdr, canalCloser: filters.canalCloser, statusLead: filters.statusLead,
   }
-  // Tendência: janela de 12 meses terminando no fim do período do filtro (trend precisa de range longo)
-  const trend12Start = new Date(new Date(filters.dateEnd).getTime() - 365 * 24 * 60 * 60 * 1000).toISOString()
 
   return (
     <div className="space-y-5">
@@ -113,11 +121,11 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
       {/* Agenda — o FUTURO: reuniões marcadas (campo 6 = SDR, campo 18 = Closer) + vencidas sem registro */}
       <AgendaReunioes filters={filters} />
 
-      {/* Tendência ao longo do tempo (#7) — vendas/reuniões/leads por período */}
+      {/* Tendência ao longo do tempo (#7) — vendas/reuniões/leads no período do filtro */}
       <SerieTemporalChart
-        title="📈 Ao longo do tempo — o funil completo"
-        subtitle="Últimos 12 meses: leads, reuniões marcadas e feitas (SDR e Closer) e vendas em cada período. Troque mês/semana e quantidade/conversão. Clique numa barra pra ver os casais."
-        dateStart={trend12Start}
+        title="📈 Ao longo do tempo: o funil completo"
+        subtitle="Leads, reuniões marcadas e feitas (SDR e Closer) e vendas em cada período do recorte. Troque mês/semana e quantidade/conversão. Clique numa barra pra ver os casais."
+        dateStart={filters.dateStart}
         dateEnd={filters.dateEnd}
         dateMode={filters.dateMode}
         origins={filters.origins}
@@ -134,7 +142,7 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
           dateStart: janela.dateStart,
           dateEnd: janela.dateEnd,
           marco,
-          title: `${MARCO_TITULO[marco]} — ${p.label}`,
+          title: `${MARCO_TITULO[marco]}: ${p.label}`,
         })}
       />
 
@@ -142,10 +150,10 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <SectionCard
           className="lg:col-span-2"
-          title="Funil de vendas — etapa por etapa"
+          title="Funil de vendas: etapa por etapa"
           subtitle={filters.dateMode === 'cohort'
             ? 'Dos leads que chegaram no período, até onde cada um foi (mesmo que depois). A % é a passagem da etapa anterior. Clique numa etapa pra ver os casais.'
-            : 'O que aconteceu no período — reuniões contam pela DATA da reunião. A % entre "marcada" e "aconteceu" é o comparecimento. Clique numa etapa pra ver os casais.'}
+            : 'O que aconteceu no período, reuniões contam pela DATA da reunião. A % entre "marcada" e "aconteceu" é o comparecimento. Clique numa etapa pra ver os casais.'}
         >
           {conversoes.length === 0 ? <EmptyState message="Sem dados" /> : (
             <FunilEtapas
@@ -154,47 +162,59 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
                 : conversoes}
               onEtapaClick={(c) => {
                 const marco = ETAPA_MARCO[c.phase_order]
-                if (marco) openDrill({ ...baseCtx, marco, title: `${c.phase_label} — casais da etapa` })
+                if (marco) openDrill({ ...baseCtx, marco, title: `${c.phase_label}: casais da etapa` })
               }}
             />
           )}
         </SectionCard>
 
         <SectionCard
-          title="Onde estão agora — por fase"
-          subtitle={resolutionLeads > 0
-            ? `Posição atual dos leads do recorte. ${formatNumber(resolutionLeads)} em Resolução (perdidos/cancelados) fora da lista. Clique pra ver os casais.`
-            : 'Posição atual dos leads do recorte. Clique pra ver os casais.'}
+          title="Onde estão agora"
+          subtitle="Casais em aberto, na etapa em que estão hoje. Fechados e perdidos saem, já estão nos números do topo. Clique numa etapa pra ver os casais."
         >
-          {activePhases.length === 0 ? <EmptyState message="Nenhum lead nas fases ativas pra esse filtro." /> : (
-            <div className="space-y-2">
-              {(() => {
-                const maxFase = Math.max(1, ...activePhases.map(p => p.leads))
-                return activePhases.map(p => (
-                  <button
-                    key={p.phase}
-                    // O bloco conta a SAFRA do período (independe do modo) — o drill espelha
-                    onClick={() => openDrill({ ...baseCtx, dateMode: 'cohort', phaseSlug: p.slug, title: `Leads na fase ${p.phase}` })}
-                    className="w-full text-left group"
-                    title={`Ver casais — ${p.phase}`}
-                  >
-                    <div className="flex items-center justify-between text-sm mb-1">
-                      <span className="text-slate-700 group-hover:text-ww-gold-ink transition-colors">{p.phase}</span>
-                      <span className="text-slate-900 font-semibold tabular-nums">{formatNumber(p.leads)}</span>
+          {totalAtivos === 0 ? <EmptyState message="Nenhum casal em aberto pra esse filtro." /> : (
+            <div className="space-y-5">
+              {macros.map(m => {
+                // Barras com escala POR macro (SDR costuma ter muito mais que Closer — escala global
+                // esconderia a distribuição interna). Os números absolutos preservam a magnitude.
+                const maxStage = Math.max(1, ...m.stages.map(s => s.n))
+                return (
+                  <div key={m.slug}>
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <span className={`w-2 h-2 rounded-full ${m.ponto}`} />
+                      <span className={`text-sm font-semibold tracking-tight ${m.texto}`}>{m.nome}</span>
+                      <span className="text-[11px] uppercase tracking-wide text-ww-n400">{m.sub}</span>
+                      <span className="flex-1 border-t border-dashed border-ww-sand/70" />
+                      <span className="text-xs text-slate-500 tabular-nums"><span className="font-semibold text-slate-700">{formatNumber(m.total)}</span> {m.total === 1 ? 'casal' : 'casais'}</span>
                     </div>
-                    <div className="h-2.5 bg-ww-cream rounded-full overflow-hidden">
-                      <div className="h-full bg-ww-gold rounded-full group-hover:bg-ww-gold-ink transition-colors" style={{ width: `${(p.leads / maxFase) * 100}%` }} />
+                    <div className="space-y-2 pl-4">
+                      {m.stages.map(s => (
+                        <button
+                          key={s.slug}
+                          onClick={() => openDrill({ ...baseCtx, phaseSlug: s.slug, title: `${m.nome} · ${s.label}` })}
+                          className="w-full text-left group"
+                          title={`Ver casais: ${m.nome} · ${s.label}`}
+                        >
+                          <div className="flex items-center justify-between text-sm mb-1">
+                            <span className="text-slate-600 group-hover:text-slate-900 transition-colors">{s.label}</span>
+                            <span className="text-slate-900 font-semibold tabular-nums">{formatNumber(s.n)}</span>
+                          </div>
+                          <div className="h-1.5 bg-ww-cream rounded-full overflow-hidden">
+                            <div className={`h-full ${m.barra} rounded-full opacity-85 group-hover:opacity-100 transition-opacity`} style={{ width: `${s.n > 0 ? Math.max(4, (s.n / maxStage) * 100) : 0}%` }} />
+                          </div>
+                        </button>
+                      ))}
                     </div>
-                  </button>
-                ))
-              })()}
+                  </div>
+                )
+              })}
             </div>
           )}
         </SectionCard>
       </div>
 
       {/* Alertas */}
-      <SectionCard title="⚠️ Alertas — leads parados há mais de 7 dias" subtitle="Top 8 por dias parados. Clique pra abrir o card.">
+      <SectionCard title="⚠️ Alertas: leads parados há mais de 7 dias" subtitle="Top 8 por dias parados. Clique pra abrir o card.">
         {alertas.length === 0 ? (
           <EmptyState message="Nenhum lead parado. Tudo fluindo." />
         ) : (
@@ -206,6 +226,7 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
                 <th className="py-2 font-medium text-left">Fase</th>
                 <th className="py-2 font-medium text-right">Valor</th>
                 <th className="py-2 font-medium text-right">Parado há</th>
+                <th className="py-2 font-medium text-right">Active</th>
               </tr>
             </thead>
             <tbody>
@@ -219,6 +240,9 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
                   <td className="py-2 text-right tabular-nums text-slate-700">{a.valor_estimado ? formatCurrency(a.valor_estimado) : '—'}</td>
                   <td className="py-2 text-right">
                     <span className={`tabular-nums font-medium ${a.dias_parado > 14 ? 'text-rose-600' : 'text-amber-600'}`}>{a.dias_parado}d</span>
+                  </td>
+                  <td className="py-2 text-right">
+                    <div className="inline-flex justify-end"><OpenInACButton dealId={a.ac_deal_id} contactName={a.titulo} /></div>
                   </td>
                 </tr>
               ))}
@@ -416,6 +440,50 @@ function DesfechosCard({ desfechos }: { desfechos: WwAgendaDesfechos }) {
   )
 }
 
+// Gráfico do desfecho das reuniões marcadas, semana a semana (mesmas cores/categorias da tabela).
+const DESF_SERIES = [
+  { key: 'feita', label: 'Feita', cor: '#10b981' },
+  { key: 'nao_aconteceu', label: 'Não aconteceu', cor: '#f59e0b' },
+  { key: 'reagendando', label: 'Em reagendamento', cor: '#0ea5e9' },
+  { key: 'perdida', label: 'Perdida', cor: '#f43f5e' },
+  { key: 'sem_registro', label: 'Sem registro', cor: '#94a3b8' },
+] as const
+
+function DesfechosGrafico({ itens }: { itens: WwAgendaDesfechoItem[] }) {
+  // Bucketiza pela data da reunião em semanas (segunda→domingo, BRT) — mesma lógica do AgendaGrafico.
+  const semanas = new Map<string, { ord: string; label: string; feita: number; nao_aconteceu: number; reagendando: number; perdida: number; sem_registro: number }>()
+  for (const it of itens) {
+    const key = diaKeyBRT(new Date(it.quando))
+    const [y, m, dd] = key.split('-').map(Number)
+    const local = new Date(y, m - 1, dd, 12)
+    const seg = new Date(local); seg.setDate(seg.getDate() - ((seg.getDay() + 6) % 7))
+    const segKey = `${seg.getFullYear()}-${String(seg.getMonth() + 1).padStart(2, '0')}-${String(seg.getDate()).padStart(2, '0')}`
+    if (!semanas.has(segKey)) {
+      const dom = new Date(seg); dom.setDate(dom.getDate() + 6)
+      const fmt = (x: Date) => `${String(x.getDate()).padStart(2, '0')}/${String(x.getMonth() + 1).padStart(2, '0')}`
+      semanas.set(segKey, { ord: segKey, label: `${fmt(seg)}–${fmt(dom)}`, feita: 0, nao_aconteceu: 0, reagendando: 0, perdida: 0, sem_registro: 0 })
+    }
+    const row = semanas.get(segKey)!
+    if (it.categoria in row) (row as unknown as Record<string, number>)[it.categoria] += 1
+  }
+  const rows = [...semanas.values()].sort((a, b) => a.ord.localeCompare(b.ord))
+  if (rows.length === 0) return <EmptyState message="Sem reuniões marcadas no período pra montar o gráfico." />
+  return (
+    <ResponsiveContainer width="100%" height={240}>
+      <BarChart data={rows} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+        <XAxis dataKey="label" stroke="#64748b" fontSize={11} tickLine={false} />
+        <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+        <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} />
+        <Legend wrapperStyle={{ fontSize: 11 }} />
+        {DESF_SERIES.map((s, i) => (
+          <Bar key={s.key} dataKey={s.key} name={s.label} stackId="d" fill={s.cor} maxBarSize={56} radius={i === DESF_SERIES.length - 1 ? [3, 3, 0, 0] : undefined} />
+        ))}
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
 function AgendaReunioes({ filters }: { filters: AppliedFilters }) {
   const { data, isLoading } = useWwAgenda({
     origins: filters.origins, tipos: filters.tipos, faixas: filters.faixas,
@@ -438,8 +506,8 @@ function AgendaReunioes({ filters }: { filters: AppliedFilters }) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <SectionCard
           className="lg:col-span-2"
-          title="📅 Agenda de reuniões — próximos 7 dias"
-          subtitle={`Reuniões marcadas no Active (1ª reunião do SDR e fechamento da Closer). Hoje: ${hoje.filter(p => p.reuniao === 'sdr').length} SDR · ${hoje.filter(p => p.reuniao === 'closer').length} Closer. Filtros de tipo de reunião não se aplicam aqui — a reunião ainda vai acontecer.`}
+          title="📅 Agenda de reuniões: próximos 7 dias"
+          subtitle={`Reuniões marcadas no Active (1ª reunião do SDR e fechamento da Closer). Hoje: ${hoje.filter(p => p.reuniao === 'sdr').length} SDR · ${hoje.filter(p => p.reuniao === 'closer').length} Closer. Filtros de tipo de reunião não se aplicam aqui, a reunião ainda vai acontecer.`}
         >
           {proximas.length === 0 ? (
             <EmptyState message="Nenhuma reunião marcada para os próximos 7 dias." />
@@ -463,10 +531,10 @@ function AgendaReunioes({ filters }: { filters: AppliedFilters }) {
 
         <SectionCard
           title="⏰ Vencidas sem registro"
-          subtitle="A data passou e ninguém registrou como foi nem moveu o casal. Cobre o registro ou remarque — sem isso a reunião não conta no placar."
+          subtitle="A data passou e ninguém registrou como foi nem moveu o casal. Cobre o registro ou remarque; sem isso a reunião não conta no placar."
         >
           {pendentes.length === 0 ? (
-            <EmptyState message="Nada vencido — registros em dia." />
+            <EmptyState message="Nada vencido, registros em dia." />
           ) : (
             <div className="space-y-0.5">
               {pendentes.map(it => (
@@ -485,19 +553,28 @@ function AgendaReunioes({ filters }: { filters: AppliedFilters }) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <SectionCard
           className="lg:col-span-2"
-          title="📆 Volume de reuniões marcadas — dias e semanas à frente"
+          title="📆 Volume de reuniões marcadas: dias e semanas à frente"
           subtitle="Quantas reuniões já estão na agenda do time. Dia vazio = espaço pra agendar mais."
         >
           <AgendaGrafico porDia={data.por_dia ?? []} />
         </SectionCard>
 
         <SectionCard
-          title={`🧭 Desfechos — últimos ${data.desfechos?.janela_dias ?? 30} dias`}
+          title={`🧭 Desfechos: últimos ${data.desfechos?.janela_dias ?? 30} dias`}
           subtitle="O que aconteceu com cada reunião marcada: feita, não aconteceu, em reagendamento, perdida ou ainda sem registro."
         >
           {data.desfechos ? <DesfechosCard desfechos={data.desfechos} /> : <EmptyState message="Sem reuniões marcadas no período." />}
         </SectionCard>
       </div>
+
+      {(data.desfechos?.itens?.length ?? 0) > 0 && (
+        <SectionCard
+          title={`📊 Desfecho das reuniões ao longo do tempo: últimos ${data.desfechos?.janela_dias ?? 30} dias`}
+          subtitle="Reuniões marcadas, semana a semana, pela cor do que aconteceu: feita, não aconteceu, em reagendamento, perdida ou ainda sem registro."
+        >
+          <DesfechosGrafico itens={data.desfechos?.itens ?? []} />
+        </SectionCard>
+      )}
     </div>
   )
 }
@@ -533,7 +610,7 @@ function FunilEtapas({ conversoes, onEtapaClick }: { conversoes: Ww2Conversao[];
             onClick={onEtapaClick ? () => onEtapaClick(c) : undefined}
             disabled={!onEtapaClick}
             className={`w-full flex items-center gap-3 py-1 text-left rounded ${onEtapaClick ? 'group cursor-pointer hover:bg-ww-cream/40 transition-colors' : ''}`}
-            title={onEtapaClick ? `Ver casais — ${c.phase_label}` : undefined}
+            title={onEtapaClick ? `Ver casais: ${c.phase_label}` : undefined}
           >
             <span className="w-36 shrink-0 text-sm text-slate-700 truncate group-hover:text-ww-gold-ink transition-colors" title={c.phase_label}>{c.phase_label}</span>
             <div className="flex-1 h-5 bg-ww-cream/70 rounded overflow-hidden" title={`${formatNumber(c.leads)} de ${formatNumber(base)} (${Math.round(pctDoTopo)}% do total)`}>

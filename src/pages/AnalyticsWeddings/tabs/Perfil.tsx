@@ -1,12 +1,12 @@
 import { useState, type ReactNode } from 'react'
 import { FilterBar, type TabProps, type AppliedFilters } from '../components/FilterBar'
-import { useWwLeadIdeal, type WwLeadIdealData, type WwLeadIdealItem, type WwLeadIdealCruzamentoCell, type WwLeadIdealPerfilTop } from '@/hooks/analyticsWeddings/useWw2'
+import { useWwLeadIdeal, type WwLeadIdealData, type WwLeadIdealItem, type WwLeadIdealCruzamentoCell, type WwLeadIdealPerfilUnif } from '@/hooks/analyticsWeddings/useWw2'
 import { SectionCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
 import { DrillDrawer, type DrillContext } from '../components/DrillDrawer'
-import { LiftBadge } from '../components/LiftBadge'
 import { formatNumber } from '../lib/format'
+import { periodOptions, periodToDates, type PeriodOption } from '../lib/dates'
+import { Crown, TrendingUp, TrendingDown } from 'lucide-react'
 
-type Dim = 'faixa' | 'destino' | 'convidados'
 type Eixo = 'faixa' | 'convidados' | 'destino' | 'origem' | 'canal_sdr' | 'canal_closer' | 'tipo'
 
 // Baldes fundidos (form do site mudou de opções ao longo do tempo) — ver memória
@@ -16,24 +16,45 @@ const CONV_ORDER = ['Apenas o casal', 'Até 20', '20-50', '50-100', '+100']
 
 // Eixos do cruzamento livre (substituem as 3 combinações fixas antigas).
 const EIXO_OPTS: { id: Eixo; label: string }[] = [
-  { id: 'faixa', label: '💰 Faixa' },
-  { id: 'convidados', label: '👥 Convidados' },
-  { id: 'destino', label: '🏝️ Destino' },
-  { id: 'origem', label: '🎯 Origem' },
-  { id: 'canal_sdr', label: '🎥 1ª reunião' },
-  { id: 'canal_closer', label: '🎥 Reunião fechamento' },
-  { id: 'tipo', label: '💍 Tipo' },
+  { id: 'faixa', label: 'Faixa' },
+  { id: 'convidados', label: 'Convidados' },
+  { id: 'destino', label: 'Destino' },
+  { id: 'origem', label: 'Origem' },
+  { id: 'canal_sdr', label: '1ª reunião' },
+  { id: 'canal_closer', label: 'Reunião fechamento' },
+  { id: 'tipo', label: 'Tipo' },
 ]
 const eixoLabel = (e: Eixo) => EIXO_OPTS.find(o => o.id === e)?.label ?? e
 const eixoOrder = (e: Eixo): string[] | undefined => (e === 'faixa' ? FAIXA_ORDER : e === 'convidados' ? CONV_ORDER : undefined)
 // Drill (ww2_drill_down) só conhece estes eixos; nos demais a célula não é clicável.
 const DRILL_OK: Eixo[] = ['faixa', 'convidados', 'destino']
 
+// Lente do cruzamento: qual par dos 3 números comparar em cada célula (mantém a célula limpa
+// com 2 números e dá "vários tipos de análise"). Vendas=quem fechou, Antes=leads na referência, Agora=leads novos.
+type LensKey = 'venda_agora' | 'antes_agora' | 'venda_antes'
+type LensCfg = {
+  leftQtd: (c: WwLeadIdealCruzamentoCell) => number
+  leftPct: (c: WwLeadIdealCruzamentoCell) => number
+  rightQtd: (c: WwLeadIdealCruzamentoCell) => number
+  rightPct: (c: WwLeadIdealCruzamentoCell) => number
+  leftLabel: string; rightLabel: string
+  leftCls: string; rightCls: string
+}
+const LENS_OPTS: { key: LensKey; label: string }[] = [
+  { key: 'venda_agora', label: 'Vendas × Agora' },
+  { key: 'antes_agora', label: 'Antes × Agora' },
+  { key: 'venda_antes', label: 'Vendas × Antes' },
+]
+const LENS: Record<LensKey, LensCfg> = {
+  venda_agora: { leftQtd: c => c.hist_qtd, leftPct: c => c.hist_pct ?? 0, rightQtd: c => c.atual_qtd, rightPct: c => c.atual_pct ?? 0, leftLabel: 'vendas', rightLabel: 'leads agora', leftCls: 'text-emerald-700', rightCls: 'text-indigo-700' },
+  antes_agora: { leftQtd: c => c.hist_leads_qtd ?? 0, leftPct: c => c.hist_leads_pct ?? 0, rightQtd: c => c.atual_qtd, rightPct: c => c.atual_pct ?? 0, leftLabel: 'leads antes', rightLabel: 'leads agora', leftCls: 'text-ww-gold-ink', rightCls: 'text-indigo-700' },
+  venda_antes: { leftQtd: c => c.hist_qtd, leftPct: c => c.hist_pct ?? 0, rightQtd: c => c.hist_leads_qtd ?? 0, rightPct: c => c.hist_leads_pct ?? 0, leftLabel: 'vendas', rightLabel: 'leads antes', leftCls: 'text-emerald-700', rightCls: 'text-ww-gold-ink' },
+}
+
 // Helpers de data — YYYY-MM-DD pra input[type=date]
 const toDateInput = (iso: string) => iso.slice(0, 10)
 const fromDateInputStart = (s: string) => new Date(s + 'T00:00:00').toISOString()
 const fromDateInputEnd = (s: string) => new Date(s + 'T23:59:59').toISOString()
-const monthsAgo = (n: number) => { const d = new Date(); d.setMonth(d.getMonth() - n); return d.toISOString() }
 
 export function Perfil({ filters, onFiltersChange }: TabProps) {
   return (
@@ -49,35 +70,22 @@ export function Perfil({ filters, onFiltersChange }: TabProps) {
 
 function PerfilContent({ filters }: { filters: AppliedFilters }) {
 
-  // Janela "atual" — começa igual ao filtro global mas vira editável
-  const [atualStart, setAtualStart] = useState<string>(filters.dateStart)
-  const [atualEnd, setAtualEnd]     = useState<string>(filters.dateEnd)
-  // Janela "histórico" — independente, default últimos 12 meses
-  const [histStart, setHistStart] = useState<string>(monthsAgo(12))
-  const [histEnd, setHistEnd]     = useState<string>(new Date().toISOString())
-  // Atalho ativo de cada janela (some quando a data é editada à mão)
-  const [histPreset, setHistPreset]   = useState<HistPresetK | null>('12m')
-  const [atualPreset, setAtualPreset] = useState<AtualPresetK | null>('30d')
+  // Janela "referência" (quem fechou / leads antes) — mesmos atalhos das outras abas; default 12 meses.
+  const [histPeriod, setHistPeriod] = useState<PeriodOption>('12m')
+  const [histStart, setHistStart] = useState<string>(() => periodToDates('12m').dateStart)
+  const [histEnd, setHistEnd]     = useState<string>(() => periodToDates('12m').dateEnd)
+  // Janela "agora" (leads que entram) — default últimos 30 dias.
+  const [atualPeriod, setAtualPeriod] = useState<PeriodOption>('30d')
+  const [atualStart, setAtualStart] = useState<string>(() => periodToDates('30d').dateStart)
+  const [atualEnd, setAtualEnd]     = useState<string>(() => periodToDates('30d').dateEnd)
 
-  const aplicarHistPreset = (k: HistPresetK) => {
-    setHistPreset(k)
-    setHistStart(k === 'tudo' ? '2020-01-01T00:00:00.000Z' : monthsAgo(parseInt(k)))
-    setHistEnd(new Date().toISOString())
-  }
-  const aplicarAtualPreset = (k: AtualPresetK) => {
-    setAtualPreset(k)
-    const d = new Date(); d.setDate(d.getDate() - parseInt(k))
-    setAtualStart(d.toISOString())
-    setAtualEnd(new Date().toISOString())
-  }
-  const histStartManual  = (v: string) => { setHistPreset(null); setHistStart(v) }
-  const histEndManual    = (v: string) => { setHistPreset(null); setHistEnd(v) }
-  const atualStartManual = (v: string) => { setAtualPreset(null); setAtualStart(v) }
-  const atualEndManual   = (v: string) => { setAtualPreset(null); setAtualEnd(v) }
+  const onHistPeriodo  = (p: PeriodOption, s: string, e: string) => { setHistPeriod(p); setHistStart(s); setHistEnd(e) }
+  const onAtualPeriodo = (p: PeriodOption, s: string, e: string) => { setAtualPeriod(p); setAtualStart(s); setAtualEnd(e) }
 
   const [drill, setDrill] = useState<DrillContext | null>(null)
   const [cruzX, setCruzX] = useState<Eixo>('faixa')
   const [cruzY, setCruzY] = useState<Eixo>('convidados')
+  const [lens, setLens] = useState<LensKey>('venda_agora')
   const [referencia, setReferencia] = useState<'ganho' | 'perdido'>('ganho')
 
   const { data, isLoading, error } = useWwLeadIdeal({
@@ -111,10 +119,7 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
   const dimCanal = dims.find(d => d.dimensao === 'canal_sdr')
   const dimCanalCloser = dims.find(d => d.dimensao === 'canal_closer')
   const cruzCells = data.cruzamento ?? []
-  const topHist = data.top_perfis_historico ?? []
-  const topAtual = data.top_perfis_atual ?? []
-  const refLabel = referencia === 'perdido' ? 'perdeu' : 'fechou'
-  const refUpper = referencia === 'perdido' ? 'PERDEU' : 'FECHOU'
+  const topUnif = data.top_perfis_unificado ?? []
 
   const fonteV2 = (data as unknown as { fonte_v2?: string })?.fonte_v2
 
@@ -123,23 +128,17 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
       <Header
         data={data}
         referencia={referencia} onReferencia={setReferencia}
-        atualStart={atualStart} atualEnd={atualEnd}
-        histStart={histStart} histEnd={histEnd}
-        onAtualStart={atualStartManual} onAtualEnd={atualEndManual}
-        onHistStart={histStartManual} onHistEnd={histEndManual}
-        histPreset={histPreset} atualPreset={atualPreset}
-        onHistPreset={aplicarHistPreset} onAtualPreset={aplicarAtualPreset}
+        atualPeriod={atualPeriod} atualStart={atualStart} atualEnd={atualEnd} onAtualPeriodo={onAtualPeriodo}
+        histPeriod={histPeriod} histStart={histStart} histEnd={histEnd} onHistPeriodo={onHistPeriodo}
         mostrarFonte={!!fonteV2}
       />
 
-      <DiagnosticoGeral data={data} />
-
-      {/* Análise cruzada 2D — heatmap com eixos LIVRES (escolha qualquer par) */}
+      {/* Cruzamento 2D — escolha 2 dimensões + a "lente" (qual par dos 3 números comparar na célula) */}
       <SectionCard
-        title="🔍 Análise cruzada — Lead ideal vs Pipeline"
-        subtitle={`Escolha duas dimensões pra cruzar. Cada célula mostra o % entre quem ${refLabel} (referência) e o % entre os leads novos. Diferenças destacadas em cor.`}
+        title="Cruzamento — duas dimensões ao mesmo tempo"
+        subtitle="Cruze duas dimensões (ex: faixa × convidados) e escolha qual par de números comparar em cada célula. A cor destaca onde os dois lados mais divergem."
       >
-        <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
           <span className="text-xs font-medium text-slate-700">Cruzar:</span>
           <select
             value={cruzX}
@@ -157,8 +156,22 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
             {EIXO_OPTS.filter(o => o.id !== cruzX).map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
           </select>
         </div>
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
+          <span className="text-xs font-medium text-slate-700">Comparar:</span>
+          <div className="inline-flex items-center gap-0.5 bg-ww-cream rounded-lg p-0.5 flex-wrap">
+            {LENS_OPTS.map(o => (
+              <button key={o.key} onClick={() => setLens(o.key)}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-ww-gold ${
+                  lens === o.key ? 'bg-ww-gold text-white shadow-sm' : 'text-ww-n600 hover:text-ww-n700'
+                }`}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <HeatmapDuplo
           cells={cruzCells}
+          lens={LENS[lens]}
           xOrder={eixoOrder(cruzX)}
           yOrder={eixoOrder(cruzY)}
           xLabel={eixoLabel(cruzX)}
@@ -172,66 +185,61 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
         />
       </SectionCard>
 
-      {/* Top combos 3D — lado a lado */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <TopPerfisCard
-          titulo={`🏆 Top 10 perfis de quem ${refUpper} (referência)`}
-          subtitulo={`Combos (faixa + destino + convidados) mais frequentes entre quem ${refLabel} no período de referência. Clique pra ver os casais.`}
-          perfis={topHist}
-          accent="emerald"
-          onPerfilClick={(p) => setDrill({
-            dateStart: histStart, dateEnd: histEnd,
-            // A aba não tem seletor de modo: o universo de referência é "quem fechou NO período
-            // histórico" → ganho pela data do ganho (throughput); perdido não tem data própria → safra.
-            dateMode: referencia === 'ganho' ? 'throughput' : 'cohort',
-            origins: filters.origins, tipos: filters.tipos,
-            faixa: p.faixa, destino: p.destino, convidados: p.convidados,
-            marco: referencia === 'perdido' ? 'perdido' : 'ganho',
-            title: `Quem ${refLabel} — ${p.faixa} + ${p.destino} + ${p.convidados}`,
-            subtitle: 'período de referência',
-          })}
-        />
-        <TopPerfisCard
-          titulo="📥 Top 10 perfis dos LEADS NOVOS"
-          subtitulo="Combos mais frequentes entre quem entrou no período atual."
-          perfis={topAtual}
-          accent="indigo"
-          onPerfilClick={(p) => setDrill({ ...baseCtx, faixa: p.faixa, destino: p.destino, convidados: p.convidados, title: `Leads novos — ${p.faixa} + ${p.destino} + ${p.convidados}` })}
-        />
+      {/* Top combos UNIFICADO — perfis campeões de venda e se ainda entram como lead */}
+      <TopPerfisUnificado
+        perfis={topUnif}
+        onPerfilClick={(p) => setDrill({ ...baseCtx, faixa: p.faixa, destino: p.destino, convidados: p.convidados, title: `Leads novos — ${p.faixa} + ${p.destino} + ${p.convidados}` })}
+      />
+
+      {/* Por categoria — UMA tabela por dimensão com os 3 números (Vendas / Leads antes / Leads agora) */}
+      <div className="pt-3 mt-1 border-t border-ww-sand">
+        <h3 className="font-ww-serif text-lg font-semibold text-ww-n700 tracking-tight">
+          Por categoria — quem vende, quem entrava, quem entra agora
+        </h3>
+        <p className="text-sm text-ww-n500 mt-1 max-w-3xl">
+          Para cada dimensão, lado a lado: <strong className="font-semibold text-ww-n600">Vendas</strong> (quem fechou na referência),
+          <strong className="font-semibold text-ww-n600"> Leads (referência)</strong> e <strong className="font-semibold text-ww-n600">Leads (agora)</strong> —
+          cada um como % do total do seu período. A coluna <strong className="font-semibold text-ww-n600">Mudança</strong> mostra se a fatia de agora ficou maior ou menor que a de antes. Clique numa linha pra ver os casais.
+        </p>
       </div>
 
       <ComparacaoDimensao
-        titulo="💰 Investimento declarado"
-        subtitulo={`À esquerda, perfil de quem ${refLabel} no período de referência. À direita, perfil dos leads novos. Lift acima de 1 = pipeline tem MAIS dessa categoria; abaixo de 1 = MENOS.`}
+        variant="entradas"
+        titulo="Investimento declarado"
+        subtitulo="Faixa de orçamento declarada no site."
         dim={dimFaixa}
         ordenarPor={FAIXA_ORDER}
         onCategoriaClick={(cat) => setDrill({ ...baseCtx, faixa: cat, title: `Leads novos — faixa "${cat}"` })}
       />
       <ComparacaoDimensao
-        titulo="👥 Nº de convidados declarado"
-        subtitulo="Tamanho da celebração que o casal indicou no site."
+        variant="entradas"
+        titulo="Nº de convidados declarado"
+        subtitulo="Tamanho da celebração indicado no site."
         dim={dimConvidados}
         ordenarPor={CONV_ORDER}
         onCategoriaClick={(cat) => setDrill({ ...baseCtx, convidados: cat, title: `Leads novos — convidados "${cat}"` })}
       />
       <ComparacaoDimensao
-        titulo="🏝️ Destino declarado"
+        variant="entradas"
+        titulo="Destino declarado"
         subtitulo="Para onde o casal disse que queria casar."
         dim={dimDestino}
         onCategoriaClick={(cat) => setDrill({ ...baseCtx, destino: cat, title: `Leads novos — destino "${cat}"` })}
       />
       {dimCanal && (
         <ComparacaoDimensao
-          titulo="🎥 Como foi a 1ª reunião"
-          subtitulo={`Canal da 1ª reunião (vídeo, WhatsApp, presencial...) entre quem ${refLabel} vs os leads novos. Cobertura parcial — conta só quem teve reunião registrada.`}
+          variant="entradas"
+          titulo="Como foi a 1ª reunião"
+          subtitulo="Canal da 1ª reunião (vídeo, WhatsApp, presencial...). Cobertura parcial — conta só quem teve reunião registrada."
           dim={dimCanal}
           onCategoriaClick={(cat) => setDrill({ ...baseCtx, canalSdr: [cat], title: `Leads novos — 1ª reunião por "${cat}"` })}
         />
       )}
       {dimCanalCloser && (
         <ComparacaoDimensao
-          titulo="🎥 Como foi a reunião de fechamento"
-          subtitulo={`Canal da reunião com a Closer entre quem ${refLabel} vs os leads novos. Registrado desde nov/2025 — períodos antigos têm pouca cobertura.`}
+          variant="entradas"
+          titulo="Como foi a reunião de fechamento"
+          subtitulo="Canal da reunião com a Closer. Registrado desde nov/2025 — períodos antigos têm pouca cobertura."
           dim={dimCanalCloser}
           onCategoriaClick={(cat) => setDrill({ ...baseCtx, canalCloser: [cat], title: `Leads novos — fechamento por "${cat}"` })}
         />
@@ -242,30 +250,51 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
   )
 }
 
-// Atalhos de período de cada janela. parseInt('12m') → 12; 'tudo' tratado à parte.
-type HistPresetK = '3m' | '6m' | '12m' | '24m' | 'tudo'
-type AtualPresetK = '7d' | '30d' | '60d' | '90d'
-const HIST_PRESETS: { k: HistPresetK; label: string }[] = [
-  { k: '3m', label: '3m' }, { k: '6m', label: '6m' }, { k: '12m', label: '12m' }, { k: '24m', label: '24m' }, { k: 'tudo', label: 'tudo' },
-]
-const ATUAL_PRESETS: { k: AtualPresetK; label: string }[] = [
-  { k: '7d', label: '7d' }, { k: '30d', label: '30d' }, { k: '60d', label: '60d' }, { k: '90d', label: '90d' },
-]
+const dateInputCls = 'px-1.5 py-1 text-xs bg-white border border-ww-sand rounded-lg text-ww-n700 hover:border-ww-sand-dk focus:outline-none focus:ring-2 focus:ring-ww-gold transition-colors'
 
-function Header({ data, referencia, onReferencia, atualStart, atualEnd, histStart, histEnd, onAtualStart, onAtualEnd, onHistStart, onHistEnd, histPreset, atualPreset, onHistPreset, onAtualPreset, mostrarFonte }: {
+// Seletor de período igual ao das outras abas: dropdown (este mês, ano, últimos X, período livre…)
+// + datas só quando "Datas específicas". Trocar uma data não fecha mais o calendário (keepPreviousData).
+function PeriodoPicker({ period, start, end, onChange }: {
+  period: PeriodOption
+  start: string; end: string
+  onChange: (period: PeriodOption, start: string, end: string) => void
+}) {
+  const handleSel = (p: PeriodOption) => {
+    if (p === 'custom') onChange('custom', start, end)
+    else { const d = periodToDates(p); onChange(p, d.dateStart, d.dateEnd) }
+  }
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <select
+        value={period}
+        onChange={e => handleSel(e.target.value as PeriodOption)}
+        className="px-2.5 py-1.5 text-xs font-medium bg-white border border-ww-sand rounded-lg text-ww-n700 hover:border-ww-sand-dk focus:outline-none focus:ring-2 focus:ring-ww-gold transition-colors"
+      >
+        {periodOptions().map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+      </select>
+      {period === 'custom' && (
+        <span className="flex items-center gap-1.5 min-w-0">
+          <input type="date" value={toDateInput(start)} max={toDateInput(end)}
+            onChange={e => e.target.value && onChange('custom', fromDateInputStart(e.target.value), end)}
+            className={`${dateInputCls} flex-1 min-w-0 md:flex-none`} />
+          <span className="text-[11px] text-ww-n400">até</span>
+          <input type="date" value={toDateInput(end)} min={toDateInput(start)}
+            onChange={e => e.target.value && onChange('custom', start, fromDateInputEnd(e.target.value))}
+            className={`${dateInputCls} flex-1 min-w-0 md:flex-none`} />
+        </span>
+      )}
+    </div>
+  )
+}
+
+function Header({ data, referencia, onReferencia, atualPeriod, atualStart, atualEnd, onAtualPeriodo, histPeriod, histStart, histEnd, onHistPeriodo, mostrarFonte }: {
   data: WwLeadIdealData
   referencia: 'ganho' | 'perdido'
   onReferencia: (v: 'ganho' | 'perdido') => void
-  atualStart: string; atualEnd: string
-  histStart: string; histEnd: string
-  onAtualStart: (v: string) => void
-  onAtualEnd: (v: string) => void
-  onHistStart: (v: string) => void
-  onHistEnd: (v: string) => void
-  histPreset: HistPresetK | null
-  atualPreset: AtualPresetK | null
-  onHistPreset: (k: HistPresetK) => void
-  onAtualPreset: (k: AtualPresetK) => void
+  atualPeriod: PeriodOption; atualStart: string; atualEnd: string
+  onAtualPeriodo: (p: PeriodOption, s: string, e: string) => void
+  histPeriod: PeriodOption; histStart: string; histEnd: string
+  onHistPeriodo: (p: PeriodOption, s: string, e: string) => void
   mostrarFonte: boolean
 }) {
   const refWord = referencia === 'perdido' ? 'perdas' : 'vendas'
@@ -298,11 +327,8 @@ function Header({ data, referencia, onReferencia, atualStart, atualEnd, histStar
           numero={formatNumber(data.total_historico)}
           unidade={refWord}
           descricao={refDesc}
-          start={histStart} end={histEnd}
-          onStart={onHistStart} onEnd={onHistEnd}
-          presets={HIST_PRESETS}
-          preset={histPreset}
-          onPreset={(k) => onHistPreset(k as HistPresetK)}
+          period={histPeriod} start={histStart} end={histEnd}
+          onPeriodo={onHistPeriodo}
         />
 
         {/* Conector — articula visualmente "referência × pipeline" */}
@@ -316,39 +342,30 @@ function Header({ data, referencia, onReferencia, atualStart, atualEnd, histStar
           numero={formatNumber(data.total_atual)}
           unidade="leads novos"
           descricao="Leads que chegaram no período"
-          start={atualStart} end={atualEnd}
-          onStart={onAtualStart} onEnd={onAtualEnd}
-          presets={ATUAL_PRESETS}
-          preset={atualPreset}
-          onPreset={(k) => onAtualPreset(k as AtualPresetK)}
+          period={atualPeriod} start={atualStart} end={atualEnd}
+          onPeriodo={onAtualPeriodo}
         />
       </div>
 
       {mostrarFonte && (
         <p className="mt-3 pt-3 border-t border-ww-sand/60 text-[11px] text-ww-n400">
-          ✨ Histórico vem do ActiveCampaign direto — mesma base do dashboard do site, com o perfil de entrada do form do casal (orçamento + convidados + destino).
+          Histórico vem do ActiveCampaign direto — mesma base do dashboard do site, com o perfil de entrada do form do casal (orçamento + convidados + destino).
         </p>
       )}
     </div>
   )
 }
 
-const dateInputCls = 'px-1.5 py-1 text-xs bg-white border border-ww-sand rounded-lg text-ww-n700 hover:border-ww-sand-dk focus:outline-none focus:ring-2 focus:ring-ww-gold transition-colors'
-
-// Uma janela da comparação: identidade (cor + rótulo), resultado (nº) e controle de período (atalhos + datas)
-function JanelaCard({ dot, label, headerExtra, numero, unidade, descricao, start, end, onStart, onEnd, presets, preset, onPreset }: {
+// Uma janela da comparação: identidade (cor + rótulo), resultado (nº) e seletor de período.
+function JanelaCard({ dot, label, headerExtra, numero, unidade, descricao, period, start, end, onPeriodo }: {
   dot: string
   label: string
   headerExtra?: ReactNode
   numero: string
   unidade: string
   descricao: string
-  start: string; end: string
-  onStart: (v: string) => void
-  onEnd: (v: string) => void
-  presets: { k: string; label: string }[]
-  preset: string | null
-  onPreset: (k: string) => void
+  period: PeriodOption; start: string; end: string
+  onPeriodo: (p: PeriodOption, s: string, e: string) => void
 }) {
   return (
     <div className="bg-ww-paper/60 border border-ww-sand rounded-lg p-3 md:p-4 flex flex-col">
@@ -365,94 +382,16 @@ function JanelaCard({ dot, label, headerExtra, numero, unidade, descricao, start
         <span className="text-sm text-ww-n500">{unidade}</span>
       </div>
       <div className="text-[11px] text-ww-n400 mt-1">{descricao}</div>
-      <div className="mt-3 pt-3 border-t border-ww-sand/70 flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="inline-flex items-center gap-1">
-          {presets.map(p => (
-            <button key={p.k} onClick={() => onPreset(p.k)}
-              className={`px-2 py-1 text-[11px] font-medium rounded-md border transition-colors active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-ww-gold ${
-                preset === p.k
-                  ? 'bg-ww-gold-soft border-ww-gold text-ww-gold-ink'
-                  : 'bg-white border-ww-sand text-ww-n600 hover:border-ww-sand-dk'
-              }`}>
-              {p.label}
-            </button>
-          ))}
-        </span>
-        {/* mobile: linha inteira com inputs flexíveis (senão o input nativo estoura o card) */}
-        <span className="flex w-full md:w-auto md:ml-auto items-center gap-1.5 min-w-0">
-          <input type="date" value={toDateInput(start)} onChange={e => e.target.value && onStart(fromDateInputStart(e.target.value))} className={`${dateInputCls} flex-1 min-w-0 md:flex-none`} />
-          <span className="text-[11px] text-ww-n400"><span className="hidden md:inline">até</span><span className="md:hidden">–</span></span>
-          <input type="date" value={toDateInput(end)} onChange={e => e.target.value && onEnd(fromDateInputEnd(e.target.value))} className={`${dateInputCls} flex-1 min-w-0 md:flex-none`} />
-        </span>
+      <div className="mt-3 pt-3 border-t border-ww-sand/70">
+        <PeriodoPicker period={period} start={start} end={end} onChange={onPeriodo} />
       </div>
     </div>
   )
 }
 
-function DiagnosticoGeral({ data }: { data: WwLeadIdealData }) {
-  const alertas: { dim: string; cat: string; lift: number; delta_pp: number; historico_pct: number; atual_pct: number }[] = []
-  for (const d of data.comparacoes) {
-    for (const it of d.dados) {
-      if (
-        it.lift !== null &&
-        it.delta_pp !== null &&
-        it.historico_qtd >= 3 &&
-        Math.abs(it.delta_pp) >= 8
-      ) {
-        alertas.push({
-          dim: d.dimensao, cat: it.categoria, lift: it.lift, delta_pp: it.delta_pp,
-          historico_pct: it.historico_pct ?? 0, atual_pct: it.atual_pct ?? 0,
-        })
-      }
-    }
-  }
-  alertas.sort((a, b) => Math.abs(b.delta_pp) - Math.abs(a.delta_pp))
-  const top = alertas.slice(0, 6)
-
-  if (top.length === 0) {
-    return (
-      <SectionCard title="✅ Pipeline alinhado com o histórico" subtitle="Não detectamos diferenças grandes entre o perfil dos leads novos e o perfil de quem fechou.">
-        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-sm text-emerald-900">
-          O marketing continua atraindo o tipo certo. As distribuições por faixa, convidados e destino estão dentro do esperado.
-        </div>
-      </SectionCard>
-    )
-  }
-
-  return (
-    <SectionCard
-      title="🚨 Onde o pipeline está DIFERENTE do histórico"
-      subtitle="Categorias em que o que está entrando agora se afastou de quem historicamente fechava."
-    >
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {top.map((a) => {
-          const subiu = a.delta_pp > 0
-          const corBg = subiu ? 'bg-indigo-50 border-indigo-200' : 'bg-amber-50 border-amber-200'
-          const corTxt = subiu ? 'text-indigo-900' : 'text-amber-900'
-          return (
-            <div key={`${a.dim}-${a.cat}`} className={`border rounded-lg p-3 ${corBg}`}>
-              <div className="text-xs uppercase tracking-wide text-slate-500">{labelDim(a.dim as Dim)}</div>
-              <div className={`text-sm font-semibold ${corTxt} mt-0.5`}>{a.cat}</div>
-              <div className="text-xs text-slate-700 mt-2">
-                Antes era <strong>{a.historico_pct}%</strong> dos fechamentos. Agora é <strong>{a.atual_pct}%</strong> dos leads novos.
-              </div>
-              <div className="mt-1.5 text-xs">
-                {subiu ? (
-                  <span className="text-indigo-700 font-medium">▲ +{a.delta_pp.toFixed(1)} pontos — entra MAIS do que fechava</span>
-                ) : (
-                  <span className="text-amber-700 font-medium">▼ {a.delta_pp.toFixed(1)} pontos — entra MENOS do que fechava</span>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </SectionCard>
-  )
-}
-
-function HeatmapDuplo({ cells, xOrder, yOrder, xLabel, yLabel, onCellClick }: {
+function HeatmapDuplo({ cells, lens, xOrder, yOrder, xLabel, yLabel, onCellClick }: {
   cells: WwLeadIdealCruzamentoCell[]
+  lens: LensCfg
   xOrder?: string[]
   yOrder?: string[]
   xLabel: string
@@ -460,26 +399,25 @@ function HeatmapDuplo({ cells, xOrder, yOrder, xLabel, yLabel, onCellClick }: {
   onCellClick?: (x: string, y: string) => void
 }) {
   if (!cells || cells.length === 0) {
-    return <EmptyState message="Sem combinações com amostra suficiente" />
+    return <EmptyState message="Sem combinações com amostra suficiente — ajuste o período ou escolha outras dimensões." />
   }
   const xs = xOrder ? xOrder.filter(v => cells.some(c => c.x === v)) : Array.from(new Set(cells.map(c => c.x)))
   const ys = yOrder
     ? yOrder.filter(v => cells.some(c => c.y === v))
     : Array.from(new Set(cells.map(c => c.y))).sort((a, b) => {
-        const sa = cells.filter(c => c.y === a).reduce((s, c) => s + c.hist_qtd, 0)
-        const sb = cells.filter(c => c.y === b).reduce((s, c) => s + c.hist_qtd, 0)
+        const sa = cells.filter(c => c.y === a).reduce((s, c) => s + lens.leftQtd(c), 0)
+        const sb = cells.filter(c => c.y === b).reduce((s, c) => s + lens.leftQtd(c), 0)
         return sb - sa
       })
   const cellMap = new Map(cells.map(c => [`${c.x}|${c.y}`, c]))
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-3 text-[11px] text-slate-500">
-        <span>Legenda da cor:</span>
-        <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900">pipeline tem MAIS</span>
-        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700">alinhado</span>
-        <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900">pipeline tem MENOS</span>
-        <span className="text-slate-400">· cada célula mostra: hist% / atual%</span>
+      <div className="flex items-center gap-x-3 gap-y-1.5 text-[11px] text-slate-500 flex-wrap">
+        <span>Cada célula: <span className={`${lens.leftCls} font-medium`}>{lens.leftLabel} %</span> / <span className={`${lens.rightCls} font-medium`}>{lens.rightLabel} %</span> · cor:</span>
+        <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900">mais {lens.rightLabel}</span>
+        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700">parecidos</span>
+        <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900">menos {lens.rightLabel}</span>
       </div>
       <div className="overflow-x-auto border border-slate-200 rounded-lg bg-white">
         <table className="w-full text-xs">
@@ -495,35 +433,35 @@ function HeatmapDuplo({ cells, xOrder, yOrder, xLabel, yLabel, onCellClick }: {
                 <td className="px-3 py-2 text-slate-900 font-medium whitespace-nowrap sticky left-0 bg-white z-10">{y}</td>
                 {xs.map(x => {
                   const cell = cellMap.get(`${x}|${y}`)
-                  if (!cell || (cell.hist_qtd === 0 && cell.atual_qtd === 0)) {
+                  const lq = cell ? lens.leftQtd(cell) : 0
+                  const rq = cell ? lens.rightQtd(cell) : 0
+                  if (!cell || (lq === 0 && rq === 0)) {
                     return <td key={x} className="px-3 py-2 text-center bg-slate-50 text-slate-300">—</td>
                   }
-                  const hp = cell.hist_pct ?? 0
-                  const ap = cell.atual_pct ?? 0
-                  const delta = ap - hp
+                  const lp = lens.leftPct(cell)
+                  const rp = lens.rightPct(cell)
+                  const delta = rp - lp
                   const bg = Math.abs(delta) < 2 ? 'bg-slate-50 text-slate-700'
                     : delta > 0 ? (delta >= 5 ? 'bg-emerald-100 text-emerald-900' : 'bg-emerald-50 text-emerald-800')
                     : (delta <= -5 ? 'bg-amber-100 text-amber-900' : 'bg-amber-50 text-amber-800')
+                  const inner = (
+                    <>
+                      <div className="text-[11px] tabular-nums">
+                        <span className={`${lens.leftCls} font-medium`}>{lp}%</span>
+                        <span className="text-slate-400 mx-0.5">/</span>
+                        <span className={`${lens.rightCls} font-medium`}>{rp}%</span>
+                      </div>
+                      <div className="text-[10px] opacity-75 mt-0.5">{lq}→{rq}</div>
+                    </>
+                  )
                   return (
-                    <td key={x} className={`p-0 ${bg}`} title={`Hist: ${cell.hist_qtd} (${hp}%) · Atual: ${cell.atual_qtd} (${ap}%) · Δ ${delta >= 0 ? '+' : ''}${delta.toFixed(1)}pp`}>
+                    <td key={x} className={`p-0 ${bg}`} title={`${lens.leftLabel}: ${lq} (${lp}%) · ${lens.rightLabel}: ${rq} (${rp}%) · Δ ${delta >= 0 ? '+' : ''}${delta.toFixed(1)}pp`}>
                       {onCellClick ? (
                         <button onClick={() => onCellClick(x, y)} className="w-full h-full px-2 py-2 text-center block cursor-pointer hover:ring-2 hover:ring-ww-gold focus:ring-2 focus:ring-ww-gold focus:outline-none">
-                          <div className="text-[11px] tabular-nums">
-                            <span className="text-emerald-700 font-medium">{hp}%</span>
-                            <span className="text-slate-400 mx-0.5">/</span>
-                            <span className="text-indigo-700 font-medium">{ap}%</span>
-                          </div>
-                          <div className="text-[10px] opacity-75 mt-0.5">{cell.hist_qtd}→{cell.atual_qtd}</div>
+                          {inner}
                         </button>
                       ) : (
-                        <div className="px-2 py-2 text-center">
-                          <div className="text-[11px] tabular-nums">
-                            <span className="text-emerald-700 font-medium">{hp}%</span>
-                            <span className="text-slate-400 mx-0.5">/</span>
-                            <span className="text-indigo-700 font-medium">{ap}%</span>
-                          </div>
-                          <div className="text-[10px] opacity-75 mt-0.5">{cell.hist_qtd}→{cell.atual_qtd}</div>
-                        </div>
+                        <div className="px-2 py-2 text-center">{inner}</div>
                       )}
                     </td>
                   )
@@ -537,55 +475,118 @@ function HeatmapDuplo({ cells, xOrder, yOrder, xLabel, yLabel, onCellClick }: {
   )
 }
 
-function TopPerfisCard({ titulo, subtitulo, perfis, accent, onPerfilClick }: {
-  titulo: string
-  subtitulo: string
-  perfis: WwLeadIdealPerfilTop[]
-  accent: 'emerald' | 'indigo'
-  onPerfilClick?: (p: WwLeadIdealPerfilTop) => void
-}) {
-  const borderCor = accent === 'emerald' ? 'border-emerald-200' : 'border-indigo-200'
-  const bgCor = accent === 'emerald' ? 'bg-emerald-50/40' : 'bg-indigo-50/40'
-
+// Uma célula de número do Top perfis: no mobile o rótulo fica em cima do valor (pra caber 3 lado a lado);
+// no desktop o rótulo vem do cabeçalho e a célula só mostra o valor, alinhado à direita.
+function NumCellTop({ label, qtd, pct, cls }: { label: string; qtd: number; pct: number | null; cls: string }) {
   return (
-    <SectionCard title={titulo} subtitle={subtitulo}>
-      {perfis.length === 0 ? <EmptyState message="Sem perfis com amostra suficiente" /> : (
-        <div className="space-y-2">
-          {perfis.map((p, i) => {
-            const Wrap = onPerfilClick ? ('button' as const) : ('div' as const)
-            return (
-              <Wrap
-                key={`${p.faixa}-${p.destino}-${p.convidados}-${i}`}
-                onClick={onPerfilClick ? () => onPerfilClick(p) : undefined}
-                className={`w-full flex items-center gap-3 p-2.5 border ${borderCor} ${bgCor} rounded-lg text-left ${onPerfilClick ? 'hover:bg-white/60 cursor-pointer transition' : ''}`}
-              >
-                <div className="text-slate-400 font-mono text-xs w-5 text-right">{i + 1}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-slate-900">{p.faixa}</div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">
-                    {p.destino} · {p.convidados} convidados
+    <div className="col-span-4 sm:col-span-2 flex flex-col items-start gap-0 sm:flex-row sm:items-baseline sm:justify-end sm:gap-1.5">
+      <span className="sm:hidden text-[9px] uppercase tracking-wide text-slate-400 leading-none mb-0.5">{label}</span>
+      <span className="inline-flex items-baseline gap-1">
+        <span className="text-[13px] font-semibold text-slate-800 tabular-nums">{formatNumber(qtd)}</span>
+        <span className={`text-[10px] tabular-nums font-medium ${cls}`}>{pct ?? 0}%</span>
+      </span>
+    </div>
+  )
+}
+
+// Top perfis UNIFICADO: combos (faixa+destino+convidados) ordenados por quem mais vendeu,
+// com os 3 números (Vendas / Leads antes / Leads agora) na mesma linha.
+function TopPerfisUnificado({ perfis, onPerfilClick }: {
+  perfis: WwLeadIdealPerfilUnif[]
+  onPerfilClick?: (p: WwLeadIdealPerfilUnif) => void
+}) {
+  const maxVendas = Math.max(0, ...perfis.map(p => p.vendas))
+  return (
+    <SectionCard
+      title="Top perfis — quem mais vende, e se ainda entra"
+      subtitle="Combos (faixa + destino + convidados) ordenados por quem mais fechou na referência. Pra cada um: vendas, leads que entravam antes e leads que entram agora. Clique pra ver os casais."
+    >
+      {perfis.length === 0 ? <EmptyState message="Sem perfis com amostra suficiente — ajuste o período ou os filtros." /> : (
+        <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
+          <div className="hidden sm:grid grid-cols-12 gap-x-3 px-3 py-2 bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-medium tracking-wide text-slate-500">
+            <div className="col-span-6">Perfil</div>
+            <div className="col-span-2 flex items-center justify-end gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden />Vendas</div>
+            <div className="col-span-2 flex items-center justify-end gap-1"><span className="w-1.5 h-1.5 rounded-full bg-ww-gold" aria-hidden />Leads antes</div>
+            <div className="col-span-2 flex items-center justify-end gap-1"><span className="w-1.5 h-1.5 rounded-full bg-indigo-500" aria-hidden />Leads agora</div>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {perfis.map((p, i) => {
+              const Wrap = onPerfilClick ? ('button' as const) : ('div' as const)
+              const isTop = p.vendas > 0 && p.vendas === maxVendas
+              return (
+                <Wrap
+                  key={`${p.faixa}-${p.destino}-${p.convidados}-${i}`}
+                  onClick={onPerfilClick ? () => onPerfilClick(p) : undefined}
+                  className={`w-full grid grid-cols-12 gap-x-3 gap-y-1.5 items-center px-3 py-2.5 text-left ${onPerfilClick ? 'hover:bg-ww-cream/50 active:bg-ww-cream cursor-pointer transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ww-gold' : ''}`}
+                >
+                  <div className="col-span-12 sm:col-span-6 flex items-center gap-2 min-w-0">
+                    <span className="text-slate-400 font-mono text-xs w-5 text-right shrink-0">{i + 1}</span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1 min-w-0">
+                        <span className="text-sm font-medium text-slate-900 truncate">{p.faixa}</span>
+                        {isTop && <Crown className="w-3.5 h-3.5 text-ww-gold shrink-0" aria-label="Quem mais vendeu" />}
+                      </div>
+                      <div className="text-[11px] text-slate-500 truncate">{p.destino} · {p.convidados} convidados</div>
+                    </div>
                   </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm font-semibold text-slate-900 tabular-nums">{p.qtd}</div>
-                  <div className="text-[10px] text-slate-500">{p.pct ?? 0}%</div>
-                </div>
-              </Wrap>
-            )
-          })}
+                  <NumCellTop label="Vendas" qtd={p.vendas} pct={p.vendas_pct} cls="text-emerald-700" />
+                  <NumCellTop label="Antes" qtd={p.leads_ref} pct={p.leads_ref_pct} cls="text-ww-gold-ink" />
+                  <NumCellTop label="Agora" qtd={p.leads_agora} pct={p.leads_agora_pct} cls="text-indigo-700" />
+                </Wrap>
+              )
+            })}
+          </div>
         </div>
       )}
     </SectionCard>
   )
 }
 
-function ComparacaoDimensao({ titulo, subtitulo, dim, ordenarPor, onCategoriaClick }: {
+// variant 'fechou' (default): esquerda = quem FECHOU (referência) × leads agora — comportamento original.
+// variant 'entradas': esquerda = QUANTIDADE de leads que ENTRAVAM na referência × quantos entram agora.
+//   Mesmo universo dos dois lados (entrada de lead), cada lado como % do total do seu período (soma 100%).
+type ComparacaoVariant = 'fechou' | 'entradas'
+
+// Indicador visual da MUDANÇA: a fatia de agora ficou maior ou menor que a de antes?
+// Verde pra cima, rosa pra baixo, cinza quando praticamente igual (< 1 ponto).
+// `mini` = só a setinha colorida (pro mobile, dentro da célula "agora"); some quando igual.
+function MudancaBadge({ antesPct, agoraPct, mini }: { antesPct: number | null; agoraPct: number | null; mini?: boolean }) {
+  if (antesPct == null || agoraPct == null) return mini ? null : <span className="text-slate-300 text-xs">—</span>
+  const delta = Math.round((agoraPct - antesPct) * 10) / 10
+  const flat = Math.abs(delta) < 1
+  const up = delta > 0
+  if (mini) {
+    if (flat) return null
+    return up
+      ? <TrendingUp className="w-3 h-3 text-emerald-600 shrink-0" aria-label={`entra mais agora (+${delta} pontos)`} />
+      : <TrendingDown className="w-3 h-3 text-rose-600 shrink-0" aria-label={`entra menos agora (${delta} pontos)`} />
+  }
+  if (flat) {
+    return <span className="inline-flex items-center h-5 px-1.5 text-[11px] rounded-md border bg-slate-100 text-slate-500 border-slate-200 font-medium">igual</span>
+  }
+  return (
+    <span
+      title={`Antes ${antesPct}% → agora ${agoraPct}% (${up ? '+' : ''}${delta} pontos)`}
+      className={`inline-flex items-center gap-0.5 h-5 pl-1 pr-1.5 text-[11px] rounded-md border font-medium tabular-nums ${up ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}
+    >
+      {up ? <TrendingUp className="w-3.5 h-3.5" aria-hidden /> : <TrendingDown className="w-3.5 h-3.5" aria-hidden />}
+      {up ? '+' : '−'}{Math.abs(delta)}
+    </span>
+  )
+}
+
+function ComparacaoDimensao({ titulo, subtitulo, dim, ordenarPor, onCategoriaClick, variant = 'fechou' }: {
   titulo: string
   subtitulo: string
   dim: { dimensao: string; dados: WwLeadIdealItem[] } | undefined
   ordenarPor?: string[]
   onCategoriaClick?: ((categoria: string) => void) | undefined
+  variant?: ComparacaoVariant
 }) {
+  const isEnt = variant === 'entradas'
+  const leftQtdOf  = (d: WwLeadIdealItem) => isEnt ? (d.historico_leads_qtd ?? 0) : d.historico_qtd
+  const leftPctOf  = (d: WwLeadIdealItem) => isEnt ? (d.historico_leads_pct ?? 0) : (d.historico_pct ?? 0)
+
   if (!dim || dim.dados.length === 0) {
     return (
       <SectionCard title={titulo} subtitle={subtitulo}>
@@ -598,78 +599,147 @@ function ComparacaoDimensao({ titulo, subtitulo, dim, ordenarPor, onCategoriaCli
     ? [...dim.dados].sort((a, b) => {
         const ia = ordenarPor.indexOf(a.categoria)
         const ib = ordenarPor.indexOf(b.categoria)
-        if (ia === -1 && ib === -1) return b.historico_qtd - a.historico_qtd
+        if (ia === -1 && ib === -1) return leftQtdOf(b) - leftQtdOf(a)
         if (ia === -1) return 1
         if (ib === -1) return -1
         return ia - ib
       })
-    : [...dim.dados].sort((a, b) => b.historico_qtd - a.historico_qtd)
+    : [...dim.dados].sort((a, b) => leftQtdOf(b) - leftQtdOf(a))
 
-  const maxPct = Math.max(5, ...sorted.flatMap(d => [d.historico_pct ?? 0, d.atual_pct ?? 0]))
+  const maxPct = Math.max(5, ...sorted.flatMap(d => [leftPctOf(d), d.atual_pct ?? 0]))
+  const totLeftQtd  = sorted.reduce((s, d) => s + leftQtdOf(d), 0)
+  const totRightQtd = sorted.reduce((s, d) => s + d.atual_qtd, 0)
+  // 'entradas' ganha uma coluna "Vendas (ref)" = quantos fecharam por categoria (quem mais vendeu),
+  // pra cruzar com o volume de leads. Usa os mesmos dados de quem fechou (historico_qtd/pct).
+  const totVendas = sorted.reduce((s, d) => s + d.historico_qtd, 0)
+  const maxVendas = Math.max(0, ...sorted.map(d => d.historico_qtd))
+
+  // Marca por lado: referência (esquerda) vs agora (direita). 'fechou' usa verde; 'entradas' usa o dourado da marca.
+  const leftBar    = isEnt ? 'bg-ww-gold'      : 'bg-emerald-400'
+  const leftPctCls = isEnt ? 'text-ww-gold-ink' : 'text-emerald-700'
+  const leftHeader = isEnt ? 'Leads (referência)' : '% de quem FECHOU (referência)'
+  const rightHeader = isEnt ? 'Leads (agora)' : '% dos leads que ENTRAM agora'
+
+  // Colunas responsivas: no mobile escondemos as barras (decoração) e a coluna Lift (métrica
+  // avançada) pra os números terem espaço; no desktop (sm+) volta ao layout denso.
+  // 'entradas' tem 5 colunas (inclui Vendas); 'fechou' mantém as 4 originais.
+  // Vendas é coluna no desktop; no mobile vira sub-linha embaixo da categoria (senão não cabe).
+  const colCat  = 'col-span-4 sm:col-span-3'
+  const colVend = 'hidden sm:block sm:col-span-2'
+  const colSide = isEnt ? 'col-span-4 sm:col-span-3' : 'col-span-4'
+  const colLift = 'hidden sm:col-span-1'
+  // Números: compactos no mobile (auto-width, menor) e densos no desktop (largura fixa + barra).
+  const numPct = `text-[10px] sm:text-xs tabular-nums font-medium`
+  const numQty = isEnt ? 'text-[10px] sm:text-[11px] font-semibold text-slate-700 tabular-nums' : 'text-[10px] text-slate-400 tabular-nums'
 
   return (
     <SectionCard title={titulo} subtitle={subtitulo}>
       <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
-        <div className="grid grid-cols-12 px-3 py-2 bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-medium tracking-wide text-slate-500">
-          <div className="col-span-3 text-center">Categoria</div>
-          <div className="col-span-4 text-center">% de quem FECHOU (referência)</div>
-          <div className="col-span-1 text-center">Lift</div>
-          <div className="col-span-4 text-center">% dos leads que ENTRAM agora</div>
+        <div className="grid grid-cols-12 gap-x-3 px-3 py-2 bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-medium tracking-wide text-slate-500">
+          <div className={`${colCat} text-center`}>Categoria</div>
+          {isEnt && <div className={`${colVend} text-center`}>Vendas (ref)</div>}
+          <div className={`${colSide} text-center`}>{leftHeader}</div>
+          <div className={`${colLift} sm:block text-center`}>Mudança</div>
+          <div className={`${colSide} text-center`}>{rightHeader}</div>
         </div>
         <div className="divide-y divide-slate-100">
           {sorted.map(d => {
-            const histPct = d.historico_pct ?? 0
+            const leftPct = leftPctOf(d)
             const atualPct = d.atual_pct ?? 0
-            const histBar = (histPct / maxPct) * 100
+            const histBar = (leftPct / maxPct) * 100
             const atualBar = (atualPct / maxPct) * 100
             const Wrap = onCategoriaClick ? ('button' as const) : ('div' as const)
+            const isTopSeller = isEnt && d.historico_qtd > 0 && d.historico_qtd === maxVendas
             return (
               <Wrap
                 key={d.categoria}
                 onClick={onCategoriaClick ? () => onCategoriaClick(d.categoria) : undefined}
-                className={`w-full grid grid-cols-12 items-center px-3 py-2.5 text-xs text-left ${onCategoriaClick ? 'hover:bg-ww-cream/50 cursor-pointer' : ''}`}
+                className={`w-full grid grid-cols-12 gap-x-3 items-center px-3 py-2.5 text-xs text-left ${onCategoriaClick ? 'hover:bg-ww-cream/50 active:bg-ww-cream cursor-pointer transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ww-gold' : ''}`}
                 title={onCategoriaClick ? `Ver leads novos — ${d.categoria}` : undefined}
               >
-                <div className="col-span-3 font-medium text-slate-900 truncate" title={d.categoria}>{d.categoria}</div>
-                <div className="col-span-4">
-                  <div className="flex items-center gap-2 flex-row-reverse">
-                    <span className="w-12 text-right tabular-nums text-emerald-700 font-medium">{histPct}%</span>
-                    <span className="w-10 text-right text-[10px] text-slate-400 tabular-nums">{d.historico_qtd}</span>
-                    <div className="flex-1 h-4 bg-slate-100 rounded-sm overflow-hidden relative">
-                      <div className="absolute top-0 right-0 h-full bg-emerald-400" style={{ width: `${histBar}%` }} />
+                <div className={`${colCat} min-w-0`}>
+                  <div className="font-medium text-slate-900 truncate" title={d.categoria}>{d.categoria}</div>
+                  {isEnt && (
+                    <div className="sm:hidden mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
+                      <span className="uppercase tracking-wide">Vendas</span>
+                      <span className="font-semibold text-slate-700 tabular-nums">{formatNumber(d.historico_qtd)}</span>
+                      <span className="text-emerald-700 tabular-nums">({d.historico_pct ?? 0}%)</span>
+                      {isTopSeller && <Crown className="w-3 h-3 text-ww-gold shrink-0" aria-label="Quem mais vendeu" />}
+                    </div>
+                  )}
+                </div>
+                {isEnt && (
+                  <div className={colVend}>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-4 bg-slate-100 rounded-sm overflow-hidden relative">
+                        <div className="absolute inset-y-0 left-0 bg-emerald-300" style={{ width: `${maxVendas > 0 ? Math.round((d.historico_qtd / maxVendas) * 100) : 0}%` }} />
+                      </div>
+                      <span className="text-[11px] font-semibold text-slate-700 tabular-nums">{formatNumber(d.historico_qtd)}</span>
+                      <span className="text-[10px] tabular-nums text-emerald-700 font-medium">({d.historico_pct ?? 0}%)</span>
+                      {isTopSeller && <Crown className="w-3 h-3 text-ww-gold shrink-0" aria-label="Quem mais vendeu na referência" />}
+                    </div>
+                  </div>
+                )}
+                <div className={colSide}>
+                  <div className="flex items-center gap-1 sm:gap-2 flex-row-reverse">
+                    <span className={`sm:w-12 text-right ${numPct} ${leftPctCls}`}>{leftPct}%</span>
+                    <span className={`sm:w-10 text-right ${numQty}`}>{formatNumber(leftQtdOf(d))}</span>
+                    <div className="hidden sm:block flex-1 h-4 bg-slate-100 rounded-sm overflow-hidden relative">
+                      <div className={`absolute top-0 right-0 h-full ${leftBar}`} style={{ width: `${histBar}%` }} />
                     </div>
                   </div>
                 </div>
-                <div className="col-span-1 flex items-center justify-center">
-                  <LiftBadge lift={d.lift} size="sm" showDelta={false} />
+                <div className={`${colLift} sm:flex items-center justify-center`}>
+                  <MudancaBadge antesPct={leftPctOf(d)} agoraPct={d.atual_pct} />
                 </div>
-                <div className="col-span-4">
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-4 bg-slate-100 rounded-sm overflow-hidden relative">
+                <div className={colSide}>
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    {isEnt && <span className="sm:hidden inline-flex"><MudancaBadge antesPct={leftPctOf(d)} agoraPct={d.atual_pct} mini /></span>}
+                    <div className="hidden sm:block flex-1 h-4 bg-slate-100 rounded-sm overflow-hidden relative">
                       <div className="h-full bg-indigo-400" style={{ width: `${atualBar}%` }} />
                     </div>
-                    <span className="w-10 text-left text-[10px] text-slate-400 tabular-nums">{d.atual_qtd}</span>
-                    <span className="w-12 text-left tabular-nums text-indigo-700 font-medium">{atualPct}%</span>
+                    <span className={`sm:w-10 text-left ${numQty}`}>{formatNumber(d.atual_qtd)}</span>
+                    <span className={`sm:w-12 text-left ${numPct} text-indigo-700`}>{atualPct}%</span>
                   </div>
                 </div>
               </Wrap>
             )
           })}
         </div>
+        {isEnt && (
+          <div className="grid grid-cols-12 gap-x-3 items-center px-3 py-2 text-xs bg-ww-cream/40 border-t-2 border-ww-sand">
+            <div className={`${colCat} font-semibold text-ww-n700`}>
+              <div>Total</div>
+              <div className="sm:hidden mt-0.5 flex items-center gap-1 text-[10px] font-normal text-slate-500">
+                <span className="uppercase tracking-wide">Vendas</span>
+                <span className="font-semibold text-ww-n700 tabular-nums">{formatNumber(totVendas)}</span>
+                <span className="text-emerald-700">(100%)</span>
+              </div>
+            </div>
+            <div className={colVend}>
+              <div className="flex items-center justify-center gap-1">
+                <span className="text-[10px] sm:text-[11px] font-semibold text-ww-n700 tabular-nums">{formatNumber(totVendas)}</span>
+                <span className="text-[10px] tabular-nums text-emerald-700 font-medium">(100%)</span>
+              </div>
+            </div>
+            <div className={colSide}>
+              <div className="flex items-center gap-1 sm:gap-2 flex-row-reverse">
+                <span className="sm:w-12 text-right tabular-nums text-ww-n500 font-medium text-[10px] sm:text-xs">100%</span>
+                <span className="sm:w-10 text-right text-[10px] sm:text-[11px] font-semibold text-ww-n700 tabular-nums">{formatNumber(totLeftQtd)}</span>
+                <div className="hidden sm:block flex-1" />
+              </div>
+            </div>
+            <div className={`${colLift} sm:block`} />
+            <div className={colSide}>
+              <div className="flex items-center gap-1 sm:gap-2">
+                <div className="hidden sm:block flex-1" />
+                <span className="sm:w-10 text-left text-[10px] sm:text-[11px] font-semibold text-ww-n700 tabular-nums">{formatNumber(totRightQtd)}</span>
+                <span className="sm:w-12 text-left tabular-nums text-ww-n500 font-medium text-[10px] sm:text-xs">100%</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </SectionCard>
   )
-}
-
-function labelDim(d: Dim | string): string {
-  switch (d) {
-    case 'faixa': return 'Faixa de investimento'
-    case 'destino': return 'Destino'
-    case 'convidados': return 'Nº de convidados'
-    case 'origem': return 'Origem'
-    case 'canal_sdr': return 'Canal da 1ª reunião'
-    case 'canal_closer': return 'Canal da reunião de fechamento'
-    case 'tipo': return 'Tipo (DW/Elopement)'
-    default: return d
-  }
 }
