@@ -3,7 +3,7 @@ import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { Calendar, DollarSign, MapPin, Users, UserPlus, User, CheckSquare, AlertCircle, Clock, Link, Building, MoreVertical, Trash2, Paperclip, Package, Trophy, XCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { memo, useState } from 'react'
+import { memo, useState, type ElementType } from 'react'
 import { cn } from '../../lib/utils'
 import type { Database } from '../../database.types'
 import { useQuery } from '@tanstack/react-query'
@@ -40,6 +40,7 @@ interface KanbanCardProps {
 import { GroupBadge } from './GroupBadge'
 import SubCardBadge from './SubCardBadge'
 import { KanbanCardPendenciaFaixa } from './KanbanCardPendenciaFaixa'
+import { MapMarkerIcon, MultipleUsersIcon } from '../icons/QualificacaoIcons'
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 
@@ -567,6 +568,27 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
 
         if (value === undefined || value === null || value === '') return null
 
+        // Qualificação Weddings — ícones custom do time, sempre como texto.
+        // Renderiza ANTES do switch por type: system_fields tem cópias do mesmo
+        // key em mais de uma org (account vs workspace) com type divergente
+        // (ww_num_convidados é number na account), e a query de systemFields não
+        // filtra org — cair no renderer de number trocava o ícone por "#".
+        const wwQualIcon: Record<string, { Icon: ElementType; cls: string }> = {
+            ww_destino: { Icon: MapMarkerIcon, cls: 'text-rose-500' },
+            ww_num_convidados: { Icon: MultipleUsersIcon, cls: 'text-violet-500' },
+            ww_orcamento_faixa: { Icon: DollarSign, cls: 'text-emerald-600' },
+            ww_sdr_cidade: { Icon: Building, cls: 'text-sky-500' },
+        }
+        const wq = wwQualIcon[fieldId]
+        if (wq) {
+            return (
+                <div key={fieldId} className="flex items-center text-xs text-gray-500 mt-1">
+                    <wq.Icon className={cn('mr-1.5 h-3 w-3 flex-shrink-0', wq.cls)} />
+                    <span className="truncate block flex-1 text-gray-600">{String(value)}</span>
+                </div>
+            )
+        }
+
         // Generic Renderers based on Type
         switch (fieldDef.type) {
             case 'currency':
@@ -615,6 +637,7 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
             default: // text, select, etc
                 // Special icons for specific fields
                 let Icon = null
+                const iconCls = 'text-gray-400'
                 if (fieldId === 'origem') Icon = Link
                 if (fieldId === 'tempo_sem_contato') Icon = Clock
                 if (fieldId === 'dias_ate_viagem') Icon = Calendar
@@ -628,7 +651,7 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
 
                 return (
                     <div key={fieldId} className="flex items-center text-xs text-gray-500 mt-1">
-                        {Icon && <Icon className="mr-1.5 h-3 w-3 flex-shrink-0 text-gray-400" />}
+                        {Icon && <Icon className={cn("mr-1.5 h-3 w-3 flex-shrink-0", iconCls)} />}
                         <span className="truncate block flex-1 text-gray-600">{displayStr}</span>
                     </div>
                 )
@@ -915,10 +938,11 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
                 </div>
             )}
 
-            {/* Contato Principal — fixo abaixo do título, controlado via pipeline_card_settings */}
+            {/* Contato Principal — fixo abaixo do título, controlado via pipeline_card_settings.
+                Ícone User (1 pessoa), o mesmo da aba Contatos no sidebar. */}
             {card.pessoa_nome && fieldsToShow.includes('pessoa_nome') && (
                 <div className="flex items-center text-xs text-gray-500 -mt-0.5">
-                    <Users className="mr-1.5 h-3 w-3 flex-shrink-0 text-indigo-500" />
+                    <User className="mr-1.5 h-3 w-3 flex-shrink-0 text-indigo-500" />
                     <span className="truncate text-gray-700 font-medium">{card.pessoa_nome}</span>
                 </div>
             )}

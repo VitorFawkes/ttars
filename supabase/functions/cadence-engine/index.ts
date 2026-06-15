@@ -1043,6 +1043,13 @@ async function executeCreateTaskAction(
             .single();
 
         if (taskError) {
+            // Reunião já existe nesse card+horário (índice tarefas_unique_meeting_slot)
+            // ou colisão equivalente: pula sem falhar o trigger de entrada.
+            if (taskError.code === '23505') {
+                console.log(`[CadenceEngine] Tarefa "${taskTipo}" já existe para card ${cardId} no mesmo horário — pulando (23505).`);
+                skipped.push({ tipo: taskTipo, reason: 'duplicate_slot' });
+                continue;
+            }
             throw new Error(`Failed to create task "${taskTipo}": ${taskError.message}`);
         }
 
@@ -3173,8 +3180,9 @@ async function executeTaskStep(
 
     if (taskError) {
         if (taskError.code === '23505') {
-            console.log(`[CadenceEngine] Tarefa já existe para step ${step.id} no card ${card.id} (execução paralela). Recuperando ID existente.`);
-            const { data: existing } = await supabaseClient
+            console.log(`[CadenceEngine] Tarefa já existe para step ${step.id} no card ${card.id} (execução paralela ou reunião já criada). Recuperando.`);
+            // 1) Mesma cadência/step (índice tarefas_unique_cadence_step).
+            let { data: existing } = await supabaseClient
                 .from("tarefas")
                 .select("*")
                 .eq("card_id", card.id)
@@ -3182,7 +3190,27 @@ async function executeTaskStep(
                 .is("rescheduled_from_id", null)
                 .contains("metadata", { cadence_instance_id: instance.id, cadence_step_id: step.id })
                 .limit(1)
-                .single();
+                .maybeSingle();
+            // 2) Reunião já criada nesse horário por outra origem — ex.: tarefa do
+            //    AC ou de outra instância (índice tarefas_unique_meeting_slot). O
+            //    step é considerado satisfeito pela reunião que já existe.
+            if (!existing && taskTipo.startsWith('reuniao')) {
+                const { data: slotTask } = await supabaseClient
+                    .from("tarefas")
+                    .select("*")
+                    .eq("card_id", card.id)
+                    .like("tipo", "reuniao%")
+                    .eq("data_vencimento", taskDueDate.toISOString())
+                    .is("deleted_at", null)
+                    .is("rescheduled_from_id", null)
+                    .order("created_at", { ascending: true })
+                    .limit(1)
+                    .maybeSingle();
+                existing = slotTask;
+                if (existing) {
+                    console.log(`[CadenceEngine] Reunião já existe nesse horário (tarefa ${existing.id}); step ${step.id} considerado satisfeito.`);
+                }
+            }
             if (!existing) {
                 throw new Error(`Failed to create task and could not recover existing: ${taskError.message}`);
             }

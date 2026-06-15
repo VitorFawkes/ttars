@@ -211,11 +211,42 @@ async function processLeadsterLead(
     marketing[k] = v;
   }
 
+  // 4c2. produto_data = campos estruturados da seção Qualificação.
+  // Os valores crus continuam em marketing_data (auditoria). Orçamento é o
+  // único que precisa normalizar: o form manda faixas por extenso e o campo
+  // ww_orcamento_faixa tem opções fixas (Até R$50k, R$50-80k, ...).
+  const ORCAMENTO_FORM_PARA_FAIXA: Record<string, string> = {
+    "Até R$50 mil": "Até R$50k",
+    "Entre R$50 e R$80 mil": "R$50-80k",
+    "Entre R$80 e R$100 mil": "R$80-100k",
+    "Entre R$100 e R$200 mil": "R$100-200k",
+    "Entre R$200 e R$500 mil": "Acima R$200k",
+    "Mais de R$500 mil": "Acima R$200k",
+  };
+  const produtoData: Record<string, unknown> = {};
+  const qDestino = pick(p, "Onde Casar", "Destino");
+  const qConvidados = pick(p, "Convidados 2");
+  const qInvestimento = pick(p, "Investimento 2");
+  const qCidade = pick(p, "Cidade");
+  if (qDestino) produtoData.ww_destino = qDestino;
+  if (qConvidados) produtoData.ww_num_convidados = qConvidados;
+  if (qInvestimento && ORCAMENTO_FORM_PARA_FAIXA[qInvestimento]) {
+    produtoData.ww_orcamento_faixa = ORCAMENTO_FORM_PARA_FAIXA[qInvestimento];
+  }
+  if (qCidade) produtoData.ww_sdr_cidade = qCidade;
+
+  // Título no padrão do funil WW (igual aos cards vindos do Active):
+  //   "Elopement | Nome" quando o form responde "Apenas o casal";
+  //   "DW | Nome" (Destination Wedding) para os demais.
+  const isElopement = (qConvidados ?? "").trim().toLowerCase() === "apenas o casal";
+  produtoData.ww_tipo_casamento = isElopement ? "Elopement" : "Destination Wedding";
+  const titulo = `${isElopement ? "Elopement" : "DW"} | ${nome ?? "Lead Leadster"}`;
+
   // 4d. Criar card WEDDING.
   const { data: card, error: cardErr } = await supabase
     .from("cards")
     .insert({
-      titulo: nome ?? "Lead Leadster",
+      titulo,
       pessoa_principal_id: contactId,
       org_id: WEDDING_CARD_ORG_ID,
       pipeline_id: WEDDING_PIPELINE_ID,
@@ -225,19 +256,49 @@ async function processLeadsterLead(
       status_comercial: "aberto",
       moeda: "BRL",
       marketing_data: marketing,
+      produto_data: produtoData,
     })
     .select("id").single();
   if (cardErr) return { plan: `ERRO ao criar card: ${cardErr.message}`, createdCardId: null };
 
-  // 4e. Ligar contato ao card.
-  await supabase.from("cards_contatos").insert({
-    card_id: card.id,
-    contato_id: contactId,
-    tipo_viajante: "adulto",
-    ordem: 0,
-  });
+  // NOTA: o contato principal NÃO entra em cards_contatos — vive em
+  // cards.pessoa_principal_id, e um trigger do banco bloqueia a duplicação
+  // ("already the Main Contact"). cards_contatos guarda só os adicionais.
 
-  return { plan: `CRIADO card WEDDING ${card.id} (contato ${contactId})`, createdCardId: card.id };
+  // 4e. Criar o(a) Noivo(a) 2 como segundo contato do card (acompanhante),
+  // a partir da pergunta "Nome dos noivos" do formulário. Só o nome — a SDR
+  // completa e-mail/telefone depois (origem 'leadster' é isenta do check de
+  // campos obrigatórios). Sem dedup: sem email/telefone não há como casar
+  // com contato existente, e este caminho só roda na criação do card.
+  let parceiroPlan = "";
+  const nomeNoivos = pick(p, "Nome dos noivos", "nome_dos_noivos");
+  if (nomeNoivos && nomeNoivos.toLowerCase() !== (nome ?? "").toLowerCase()) {
+    const pparts = nomeNoivos.split(/\s+/);
+    const { data: parceiro, error: pErr } = await supabase
+      .from("contatos")
+      .insert({
+        org_id: SHARED_CONTACT_ORG_ID,
+        nome: pparts[0],
+        sobrenome: pparts.length > 1 ? pparts.slice(1).join(" ") : null,
+        tipo_pessoa: "adulto",
+        origem: "leadster",
+        tags: ["leadster"],
+      })
+      .select("id").single();
+    if (pErr) {
+      parceiroPlan = `; ERRO ao criar Noivo(a) 2: ${pErr.message}`;
+    } else {
+      await supabase.from("cards_contatos").insert({
+        card_id: card.id,
+        contato_id: parceiro.id,
+        tipo_viajante: "acompanhante",
+        ordem: 1,
+      });
+      parceiroPlan = `; Noivo(a) 2 criado como acompanhante (contato ${parceiro.id})`;
+    }
+  }
+
+  return { plan: `CRIADO card WEDDING ${card.id} (contato ${contactId})${parceiroPlan}`, createdCardId: card.id };
 }
 
 Deno.serve(async (req) => {
