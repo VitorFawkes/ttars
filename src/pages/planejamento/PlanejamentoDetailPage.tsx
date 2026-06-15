@@ -52,15 +52,17 @@ const ETAPA_CHIP: Record<EtapaPlanejamento, string> = {
 
 // Categorias de fornecedores — esqueleto (WIP). Ainda sem modelo de dados;
 // quando existir tabela de fornecedores por casamento, trocar pelos dados reais.
-const FORNECEDOR_CATEGORIAS = [
-  'Buffet & Gastronomia',
-  'Decoração & Flores',
-  'Fotografia & Vídeo',
-  'Música / DJ / Banda',
-  'Celebrante',
-  'Beleza (cabelo & maquiagem)',
-  'Convites & Papelaria',
-  'Transporte & Logística',
+// `icon` é um PNG em /public/icons (servido em /icons/...). Categorias sem
+// ícone ainda usam um placeholder neutro até receberem o seu.
+const FORNECEDOR_CATEGORIAS: { label: string; icon?: string }[] = [
+  { label: 'Buffet & Gastronomia', icon: '/icons/food-delivery.png' },
+  { label: 'Decoração & Flores', icon: '/icons/bouquet.png' },
+  { label: 'Música / DJ / Banda', icon: '/icons/dj.png' },
+  { label: 'Fotografia & Vídeo', icon: '/icons/foto.svg' },
+  { label: 'Celebrante', icon: '/icons/celebrante.svg' },
+  { label: 'Beleza (cabelo & maquiagem)', icon: '/icons/beleza.svg' },
+  { label: 'Convites & Papelaria', icon: '/icons/convites.svg' },
+  { label: 'Transporte & Logística', icon: '/icons/transporte.svg' },
 ]
 
 function WipBadge() {
@@ -230,8 +232,17 @@ export default function PlanejamentoDetailPage() {
         </p>
         <ul className="divide-y divide-slate-100 border border-slate-100 rounded-lg overflow-hidden">
           {FORNECEDOR_CATEGORIAS.map((cat) => (
-            <li key={cat} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
-              <span className="text-slate-700">{cat}</span>
+            <li key={cat.label} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
+              <span className="flex items-center gap-2.5 text-slate-700">
+                {cat.icon ? (
+                  <img src={cat.icon} alt="" aria-hidden className="w-6 h-6 object-contain shrink-0" />
+                ) : (
+                  <span className="w-6 h-6 rounded-md bg-slate-100 border border-slate-200 inline-flex items-center justify-center shrink-0">
+                    <Store className="w-3.5 h-3.5 text-slate-400" />
+                  </span>
+                )}
+                {cat.label}
+              </span>
               <span className="text-[11px] text-slate-400 italic">a definir</span>
             </li>
           ))}
