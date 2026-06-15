@@ -65,7 +65,8 @@ export type Ww2FunnelStage = {
   phase_label: string
   phase_order: number | null
   phase_slug: string
-  stage_id: string
+  stage_id: string | null
+  stage_slug: string
   stage_name: string
   stage_order: number | null
   stage_active: boolean
@@ -88,6 +89,7 @@ export type Ww2Alerta = {
   phase_label: string
   dias_parado: number
   valor_estimado: number | null
+  ac_deal_id: string | null
 }
 
 export type Ww2Overview = {
