@@ -7,9 +7,9 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-06-15
 > **Trigger:** ALWAYS ON
-> **Stats:** 234 tabelas | 210 paginas | 365 hooks | 28 views | 851 components
-> **Stats:** 234 tabelas | 210 paginas | 365 hooks | 28 views | 851 components
-> **Stats:** 234 tabelas | 210 paginas | 365 hooks | 28 views | 851 components
+> **Stats:** 234 tabelas | 210 paginas | 366 hooks | 28 views | 851 components
+> **Stats:** 234 tabelas | 210 paginas | 366 hooks | 28 views | 851 components
+> **Stats:** 234 tabelas | 210 paginas | 366 hooks | 28 views | 851 components
 
 ---
 
@@ -171,7 +171,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **365 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **366 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -462,6 +462,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useWedding()` | `useWedding.ts` |
 | `useWeddingEditValues()` | `useWeddingEditValues.ts` |
 | `useWeddingFluxo()` | `useWeddingFluxo.ts` |
+| `useWeddingFornecedores()` | `useWeddingFornecedores.ts` |
 | `useWeddingLotes()` | `useWeddingLotes.ts` |
 | `useWeddings()` | `useWeddings.ts` |
 | `useWeddingsWithGuestCounts()` | `useWeddingsWithGuestCounts.ts` |

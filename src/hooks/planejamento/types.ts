@@ -34,6 +34,30 @@ export const PLANEJAMENTO_ORDER: EtapaPlanejamento[] = [
 
 export const PLANEJAMENTO_DEFAULT: EtapaPlanejamento = 'boas_vindas'
 
+// ── Fornecedores ────────────────────────────────────────────────────────────
+// Guardados (interim/WIP) em cards.produto_data.ww_fornecedores. Quando o
+// modelo solidificar, migrar para tabela própria (wedding_fornecedores).
+
+export type FornecedorStatus = 'a_contratar' | 'contratado' | 'pago'
+
+export const FORNECEDOR_STATUS_LABEL: Record<FornecedorStatus, string> = {
+  a_contratar: 'A contratar',
+  contratado: 'Contratado',
+  pago: 'Pago',
+}
+
+export const FORNECEDOR_STATUS_LIST: FornecedorStatus[] = ['a_contratar', 'contratado', 'pago']
+
+export interface Fornecedor {
+  id: string
+  /** Categoria — bate com o label das categorias do board. */
+  categoria: string
+  nome: string
+  contato?: string | null
+  valor?: number | null
+  status: FornecedorStatus
+}
+
 export function isEtapaPlanejamento(value: unknown): value is EtapaPlanejamento {
   return (
     value === 'boas_vindas' ||
