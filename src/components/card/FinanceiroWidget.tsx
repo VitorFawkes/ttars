@@ -319,9 +319,9 @@ function ProductItemReadOnly({ item, cardId, phaseSlug, onDelete }: { item: Fina
     const itemReceita = sv - sc
     const itemPct = sv > 0 ? (itemReceita / sv) * 100 : 0
     const hasExtras = item.fornecedor || item.representante || item.documento || item.data_inicio || item.data_fim
-    // Planners can edit obs; other ReadOnly phases see obs as read-only text.
-    // phaseSlug comes from DB; comparing against 'planner' is a fallback until win_action='choose' is populated in DB.
-    const isPlannerPhase = phaseSlug === 'planner'
+    // O time de fechamento pode editar obs; outras fases (ReadOnly) veem como texto.
+    // Fase de fechamento: 'planner' no Trips, 'closer' no Weddings.
+    const isClosingPhase = phaseSlug === 'planner' || phaseSlug === 'closer'
 
     return (
         <div className="px-4 py-2.5 group">
@@ -361,7 +361,7 @@ function ProductItemReadOnly({ item, cardId, phaseSlug, onDelete }: { item: Fina
             {hasExtras && (
                 <ExtraFieldsRow item={item} />
             )}
-            {isPlannerPhase ? (
+            {isClosingPhase ? (
                 <ObservacoesField item={item} cardId={cardId} />
             ) : item.observacoes ? (
                 <div className="mt-1.5 flex items-start gap-1.5 rounded bg-amber-50 border border-amber-100 px-2 py-1.5">
