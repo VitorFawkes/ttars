@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, no-case-declarations */
 import { useDraggable } from '@dnd-kit/core'
+import { CSS } from '@dnd-kit/utilities'
 import { Calendar, DollarSign, MapPin, Users, UserPlus, User, CheckSquare, AlertCircle, Clock, Link, Building, MoreVertical, Trash2, Paperclip, Package, Trophy, XCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { memo, useState, type ElementType } from 'react'
@@ -145,15 +146,15 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
         && !isClosedCard
         && isDataPrevistaTracked
 
-    // NOTA de performance: o preview que segue o mouse é o clone no DragOverlay
-    // (KanbanBoard). O card original NÃO aplica transform — aplicar fazia o
-    // componente inteiro (o mais pesado do board) re-renderizar a cada frame
-    // do arraste. Enquanto isDragging, renderiza só um ghost leve (ver abaixo).
-    const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: card.id!,
         data: card,
         disabled: isClosedCard
     })
+
+    const style = {
+        transform: CSS.Translate.toString(transform),
+    }
 
     const handleClick = () => {
         if (!isDragging && !showMenu) {
@@ -676,27 +677,17 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
     const visibleSet = new Set(fieldsToShow)
     const fieldsToRender = orderedFields.filter(f => visibleSet.has(f))
 
-    // Durante o arraste, o lugar de origem vira um slot tracejado leve —
-    // re-renderizar por frame custa ~nada e a UX fica mais clara que o
-    // antigo buraco invisível (opacity-0 com o card inteiro renderizado).
-    if (isDragging) {
-        return (
-            <div
-                ref={setNodeRef}
-                className="min-h-[96px] rounded-lg border-2 border-dashed border-slate-300 bg-slate-100/60"
-            />
-        )
-    }
-
     return (
         <div
             ref={setNodeRef}
+            style={style}
             {...listeners}
             {...attributes}
             onClick={handleClick}
             className={cn(
                 "group relative flex flex-col gap-2 rounded-lg border bg-white p-3 shadow-sm transition-all duration-200 ease-out hover:shadow-md ww:shadow-ww-lift",
                 isClosedCard ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
+                isDragging && "opacity-0",
                 conciergeStats?.vencidos && conciergeStats.vencidos > 0 && "border-l-4 border-l-red-300",
                 isDataPrevistaOverdue && "border-l-4 border-l-red-500 ring-1 ring-red-200",
                 cancelOverlay && "border-2 border-amber-500 animate-pulse",
