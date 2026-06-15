@@ -50,12 +50,37 @@ export const FORNECEDOR_STATUS_LIST: FornecedorStatus[] = ['a_contratar', 'contr
 
 export interface Fornecedor {
   id: string
-  /** Categoria — bate com o label das categorias do board. */
+  /** Categoria — bate com o label dos setores. */
   categoria: string
   nome: string
   contato?: string | null
   valor?: number | null
   status: FornecedorStatus
+}
+
+/** Setores (categorias) de fornecedor — fonte única usada pelo card do
+ *  casamento e pelo banco de fornecedores. */
+export const FORNECEDOR_SETORES: string[] = [
+  'Buffet & Gastronomia',
+  'Decoração & Flores',
+  'Música / DJ / Banda',
+  'Fotografia & Vídeo',
+  'Celebrante',
+  'Beleza (cabelo & maquiagem)',
+  'Convites & Papelaria',
+  'Transporte & Logística',
+]
+
+/** Entrada do banco de fornecedores (catálogo per-workspace, reutilizável
+ *  entre casamentos). Interim em localStorage; migrar para tabela depois. */
+export interface FornecedorBankEntry {
+  id: string
+  nome: string
+  setor: string
+  localizacao: string
+  contato?: string | null
+  valor?: number | null
+  observacoes?: string | null
 }
 
 export function isEtapaPlanejamento(value: unknown): value is EtapaPlanejamento {

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useOrg } from '../../contexts/OrgContext'
 import { sbAny } from '../convidados/_supabaseUntyped'
-import type { Fornecedor } from './types'
+import type { Fornecedor, FornecedorStatus } from './types'
 
 // Fornecedores ficam (interim/WIP) em cards.produto_data.ww_fornecedores —
 // mesmo padrão de merge do useUpdateWedding, sem migration nova. Quando o
@@ -81,10 +81,21 @@ export function useWeddingFornecedores(cardId: string | null | undefined) {
     onError: (err) => toast.error(`Não consegui remover: ${err.message}`),
   })
 
+  const setStatus = useMutation<void, Error, { id: string; status: FornecedorStatus }>({
+    mutationFn: async ({ id, status }) => {
+      await persist((query.data ?? []).map((f) => (f.id === id ? { ...f, status } : f)))
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['planejamento', 'fornecedores'] })
+    },
+    onError: (err) => toast.error(`Não consegui mudar a fase: ${err.message}`),
+  })
+
   return {
     fornecedores: query.data ?? [],
     isLoading: query.isLoading,
     add,
     remove,
+    setStatus,
   }
 }

@@ -17,16 +17,22 @@ import {
   Heart,
   Trash2,
   X,
+  ChevronDown,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { parseLocalDate } from '../../lib/localDate'
+import { setorIcon } from '../../lib/planejamento/setorIcons'
 import { usePlanejamentoWeddings } from '../../hooks/planejamento/usePlanejamentoWeddings'
 import { useWeddingFornecedores } from '../../hooks/planejamento/useWeddingFornecedores'
+import { useFornecedorBank } from '../../hooks/planejamento/useFornecedorBank'
 import {
   PLANEJAMENTO_LABEL,
+  FORNECEDOR_SETORES,
   FORNECEDOR_STATUS_LABEL,
+  FORNECEDOR_STATUS_LIST,
   type EtapaPlanejamento,
   type Fornecedor,
+  type FornecedorBankEntry,
   type FornecedorStatus,
 } from '../../hooks/planejamento/types'
 
@@ -69,20 +75,11 @@ const ETAPA_CHIP: Record<EtapaPlanejamento, string> = {
   aditivo: 'bg-emerald-50 text-emerald-700 border-emerald-200',
 }
 
-// Categorias de fornecedores — esqueleto (WIP). Ainda sem modelo de dados;
-// quando existir tabela de fornecedores por casamento, trocar pelos dados reais.
-// `icon` é um PNG em /public/icons (servido em /icons/...). Categorias sem
-// ícone ainda usam um placeholder neutro até receberem o seu.
-const FORNECEDOR_CATEGORIAS: { label: string; icon?: string }[] = [
-  { label: 'Buffet & Gastronomia', icon: '/icons/food-delivery.png' },
-  { label: 'Decoração & Flores', icon: '/icons/bouquet.png' },
-  { label: 'Música / DJ / Banda', icon: '/icons/dj.png' },
-  { label: 'Fotografia & Vídeo', icon: '/icons/camera.png' },
-  { label: 'Celebrante', icon: '/icons/celebrante.svg' },
-  { label: 'Beleza (cabelo & maquiagem)', icon: '/icons/beleza.svg' },
-  { label: 'Convites & Papelaria', icon: '/icons/convites.svg' },
-  { label: 'Transporte & Logística', icon: '/icons/transporte.svg' },
-]
+// Setores de fornecedor + ícone (labels vêm de FORNECEDOR_SETORES; ícone do
+// mapa compartilhado em lib/planejamento/setorIcons).
+const FORNECEDOR_CATEGORIAS: { label: string; icon?: string }[] = FORNECEDOR_SETORES.map(
+  (label) => ({ label, icon: setorIcon(label) }),
+)
 
 function WipBadge() {
   return (
@@ -99,7 +96,8 @@ export default function PlanejamentoDetailPage() {
 
   const { data, isLoading, isError } = usePlanejamentoWeddings()
   const wedding = data.find(w => w.id === cardId) ?? null
-  const { fornecedores, add, remove } = useWeddingFornecedores(cardId)
+  const { fornecedores, add, remove, setStatus } = useWeddingFornecedores(cardId)
+  const { bank } = useFornecedorBank()
   const [addOpen, setAddOpen] = useState(false)
 
   if (isLoading) {
@@ -284,14 +282,29 @@ export default function PlanejamentoDetailPage() {
                           </p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <span
+                          <div
                             className={cn(
-                              'inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border uppercase tracking-wide',
+                              'relative inline-flex items-center rounded-full border text-[10px] font-semibold uppercase tracking-wide',
                               FORNECEDOR_STATUS_CHIP[f.status],
                             )}
+                            title="Mudar fase"
                           >
-                            {FORNECEDOR_STATUS_LABEL[f.status]}
-                          </span>
+                            <select
+                              value={f.status}
+                              onChange={(e) =>
+                                setStatus.mutate({ id: f.id, status: e.target.value as FornecedorStatus })
+                              }
+                              className="appearance-none bg-transparent pl-2 pr-5 py-0.5 rounded-full cursor-pointer focus:outline-none uppercase"
+                              aria-label={`Fase de ${f.nome}`}
+                            >
+                              {FORNECEDOR_STATUS_LIST.map((s) => (
+                                <option key={s} value={s} className="bg-white text-slate-700 normal-case">
+                                  {FORNECEDOR_STATUS_LABEL[s]}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown className="w-3 h-3 absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none opacity-70" />
+                          </div>
                           <button
                             type="button"
                             onClick={() => remove.mutate(f.id)}
@@ -326,6 +339,7 @@ export default function PlanejamentoDetailPage() {
       {addOpen && (
         <AddFornecedorModal
           categorias={FORNECEDOR_CATEGORIAS.map((c) => c.label)}
+          bankEntries={bank}
           saving={add.isPending}
           onClose={() => setAddOpen(false)}
           onSubmit={(payload) => add.mutate(payload, { onSuccess: () => setAddOpen(false) })}
@@ -364,11 +378,13 @@ const FIELD_CLS =
 
 function AddFornecedorModal({
   categorias,
+  bankEntries,
   saving,
   onClose,
   onSubmit,
 }: {
   categorias: string[]
+  bankEntries: FornecedorBankEntry[]
   saving: boolean
   onClose: () => void
   onSubmit: (payload: Omit<Fornecedor, 'id'>) => void
@@ -377,6 +393,24 @@ function AddFornecedorModal({
   const [nome, setNome] = useState('')
   const [contato, setContato] = useState('')
   const [valor, setValor] = useState('')
+  const [bankPick, setBankPick] = useState('')
+
+  const bankOptions = bankEntries.filter((b) => b.setor === categoria)
+
+  const onCategoria = (v: string) => {
+    setCategoria(v)
+    setBankPick('')
+  }
+
+  const applyBank = (id: string) => {
+    setBankPick(id)
+    const b = bankEntries.find((x) => x.id === id)
+    if (b) {
+      setNome(b.nome)
+      setContato(b.contato ?? '')
+      setValor(b.valor != null ? String(b.valor) : '')
+    }
+  }
 
   const canSave = nome.trim().length > 0 && !!categoria
 
@@ -412,7 +446,7 @@ function AddFornecedorModal({
         <div className="px-5 py-4 flex flex-col gap-3">
           <label className="text-xs font-medium text-slate-700 block">
             Categoria
-            <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className={FIELD_CLS}>
+            <select value={categoria} onChange={(e) => onCategoria(e.target.value)} className={FIELD_CLS}>
               {categorias.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -420,6 +454,21 @@ function AddFornecedorModal({
               ))}
             </select>
           </label>
+
+          {bankOptions.length > 0 && (
+            <label className="text-xs font-medium text-slate-700 block">
+              Do banco (opcional)
+              <select value={bankPick} onChange={(e) => applyBank(e.target.value)} className={FIELD_CLS}>
+                <option value="">— preencher manualmente —</option>
+                {bankOptions.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.nome}
+                    {b.localizacao ? ` — ${b.localizacao}` : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <label className="text-xs font-medium text-slate-700 block">
             Nome / empresa *

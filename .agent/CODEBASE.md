@@ -7,9 +7,9 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-06-15
 > **Trigger:** ALWAYS ON
-> **Stats:** 234 tabelas | 210 paginas | 366 hooks | 28 views | 851 components
-> **Stats:** 234 tabelas | 210 paginas | 366 hooks | 28 views | 851 components
-> **Stats:** 234 tabelas | 210 paginas | 366 hooks | 28 views | 851 components
+> **Stats:** 234 tabelas | 211 paginas | 367 hooks | 28 views | 851 components
+> **Stats:** 234 tabelas | 211 paginas | 367 hooks | 28 views | 851 components
+> **Stats:** 234 tabelas | 211 paginas | 367 hooks | 28 views | 851 components
 
 ---
 
@@ -171,7 +171,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **366 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **367 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -361,6 +361,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useFirstAccessOfDay()` | `useFirstAccessOfDay.ts` |
 | `useFlightLookup()` | `useFlightLookup.ts` |
 | `useFluxoConfig()` | `useFluxoConfig.ts` |
+| `useFornecedorBank()` | `useFornecedorBank.ts` |
 | `useFotos()` | `useFotos.ts` |
 | `useFundirCasamentos()` | `useFundirCasamentos.ts` |
 | `useFutureOpportunities()` | `useFutureOpportunities.ts` |
@@ -616,7 +617,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **210 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **211 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -806,6 +807,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `Terms` | `src/pages/legal/Terms.tsx` |
 | `MobileCardCreate` | `src/pages/mobile/MobileCardCreate.tsx` |
 | `MobileContactPicker` | `src/pages/mobile/MobileContactPicker.tsx` |
+| `BancoFornecedoresPage` | `src/pages/planejamento/BancoFornecedoresPage.tsx` |
 | `PlanejamentoDetailPage` | `src/pages/planejamento/PlanejamentoDetailPage.tsx` |
 | `PlanejamentoLayout` | `src/pages/planejamento/PlanejamentoLayout.tsx` |
 | `PlanejamentoPage` | `src/pages/planejamento/PlanejamentoPage.tsx` |
