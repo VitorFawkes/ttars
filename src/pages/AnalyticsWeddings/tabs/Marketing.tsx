@@ -41,21 +41,21 @@ function MarketingContent({ filters }: { filters: AppliedFilters }) {
 
   return (
     <div className="space-y-5">
-      {qualidade && !qualidade.error && <QualidadeFonte data={qualidade} onOrigemClick={(origem) => setDrill({ ...baseCtx, origem, title: `Casais — origem ${origem}` })} onCampanhaClick={(campaign) => setDrill({ ...baseCtx, campaign, title: `Casais — campanha ${campaign}` })} />}
-      {qualidade && !qualidade.error && <DropOffPorFase data={qualidade} onOrigemClick={(origem) => setDrill({ ...baseCtx, origem, title: `Casais — origem ${origem}` })} />}
+      {qualidade && !qualidade.error && <QualidadeFonte data={qualidade} onOrigemClick={(origem) => setDrill({ ...baseCtx, origem, title: `Casais: origem ${origem}` })} onCampanhaClick={(campaign) => setDrill({ ...baseCtx, campaign, title: `Casais: campanha ${campaign}` })} />}
+      {qualidade && !qualidade.error && <DropOffPorFase data={qualidade} onOrigemClick={(origem) => setDrill({ ...baseCtx, origem, title: `Casais: origem ${origem}` })} />}
 
       {/* Origem × faixa declarada (20260611a) — só aparece quando o banco já devolve o cruzamento */}
       {qualidade && !qualidade.error && (qualidade.origem_x_faixa?.length ?? 0) > 0 && (
         <SectionCard
           title="💰 × 🎯  Que bolso cada fonte traz"
-          subtitle="Linha = faixa de investimento declarada no site. Coluna = origem do lead. % na célula = taxa de fechamento. Mostra qual fonte traz lead rico — e qual combinação realmente fecha."
+          subtitle="Linha = faixa de investimento declarada no site. Coluna = origem do lead. % na célula = taxa de fechamento. Mostra qual fonte traz lead rico e qual combinação realmente fecha."
         >
           <MatrixHeatmap
             cells={(qualidade.origem_x_faixa ?? []).map(c => ({ linha: c.y, coluna: c.x, entraram: c.entrou, fecharam: c.fechou, taxa_pct: c.taxa_pct }))}
             rowsOrder={FAIXA_ORDER}
             rowLabel="Faixa"
             colLabel="Origem"
-            onCellClick={(faixa, origem) => setDrill({ ...baseCtx, faixa, origem, title: `Casais — ${faixa} via ${origem}` })}
+            onCellClick={(faixa, origem) => setDrill({ ...baseCtx, faixa, origem, title: `Casais: ${faixa} via ${origem}` })}
           />
         </SectionCard>
       )}
@@ -102,7 +102,7 @@ function MarketingContent({ filters }: { filters: AppliedFilters }) {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <SectionCard title="Top campanhas" subtitle="UTM campaign — top 15 por volume. Clique numa barra pra ver os casais.">
+        <SectionCard title="Top campanhas" subtitle="UTM campaign: top 15 por volume. Clique numa barra pra ver os casais.">
           {data.por_campaign.length === 0 ? <EmptyState message="Sem dados de campanha" /> : (
             <ResponsiveContainer width="100%" height={Math.max(220, data.por_campaign.length * 22)}>
               <BarChart data={data.por_campaign} layout="vertical" margin={{ top: 5, right: 50, left: 100, bottom: 5 }}>
@@ -113,7 +113,7 @@ function MarketingContent({ filters }: { filters: AppliedFilters }) {
                 <Bar dataKey="leads" fill="#874B52" radius={[0, 4, 4, 0]} cursor="pointer"
                   onClick={(d: unknown) => {
                     const c = (d as { payload?: { campaign?: string } })?.payload?.campaign
-                    if (c) setDrill({ ...baseCtx, campaign: c, title: `Casais — campanha ${c}` })
+                    if (c) setDrill({ ...baseCtx, campaign: c, title: `Casais: campanha ${c}` })
                   }}>
                   <LabelList dataKey="leads" position="right" fontSize={10} fill="#64748b" formatter={(v: unknown) => formatNumber(Number(v))} />
                 </Bar>
@@ -132,7 +132,7 @@ function MarketingContent({ filters }: { filters: AppliedFilters }) {
                 <Bar dataKey="leads" fill="#BD965C" radius={[0, 4, 4, 0]} cursor="pointer"
                   onClick={(d: unknown) => {
                     const m = (d as { payload?: { medium?: string } })?.payload?.medium
-                    if (m) setDrill({ ...baseCtx, medium: m, title: `Casais — medium ${m}` })
+                    if (m) setDrill({ ...baseCtx, medium: m, title: `Casais: medium ${m}` })
                   }}>
                   <LabelList dataKey="leads" position="right" fontSize={10} fill="#64748b" formatter={(v: unknown) => formatNumber(Number(v))} />
                 </Bar>
@@ -142,7 +142,7 @@ function MarketingContent({ filters }: { filters: AppliedFilters }) {
         </SectionCard>
       </div>
 
-      <SectionCard title="Funil por origem" subtitle="Top 5 origens — quantos viram leads, quantos qualificam, quantos fecham. Clique numa linha pra ver os casais.">
+      <SectionCard title="Funil por origem" subtitle="Top 5 origens: quantos viram leads, quantos qualificam, quantos fecham. Clique numa linha pra ver os casais.">
         {data.funil_origem.length === 0 ? <EmptyState message="Sem dados" /> : (
           <div className="space-y-3">
             {data.funil_origem.map(o => {
@@ -152,11 +152,11 @@ function MarketingContent({ filters }: { filters: AppliedFilters }) {
                   <div className="text-sm font-semibold text-slate-800 mb-2">{o.origem}</div>
                   <div className="space-y-1.5">
                     <FunilRow label="Lead novo" value={o.novo} max={maxV} color="#BD965C"
-                      onClick={() => setDrill({ ...baseCtx, origem: o.origem, title: `Casais — origem ${o.origem}` })} />
+                      onClick={() => setDrill({ ...baseCtx, origem: o.origem, title: `Casais: origem ${o.origem}` })} />
                     <FunilRow label="Qualificado SDR" value={o.qualificado} max={maxV} color="#874B52"
-                      onClick={() => setDrill({ ...baseCtx, origem: o.origem, marco: 'marcou_sdr', title: `Qualificados — origem ${o.origem}` })} />
+                      onClick={() => setDrill({ ...baseCtx, origem: o.origem, marco: 'marcou_sdr', title: `Qualificados: origem ${o.origem}` })} />
                     <FunilRow label="Casamento fechado" value={o.fechado} max={maxV} color="#16a34a"
-                      onClick={() => setDrill({ ...baseCtx, origem: o.origem, marco: 'ganho', title: `Fechados — origem ${o.origem}` })} />
+                      onClick={() => setDrill({ ...baseCtx, origem: o.origem, marco: 'ganho', title: `Fechados: origem ${o.origem}` })} />
                   </div>
                 </div>
               )
@@ -183,7 +183,7 @@ function FunilRow({ label, value, max, color, onClick }: { label: string; value:
   )
   if (onClick) {
     return (
-      <button onClick={onClick} className="w-full flex items-center gap-2 text-xs text-left rounded hover:bg-slate-50 transition-colors" title={`Ver casais — ${label}`}>
+      <button onClick={onClick} className="w-full flex items-center gap-2 text-xs text-left rounded hover:bg-slate-50 transition-colors" title={`Ver casais: ${label}`}>
         {inner}
       </button>
     )
@@ -246,7 +246,7 @@ function QualidadeFonte({ data, onOrigemClick, onCampanhaClick }: { data: WwMark
                     </>
                   )
                   return onOrigemClick ? (
-                    <ClickableRow key={r.origem} onClick={() => onOrigemClick(r.origem)} className="border-t border-slate-100" title={`Ver casais — ${r.origem}`}>
+                    <ClickableRow key={r.origem} onClick={() => onOrigemClick(r.origem)} className="border-t border-slate-100" title={`Ver casais: ${r.origem}`}>
                       {cells}
                     </ClickableRow>
                   ) : <tr key={r.origem} className="border-t border-slate-100">{cells}</tr>
@@ -331,7 +331,7 @@ function DropOffPorFase({ data, onOrigemClick }: { data: WwMarketingQualidade; o
                 </>
               )
               return onOrigemClick ? (
-                <ClickableRow key={d.origem} onClick={() => onOrigemClick(d.origem)} className="border-t border-slate-100" title={`Ver casais — ${d.origem}`}>
+                <ClickableRow key={d.origem} onClick={() => onOrigemClick(d.origem)} className="border-t border-slate-100" title={`Ver casais: ${d.origem}`}>
                   {cells}
                 </ClickableRow>
               ) : <tr key={d.origem} className="border-t border-slate-100">{cells}</tr>

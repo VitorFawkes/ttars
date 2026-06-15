@@ -215,7 +215,7 @@ export function FilterBar({ value, onChange, show = DEFAULT_SHOW }: { value: App
               </button>
               <button
                 onClick={() => set({ dateMode: 'throughput' })}
-                title="Conta o que ACONTECEU dentro do período — reuniões feitas, fechamentos — não importa quando o lead chegou."
+                title="Conta o que ACONTECEU dentro do período (reuniões feitas, fechamentos), não importa quando o lead chegou."
                 className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-ww-gold ${value.dateMode === 'throughput' ? 'bg-ww-gold text-white shadow-sm' : 'text-ww-n600 hover:text-ww-n700'}`}
               >
                 O que aconteceu no período

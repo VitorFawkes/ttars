@@ -1251,3 +1251,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-06-15T13:28:49Z | supabase/migrations/20260615b_ww_alertas_ac_deal_id.sql | applied_to_prod
 2026-06-15T14:18:13Z | supabase/migrations/20260614a_ww_lead_ideal_mix_entradas.sql | applied_to_prod
 2026-06-15T14:18:13Z | supabase/migrations/20260614b_ww_lead_ideal_cruzamento_topcombos_3num.sql | applied_to_prod
+2026-06-15T14:18:55Z | supabase/migrations/20260615b_ww_ganho_campo87_desde_2026.sql | applied_to_prod
