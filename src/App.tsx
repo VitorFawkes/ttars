@@ -69,6 +69,8 @@ import ConvidadosPage from './pages/convidados/ConvidadosPage'
 import CasamentoDetailPage from './pages/convidados/CasamentoDetailPage'
 import ConfiguracaoFluxoPage from './pages/convidados/ConfiguracaoFluxoPage'
 import CalendarioPage from './pages/convidados/CalendarioPage'
+import PlanejamentoLayout from './pages/planejamento/PlanejamentoLayout'
+import PlanejamentoPage from './pages/planejamento/PlanejamentoPage'
 import ConciergeLayout from './pages/concierge/ConciergeLayout'
 import KanbanPage from './pages/concierge/KanbanPage'
 import PainelGestorPage from './pages/concierge/PainelGestorPage'
@@ -295,6 +297,9 @@ function App() {
                     <Route path="casamento/:id" element={<CasamentoDetailPage />} />
                     <Route path="fluxo" element={<ConfiguracaoFluxoPage />} />
                     <Route path="calendario" element={<CalendarioPage />} />
+                  </Route>
+                  <Route path="/planejamento" element={<PlanejamentoLayout />}>
+                    <Route index element={<PlanejamentoPage />} />
                   </Route>
                   <Route path="/concierge" element={<ConciergeLayout />}>
                     <Route index element={<KanbanPage />} />

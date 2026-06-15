@@ -7,9 +7,9 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-06-15
 > **Trigger:** ALWAYS ON
-> **Stats:** 210 tabelas | 207 paginas | 361 hooks | 23 views | 848 components
-> **Stats:** 210 tabelas | 207 paginas | 361 hooks | 23 views | 848 components
-> **Stats:** 210 tabelas | 207 paginas | 361 hooks | 23 views | 848 components
+> **Stats:** 234 tabelas | 209 paginas | 365 hooks | 28 views | 851 components
+> **Stats:** 234 tabelas | 209 paginas | 365 hooks | 28 views | 851 components
+> **Stats:** 234 tabelas | 209 paginas | 365 hooks | 28 views | 851 components
 
 ---
 
@@ -171,7 +171,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **361 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **365 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -269,9 +269,11 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | Hook | File |
 |------|------|
 | `displayedEtapa()` | `displayedEtapa.ts` |
+| `displayedEtapaPlanejamento()` | `displayedEtapaPlanejamento.ts` |
 | `filterContracts()` | `filterContracts.ts` |
 | `forecastToDrillRows()` | `forecastToDrillRows.ts` |
 | `mockHotel()` | `mockHotel.ts` |
+| `types()` | `types.ts` |
 | `types()` | `types.ts` |
 | `types()` | `types.ts` |
 | `types()` | `types.ts` |
@@ -402,6 +404,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `usePhaseCapabilities()` | `usePhaseCapabilities.ts` |
 | `usePhaseSort()` | `usePhaseSort.ts` |
 | `usePhaseVisibilityRules()` | `usePhaseVisibilityRules.ts` |
+| `usePlanejamentoWeddings()` | `usePlanejamentoWeddings.ts` |
 | `usePlannerActivities()` | `usePlannerActivities.ts` |
 | `usePlannerForecastByDono()` | `usePlannerForecastByDono.ts` |
 | `usePlatformAdmin()` | `usePlatformAdmin.ts` |
@@ -448,6 +451,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useTurnLog()` | `useTurnLog.ts` |
 | `useTurnLogsForConversation()` | `useTurnLogsForConversation.ts` |
 | `useUpdateGuestStatus()` | `useUpdateGuestStatus.ts` |
+| `useUpdatePlanejamentoEtapa()` | `useUpdatePlanejamentoEtapa.ts` |
 | `useUpdateWedding()` | `useUpdateWedding.ts` |
 | `useUpdateWeddingEtapa()` | `useUpdateWeddingEtapa.ts` |
 | `useUpsertGuestExtras()` | `useUpsertGuestExtras.ts` |
@@ -611,7 +615,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **207 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **209 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -801,6 +805,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `Terms` | `src/pages/legal/Terms.tsx` |
 | `MobileCardCreate` | `src/pages/mobile/MobileCardCreate.tsx` |
 | `MobileContactPicker` | `src/pages/mobile/MobileContactPicker.tsx` |
+| `PlanejamentoLayout` | `src/pages/planejamento/PlanejamentoLayout.tsx` |
+| `PlanejamentoPage` | `src/pages/planejamento/PlanejamentoPage.tsx` |
 | `AuditPage` | `src/pages/platform/AuditPage.tsx` |
 | `DashboardPage` | `src/pages/platform/DashboardPage.tsx` |
 | `GlobalCatalogsPage` | `src/pages/platform/GlobalCatalogsPage.tsx` |
