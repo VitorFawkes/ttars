@@ -18,6 +18,7 @@ import {
   Trash2,
   X,
   ChevronDown,
+  Pencil,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { parseLocalDate } from '../../lib/localDate'
@@ -96,14 +97,18 @@ export default function PlanejamentoDetailPage() {
 
   const { data, isLoading, isError } = usePlanejamentoWeddings()
   const wedding = data.find(w => w.id === cardId) ?? null
-  const { fornecedores, add, remove, setStatus } = useWeddingFornecedores(cardId)
+  const { fornecedores, add, remove, setStatus, update } = useWeddingFornecedores(cardId)
   const { bank, add: bankAdd } = useFornecedorBank()
-  const [addOpen, setAddOpen] = useState(false)
+  const [fornModal, setFornModal] = useState<{ edit: Fornecedor | null } | null>(null)
 
-  // Adiciona o fornecedor ao casamento e, em paralelo, ao banco com a
-  // localização do card (sem duplicar quando já existe igual no mesmo local).
-  const handleAddFornecedor = (payload: Omit<Fornecedor, 'id'>) => {
-    add.mutate(payload, { onSuccess: () => setAddOpen(false) })
+  // Add (ao casamento + banco com o local do card, sem duplicar) ou edição.
+  const handleSubmitForn = (payload: Omit<Fornecedor, 'id'>) => {
+    const editing = fornModal?.edit
+    if (editing) {
+      update.mutate({ ...editing, ...payload }, { onSuccess: () => setFornModal(null) })
+      return
+    }
+    add.mutate(payload, { onSuccess: () => setFornModal(null) })
     const loc = (wedding?.local ?? '').trim()
     const jaExiste = bank.some(
       (b) =>
@@ -262,7 +267,7 @@ export default function PlanejamentoDetailPage() {
           </div>
           <button
             type="button"
-            onClick={() => setAddOpen(true)}
+            onClick={() => setFornModal({ edit: null })}
             className="inline-flex items-center gap-1.5 h-8 px-2.5 text-xs font-medium text-indigo-600 border border-indigo-200 rounded-md hover:bg-indigo-50 transition-colors"
           >
             <Plus className="w-3.5 h-3.5" /> Adicionar fornecedor
@@ -330,6 +335,15 @@ export default function PlanejamentoDetailPage() {
                           </div>
                           <button
                             type="button"
+                            onClick={() => setFornModal({ edit: f })}
+                            className="p-1 rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                            title="Editar fornecedor"
+                            aria-label={`Editar ${f.nome}`}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => remove.mutate(f.id)}
                             disabled={remove.isPending}
                             className="p-1 rounded text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
@@ -359,13 +373,14 @@ export default function PlanejamentoDetailPage() {
         </WipSection>
       </div>
 
-      {addOpen && (
+      {fornModal && (
         <AddFornecedorModal
+          initial={fornModal.edit}
           categorias={FORNECEDOR_CATEGORIAS.map((c) => c.label)}
           bankEntries={bank}
-          saving={add.isPending}
-          onClose={() => setAddOpen(false)}
-          onSubmit={handleAddFornecedor}
+          saving={add.isPending || update.isPending}
+          onClose={() => setFornModal(null)}
+          onSubmit={handleSubmitForn}
         />
       )}
     </div>
@@ -400,25 +415,29 @@ const FIELD_CLS =
   'w-full mt-1 px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500'
 
 function AddFornecedorModal({
+  initial,
   categorias,
   bankEntries,
   saving,
   onClose,
   onSubmit,
 }: {
+  initial?: Fornecedor | null
   categorias: string[]
   bankEntries: FornecedorBankEntry[]
   saving: boolean
   onClose: () => void
   onSubmit: (payload: Omit<Fornecedor, 'id'>) => void
 }) {
-  const [categoria, setCategoria] = useState(categorias[0] ?? '')
-  const [nome, setNome] = useState('')
-  const [contato, setContato] = useState('')
-  const [valor, setValor] = useState('')
+  const isEdit = !!initial
+  const [categoria, setCategoria] = useState(initial?.categoria ?? categorias[0] ?? '')
+  const [nome, setNome] = useState(initial?.nome ?? '')
+  const [contato, setContato] = useState(initial?.contato ?? '')
+  const [valor, setValor] = useState(initial?.valor != null ? String(initial.valor) : '')
   const [bankPick, setBankPick] = useState('')
 
-  const bankOptions = bankEntries.filter((b) => b.setor === categoria)
+  // No modo edição não oferecemos puxar do banco (já é um registro existente).
+  const bankOptions = isEdit ? [] : bankEntries.filter((b) => b.setor === categoria)
 
   const onCategoria = (v: string) => {
     setCategoria(v)
@@ -445,7 +464,7 @@ function AddFornecedorModal({
       nome: nome.trim(),
       contato: contato.trim() || null,
       valor: parsed != null && !Number.isNaN(parsed) ? parsed : null,
-      status: 'a_contratar',
+      status: initial?.status ?? 'a_contratar',
     })
   }
 
@@ -460,7 +479,9 @@ function AddFornecedorModal({
     >
       <div className="w-full max-w-md bg-white border border-slate-200 shadow-lg rounded-xl flex flex-col">
         <header className="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-200">
-          <h2 className="text-base font-semibold text-slate-900">Adicionar fornecedor</h2>
+          <h2 className="text-base font-semibold text-slate-900">
+            {isEdit ? 'Editar fornecedor' : 'Adicionar fornecedor'}
+          </h2>
           <button onClick={onClose} className="p-1 rounded hover:bg-slate-100 text-slate-500" aria-label="Fechar">
             <X className="w-4 h-4" />
           </button>
@@ -541,7 +562,7 @@ function AddFornecedorModal({
             disabled={!canSave || saving}
             className="inline-flex items-center justify-center h-9 rounded-md px-3 text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {saving ? 'Salvando…' : 'Adicionar'}
+            {saving ? 'Salvando…' : isEdit ? 'Salvar' : 'Adicionar'}
           </button>
         </footer>
       </div>

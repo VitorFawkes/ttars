@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Store, Plus, Trash2, X, Search, MapPin } from 'lucide-react'
+import { ArrowLeft, Store, Plus, Trash2, X, Search, MapPin, Pencil } from 'lucide-react'
 import { setorIcon } from '../../lib/planejamento/setorIcons'
 import { useFornecedorBank } from '../../hooks/planejamento/useFornecedorBank'
 import { FORNECEDOR_SETORES, type FornecedorBankEntry } from '../../hooks/planejamento/types'
@@ -18,9 +18,9 @@ function WipBadge() {
 
 export default function BancoFornecedoresPage() {
   const navigate = useNavigate()
-  const { bank, add, remove } = useFornecedorBank()
+  const { bank, add, remove, update } = useFornecedorBank()
 
-  const [addOpen, setAddOpen] = useState(false)
+  const [modal, setModal] = useState<{ edit: FornecedorBankEntry | null } | null>(null)
   const [search, setSearch] = useState('')
   const [setorFilter, setSetorFilter] = useState<string>('all')
   const [localFilter, setLocalFilter] = useState<string>('all')
@@ -82,7 +82,7 @@ export default function BancoFornecedoresPage() {
         </div>
         <button
           type="button"
-          onClick={() => setAddOpen(true)}
+          onClick={() => setModal({ edit: null })}
           className="inline-flex items-center gap-1.5 h-9 px-3 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors"
         >
           <Plus className="w-4 h-4" /> Adicionar ao banco
@@ -171,16 +171,27 @@ export default function BancoFornecedoresPage() {
                           </p>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => remove.mutate(e.id)}
-                        disabled={remove.isPending}
-                        className="p-1.5 rounded text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors shrink-0"
-                        title="Remover do banco"
-                        aria-label={`Remover ${e.nome}`}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setModal({ edit: e })}
+                          className="p-1.5 rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                          title="Editar"
+                          aria-label={`Editar ${e.nome}`}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => remove.mutate(e.id)}
+                          disabled={remove.isPending}
+                          className="p-1.5 rounded text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                          title="Remover do banco"
+                          aria-label={`Remover ${e.nome}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </li>
                   )
                 })}
@@ -193,11 +204,21 @@ export default function BancoFornecedoresPage() {
         </div>
       )}
 
-      {addOpen && (
+      {modal && (
         <AddBankModal
-          saving={add.isPending}
-          onClose={() => setAddOpen(false)}
-          onSubmit={(payload) => add.mutate(payload, { onSuccess: () => setAddOpen(false) })}
+          key={modal.edit?.id ?? 'new'}
+          initial={modal.edit}
+          existing={bank}
+          saving={add.isPending || update.isPending}
+          onClose={() => setModal(null)}
+          onEditExisting={(e) => setModal({ edit: e })}
+          onSubmit={(payload) => {
+            if (modal.edit) {
+              update.mutate({ ...modal.edit, ...payload }, { onSuccess: () => setModal(null) })
+            } else {
+              add.mutate(payload, { onSuccess: () => setModal(null) })
+            }
+          }}
         />
       )}
     </div>
@@ -208,20 +229,43 @@ const FIELD_CLS =
   'w-full mt-1 px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500'
 
 function AddBankModal({
+  initial,
+  existing,
   saving,
   onClose,
+  onEditExisting,
   onSubmit,
 }: {
+  initial?: FornecedorBankEntry | null
+  existing: FornecedorBankEntry[]
   saving: boolean
   onClose: () => void
+  onEditExisting: (entry: FornecedorBankEntry) => void
   onSubmit: (payload: Omit<FornecedorBankEntry, 'id'>) => void
 }) {
-  const [setor, setSetor] = useState(FORNECEDOR_SETORES[0] ?? '')
-  const [nome, setNome] = useState('')
-  const [localizacao, setLocalizacao] = useState('')
-  const [contato, setContato] = useState('')
-  const [valor, setValor] = useState('')
-  const [observacoes, setObservacoes] = useState('')
+  const isEdit = !!initial
+  const [setor, setSetor] = useState(initial?.setor ?? FORNECEDOR_SETORES[0] ?? '')
+  const [nome, setNome] = useState(initial?.nome ?? '')
+  const [localizacao, setLocalizacao] = useState(initial?.localizacao ?? '')
+  const [contato, setContato] = useState(initial?.contato ?? '')
+  const [valor, setValor] = useState(initial?.valor != null ? String(initial.valor) : '')
+  const [observacoes, setObservacoes] = useState(initial?.observacoes ?? '')
+
+  // Busca por parecidos enquanto digita o nome — evita cadastrar o mesmo
+  // fornecedor com nomes diferentes. Clicar abre o registro existente p/ editar.
+  const termo = nome.trim().toLowerCase()
+  const parecidos =
+    termo.length >= 2
+      ? existing
+          .filter((e) => e.id !== initial?.id && e.nome.toLowerCase().includes(termo))
+          .slice(0, 5)
+      : []
+
+  // Localizações já cadastradas — sugeridas no campo (autocomplete) p/ reusar
+  // a mesma grafia em vez de criar variações ("Riviera Maya" vs "riviera maya").
+  const locOptions = [...new Set(existing.map((e) => e.localizacao.trim()).filter(Boolean))].sort(
+    (a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }),
+  )
 
   const canSave = nome.trim().length > 0 && localizacao.trim().length > 0 && !!setor
 
@@ -249,7 +293,9 @@ function AddBankModal({
     >
       <div className="w-full max-w-md bg-white border border-slate-200 shadow-lg rounded-xl flex flex-col max-h-[90vh]">
         <header className="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-200">
-          <h2 className="text-base font-semibold text-slate-900">Adicionar ao banco</h2>
+          <h2 className="text-base font-semibold text-slate-900">
+            {isEdit ? 'Editar fornecedor' : 'Adicionar ao banco'}
+          </h2>
           <button onClick={onClose} className="p-1 rounded hover:bg-slate-100 text-slate-500" aria-label="Fechar">
             <X className="w-4 h-4" />
           </button>
@@ -277,6 +323,32 @@ function AddBankModal({
               className={FIELD_CLS}
             />
           </label>
+
+          {parecidos.length > 0 && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-2 -mt-1">
+              <p className="text-[11px] font-medium text-amber-800 mb-1">
+                Já no banco — talvez seja um destes (clique para abrir):
+              </p>
+              <ul className="flex flex-col gap-0.5">
+                {parecidos.map((m) => (
+                  <li key={m.id}>
+                    <button
+                      type="button"
+                      onClick={() => onEditExisting(m)}
+                      className="w-full text-left text-xs px-2 py-1 rounded hover:bg-amber-100 text-slate-700"
+                    >
+                      <span className="font-medium">{m.nome}</span>
+                      <span className="text-slate-500">
+                        {' '}
+                        · {m.setor}
+                        {m.localizacao ? ` · ${m.localizacao}` : ''}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <label className="text-xs font-medium text-slate-700 block">
             Localização *
             <input
@@ -284,7 +356,13 @@ function AddBankModal({
               onChange={(e) => setLocalizacao(e.target.value)}
               placeholder="Ex.: Riviera Maya, Búzios, Itália…"
               className={FIELD_CLS}
+              list="bank-localizacoes"
             />
+            <datalist id="bank-localizacoes">
+              {locOptions.map((l) => (
+                <option key={l} value={l} />
+              ))}
+            </datalist>
           </label>
           <label className="text-xs font-medium text-slate-700 block">
             Contato (opcional)
@@ -331,7 +409,7 @@ function AddBankModal({
             disabled={!canSave || saving}
             className="inline-flex items-center justify-center h-9 rounded-md px-3 text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {saving ? 'Salvando…' : 'Adicionar'}
+            {saving ? 'Salvando…' : isEdit ? 'Salvar' : 'Adicionar'}
           </button>
         </footer>
       </div>

@@ -61,10 +61,23 @@ export function useFornecedorBank() {
     onError: (err) => toast.error(`Não consegui remover: ${err.message}`),
   })
 
+  const update = useMutation<void, Error, FornecedorBankEntry>({
+    mutationFn: async (entry) => {
+      if (!orgId) throw new Error('Workspace não identificado.')
+      writeBank(orgId, (query.data ?? []).map((e) => (e.id === entry.id ? entry : e)))
+    },
+    onSuccess: async () => {
+      await invalidate()
+      toast.success('Fornecedor atualizado no banco.')
+    },
+    onError: (err) => toast.error(`Não consegui salvar: ${err.message}`),
+  })
+
   return {
     bank: query.data ?? [],
     isLoading: query.isLoading,
     add,
     remove,
+    update,
   }
 }

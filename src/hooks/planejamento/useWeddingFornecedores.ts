@@ -91,11 +91,23 @@ export function useWeddingFornecedores(cardId: string | null | undefined) {
     onError: (err) => toast.error(`Não consegui mudar a fase: ${err.message}`),
   })
 
+  const update = useMutation<void, Error, Fornecedor>({
+    mutationFn: async (f) => {
+      await persist((query.data ?? []).map((x) => (x.id === f.id ? f : x)))
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['planejamento', 'fornecedores'] })
+      toast.success('Fornecedor atualizado.')
+    },
+    onError: (err) => toast.error(`Não consegui salvar: ${err.message}`),
+  })
+
   return {
     fornecedores: query.data ?? [],
     isLoading: query.isLoading,
     add,
     remove,
     setStatus,
+    update,
   }
 }
