@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
-import { useWw2Overview, useWwAgenda, type Ww2Conversao, type DrillMarco, type WwAgendaItem, type WwAgendaPorDia, type WwAgendaDesfechos, type WwAgendaDesfechoItem } from '@/hooks/analyticsWeddings/useWw2'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList } from 'recharts'
+import { useWw2Overview, useWwAgenda, type Ww2Conversao, type Ww2Alerta, type DrillMarco, type WwAgendaItem, type WwAgendaPorDia, type WwAgendaDesfechos, type WwAgendaDesfechoItem } from '@/hooks/analyticsWeddings/useWw2'
 import { FilterBar, type TabProps, type AppliedFilters } from '../components/FilterBar'
 import { SectionCard, KpiCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
 import { DrillDrawer, type DrillContext } from '../components/DrillDrawer'
@@ -121,7 +121,7 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
       {/* Agenda — o FUTURO: reuniões marcadas (campo 6 = SDR, campo 18 = Closer) + vencidas sem registro */}
       <AgendaReunioes filters={filters} />
 
-      {/* Tendência ao longo do tempo (#7) — vendas/reuniões/leads no período do filtro */}
+      {/* Tendência ao longo do tempo (#7) — respeita o período do filtro (período curto abre por semana) */}
       <SerieTemporalChart
         title="📈 Ao longo do tempo: o funil completo"
         subtitle="Leads, reuniões marcadas e feitas (SDR e Closer) e vendas em cada período do recorte. Troque mês/semana e quantidade/conversão. Clique numa barra pra ver os casais."
@@ -213,43 +213,8 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
         </SectionCard>
       </div>
 
-      {/* Alertas */}
-      <SectionCard title="⚠️ Alertas: leads parados há mais de 7 dias" subtitle="Top 8 por dias parados. Clique pra abrir o card.">
-        {alertas.length === 0 ? (
-          <EmptyState message="Nenhum lead parado. Tudo fluindo." />
-        ) : (
-          <table className="w-full text-xs">
-            <thead className="text-slate-500">
-              <tr>
-                <th className="py-2 font-medium text-left">Card</th>
-                <th className="py-2 font-medium text-left">Etapa</th>
-                <th className="py-2 font-medium text-left">Fase</th>
-                <th className="py-2 font-medium text-right">Valor</th>
-                <th className="py-2 font-medium text-right">Parado há</th>
-                <th className="py-2 font-medium text-right">Active</th>
-              </tr>
-            </thead>
-            <tbody>
-              {alertas.map(a => (
-                <tr key={a.card_id} className="border-t border-slate-100 hover:bg-ww-cream/40 transition-colors">
-                  <td className="py-2">
-                    <a href={`/cards/${a.card_id}`} className="text-indigo-700 hover:underline font-medium">{a.titulo.slice(0, 60)}{a.titulo.length > 60 ? '…' : ''}</a>
-                  </td>
-                  <td className="py-2 text-slate-700">{a.stage_name}</td>
-                  <td className="py-2 text-slate-500">{a.phase_label}</td>
-                  <td className="py-2 text-right tabular-nums text-slate-700">{a.valor_estimado ? formatCurrency(a.valor_estimado) : '—'}</td>
-                  <td className="py-2 text-right">
-                    <span className={`tabular-nums font-medium ${a.dias_parado > 14 ? 'text-rose-600' : 'text-amber-600'}`}>{a.dias_parado}d</span>
-                  </td>
-                  <td className="py-2 text-right">
-                    <div className="inline-flex justify-end"><OpenInACButton dealId={a.ac_deal_id} contactName={a.titulo} /></div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </SectionCard>
+      {/* Alertas — leads parados, com pipeline do Active, filtro, ordenação e link pro Active */}
+      <AlertasParados alertas={alertas} />
 
       <DrillDrawer ctx={drill} onClose={() => setDrill(null)} />
     </div>
@@ -310,6 +275,20 @@ const filtraProximos7d = (itens: WwAgendaItem[]) => {
 const COR_SDR = '#BD965C'    // mesmas cores da série temporal — legenda já ensinada
 const COR_CLOSER = '#874B52'
 
+// Rótulo do valor DENTRO do segmento empilhado: só desenha quando o segmento é alto o
+// bastante pra caber o número (evita poluir barras finas / valor 0).
+function labelSegmento(props: unknown) {
+  const p = props as { x?: number; y?: number; width?: number; height?: number; value?: number }
+  const v = Number(p.value ?? 0)
+  if (!v || (p.height ?? 0) < 12 || (p.width ?? 0) < 14) return null
+  return (
+    <text x={(p.x ?? 0) + (p.width ?? 0) / 2} y={(p.y ?? 0) + (p.height ?? 0) / 2}
+      fill="#fff" fontSize={9} fontWeight={600} textAnchor="middle" dominantBaseline="central">
+      {v}
+    </text>
+  )
+}
+
 function AgendaGrafico({ porDia }: { porDia: WwAgendaPorDia[] }) {
   const [escala, setEscala] = useState<'dia' | 'semana'>('dia')
   const mapa = new Map(porDia.map(d => [d.dia, d]))
@@ -364,8 +343,12 @@ function AgendaGrafico({ porDia }: { porDia: WwAgendaPorDia[] }) {
           <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
           <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
-          <Bar dataKey="SDR" stackId="a" fill={COR_SDR} maxBarSize={28} />
-          <Bar dataKey="Closer" stackId="a" fill={COR_CLOSER} radius={[3, 3, 0, 0]} maxBarSize={28} />
+          <Bar dataKey="SDR" stackId="a" fill={COR_SDR} maxBarSize={28}>
+            <LabelList dataKey="SDR" content={labelSegmento} />
+          </Bar>
+          <Bar dataKey="Closer" stackId="a" fill={COR_CLOSER} radius={[3, 3, 0, 0]} maxBarSize={28}>
+            <LabelList dataKey="Closer" content={labelSegmento} />
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -381,61 +364,76 @@ const DESFECHO_CATS = [
   { conta: 'sem_registro', item: 'sem_registro', label: 'Sem registro', dot: 'bg-slate-400' },
 ] as const
 
-function DesfechosCard({ desfechos }: { desfechos: WwAgendaDesfechos }) {
+// Um bloco por papel (SDR / Closer), visualmente distinto. Cada linha de desfecho é clicável
+// e expande a lista de casais daquela categoria (itens já vêm da RPC, filtra no cliente).
+function DesfechoBloco({ titulo, reuniao, contagem, itens, accent }: {
+  titulo: string
+  reuniao: 'sdr' | 'closer'
+  contagem: WwAgendaDesfechos['sdr']
+  itens: WwAgendaDesfechos['itens']
+  accent: { head: string; ring: string }
+}) {
+  const [aberta, setAberta] = useState<string | null>(null)
   const pct = (n: number, base: number) => base > 0 ? `${Math.round((n / base) * 100)}%` : '—'
+  const meus = itens.filter(i => i.reuniao === reuniao)
+  return (
+    <div className={`rounded-xl border bg-white overflow-hidden ${accent.ring}`}>
+      <div className={`flex items-center justify-between px-3 py-2 ${accent.head}`}>
+        <span className="text-xs font-semibold uppercase tracking-wide">{titulo}</span>
+        <span className="text-[11px] font-medium tabular-nums">{contagem.marcadas} marcada{contagem.marcadas === 1 ? '' : 's'}</span>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {DESFECHO_CATS.map(c => {
+          const n = contagem[c.conta]
+          const lista = c.conta === 'feitas' ? [] : meus.filter(i => i.categoria === c.item)
+          const clicavel = lista.length > 0
+          const open = aberta === c.item
+          return (
+            <div key={c.conta}>
+              <button
+                disabled={!clicavel}
+                onClick={clicavel ? () => setAberta(open ? null : c.item) : undefined}
+                className={`w-full flex items-center justify-between px-3 py-1.5 text-xs text-left ${clicavel ? 'cursor-pointer hover:bg-ww-cream/40 transition-colors' : ''}`}
+                title={clicavel ? `Ver ${c.label.toLowerCase()} (${lista.length})` : undefined}
+              >
+                <span className="inline-flex items-center gap-1.5 text-slate-700">
+                  <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />{c.label}
+                  {clicavel && <span className="text-ww-n400">{open ? '▾' : '▸'}</span>}
+                </span>
+                <span className="tabular-nums text-slate-900 font-medium">
+                  {n}{c.conta === 'feitas' && <span className="text-ww-n400 font-normal"> · {pct(contagem.feitas, contagem.marcadas)}</span>}
+                </span>
+              </button>
+              {open && lista.length > 0 && (
+                <div className="px-2 pb-1.5 space-y-0.5 bg-ww-cream/20">
+                  {lista.map(it => (
+                    <div key={`${it.ac_deal_id}-${it.reuniao}`}>
+                      <AgendaLinha it={it} mostrarDia />
+                      {it.motivo && <div className="pl-2 -mt-1 pb-1 text-[10px] text-ww-n400 truncate" title={it.motivo}>↳ {it.motivo}</div>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function DesfechosCard({ desfechos }: { desfechos: WwAgendaDesfechos }) {
   const itens = desfechos.itens ?? []
   return (
     <div className="space-y-3">
-      <table className="w-full text-xs">
-        <thead className="text-slate-500">
-          <tr>
-            <th className="py-1.5 font-medium text-left">Desfecho</th>
-            <th className="py-1.5 font-medium text-right">SDR</th>
-            <th className="py-1.5 font-medium text-right">Closer</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr className="border-t border-slate-100">
-            <td className="py-1.5 font-medium text-slate-700">Marcadas</td>
-            <td className="py-1.5 text-right font-semibold tabular-nums">{desfechos.sdr.marcadas}</td>
-            <td className="py-1.5 text-right font-semibold tabular-nums">{desfechos.closer.marcadas}</td>
-          </tr>
-          {DESFECHO_CATS.map(c => (
-            <tr key={c.conta} className="border-t border-slate-100">
-              <td className="py-1.5">
-                <span className="inline-flex items-center gap-1.5 text-slate-700">
-                  <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />{c.label}
-                </span>
-              </td>
-              <td className="py-1.5 text-right tabular-nums">
-                {desfechos.sdr[c.conta]}{c.conta === 'feitas' && <span className="text-ww-n400"> · {pct(desfechos.sdr.feitas, desfechos.sdr.marcadas)}</span>}
-              </td>
-              <td className="py-1.5 text-right tabular-nums">
-                {desfechos.closer[c.conta]}{c.conta === 'feitas' && <span className="text-ww-n400"> · {pct(desfechos.closer.feitas, desfechos.closer.marcadas)}</span>}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {DESFECHO_CATS.filter(c => c.conta !== 'feitas').map(c => {
-        const lista = itens.filter(i => i.categoria === c.item)
-        if (lista.length === 0) return null
-        return (
-          <details key={c.item} className="group">
-            <summary className="cursor-pointer text-[11px] font-medium text-ww-n500 hover:text-ww-gold-ink transition-colors select-none">
-              Ver {c.label.toLowerCase()} ({lista.length})
-            </summary>
-            <div className="mt-1 space-y-0.5">
-              {lista.map(it => (
-                <div key={`${it.ac_deal_id}-${it.reuniao}`}>
-                  <AgendaLinha it={it} mostrarDia />
-                  {it.motivo && <div className="pl-2 -mt-1 pb-1 text-[10px] text-ww-n400 truncate" title={it.motivo}>↳ {it.motivo}</div>}
-                </div>
-              ))}
-            </div>
-          </details>
-        )
-      })}
+      <DesfechoBloco
+        titulo="SDR · 1ª reunião" reuniao="sdr" contagem={desfechos.sdr} itens={itens}
+        accent={{ head: 'bg-ww-gold-soft text-ww-gold-ink', ring: 'border-ww-gold/30' }}
+      />
+      <DesfechoBloco
+        titulo="Closer · fechamento" reuniao="closer" contagem={desfechos.closer} itens={itens}
+        accent={{ head: 'bg-ww-rosewood/10 text-ww-rosewood', ring: 'border-ww-rosewood/25' }}
+      />
     </div>
   )
 }
@@ -488,6 +486,9 @@ function AgendaReunioes({ filters }: { filters: AppliedFilters }) {
   const { data, isLoading } = useWwAgenda({
     origins: filters.origins, tipos: filters.tipos, faixas: filters.faixas,
     destinos: filters.destinos, convidados: filters.convidados, consultorIds: filters.consultorIds,
+    // P2: só os DESFECHOS respeitam período/canal; agenda futura ignora (não tem canal ainda)
+    dateStart: filters.dateStart, dateEnd: filters.dateEnd,
+    canalSdr: filters.canalSdr, canalCloser: filters.canalCloser,
   })
   if (isLoading) return <LoadingSkeleton rows={3} />
   if (!data || data.error) return null
@@ -560,8 +561,8 @@ function AgendaReunioes({ filters }: { filters: AppliedFilters }) {
         </SectionCard>
 
         <SectionCard
-          title={`🧭 Desfechos: últimos ${data.desfechos?.janela_dias ?? 30} dias`}
-          subtitle="O que aconteceu com cada reunião marcada: feita, não aconteceu, em reagendamento, perdida ou ainda sem registro."
+          title="🧭 Desfechos das reuniões"
+          subtitle="No período do filtro, o que aconteceu com cada reunião marcada (SDR e Closer separados): feita, não aconteceu, em reagendamento, perdida ou ainda sem registro. Respeita o tipo de reunião selecionado."
         >
           {data.desfechos ? <DesfechosCard desfechos={data.desfechos} /> : <EmptyState message="Sem reuniões marcadas no período." />}
         </SectionCard>
@@ -576,6 +577,100 @@ function AgendaReunioes({ filters }: { filters: AppliedFilters }) {
         </SectionCard>
       )}
     </div>
+  )
+}
+
+// Alertas: leads parados há 7+ dias. Mostra o PIPELINE do Active (não a fase do CRM),
+// filtra por pipeline e ordena clicando no cabeçalho.
+type AlertaSortKey = 'dias_parado' | 'valor_estimado' | 'titulo' | 'ac_pipeline_nome'
+function AlertasParados({ alertas }: { alertas: Ww2Alerta[] }) {
+  const [sortKey, setSortKey] = useState<AlertaSortKey>('dias_parado')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [pipeFilter, setPipeFilter] = useState<string>('')
+
+  const pipelines = Array.from(new Set(alertas.map(a => a.ac_pipeline_nome).filter(Boolean) as string[])).sort()
+
+  const toggleSort = (k: AlertaSortKey) => {
+    if (k === sortKey) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
+    else { setSortKey(k); setSortDir(k === 'titulo' || k === 'ac_pipeline_nome' ? 'asc' : 'desc') }
+  }
+
+  const visiveis = alertas
+    .filter(a => !pipeFilter || a.ac_pipeline_nome === pipeFilter)
+    .slice()
+    .sort((a, b) => {
+      const dir = sortDir === 'asc' ? 1 : -1
+      if (sortKey === 'titulo' || sortKey === 'ac_pipeline_nome') {
+        return dir * String(a[sortKey] ?? '').localeCompare(String(b[sortKey] ?? ''), 'pt-BR')
+      }
+      const av = Number(a[sortKey] ?? 0), bv = Number(b[sortKey] ?? 0)
+      return dir * (av - bv)
+    })
+
+  const Seta = ({ k }: { k: AlertaSortKey }) => sortKey === k ? <span className="text-ww-gold-ink">{sortDir === 'asc' ? '↑' : '↓'}</span> : <span className="text-slate-300">↕</span>
+  const Th = ({ k, children, align = 'left' }: { k: AlertaSortKey; children: React.ReactNode; align?: 'left' | 'right' }) => (
+    <th className={`py-2 font-medium ${align === 'right' ? 'text-right' : 'text-left'}`}>
+      <button onClick={() => toggleSort(k)} className={`inline-flex items-center gap-1 hover:text-ww-gold-ink transition-colors ${align === 'right' ? 'flex-row-reverse' : ''}`}>
+        {children} <Seta k={k} />
+      </button>
+    </th>
+  )
+
+  return (
+    <SectionCard
+      title="⚠️ Alertas: leads parados há mais de 7 dias"
+      subtitle="Mostra o pipeline do Active onde o casal está. Clique no cabeçalho pra ordenar; use o filtro pra focar num pipeline. Clique no nome pra abrir o card."
+    >
+      {alertas.length === 0 ? (
+        <EmptyState message="Nenhum lead parado. Tudo fluindo." />
+      ) : (
+        <div className="space-y-2">
+          {pipelines.length > 1 && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-slate-500">Pipeline (Active):</span>
+              <select
+                value={pipeFilter}
+                onChange={e => setPipeFilter(e.target.value)}
+                className="px-2 py-1 rounded-md border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-ww-gold/40"
+              >
+                <option value="">Todos ({alertas.length})</option>
+                {pipelines.map(p => <option key={p} value={p}>{p} ({alertas.filter(a => a.ac_pipeline_nome === p).length})</option>)}
+              </select>
+            </div>
+          )}
+          <table className="w-full text-xs">
+            <thead className="text-slate-500">
+              <tr>
+                <Th k="titulo">Card</Th>
+                <th className="py-2 font-medium text-left">Etapa</th>
+                <Th k="ac_pipeline_nome">Pipeline (Active)</Th>
+                <Th k="valor_estimado" align="right">Valor</Th>
+                <Th k="dias_parado" align="right">Parado há</Th>
+                <th className="py-2 font-medium text-right">Active</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visiveis.map(a => (
+                <tr key={a.card_id} className="border-t border-slate-100 hover:bg-ww-cream/40 transition-colors">
+                  <td className="py-2">
+                    <a href={`/cards/${a.card_id}`} className="text-indigo-700 hover:underline font-medium">{a.titulo.slice(0, 60)}{a.titulo.length > 60 ? '…' : ''}</a>
+                  </td>
+                  <td className="py-2 text-slate-700">{a.stage_name}</td>
+                  <td className="py-2 text-slate-700">{a.ac_pipeline_nome ?? <span className="text-slate-300">—</span>}</td>
+                  <td className="py-2 text-right tabular-nums text-slate-700">{a.valor_estimado ? formatCurrency(a.valor_estimado) : '—'}</td>
+                  <td className="py-2 text-right">
+                    <span className={`tabular-nums font-medium ${a.dias_parado > 14 ? 'text-rose-600' : 'text-amber-600'}`}>{a.dias_parado}d</span>
+                  </td>
+                  <td className="py-2 text-right">
+                    <div className="inline-flex justify-end"><OpenInACButton dealId={a.ac_deal_id} contactName={a.titulo} /></div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </SectionCard>
   )
 }
 
