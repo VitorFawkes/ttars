@@ -101,7 +101,7 @@ export default function Login() {
             <div className="w-full max-w-md space-y-8 rounded-lg bg-white p-8 shadow-md">
                 <div className="flex flex-col items-center">
                     <img
-                        src="/logo-light.png"
+                        src="/icons/logo-light.png"
                         alt="WelcomeCRM"
                         className="w-64 object-contain"
                         onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}

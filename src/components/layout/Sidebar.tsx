@@ -225,7 +225,7 @@ export default function Sidebar() {
         ) : (
           <>
             <img
-              src="/icon-light.png"
+              src="/icons/icon-light.png"
               alt={org?.name ?? "WelcomeCRM"}
               className={cn(
                 "absolute h-10 w-10 object-contain transition-opacity duration-200",
@@ -234,7 +234,7 @@ export default function Sidebar() {
               )}
             />
             <img
-              src="/logo-dark.png"
+              src="/icons/logo-dark.png"
               alt={org?.name ?? "WelcomeCRM"}
               className={cn(
                 "absolute h-25 max-w-[224px] object-contain transition-opacity duration-200",

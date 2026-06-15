@@ -29,7 +29,7 @@ export const NODE_REGISTRY: NodeTypeMeta[] = [
       label: 'Antes/depois de uma data',      description: 'Dispara X dias antes ou depois de uma data do card' },
     { type: 'trigger.time_in_stage',          category: 'trigger', iconName: 'Clock',        isTrigger: true,
       label: 'Card parado em etapa',          description: 'Dispara quando o card fica X dias na mesma etapa' },
-    { type: 'trigger.calendly_invitee_created', category: 'trigger', iconName: 'CalendarCheck', imageUrl: '/calendly-icon.webp', isTrigger: true,
+    { type: 'trigger.calendly_invitee_created', category: 'trigger', iconName: 'CalendarCheck', imageUrl: '/icons/calendly-icon.webp', isTrigger: true,
       label: 'Reunião agendada no Calendly',  description: 'Dispara quando lead agenda reunião via Calendly (pode criar card novo)' },
     { type: 'trigger.task_completed',         category: 'trigger', iconName: 'CheckCircle',   isTrigger: true,
       label: 'Tarefa concluída',              description: 'Dispara quando uma tarefa (ex: reunião) é marcada como concluída' },

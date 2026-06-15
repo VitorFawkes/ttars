@@ -25,7 +25,7 @@ export const EchoBadge: React.FC<EchoBadgeProps> = ({
     return (
         <span className={`inline-flex items-center gap-1 ${className}`}>
             <img
-                src="/echo-icon.png"
+                src="/icons/echo-icon.png"
                 alt="Echo"
                 width={size}
                 height={size}
