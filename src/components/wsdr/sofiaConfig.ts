@@ -135,6 +135,7 @@ export interface QualCriterion {
   // peso_por_opcao:
   opcoes?: CriterionOpcao[]
   fora_da_lista?: 'zero' | 'desqualifica' // comportamento quando a opção não está na lista
+  dica?: string                  // mapeamento livre p/ a IA (ex.: "praia → Nordeste; vinhedo → Europa")
 }
 export const CRITERION_KIND_OPTIONS: { value: CriterionKind; label: string; hint: string }[] = [
   { value: 'sim_nao', label: 'Tem ou não tem', hint: 'A Sofia julga se o casal atende e soma os pontos (ex: tem visão, tem data).' },

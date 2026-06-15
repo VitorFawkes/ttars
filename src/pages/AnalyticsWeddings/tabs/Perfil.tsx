@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { FilterBar, type TabProps, type AppliedFilters } from '../components/FilterBar'
 import { useWwLeadIdeal, type WwLeadIdealData, type WwLeadIdealItem, type WwLeadIdealCruzamentoCell, type WwLeadIdealPerfilTop } from '@/hooks/analyticsWeddings/useWw2'
 import { SectionCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
@@ -7,7 +7,7 @@ import { LiftBadge } from '../components/LiftBadge'
 import { formatNumber } from '../lib/format'
 
 type Dim = 'faixa' | 'destino' | 'convidados'
-type Eixo = 'faixa' | 'convidados' | 'destino' | 'origem' | 'canal_sdr' | 'tipo'
+type Eixo = 'faixa' | 'convidados' | 'destino' | 'origem' | 'canal_sdr' | 'canal_closer' | 'tipo'
 
 // Baldes fundidos (form do site mudou de opções ao longo do tempo) — ver memória
 // project_ww_analytics_pipeline_duravel: NUNCA re-dividir 50-80/80-100.
@@ -21,6 +21,7 @@ const EIXO_OPTS: { id: Eixo; label: string }[] = [
   { id: 'destino', label: '🏝️ Destino' },
   { id: 'origem', label: '🎯 Origem' },
   { id: 'canal_sdr', label: '🎥 1ª reunião' },
+  { id: 'canal_closer', label: '🎥 Reunião fechamento' },
   { id: 'tipo', label: '💍 Tipo' },
 ]
 const eixoLabel = (e: Eixo) => EIXO_OPTS.find(o => o.id === e)?.label ?? e
@@ -37,8 +38,10 @@ const monthsAgo = (n: number) => { const d = new Date(); d.setMonth(d.getMonth()
 export function Perfil({ filters, onFiltersChange }: TabProps) {
   return (
     <div className="space-y-4">
-      {/* período é controlado pelos seletores próprios da aba (Referência × Pipeline) — só filtros de perfil aqui */}
-      <FilterBar value={filters} onChange={onFiltersChange} show={['tipo', 'origem', 'faixa', 'convidados', 'destino', 'consultor', 'canal_sdr', 'canal_closer']} />
+      {/* período vem dos seletores próprios da aba (Referência × Pipeline). Só recorte que NÃO é dimensão
+          comparada: filtrar faixa/convidados/destino/canal degenera a própria comparação, e consultor/canais
+          quase não existem em lead novo (27%/4%/2% preenchidos) — zerariam o lado "quem está entrando". */}
+      <FilterBar value={filters} onChange={onFiltersChange} show={['tipo', 'origem']} />
       <PerfilContent filters={filters} />
     </div>
   )
@@ -52,6 +55,25 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
   // Janela "histórico" — independente, default últimos 12 meses
   const [histStart, setHistStart] = useState<string>(monthsAgo(12))
   const [histEnd, setHistEnd]     = useState<string>(new Date().toISOString())
+  // Atalho ativo de cada janela (some quando a data é editada à mão)
+  const [histPreset, setHistPreset]   = useState<HistPresetK | null>('12m')
+  const [atualPreset, setAtualPreset] = useState<AtualPresetK | null>('30d')
+
+  const aplicarHistPreset = (k: HistPresetK) => {
+    setHistPreset(k)
+    setHistStart(k === 'tudo' ? '2020-01-01T00:00:00.000Z' : monthsAgo(parseInt(k)))
+    setHistEnd(new Date().toISOString())
+  }
+  const aplicarAtualPreset = (k: AtualPresetK) => {
+    setAtualPreset(k)
+    const d = new Date(); d.setDate(d.getDate() - parseInt(k))
+    setAtualStart(d.toISOString())
+    setAtualEnd(new Date().toISOString())
+  }
+  const histStartManual  = (v: string) => { setHistPreset(null); setHistStart(v) }
+  const histEndManual    = (v: string) => { setHistPreset(null); setHistEnd(v) }
+  const atualStartManual = (v: string) => { setAtualPreset(null); setAtualStart(v) }
+  const atualEndManual   = (v: string) => { setAtualPreset(null); setAtualEnd(v) }
 
   const [drill, setDrill] = useState<DrillContext | null>(null)
   const [cruzX, setCruzX] = useState<Eixo>('faixa')
@@ -75,7 +97,8 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
     cruzX, cruzY,
   })
 
-  const baseCtx = { dateStart: atualStart, dateEnd: atualEnd }
+  // Auditoria 2026-06-11: drill respeita os filtros ativos da aba (origem/tipo)
+  const baseCtx = { dateStart: atualStart, dateEnd: atualEnd, origins: filters.origins, tipos: filters.tipos }
 
   if (isLoading) return <LoadingSkeleton rows={10} />
   if (error) return <ErrorBanner error={error as Error} />
@@ -86,6 +109,7 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
   const dimDestino = dims.find(d => d.dimensao === 'destino')
   const dimConvidados = dims.find(d => d.dimensao === 'convidados')
   const dimCanal = dims.find(d => d.dimensao === 'canal_sdr')
+  const dimCanalCloser = dims.find(d => d.dimensao === 'canal_closer')
   const cruzCells = data.cruzamento ?? []
   const topHist = data.top_perfis_historico ?? []
   const topAtual = data.top_perfis_atual ?? []
@@ -96,28 +120,16 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
 
   return (
     <div className="space-y-5">
-      {fonteV2 && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-emerald-900">
-          <div className="flex items-start gap-3">
-            <span className="text-emerald-600 text-lg">✨</span>
-            <div className="flex-1">
-              <p className="font-medium">Histórico vem do ActiveCampaign direto</p>
-              <p className="text-emerald-700 text-xs mt-1">
-                {data.total_historico} casamentos de referência (quem {refLabel}) × {data.total_atual} leads novos no CRM.
-                Mesma fonte de verdade que o site dashboard usa, agora com perfil de entrada (form do casal: orçamento + convidados + destino).
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       <Header
         data={data}
         referencia={referencia} onReferencia={setReferencia}
         atualStart={atualStart} atualEnd={atualEnd}
         histStart={histStart} histEnd={histEnd}
-        onAtualStart={setAtualStart} onAtualEnd={setAtualEnd}
-        onHistStart={setHistStart} onHistEnd={setHistEnd}
+        onAtualStart={atualStartManual} onAtualEnd={atualEndManual}
+        onHistStart={histStartManual} onHistEnd={histEndManual}
+        histPreset={histPreset} atualPreset={atualPreset}
+        onHistPreset={aplicarHistPreset} onAtualPreset={aplicarAtualPreset}
+        mostrarFonte={!!fonteV2}
       />
 
       <DiagnosticoGeral data={data} />
@@ -132,7 +144,7 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
           <select
             value={cruzX}
             onChange={e => setCruzX(e.target.value as Eixo)}
-            className="px-2.5 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="px-2.5 py-1.5 text-xs font-medium bg-white border border-ww-sand rounded-lg focus:outline-none focus:ring-2 focus:ring-ww-gold"
           >
             {EIXO_OPTS.filter(o => o.id !== cruzY).map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
           </select>
@@ -140,7 +152,7 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
           <select
             value={cruzY}
             onChange={e => setCruzY(e.target.value as Eixo)}
-            className="px-2.5 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="px-2.5 py-1.5 text-xs font-medium bg-white border border-ww-sand rounded-lg focus:outline-none focus:ring-2 focus:ring-ww-gold"
           >
             {EIXO_OPTS.filter(o => o.id !== cruzX).map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
           </select>
@@ -164,9 +176,20 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <TopPerfisCard
           titulo={`🏆 Top 10 perfis de quem ${refUpper} (referência)`}
-          subtitulo={`Combos (faixa + destino + convidados) mais frequentes entre quem ${refLabel} no período de referência.`}
+          subtitulo={`Combos (faixa + destino + convidados) mais frequentes entre quem ${refLabel} no período de referência. Clique pra ver os casais.`}
           perfis={topHist}
           accent="emerald"
+          onPerfilClick={(p) => setDrill({
+            dateStart: histStart, dateEnd: histEnd,
+            // A aba não tem seletor de modo: o universo de referência é "quem fechou NO período
+            // histórico" → ganho pela data do ganho (throughput); perdido não tem data própria → safra.
+            dateMode: referencia === 'ganho' ? 'throughput' : 'cohort',
+            origins: filters.origins, tipos: filters.tipos,
+            faixa: p.faixa, destino: p.destino, convidados: p.convidados,
+            marco: referencia === 'perdido' ? 'perdido' : 'ganho',
+            title: `Quem ${refLabel} — ${p.faixa} + ${p.destino} + ${p.convidados}`,
+            subtitle: 'período de referência',
+          })}
         />
         <TopPerfisCard
           titulo="📥 Top 10 perfis dos LEADS NOVOS"
@@ -202,6 +225,15 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
           titulo="🎥 Como foi a 1ª reunião"
           subtitulo={`Canal da 1ª reunião (vídeo, WhatsApp, presencial...) entre quem ${refLabel} vs os leads novos. Cobertura parcial — conta só quem teve reunião registrada.`}
           dim={dimCanal}
+          onCategoriaClick={(cat) => setDrill({ ...baseCtx, canalSdr: [cat], title: `Leads novos — 1ª reunião por "${cat}"` })}
+        />
+      )}
+      {dimCanalCloser && (
+        <ComparacaoDimensao
+          titulo="🎥 Como foi a reunião de fechamento"
+          subtitulo={`Canal da reunião com a Closer entre quem ${refLabel} vs os leads novos. Registrado desde nov/2025 — períodos antigos têm pouca cobertura.`}
+          dim={dimCanalCloser}
+          onCategoriaClick={(cat) => setDrill({ ...baseCtx, canalCloser: [cat], title: `Leads novos — fechamento por "${cat}"` })}
         />
       )}
 
@@ -210,7 +242,17 @@ function PerfilContent({ filters }: { filters: AppliedFilters }) {
   )
 }
 
-function Header({ data, referencia, onReferencia, atualStart, atualEnd, histStart, histEnd, onAtualStart, onAtualEnd, onHistStart, onHistEnd }: {
+// Atalhos de período de cada janela. parseInt('12m') → 12; 'tudo' tratado à parte.
+type HistPresetK = '3m' | '6m' | '12m' | '24m' | 'tudo'
+type AtualPresetK = '7d' | '30d' | '60d' | '90d'
+const HIST_PRESETS: { k: HistPresetK; label: string }[] = [
+  { k: '3m', label: '3m' }, { k: '6m', label: '6m' }, { k: '12m', label: '12m' }, { k: '24m', label: '24m' }, { k: 'tudo', label: 'tudo' },
+]
+const ATUAL_PRESETS: { k: AtualPresetK; label: string }[] = [
+  { k: '7d', label: '7d' }, { k: '30d', label: '30d' }, { k: '60d', label: '60d' }, { k: '90d', label: '90d' },
+]
+
+function Header({ data, referencia, onReferencia, atualStart, atualEnd, histStart, histEnd, onAtualStart, onAtualEnd, onHistStart, onHistEnd, histPreset, atualPreset, onHistPreset, onAtualPreset, mostrarFonte }: {
   data: WwLeadIdealData
   referencia: 'ganho' | 'perdido'
   onReferencia: (v: 'ganho' | 'perdido') => void
@@ -220,91 +262,128 @@ function Header({ data, referencia, onReferencia, atualStart, atualEnd, histStar
   onAtualEnd: (v: string) => void
   onHistStart: (v: string) => void
   onHistEnd: (v: string) => void
+  histPreset: HistPresetK | null
+  atualPreset: AtualPresetK | null
+  onHistPreset: (k: HistPresetK) => void
+  onAtualPreset: (k: AtualPresetK) => void
+  mostrarFonte: boolean
 }) {
-  const refUpper = referencia === 'perdido' ? 'PERDEU' : 'FECHOU'
   const refWord = referencia === 'perdido' ? 'perdas' : 'vendas'
-  const refDesc = referencia === 'perdido' ? 'Leads que se perderam (com motivo de perda)' : 'Fechamentos que ocorreram no período'
-  const setPresetHist = (months: number) => {
-    if (months === 0) {
-      onHistStart('2020-01-01T00:00:00.000Z')
-    } else {
-      onHistStart(monthsAgo(months))
-    }
-    onHistEnd(new Date().toISOString())
-  }
+  const refDesc = referencia === 'perdido' ? 'Leads que se perderam no período (com motivo de perda)' : 'Fechamentos que ocorreram no período'
 
   return (
-    <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 rounded-xl p-5">
-      <h2 className="text-base font-semibold text-slate-900">📈 Lead ideal × Pipeline atual</h2>
-      <p className="text-sm text-slate-600 mt-1.5">
-        O perfil de lead que <strong>fechava antes</strong> é o mesmo que está <strong>entrando agora</strong>?
-        Compare dois períodos independentes e descubra se o marketing continua atraindo o tipo certo.
+    <div className="bg-white border border-ww-sand rounded-xl shadow-ww-lift p-5">
+      <h2 className="font-ww-serif text-xl font-semibold text-ww-n700 tracking-tight">Lead ideal × Pipeline atual</h2>
+      <p className="text-sm text-ww-n500 mt-1 max-w-3xl">
+        O perfil de lead que <strong className="font-semibold text-ww-n600">fechava antes</strong> é o mesmo que está{' '}
+        <strong className="font-semibold text-ww-n600">entrando agora</strong>? Cada lado tem o próprio período — ajuste as janelas e compare.
       </p>
 
-      <div className="mt-3 inline-flex items-center gap-1.5">
-        <span className="text-xs text-slate-500 font-medium">Comparar pipeline com:</span>
-        <div className="inline-flex items-center gap-0.5 bg-white/70 border border-indigo-200 rounded-lg p-0.5">
-          {([['ganho', 'Quem fechou'], ['perdido', 'Quem perdeu']] as const).map(([k, l]) => (
-            <button key={k} onClick={() => onReferencia(k)}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition ${referencia === k ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-800'}`}>
-              {l}
-            </button>
-          ))}
+      <div className="mt-4 grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] items-stretch gap-3">
+        <JanelaCard
+          dot="bg-emerald-500"
+          label="Referência"
+          headerExtra={
+            <div className="inline-flex items-center gap-0.5 bg-ww-cream rounded-lg p-0.5">
+              {([['ganho', 'Quem fechou'], ['perdido', 'Quem perdeu']] as const).map(([k, l]) => (
+                <button key={k} onClick={() => onReferencia(k)}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-ww-gold ${
+                    referencia === k ? 'bg-ww-gold text-white shadow-sm' : 'text-ww-n600 hover:text-ww-n700'
+                  }`}>
+                  {l}
+                </button>
+              ))}
+            </div>
+          }
+          numero={formatNumber(data.total_historico)}
+          unidade={refWord}
+          descricao={refDesc}
+          start={histStart} end={histEnd}
+          onStart={onHistStart} onEnd={onHistEnd}
+          presets={HIST_PRESETS}
+          preset={histPreset}
+          onPreset={(k) => onHistPreset(k as HistPresetK)}
+        />
+
+        {/* Conector — articula visualmente "referência × pipeline" */}
+        <div className="hidden md:flex items-center" aria-hidden>
+          <span className="w-9 h-9 rounded-full bg-white border-2 border-ww-gold text-ww-gold-ink font-ww-serif text-lg flex items-center justify-center select-none shadow-sm">×</span>
         </div>
+
+        <JanelaCard
+          dot="bg-indigo-500"
+          label="Entrando agora"
+          numero={formatNumber(data.total_atual)}
+          unidade="leads novos"
+          descricao="Leads que chegaram no período"
+          start={atualStart} end={atualEnd}
+          onStart={onAtualStart} onEnd={onAtualEnd}
+          presets={ATUAL_PRESETS}
+          preset={atualPreset}
+          onPreset={(k) => onAtualPreset(k as AtualPresetK)}
+        />
       </div>
 
-      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-        {/* Período HISTÓRICO */}
-        <div className="bg-white border border-emerald-200 rounded-lg p-3">
-          <div className="text-xs uppercase tracking-wide text-emerald-700 font-medium">📐 Referência: quem {refUpper}</div>
-          <div className="text-2xl font-semibold text-slate-900 mt-1 tabular-nums">
-            {formatNumber(data.total_historico)} <span className="text-sm font-normal text-slate-500">{refWord}</span>
-          </div>
-          <div className="text-[11px] text-slate-500 mt-0.5">{refDesc}</div>
-          <div className="mt-2 flex items-center gap-2 flex-wrap">
-            <input type="date" value={toDateInput(histStart)} onChange={e => onHistStart(fromDateInputStart(e.target.value))} className="px-2 py-1 text-xs border border-slate-300 rounded text-slate-700" />
-            <span className="text-xs text-slate-500">até</span>
-            <input type="date" value={toDateInput(histEnd)} onChange={e => onHistEnd(fromDateInputEnd(e.target.value))} className="px-2 py-1 text-xs border border-slate-300 rounded text-slate-700" />
-          </div>
-          <div className="mt-2 flex items-center gap-1 flex-wrap text-[11px]">
-            <span className="text-slate-500">Atalhos:</span>
-            {[3, 6, 12, 24].map(n => (
-              <button key={n} onClick={() => setPresetHist(n)} className="px-2 py-0.5 rounded border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 text-slate-600">
-                {n}m
-              </button>
-            ))}
-            <button onClick={() => setPresetHist(0)} className="px-2 py-0.5 rounded border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 text-slate-600">tudo</button>
-          </div>
-        </div>
+      {mostrarFonte && (
+        <p className="mt-3 pt-3 border-t border-ww-sand/60 text-[11px] text-ww-n400">
+          ✨ Histórico vem do ActiveCampaign direto — mesma base do dashboard do site, com o perfil de entrada do form do casal (orçamento + convidados + destino).
+        </p>
+      )}
+    </div>
+  )
+}
 
-        {/* Período ATUAL */}
-        <div className="bg-white border border-indigo-200 rounded-lg p-3">
-          <div className="text-xs uppercase tracking-wide text-indigo-700 font-medium">🔍 Pipeline: quem ESTÁ ENTRANDO</div>
-          <div className="text-2xl font-semibold text-slate-900 mt-1 tabular-nums">
-            {formatNumber(data.total_atual)} <span className="text-sm font-normal text-slate-500">leads novos</span>
-          </div>
-          <div className="text-[11px] text-slate-500 mt-0.5">Leads que chegaram no período</div>
-          <div className="mt-2 flex items-center gap-2 flex-wrap">
-            <input type="date" value={toDateInput(atualStart)} onChange={e => onAtualStart(fromDateInputStart(e.target.value))} className="px-2 py-1 text-xs border border-slate-300 rounded text-slate-700" />
-            <span className="text-xs text-slate-500">até</span>
-            <input type="date" value={toDateInput(atualEnd)} onChange={e => onAtualEnd(fromDateInputEnd(e.target.value))} className="px-2 py-1 text-xs border border-slate-300 rounded text-slate-700" />
-          </div>
-          <div className="mt-2 flex items-center gap-1 flex-wrap text-[11px]">
-            <span className="text-slate-500">Atalhos:</span>
-            {[
-              { label: '7d', d: 7 },
-              { label: '30d', d: 30 },
-              { label: '60d', d: 60 },
-              { label: '90d', d: 90 },
-            ].map(p => (
-              <button key={p.label} onClick={() => {
-                const d = new Date(); d.setDate(d.getDate() - p.d)
-                onAtualStart(d.toISOString())
-                onAtualEnd(new Date().toISOString())
-              }} className="px-2 py-0.5 rounded border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-600">{p.label}</button>
-            ))}
-          </div>
-        </div>
+const dateInputCls = 'px-1.5 py-1 text-xs bg-white border border-ww-sand rounded-lg text-ww-n700 hover:border-ww-sand-dk focus:outline-none focus:ring-2 focus:ring-ww-gold transition-colors'
+
+// Uma janela da comparação: identidade (cor + rótulo), resultado (nº) e controle de período (atalhos + datas)
+function JanelaCard({ dot, label, headerExtra, numero, unidade, descricao, start, end, onStart, onEnd, presets, preset, onPreset }: {
+  dot: string
+  label: string
+  headerExtra?: ReactNode
+  numero: string
+  unidade: string
+  descricao: string
+  start: string; end: string
+  onStart: (v: string) => void
+  onEnd: (v: string) => void
+  presets: { k: string; label: string }[]
+  preset: string | null
+  onPreset: (k: string) => void
+}) {
+  return (
+    <div className="bg-ww-paper/60 border border-ww-sand rounded-lg p-3 md:p-4 flex flex-col">
+      {/* min-h casa com a altura do segment (headerExtra) pra alinhar os números dos dois cards */}
+      <div className="flex items-center justify-between gap-x-2 gap-y-1.5 flex-wrap min-h-[28px]">
+        <span className="inline-flex items-center gap-1.5">
+          <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+          <span className="text-[11px] uppercase tracking-wider font-semibold text-ww-n500">{label}</span>
+        </span>
+        {headerExtra}
+      </div>
+      <div className="mt-2 flex items-baseline gap-1.5">
+        <span className="text-2xl font-semibold text-ww-n700 tabular-nums leading-none">{numero}</span>
+        <span className="text-sm text-ww-n500">{unidade}</span>
+      </div>
+      <div className="text-[11px] text-ww-n400 mt-1">{descricao}</div>
+      <div className="mt-3 pt-3 border-t border-ww-sand/70 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="inline-flex items-center gap-1">
+          {presets.map(p => (
+            <button key={p.k} onClick={() => onPreset(p.k)}
+              className={`px-2 py-1 text-[11px] font-medium rounded-md border transition-colors active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-ww-gold ${
+                preset === p.k
+                  ? 'bg-ww-gold-soft border-ww-gold text-ww-gold-ink'
+                  : 'bg-white border-ww-sand text-ww-n600 hover:border-ww-sand-dk'
+              }`}>
+              {p.label}
+            </button>
+          ))}
+        </span>
+        {/* mobile: linha inteira com inputs flexíveis (senão o input nativo estoura o card) */}
+        <span className="flex w-full md:w-auto md:ml-auto items-center gap-1.5 min-w-0">
+          <input type="date" value={toDateInput(start)} onChange={e => e.target.value && onStart(fromDateInputStart(e.target.value))} className={`${dateInputCls} flex-1 min-w-0 md:flex-none`} />
+          <span className="text-[11px] text-ww-n400"><span className="hidden md:inline">até</span><span className="md:hidden">–</span></span>
+          <input type="date" value={toDateInput(end)} onChange={e => e.target.value && onEnd(fromDateInputEnd(e.target.value))} className={`${dateInputCls} flex-1 min-w-0 md:flex-none`} />
+        </span>
       </div>
     </div>
   )
@@ -428,7 +507,7 @@ function HeatmapDuplo({ cells, xOrder, yOrder, xLabel, yLabel, onCellClick }: {
                   return (
                     <td key={x} className={`p-0 ${bg}`} title={`Hist: ${cell.hist_qtd} (${hp}%) · Atual: ${cell.atual_qtd} (${ap}%) · Δ ${delta >= 0 ? '+' : ''}${delta.toFixed(1)}pp`}>
                       {onCellClick ? (
-                        <button onClick={() => onCellClick(x, y)} className="w-full h-full px-2 py-2 text-center block cursor-pointer hover:ring-2 hover:ring-indigo-400 focus:ring-2 focus:ring-indigo-400 focus:outline-none">
+                        <button onClick={() => onCellClick(x, y)} className="w-full h-full px-2 py-2 text-center block cursor-pointer hover:ring-2 hover:ring-ww-gold focus:ring-2 focus:ring-ww-gold focus:outline-none">
                           <div className="text-[11px] tabular-nums">
                             <span className="text-emerald-700 font-medium">{hp}%</span>
                             <span className="text-slate-400 mx-0.5">/</span>
@@ -548,7 +627,7 @@ function ComparacaoDimensao({ titulo, subtitulo, dim, ordenarPor, onCategoriaCli
               <Wrap
                 key={d.categoria}
                 onClick={onCategoriaClick ? () => onCategoriaClick(d.categoria) : undefined}
-                className={`w-full grid grid-cols-12 items-center px-3 py-2.5 text-xs text-left ${onCategoriaClick ? 'hover:bg-indigo-50/60 cursor-pointer' : ''}`}
+                className={`w-full grid grid-cols-12 items-center px-3 py-2.5 text-xs text-left ${onCategoriaClick ? 'hover:bg-ww-cream/50 cursor-pointer' : ''}`}
                 title={onCategoriaClick ? `Ver leads novos — ${d.categoria}` : undefined}
               >
                 <div className="col-span-3 font-medium text-slate-900 truncate" title={d.categoria}>{d.categoria}</div>
@@ -589,6 +668,7 @@ function labelDim(d: Dim | string): string {
     case 'convidados': return 'Nº de convidados'
     case 'origem': return 'Origem'
     case 'canal_sdr': return 'Canal da 1ª reunião'
+    case 'canal_closer': return 'Canal da reunião de fechamento'
     case 'tipo': return 'Tipo (DW/Elopement)'
     default: return d
   }

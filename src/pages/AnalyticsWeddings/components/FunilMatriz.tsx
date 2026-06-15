@@ -14,7 +14,7 @@ import { EmptyState, LoadingSkeleton } from './ui'
 // 3 layouts comutáveis ("Ver como"): Tabela · Lado a lado · Mini-funis.
 // Clicar numa linha preenche o filtro e abre o funil completo (A|B) abaixo.
 
-const DIM_LABEL: Record<WwFunilRankingDim, string> = { faixa: 'Investimento', convidados: 'Convidados', destino: 'Destino' }
+const DIM_LABEL: Record<WwFunilRankingDim, string> = { faixa: 'Investimento', convidados: 'Convidados', destino: 'Destino', canal_sdr: '1ª reunião', canal_closer: 'Reunião closer' }
 type Vista = 'tabela' | 'lado' | 'funis'
 const VISTA_LABEL: Record<Vista, string> = { tabela: 'Tabela', lado: 'Lado a lado', funis: 'Mini-funis' }
 type Metrica = 'passagem' | 'mudanca'
@@ -25,8 +25,10 @@ const AMOSTRA_MIN = 5
 // destino é categórico (sem ordem de valor → cai pra volume).
 const BUCKET_ORDER: Record<WwFunilRankingDim, string[]> = {
   faixa: ['Até R$50 mil', 'R$50-100 mil', 'R$100-200 mil', 'R$200-500 mil', '+R$500 mil'],
-  convidados: ['Apenas o casal', 'Até 20', '20-50', '50-100', '+100'],
+  convidados: ['Apenas o casal', 'Até 20', '20-50', '50-100', '50-80', '80-100', '+100'],
   destino: [],
+  canal_sdr: [],
+  canal_closer: [],
 }
 
 // Rótulos curtos das colunas. "Marcou" = agendou a reunião; "Fez" = aconteceu.
@@ -51,7 +53,12 @@ type Linha = {
 }
 
 function getBucket(row: WwFunilRankingRow, dim: WwFunilRankingDim): string {
-  return (dim === 'faixa' ? row.faixa : dim === 'convidados' ? row.convidados : row.destino) ?? row.label
+  const v = dim === 'faixa' ? row.faixa
+    : dim === 'convidados' ? row.convidados
+    : dim === 'destino' ? row.destino
+    : dim === 'canal_sdr' ? row.canal_sdr
+    : row.canal_closer
+  return v ?? row.label
 }
 function counts(row: WwFunilRankingRow | undefined): number[] {
   if (!row) return [0, 0, 0, 0, 0, 0]
@@ -121,6 +128,9 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
   const [soComAmostra, setSoComAmostra] = useState(false)
   const [esconderNI, setEsconderNI] = useState(true)
   const isNI = (b: string) => /n[ãa]o\s*informad/i.test(b)
+  const canalDim = dim === 'canal_sdr' || dim === 'canal_closer'
+  // Banco antigo ignora dimensões de canal e devolve faixa no lugar — detecta e avisa em vez de mentir.
+  const dimIndisponivel = canalDim && !!rankingB && !(rankingB.dimensoes ?? []).includes(dim)
 
   const todas = useMemo<Linha[]>(() => {
     const rowsA = rankingA?.rows ?? []
@@ -149,7 +159,9 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
   const pequena = (l: Linha) => l.entrouB < AMOSTRA_MIN && l.entrouA < AMOSTRA_MIN
   const niLinha = todas.find((l) => isNI(l.bucket)) ?? null
   const perfis = todas.filter((l) => !isNI(l.bucket))
-  const baseLinhas = (esconderNI ? perfis : todas).filter((l) => l.entrouA > 0 || l.entrouB > 0) // esconde baldes zerados
+  // esconde baldes 100% zerados; no "o que aconteceu no período" mantém quem teve atividade
+  // (reunião/venda) mesmo sem ter ENTRADO na janela — pra bater com o funil da mesma aba
+  const baseLinhas = (esconderNI ? perfis : todas).filter((l) => l.entrouA > 0 || l.entrouB > 0 || l.countsA.some((n) => n > 0) || l.countsB.some((n) => n > 0))
   const visiveis = soComAmostra ? baseLinhas.filter((l) => !pequena(l)) : baseLinhas
   const escondidas = baseLinhas.length - visiveis.length
 
@@ -168,7 +180,7 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
 
   // Manchete: quem mais fecha + a etapa que mais trava no geral (passagem agregada).
   const insight = useMemo(() => {
-    const base = ordenadas.filter((l) => !pequena(l) && !isNI(l.bucket))
+    const base = ordenadas.filter((l) => !pequena(l) && !isNI(l.bucket) && l.taxaB != null)
     if (!base.length) return null
     const leader = base.reduce((best, l) => ((l.taxaB ?? -1) > (best.taxaB ?? -1) ? l : best))
     let worst: { label: string; p: number } | null = null
@@ -186,7 +198,7 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
   const podeMudanca = (rankingA?.rows?.length ?? 0) > 0
 
   return (
-    <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 hover:shadow-md transition-shadow">
+    <div className="bg-white border border-ww-sand shadow-ww-lift rounded-xl p-5 hover:shadow-md transition-shadow">
       {/* Cabeçalho + segmentação */}
       <div className="flex items-start justify-between gap-3 flex-wrap mb-1">
         <div>
@@ -195,9 +207,9 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
         </div>
         <div className="shrink-0">
           <div className="text-xs font-medium text-slate-400 mb-1 text-right">Ver por</div>
-          <div className="inline-flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
-            {(['faixa', 'convidados', 'destino'] as WwFunilRankingDim[]).map((d) => (
-              <button key={d} onClick={() => onDim(d)} className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${dim === d ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{DIM_LABEL[d]}</button>
+          <div className="inline-flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5 flex-wrap">
+            {(['faixa', 'convidados', 'destino', 'canal_sdr', 'canal_closer'] as WwFunilRankingDim[]).map((d) => (
+              <button key={d} onClick={() => onDim(d)} className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${dim === d ? 'bg-white text-ww-gold-ink shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{DIM_LABEL[d]}</button>
             ))}
           </div>
         </div>
@@ -205,9 +217,9 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
 
       {/* Manchete diagnóstica */}
       {insight && (
-        <div className="mt-3 mb-1 rounded-lg bg-indigo-50 border border-indigo-100 px-3.5 py-2.5">
+        <div className="mt-3 mb-1 rounded-lg bg-ww-gold-soft/60 border border-ww-gold/30 px-3.5 py-2.5">
           <p className="text-sm text-slate-800">
-            <strong className="text-indigo-800">{insight.leader.bucket}</strong> é quem mais fecha (<strong>{fmtPct(insight.leader.taxaB)}</strong>).
+            <strong className="text-ww-gold-ink">{insight.leader.bucket}</strong> é quem mais fecha (<strong>{fmtPct(insight.leader.taxaB)}</strong>).
             {insight.gargalo && <> A etapa que mais trava no geral é <strong className="text-rose-700">{insight.gargalo.label}</strong> — só <strong>{fmtPct(insight.gargalo.p)}</strong> avançam.</>}
           </p>
         </div>
@@ -219,7 +231,7 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
           <span className="text-xs font-medium text-slate-400">Ver como</span>
           <div className="inline-flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
             {(['tabela', 'lado', 'funis'] as Vista[]).map((v) => (
-              <button key={v} onClick={() => setVista(v)} className={`px-2.5 py-1 text-xs font-medium rounded-md transition ${vista === v ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{VISTA_LABEL[v]}</button>
+              <button key={v} onClick={() => setVista(v)} className={`px-2.5 py-1 text-xs font-medium rounded-md transition ${vista === v ? 'bg-white text-ww-gold-ink shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{VISTA_LABEL[v]}</button>
             ))}
           </div>
         </div>
@@ -227,19 +239,19 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
           <div className="inline-flex items-center gap-1.5">
             <span className="text-xs font-medium text-slate-400">Mostrar</span>
             <div className="inline-flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
-              <button onClick={() => setMetrica('passagem')} className={`px-2.5 py-1 text-xs font-medium rounded-md transition ${metrica === 'passagem' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>passagem</button>
-              <button onClick={() => setMetrica('mudanca')} className={`px-2.5 py-1 text-xs font-medium rounded-md transition ${metrica === 'mudanca' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>mudança vs {labelA}</button>
+              <button onClick={() => setMetrica('passagem')} className={`px-2.5 py-1 text-xs font-medium rounded-md transition ${metrica === 'passagem' ? 'bg-white text-ww-gold-ink shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>passagem</button>
+              <button onClick={() => setMetrica('mudanca')} className={`px-2.5 py-1 text-xs font-medium rounded-md transition ${metrica === 'mudanca' ? 'bg-white text-ww-gold-ink shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>mudança vs {labelA}</button>
             </div>
           </div>
         )}
         <div className="inline-flex items-center gap-1">
           <span className="text-xs font-medium text-slate-400 mr-0.5">Ordenar</span>
           {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
-            <button key={k} onClick={() => setSortKey(k)} className={`px-2.5 py-1 text-xs font-medium rounded-lg border transition ${sortKey === k ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'}`}>{SORT_LABEL[k]}</button>
+            <button key={k} onClick={() => setSortKey(k)} className={`px-2.5 py-1 text-xs font-medium rounded-lg border transition ${sortKey === k ? 'bg-ww-gold-soft border-ww-gold text-ww-gold-ink' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'}`}>{SORT_LABEL[k]}</button>
           ))}
         </div>
         <label className="ml-auto inline-flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer">
-          <input type="checkbox" checked={soComAmostra} onChange={(e) => setSoComAmostra(e.target.checked)} className="rounded border-slate-300" />
+          <input type="checkbox" checked={soComAmostra} onChange={(e) => setSoComAmostra(e.target.checked)} className="rounded border-ww-sand-dk accent-[#BD965C]" />
           Esconder perfis com menos de {AMOSTRA_MIN} leads
         </label>
       </div>
@@ -256,8 +268,16 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
         </p>
       )}
 
+      {canalDim && !dimIndisponivel && (
+        <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-3">
+          Cada linha agrupa os casais pelo jeito que a reunião aconteceu — então as etapas <strong>antes</strong> da reunião ficam triviais (todo mundo da linha fez). A leitura útil é <strong>dali pra frente</strong>: de quem fez por Vídeo vs WhatsApp, quantos avançam e fecham.
+        </p>
+      )}
+
       {isLoading ? (
         <LoadingSkeleton rows={6} />
+      ) : dimIndisponivel ? (
+        <EmptyState message="Ver por tipo de reunião fica disponível depois da próxima atualização do banco de dados. Os outros agrupamentos seguem normais." />
       ) : ordenadas.length === 0 ? (
         <EmptyState message="Sem perfis com dados nesses períodos. Amplie a janela ou tire filtros." />
       ) : (
@@ -269,7 +289,7 @@ export function FunilMatriz({ dim, onDim, rankingA, rankingB, labelA, labelB, is
           {/* Rodapé: contador + legenda */}
           <div className="flex items-start justify-between gap-3 flex-wrap pt-3">
             <p className="text-xs text-slate-400">
-              Mostrando {ordenadas.filter((l) => !isNI(l.bucket)).length} de {perfis.length} perfis{escondidas > 0 && <> · {escondidas} com menos de {AMOSTRA_MIN} leads {soComAmostra ? <button onClick={() => setSoComAmostra(false)} className="text-indigo-600 hover:underline">mostrar</button> : 'marcados como "poucos"'}</>}{niLinha && (niLinha.entrouB || niLinha.entrouA) > 0 && <> · {(niLinha.entrouB || niLinha.entrouA)} sem {DIM_LABEL[dim].toLowerCase()} informado {esconderNI ? <button onClick={() => setEsconderNI(false)} className="text-indigo-600 hover:underline">mostrar</button> : <button onClick={() => setEsconderNI(true)} className="text-indigo-600 hover:underline">esconder</button>}</>}.
+              Mostrando {ordenadas.filter((l) => !isNI(l.bucket)).length} de {perfis.length} perfis{escondidas > 0 && <> · {escondidas} com menos de {AMOSTRA_MIN} leads {soComAmostra ? <button onClick={() => setSoComAmostra(false)} className="text-ww-gold-ink hover:underline">mostrar</button> : 'marcados como "poucos"'}</>}{niLinha && (niLinha.entrouB || niLinha.entrouA) > 0 && <> · {(niLinha.entrouB || niLinha.entrouA)} sem {DIM_LABEL[dim].toLowerCase()} informado {esconderNI ? <button onClick={() => setEsconderNI(false)} className="text-ww-gold-ink hover:underline">mostrar</button> : <button onClick={() => setEsconderNI(true)} className="text-ww-gold-ink hover:underline">esconder</button>}</>}.
             </p>
           </div>
           <p className="text-xs text-slate-400 leading-relaxed border-t border-slate-100 pt-2 mt-1">
@@ -318,11 +338,11 @@ function TabelaView({ linhas, dim, metrica, selecionado, onPick, pequena }: View
             const small = pequena(l)
             return (
               <tr key={l.bucket} onClick={() => onPick(dim, l.bucket)} className="cursor-pointer group">
-                <td className={`sticky left-0 z-10 px-2 py-1.5 rounded-l-lg text-left align-middle transition ${isSel ? 'bg-indigo-50' : 'bg-white group-hover:bg-indigo-50/40'}`}>
+                <td className={`sticky left-0 z-10 px-2 py-1.5 rounded-l-lg text-left align-middle transition ${isSel ? 'bg-ww-gold-soft' : 'bg-white group-hover:bg-ww-cream/60'}`}>
                   <div className="flex items-center gap-1">
-                    <span className={`text-sm font-medium whitespace-nowrap ${isSel ? 'text-indigo-800' : 'text-slate-800'}`}>{l.bucket}</span>
+                    <span className={`text-sm font-medium whitespace-nowrap ${isSel ? 'text-ww-gold-ink' : 'text-slate-800'}`}>{l.bucket}</span>
                     {small && <span className="px-1 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-500">poucos</span>}
-                    <ChevronRight className={`w-3.5 h-3.5 ml-auto shrink-0 transition ${isSel ? 'text-indigo-500' : 'text-slate-300 group-hover:text-indigo-400'}`} />
+                    <ChevronRight className={`w-3.5 h-3.5 ml-auto shrink-0 transition ${isSel ? 'text-ww-gold' : 'text-slate-300 group-hover:text-ww-gold'}`} />
                   </div>
                 </td>
                 {MARCO_KEYS.map((k, i) => {
@@ -356,7 +376,7 @@ function TabelaView({ linhas, dim, metrica, selecionado, onPick, pequena }: View
                     title = `${formatNumber(l.countsB[i])} de ${formatNumber(l.countsB[i - 1])} avançaram (${fmtPct(pB)})`
                   }
                   return (
-                    <td key={k} title={title} className={`px-1.5 py-1.5 text-center tabular-nums align-middle rounded transition ${bg} ${isSel ? 'ring-1 ring-indigo-300' : ''}`}>
+                    <td key={k} title={title} className={`px-1.5 py-1.5 text-center tabular-nums align-middle rounded transition ${bg} ${isSel ? 'ring-1 ring-ww-gold/50' : ''}`}>
                       <div className="text-sm font-semibold leading-none">{txt}</div>
                       {count != null && <div className="text-[10px] font-normal leading-none mt-1 opacity-60">{count}</div>}
                     </td>
@@ -424,17 +444,17 @@ function LadoView({ linhas, dim, labelA, labelB, selecionado, onPick, pequena }:
             const small = pequena(l)
             return (
               <tr key={l.bucket} onClick={() => onPick(dim, l.bucket)} className="cursor-pointer group">
-                <td className={`sticky left-0 z-10 px-2 py-1.5 rounded-l-lg text-left align-middle transition ${isSel ? 'bg-indigo-50' : 'bg-white group-hover:bg-indigo-50/40'}`}>
+                <td className={`sticky left-0 z-10 px-2 py-1.5 rounded-l-lg text-left align-middle transition ${isSel ? 'bg-ww-gold-soft' : 'bg-white group-hover:bg-ww-cream/60'}`}>
                   <div className="flex items-center gap-1">
-                    <span className={`text-sm font-medium whitespace-nowrap ${isSel ? 'text-indigo-800' : 'text-slate-800'}`}>{l.bucket}</span>
+                    <span className={`text-sm font-medium whitespace-nowrap ${isSel ? 'text-ww-gold-ink' : 'text-slate-800'}`}>{l.bucket}</span>
                     {small && <span className="px-1 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-500">poucos</span>}
-                    <ChevronRight className={`w-3.5 h-3.5 ml-auto shrink-0 transition ${isSel ? 'text-indigo-500' : 'text-slate-300 group-hover:text-indigo-400'}`} />
+                    <ChevronRight className={`w-3.5 h-3.5 ml-auto shrink-0 transition ${isSel ? 'text-ww-gold' : 'text-slate-300 group-hover:text-ww-gold'}`} />
                   </div>
                 </td>
                 {MARCO_KEYS.map((k, i) => {
                   if (i === 0) {
                     return (
-                      <td key={k} title={`${formatNumber(l.entrouA)} → ${formatNumber(l.entrouB)} leads`} className={`px-1.5 py-2 text-center tabular-nums align-middle rounded ${small ? 'bg-slate-50 text-slate-400' : ENTROU_BG} ${isSel ? 'ring-1 ring-indigo-300' : ''}`}>
+                      <td key={k} title={`${formatNumber(l.entrouA)} → ${formatNumber(l.entrouB)} leads`} className={`px-1.5 py-2 text-center tabular-nums align-middle rounded ${small ? 'bg-slate-50 text-slate-400' : ENTROU_BG} ${isSel ? 'ring-1 ring-ww-gold/50' : ''}`}>
                         <span className="text-xs text-slate-400">{formatNumber(l.entrouA)}</span>
                         <span className="text-slate-300 mx-0.5">→</span>
                         <span className="text-sm font-medium">{formatNumber(l.entrouB)}</span>
@@ -445,7 +465,7 @@ function LadoView({ linhas, dim, labelA, labelB, selecionado, onPick, pequena }:
                   const pB = passagem(l.countsB, i)
                   const d = pA != null && pB != null ? pB - pA : null
                   return (
-                    <td key={k} title={`${COL_LABEL[k]}: ${formatNumber(l.countsA[i])} → ${formatNumber(l.countsB[i])} leads · passagem ${fmtPct(pA)} → ${fmtPct(pB)} (${fmtDeltaPp(d)})`} className={`px-1.5 py-1.5 text-center tabular-nums align-middle rounded ${corMudanca(d, small)} ${isSel ? 'ring-1 ring-indigo-300' : ''}`}>
+                    <td key={k} title={`${COL_LABEL[k]}: ${formatNumber(l.countsA[i])} → ${formatNumber(l.countsB[i])} leads · passagem ${fmtPct(pA)} → ${fmtPct(pB)} (${fmtDeltaPp(d)})`} className={`px-1.5 py-1.5 text-center tabular-nums align-middle rounded ${corMudanca(d, small)} ${isSel ? 'ring-1 ring-ww-gold/50' : ''}`}>
                       <div className="leading-tight">
                         <span className="text-xs opacity-70">{fmtPct(pA)}</span>
                         <span className="opacity-40 mx-0.5">→</span>
@@ -511,9 +531,9 @@ function FunisView({ linhas, dim, selecionado, onPick, pequena }: ViewProps) {
         const isSel = selecionado === l.bucket
         const small = pequena(l)
         return (
-          <button key={l.bucket} onClick={() => onPick(dim, l.bucket)} className={`w-full text-left rounded-lg border px-3 py-2.5 transition ${isSel ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/30'} ${small ? 'opacity-70' : ''}`}>
+          <button key={l.bucket} onClick={() => onPick(dim, l.bucket)} className={`w-full text-left rounded-lg border px-3 py-2.5 transition ${isSel ? 'border-ww-gold bg-ww-gold-soft' : 'border-ww-sand bg-white hover:border-ww-gold hover:bg-ww-gold-soft/40'} ${small ? 'opacity-70' : ''}`}>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className={`text-sm font-medium ${isSel ? 'text-indigo-800' : 'text-slate-800'}`}>{l.bucket}</span>
+              <span className={`text-sm font-medium ${isSel ? 'text-ww-gold-ink' : 'text-slate-800'}`}>{l.bucket}</span>
               {small && <span className="px-1 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-500">poucos</span>}
               <span className="ml-auto text-xs text-slate-400 tabular-nums">{formatNumber(l.entrouB)} leads · fecha {fmtPct(l.taxaB)}</span>
             </div>

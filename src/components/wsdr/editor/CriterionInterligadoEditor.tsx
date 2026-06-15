@@ -142,7 +142,14 @@ function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; labe
 function FaixasEditor({ c, onPatch }: { c: QualCriterion; onPatch: (p: Partial<QualCriterion>) => void }) {
   const faixas = c.faixas ?? []
   const setF = (i: number, patch: Partial<CriterionFaixa>) => onPatch({ faixas: faixas.map((f, idx) => idx === i ? { ...f, ...patch } : f) })
-  const num = (v: string): number | null => v.trim() === '' ? null : Number(v)
+  // aceita formato BR: ponto como milhar ("200.000"→200000) e vírgula como decimal ("1,5"→1.5)
+  const num = (v: string): number | null => {
+    const s = v.trim()
+    if (s === '') return null
+    const norm = s.replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.')
+    const n = Number(norm)
+    return Number.isFinite(n) ? n : null
+  }
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-2 text-xs">
@@ -189,6 +196,17 @@ function OpcoesEditor({ c, onPatch }: { c: QualCriterion; onPatch: (p: Partial<Q
           <option value="desqualifica">desqualifica</option>
         </select>
       </label>
+      <div className="pt-1">
+        <label className="block text-[11px] font-medium text-slate-600 mb-1">Como interpretar o que o casal diz</label>
+        <textarea
+          value={c.dica ?? ''}
+          onChange={e => onPatch({ dica: e.target.value })}
+          rows={2}
+          placeholder="Ex.: se o casal disser algo vago como 'praia' e estiver aberto a sugestões, conte como Nordeste. Trancoso/Bahia → Nordeste; vinhedo/Europa → Europa; ilha no exterior → Caribe."
+          className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs resize-y focus:outline-none focus:ring-2 focus:ring-ww-gold/40"
+        />
+        <p className="text-[10.5px] text-slate-400 mt-1">Ensina a Sofia a encaixar destinos vagos numa das opções acima (pra a nota não ficar zerada).</p>
+      </div>
     </div>
   )
 }

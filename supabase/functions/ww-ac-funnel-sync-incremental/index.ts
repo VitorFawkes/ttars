@@ -33,6 +33,10 @@ const FIELD_GANHO            = '87'
 const FIELD_DEAL_PACOTE_CONV = '62'
 const FIELD_DEAL_MOTIVO_CLOSER = '47'
 const FIELD_DEAL_MOTIVO_SDR    = '56'
+const FIELD_DEAL_ORCAMENTO     = '27'  // orçamento declarado (form do site)
+const FIELD_DEAL_CONV_FORM     = '26'  // nº convidados declarado (form do site)
+const FIELD_DEAL_DESTINO       = '28'  // destino declarado (form do site)
+const FIELD_DEAL_TIPO          = '30'  // DW ou Elopment (declarado)
 const CONTACT_FIELD_CONVIDADOS = '121'
 const CONTACT_FIELD_ORCAMENTO  = '376'
 const CONTACT_FIELD_UTM_SOURCE = '46'
@@ -40,7 +44,7 @@ const CONTACT_FIELD_UTM_MEDIUM = '47'
 const CONTACT_FIELD_UTM_CAMPAIGN = '48'
 const CONTACT_FIELD_ORIGEM_CONVERSAO = '137'
 
-type Deal = { id: string; group: string | null; title: string | null; contact?: string | null }
+type Deal = { id: string; group: string | null; title: string | null; contact?: string | null; cdate?: string | null }
 
 function parseDateTime(v: string | null | undefined): string | null {
   if (!v) return null
@@ -223,6 +227,9 @@ Deno.serve(async (req) => {
       contact_id: deal.contact ?? null,
       pipeline_group_id: groupId,
       is_ww: isWw,
+      // 20260612d: status do Active (0=aberto,1=ganho,2/3=perdido). Único sinal de
+      // perda da esteira SDR (que não gera evento de jornada). is_perdido usa isso.
+      ac_status: deal.status != null ? parseInt(String(deal.status), 10) : null,
       deal_title: deal.title ?? null,
       sdr_agendou_at: parseDateTime(fieldMap[FIELD_SDR_AGENDOU]),
       sdr_fez: sdrFez,
@@ -231,6 +238,13 @@ Deno.serve(async (req) => {
       closer_fez: closer.fez,
       closer_canal: closer.canal,
       ganho_at: parseDateTime(fieldMap[FIELD_GANHO]),
+      // Dimensões DECLARADAS no form do site (campos do DEAL) — só p/ deals WW.
+      // Cru (a normalização/limpeza acontece depois, no refresh_ww_funil_casal).
+      faixa_raw:      isWw ? (fieldMap[FIELD_DEAL_ORCAMENTO] ?? null) : null,
+      convidados_raw: isWw ? (fieldMap[FIELD_DEAL_CONV_FORM] ?? null) : null,
+      destino_raw:    isWw ? (fieldMap[FIELD_DEAL_DESTINO]   ?? null) : null,
+      tipo_casamento: isWw ? (fieldMap[FIELD_DEAL_TIPO]      ?? null) : null,
+      deal_created_at: parseDateTime(deal.cdate),
       real_orcamento_raw: orcamentoRaw,
       real_orcamento_parsed: parseOrcamento(orcamentoRaw),
       real_convidados_raw: convidadosRaw,
@@ -252,6 +266,44 @@ Deno.serve(async (req) => {
       .upsert(row, { onConflict: 'ac_deal_id' })
 
     if (upsertErr) throw new Error(`upsert failed: ${upsertErr.message}`)
+
+    // 5b. JORNADA: re-puxa a movimentacao (dealActivities) e atualiza ww_deal_event.
+    // Idempotente (onConflict ac_activity_id). E daqui que sai o "fez Closer / ganho"
+    // pela jornada (entrou no Planejamento, etc). org_id explicito porque service_role
+    // nao tem JWT -> requesting_org_id() retornaria NULL e violaria NOT NULL.
+    if (isWw && deal.contact) {
+      try {
+        const WEDDING_ORG = 'b0000000-0000-0000-0000-000000000002'
+        type AcAct = { id: string | number; dataType?: string; cdate?: string; dataOldval?: string | null; dataAction?: string | null; userid?: string | number | null }
+        const acts: AcAct[] = []
+        for (let offset = 0; offset < 2000; offset += 100) {
+          const j = await acFetch<{ dealActivities?: AcAct[] }>(`/api/3/deals/${dealId}/dealActivities?limit=100&offset=${offset}`)
+          const batch = j.dealActivities ?? []
+          acts.push(...batch)
+          if (batch.length < 100) break
+        }
+        const events = acts
+          .filter(a => a.dataType === 'd_stageid' || a.dataType === 'd_groupid')
+          .map(a => ({
+            ac_deal_id: String(dealId),
+            org_id: WEDDING_ORG,
+            ac_activity_id: String(a.id),
+            event_ts: parseDateTime(a.cdate),
+            kind: a.dataType === 'd_groupid' ? 'esteira' : 'etapa',
+            from_id: a.dataOldval != null ? String(a.dataOldval) : null,
+            to_id: a.dataAction != null ? String(a.dataAction) : null,
+            by_user: a.userid != null ? String(a.userid) : null,
+            by_automation: false,
+            contact_id: String(deal.contact),
+          }))
+        if (events.length) {
+          const { error: evErr } = await supabase.from('ww_deal_event').upsert(events, { onConflict: 'ac_activity_id' })
+          if (evErr) console.warn(`ww_deal_event upsert failed (deal ${dealId}):`, evErr.message)
+        }
+      } catch (e) {
+        console.warn(`journey sync failed (deal ${dealId}):`, (e as Error).message)
+      }
+    }
 
     // 6. Marcar evento como processado (se veio de webhook)
     if (eventId) {

@@ -1,0 +1,173 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sofia como SDR — conversas reais</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FBF8F4; --card:#FFFFFF; --sand:#EAE1D3; --sand-dk:#D8CBB6;
+    --ink:#2B2622; --ink-soft:#6B6258; --gold:#BD965C; --gold-ink:#A37F47;
+    --rosewood:#874B52; --sage:#5F7A57; --sage-bg:#EEF2EA;
+    --amber:#B8842B; --amber-bg:#FBF3E3; --crit:#8E3B3B; --crit-bg:#F7EBEA;
+    --lead:#EFE9E0; --sofia:#F6EAD7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Nunito',system-ui,sans-serif;background:var(--paper);color:var(--ink);
+    line-height:1.5;-webkit-font-smoothing:antialiased;padding:44px 20px 72px}
+  .wrap{max-width:880px;margin:0 auto}
+  .serif{font-family:'Playfair Display',Georgia,serif}
+  .eyebrow{font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--gold-ink)}
+  h1{font-family:'Playfair Display',serif;font-weight:700;font-size:clamp(28px,5vw,40px);line-height:1.1;letter-spacing:-.01em;margin:12px 0}
+  .sub{font-size:15px;color:var(--ink-soft);max-width:600px}
+
+  /* legenda de ferramentas */
+  .legend{background:linear-gradient(135deg,#fff,#FCF7EF);border:1px solid var(--sand);border-radius:18px;
+    padding:22px 26px;margin:26px 0 8px;box-shadow:0 12px 30px -18px rgba(135,75,82,.18)}
+  .legend h2{font-family:'Playfair Display',serif;font-size:18px;margin-bottom:14px}
+  .legend-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 26px}
+  .lg{display:flex;gap:10px;font-size:13.5px;align-items:flex-start}
+  .lg .st{flex:none;font-weight:800;width:18px}
+  .lg .ok{color:var(--sage)} .lg .warn{color:var(--amber)} .lg .bad{color:var(--crit)}
+
+  /* cartões de conversa */
+  .chat{background:var(--card);border:1px solid var(--sand);border-radius:18px;padding:20px 22px;margin-top:16px;
+    box-shadow:0 1px 2px rgba(43,38,34,.03)}
+  .chat-head{display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:13px;border-bottom:1px solid #F2EBE0}
+  .ix{font-family:'Playfair Display',serif;font-weight:700;font-size:15px;color:#fff;background:var(--gold);
+    width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:none}
+  .chat-head h3{font-size:15.5px;font-weight:800;flex:1}
+  .probe{font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--gold-ink);background:#F6EBDA;
+    padding:3px 10px;border-radius:999px;flex:none}
+
+  .bubbles{display:flex;flex-direction:column;gap:7px}
+  .b{max-width:80%;padding:10px 14px;font-size:14px;border-radius:16px;position:relative}
+  .b.lead{align-self:flex-start;background:var(--lead);color:#3a342d;border-bottom-left-radius:5px}
+  .b.sofia{align-self:flex-end;background:var(--sofia);color:#43321c;border-bottom-right-radius:5px;border:1px solid #EFDFC4}
+  .who{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;opacity:.55;margin-bottom:3px}
+  .b.lead .who{color:var(--ink-soft)} .b.sofia .who{color:var(--gold-ink)}
+
+  /* faixa de bastidores */
+  .tools{margin-top:15px;padding-top:13px;border-top:1px dashed var(--sand-dk);display:flex;flex-wrap:wrap;gap:8px}
+  .chip{font-size:12px;font-weight:700;padding:5px 11px;border-radius:8px;background:#F4F7F1;color:var(--sage);
+    display:inline-flex;align-items:center;gap:5px}
+  .chip.neutral{background:#F4EFE7;color:var(--gold-ink)}
+  .chip.warn{background:var(--amber-bg);color:var(--amber)}
+  .chip.bad{background:var(--crit-bg);color:var(--crit)}
+
+  footer{margin-top:40px;text-align:center;font-size:12px;color:var(--ink-soft)}
+  footer .gold{color:var(--gold-ink);font-weight:700}
+
+  @media(max-width:640px){
+    body{padding:26px 12px 56px}
+    .legend-grid{grid-template-columns:1fr}
+    .b{max-width:92%}
+  }
+
+  .profile{font-size:12.5px;color:var(--ink-soft);margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #F2EBE0}
+  .profile b{color:var(--gold-ink)}
+  .evalbox{margin-top:16px;padding:16px 18px;background:#FCF8F2;border:1px solid var(--sand);border-radius:14px}
+  .evrow{display:flex;gap:12px;font-size:13.5px;margin-bottom:9px;color:#4A433B;align-items:flex-start}
+  .evk{flex:none;width:120px;font-weight:800;font-size:11px;letter-spacing:.03em;text-transform:uppercase;padding-top:2px}
+  .evk.ok{color:var(--sage)} .evk.warn{color:var(--amber)}
+  .grade{text-align:right;font-size:13px;color:var(--ink-soft);font-weight:700;margin-top:4px}
+  .grade b{font-family:"Playfair Display",serif;font-size:22px;color:var(--gold-ink)}
+</style></head><body><div class="wrap">
+<div class="eyebrow">Sofia · Welcome Weddings · 10 de junho de 2026</div>
+<h1 class="serif">Sofia como SDR, de verdade</h1>
+<p class="sub">5 conversas longas com casais de perfis difíceis — cada um reagindo do jeito que reagiria no WhatsApp. A pergunta: <b>ela conduz como um ótimo SDR humano?</b></p>
+<div class="legend"><h2 class="serif">Veredito</h2>
+<p style="font-size:15.5px;color:#3a342d">Sim — em 5 conversas completas ela <b>conduziu como uma SDR sênior</b>: leu emoção, foi honesta sem matar o sonho, tratou objeção sem ser defensiva, não forçou quem ia desistir e fechou no momento certo. Marcou 4 reuniões reais (mesmo closer, sem conflito) e gravou os dados certos, atualizando-os conforme a conversa mudava. <b>O único padrão a vigiar:</b> quando o cliente empurra muito (o apressado), ela marca a reunião com pouca qualificação.</p>
+<div class="legend-grid" style="margin-top:14px">
+<div class="lg"><span class="st ok">✓</span><span><b>Leitura emocional</b> — acolheu medo, tristeza e animação antes de conduzir.</span></div>
+<div class="lg"><span class="st ok">✓</span><span><b>Honestidade com tato</b> — nunca mentiu sobre preço/viabilidade, sem derrubar o lead.</span></div>
+<div class="lg"><span class="st ok">✓</span><span><b>Memória viva</b> — atualizou convidados (100→80, 80→50) e lembrou tudo.</span></div>
+<div class="lg"><span class="st ok">✓</span><span><b>Agenda honesta</b> — recusou horário ocupado e remanejou; zero reserva dupla.</span></div>
+<div class="lg"><span class="st warn">!</span><span><b>Qualificação x pressa</b> — cedeu à urgência e marcou quase sem dados (1 caso).</span></div>
+<div class="lg"><span class="st ok">✓</span><span><b>Não força</b> — reconquistou quem ia desistir oferecendo caminho, não pressão.</span></div>
+</div></div>
+
+    <div class="chat">
+      <div class="chat-head"><h3>Camila &amp; Rafa</h3><span class="probe">Conduzir do zero quem não sabe nada</span></div>
+      <div class="profile">Sonhadores sem orçamento definido · <b>✓ Reunião 11/06 · 11h30</b></div>
+      <div class="bubbles"><div class="b lead"><div class="who">Casal</div>oii tudo bem? a gente ta começando a pensar no casamento e vi vcs no insta, amamos os casamentos de vcs 😍</div><div class="b sofia">Oi! Aqui é a Sofia, da Welcome Weddings, tudo bem?</div><div class="b sofia">Fico muito feliz que vocês tenham sentido isso pelos nossos casamentos. Me fala seu nome e o nome do casal, por favor?</div><div class="b lead"><div class="who">Casal</div>somos a Camila e o Rafa 🥰 a gente sonha em casar na praia, algo intimista, pé na areia... mas sinceramente não fazemos ideia de quanto custa nem por onde começar</div><div class="b sofia">Camila e Rafa, super normal começar assim, com a imagem do pé na areia e sem saber ainda o caminho.</div><div class="b sofia">A nossa assessoria fica entre R$ 4 mil e R$ 18 mil, conforme escopo, destino e tamanho, e o casamento em si varia bastante com convidados, formato e região.</div><div class="b sofia">Quando vocês pensam nessa praia, vem mais Brasil, Caribe, algum lugar que marcou vocês, ou ainda está bem aberto?</div><div class="b lead"><div class="who">Casal</div>acho que Nordeste, Bahia talvez? a gente viu Trancoso e amou demais. mas sera q 100 pessoas fica muito caro?</div><div class="b sofia">Trancoso costuma ser maravilhoso, mas 100 pessoas já muda bastante a conta, principalmente por estrutura, logística e fornecedores na região.</div><div class="b sofia">Como referência de Nordeste, um casamento pra 100 convidados parte de algo em torno de R$ 200 mil, dependendo do escopo, época e formato, e a Wedding Planner detalha isso com mais precisão.</div><div class="b sofia">Pensando no investimento do casamento como um todo, qual seria o valor ideal pra vocês e qual seria o máximo confortável?</div><div class="b lead"><div class="who">Casal</div>ah sei la, a gente junta uns 150 mil talvez, 200 no maximo se apertar muito. é pouco demais?</div><div class="b sofia">Não é pouco demais, não. Pra Trancoso com 100 pessoas, R$ 200 mil tende a ficar bem no limite, então o caminho seria desenhar com bastante cuidado ou ajustar convidados, destino e formato.</div><div class="b sofia">Desses 100, quantos vocês acham que iriam de fato? Destination Wedding costuma ter uma presença diferente.</div><div class="b lead"><div class="who">Casal</div>uns 80 acho que vao de verdade. e a gente topa muito conversar pra entender melhor!</div><div class="b sofia">Perfeito, Camila. Pelo que vocês contaram, faz sentido olhar com carinho esse pé na areia na Bahia, talvez Trancoso, pensando em uns 80 convidados e num desenho que respeite esse teto de até R$ 200 mil.</div><div class="b sofia">A nossa Wedding Planner consegue mostrar caminhos reais pra isso, sem pacote fechado. Tenho hoje às 14h ou 17h30, amanhã às 11h30 ou 18h, ou sexta às 10h. Qual fica melhor pra vocês?</div><div class="b lead"><div class="who">Casal</div>amanhã 11h30 fica perfeito pra gente!</div><div class="b sofia">Perfeito, já deixei reservado amanhã, 11/06, às 11h30 com a nossa Wedding Planner.</div><div class="b sofia">Me manda o melhor e-mail de vocês pra eu enviar o convite da conversa?</div></div>
+      <div class="evalbox">
+        <div class="evrow"><span class="evk ok">Como um ótimo SDR</span><span>Levou um casal de "não fazemos ideia" até qualificar (Trancoso, 80 convidados, R$150–200 mil) e agendar. Deu um insight de especialista — "desses 100, quantos vão de fato? Destination tem presença diferente" — ajudando a viabilizar o orçamento. Atualizou os convidados de 100 → 80 no sistema conforme eles repensavam.</span></div>
+        <div class="evrow"><span class="evk warn">Ponto de atenção</span><span>Nada relevante — condução exemplar.</span></div>
+        <div class="grade">SDR humano: <b>9,5</b>/10</div>
+      </div>
+    </div>
+    <div class="chat">
+      <div class="chat-head"><h3>Dra. Patrícia &amp; Fernanda</h3><span class="probe">Defender o valor sem ser vendedora</span></div>
+      <div class="profile">Cética, pesquisa preço, acha que faz sozinha · <b>✓ Reunião 11/06 · 18h</b></div>
+      <div class="bubbles"><div class="b lead"><div class="who">Casal</div>Boa tarde. Vocês fazem casamento na praia? Queria entender valores antes de mais nada.</div><div class="b sofia">Oi, aqui é a Sofia, tudo bem? Fazemos sim casamento na praia, a Welcome faz Destination Wedding desde 2012, e a nossa assessoria fica entre R$ 4 mil e R$ 18 mil conforme escopo; o casamento em si varia por destino, convidados e formato.</div><div class="b sofia">Me fala o nome do casal e o seu, por favor?</div><div class="b lead"><div class="who">Casal</div>Patrícia. Mas sinceramente, 4 a 18 mil só de assessoria? Eu consigo contratar os fornecedores sozinha. Por que eu pagaria por isso?</div><div class="b sofia">Patrícia, faz todo sentido questionar isso. A assessoria não é só indicar fornecedores, é desenhar o casamento com vocês, fazer curadoria no destino, organizar escolhas, prazos, logística e coordenação pra que vocês não fiquem carregando tudo sozinhos.</div><div class="b sofia">E me conta, quem casa com você?</div><div class="b lead"><div class="who">Casal</div>Entendi. E vocês têm algum case de verdade? Quanto em média um casamento de 100 pessoas na praia sai no total, no fim das contas?</div><div class="b sofia">Temos sim, Patrícia. A Welcome faz Destination Wedding desde 2012 e já foi premiada como melhor produtora de destination wedding da América Latina; os cases reais a nossa Planner consegue mostrar no papo, com referências mais próximas do que vocês querem.</div><div class="b sofia">Pra 100 pessoas na praia, uma base honesta é: Nordeste a partir de R$ 200 mil e Caribe a partir de US$ 17 mil, variando bastante por destino, hotel, época e formato, sem contar viagem e hospedagem dos convidados.</div><div class="b sofia">E me diz só pra eu falar com vocês do jeito certo: quem casa com você?</div><div class="b lead"><div class="who">Casal</div>Sou eu e a Fernanda. Ta... admito que faz sentido. Como seria pra conversar com essa planner, sem compromisso?</div><div class="b sofia">Claro, Patrícia. É um papo online de 45 min, sem compromisso, pra ela entender o que você e a Fernanda imaginam, destino, época, convidados, e mostrar caminhos reais de formato e investimento.</div><div class="b sofia">Tenho hoje 14h ou 17h30, amanhã 11h30 ou 18h, e sexta 10h ou 19h, algum fica bom pra vocês?</div><div class="b lead"><div class="who">Casal</div>Pode ser amanhã 18h então.</div><div class="b sofia">Perfeito, Patrícia. Já deixei reservado amanhã, 11/06, às 18h, com a nossa Wedding Planner.</div><div class="b sofia">Me manda um e-mail pra envio do convite?</div><div class="b lead"><div class="who">Casal</div>fernanda.patricia@gmail.com</div><div class="b sofia">Perfeito, Patrícia, obrigada. O convite da conversa de amanhã, 11/06, às 18h, vai para fernanda.patricia@gmail.com.</div></div>
+      <div class="evalbox">
+        <div class="evrow"><span class="evk ok">Como um ótimo SDR</span><span>Reenquadrou o valor da assessoria sem ser defensiva ("faz todo sentido questionar"), deu base de preço honesta incluindo a ressalva "sem contar viagem e hospedagem", trouxe diferenciais reais (desde 2012, premiada) e converteu a cética até o agendamento.</span></div>
+        <div class="evrow"><span class="evk warn">Ponto de atenção</span><span>Gravou o destino como "praia" (genérico) — o casal não definiu lugar; um humano talvez deixasse em branco.</span></div>
+        <div class="grade">SDR humano: <b>9,0</b>/10</div>
+      </div>
+    </div>
+    <div class="chat">
+      <div class="chat-head"><h3>João &amp; Bia</h3><span class="probe">Ler urgência e ser ágil</span></div>
+      <div class="profile">Apressado, casamento em outubro, quer marcar já · <b>✓ Reunião 11/06 · 19h</b></div>
+      <div class="bubbles"><div class="b lead"><div class="who">Casal</div>fala! preciso casar em outubro desse ano, da tempo? e como faço pra marcar uma call com vcs?</div><div class="b sofia">Oi! Aqui é a Sofia, da Welcome Weddings, tudo bem? Outubro pede uma olhada com carinho e agilidade, mas a nossa Planner consegue avaliar o caminho certinho com vocês.</div><div class="b sofia">Me fala o nome do casal e o seu, por favor?</div><div class="b lead"><div class="who">Casal</div>João e Bia. beleza mas to com pressa mesmo, queria ja marcar a call essa semana se der. quais horarios vcs tem?</div><div class="b sofia">Claro, João e Bia, entendo a pressa por outubro.</div><div class="b sofia">Pra essa semana, consigo sugerir com a nossa Planner hoje 12h, 15h ou 17h30, amanhã 10h ou 19h, e sexta 12h ou 17h; qual funciona melhor pra vocês?</div><div class="b lead"><div class="who">Casal</div>perfeito, pode ser amanha 19h entao. fecha pra mim e pra Bia</div><div class="b sofia">Fechado, João, deixei reservado com a nossa Wedding Planner amanhã, 11/06, às 19h, pra você e a Bia.</div><div class="b sofia">Me manda um e-mail de vocês pra eu deixar tudo certinho?</div><div class="b lead"><div class="who">Casal</div>meu email é joao.bia2026@gmail.com, valeu!</div><div class="b sofia">Perfeito, João, obrigada!</div><div class="b sofia">Fica tudo confirmado com a nossa Wedding Planner amanhã, 11/06, às 19h, no e-mail joao.bia2026@gmail.com.</div></div>
+      <div class="evalbox">
+        <div class="evrow"><span class="evk ok">Como um ótimo SDR</span><span>Leu a pressa, foi ágil, ofereceu horários reais na hora e fechou com e-mail. Atendeu exatamente o que o cliente apressado queria.</span></div>
+        <div class="evrow"><span class="evk warn">Ponto de atenção</span><span>Marcou a reunião quase sem qualificar (o cadastro só tem o nome da Bia — sem destino, convidados ou orçamento). Cedeu 100% à pressa. Um SDR sênior faria 1–2 perguntas rápidas antes, pra a Planner não começar do zero.</span></div>
+        <div class="grade">SDR humano: <b>7,5</b>/10</div>
+      </div>
+    </div>
+    <div class="chat">
+      <div class="chat-head"><h3>Marina &amp; Léo</h3><span class="probe">Segurar sem forçar quem está saindo</span></div>
+      <div class="profile">Emotiva, medo de não pagar, quase desistiu · <b>↺ Fechando (remanejou horário)</b></div>
+      <div class="bubbles"><div class="b lead"><div class="who">Casal</div>oi! to apaixonada pelos casamentos de vcs mas confesso q to meio perdida e com medo de ser caro demais pra gente 🥲</div><div class="b sofia">Oi, eu sou a Sofia, da Welcome Weddings. Super entendo esse receio, ainda mais quando parece tudo meio distante no começo.</div><div class="b sofia">Me conta seu nome e o nome de vocês dois, por favor?</div><div class="b lead"><div class="who">Casal</div>sou a Marina e meu noivo é o Léo ❤️ a gente queria uma coisa na praia, uns 80 convidados, mas a real é q temos medo de nao conseguir pagar... uns 60 mil no maximo daria?</div><div class="b sofia">Marina, obrigada por abrir isso com tanta sinceridade. Pra ser bem transparente: em praia no Nordeste, as referências de casamento completo começam em torno de R$ 100 mil para 50 convidados, e a assessoria da Welcome fica entre R$ 4 mil e R$ 18 mil, conforme escopo.</div><div class="b sofia">Com 80 convidados e teto de R$ 60 mil, talvez a gente precise pensar em formato, destino ou lista mais enxuta, mas me conta: como vocês imaginam essa celebração na praia?</div><div class="b lead"><div class="who">Casal</div>nossa entao deve ser inviavel pra gente né... a gente queria muito mas com esse valor todo acho melhor deixar pra frente 😔</div><div class="b sofia">Marina, entendo muito... dá uma tristeza mesmo quando o valor parece puxar o freio.</div><div class="b sofia">Antes de vocês deixarem pra frente, me conta uma coisa: vocês considerariam um formato mais intimista, com menos convidados, pra tentar manter a praia dentro do limite de vocês?</div><div class="b lead"><div class="who">Casal</div>é... talvez uns 50 convidados a gente consiga. vc acha q da pra fazer algo bonito com o nosso valor?</div><div class="b sofia">Dá pra fazer algo bonito, sim, Marina, mas com R$ 60 mil o ponto é ajustar bem o formato pra não virar uma conta apertada, principalmente pensando em 50 pessoas na praia com assessoria.</div><div class="b sofia">O que é inegociável pra vocês nesse dia: cerimônia na areia, jantar, festa com música, decoração, pôr do sol?</div><div class="b lead"><div class="who">Casal</div>ah com certeza a cerimonia na areia e o por do sol sao sagrados pra gente. o resto a gente abre mao tranquilo</div><div class="b sofia">Isso ajuda muito, Marina. Quando o essencial é cerimônia na areia e pôr do sol, dá pra pensar num formato mais enxuto, sem colocar energia no que não é prioridade pra vocês.</div><div class="b sofia">Vocês já têm uma praia, cidade ou região em mente, ou estão abertos a explorar?</div><div class="b lead"><div class="who">Casal</div>a gente ama Trancoso tbm! topo demais conversar pra ver o que da</div><div class="b sofia">Perfeito, Marina. Pelo que vocês me contaram, faz sentido a nossa Wedding Planner olhar com vocês caminhos bem enxutos pra Trancoso ou praias nessa vibe, priorizando cerimônia na areia e pôr do sol pra cerca de 50 convidados dentro do teto de R$ 60 mil.</div><div class="b sofia">Ela tem hoje 14h ou 17h30, e amanhã 11h30 ou 15h30, qual fica melhor pra vocês?</div><div class="b lead"><div class="who">Casal</div>amanhã 11h30 entao! to muito mais animada agora, obrigada Sofia 🥹</div><div class="b sofia">Marina, amei te sentir mais animada. Fui checar certinho pra reservar e me desculpa, 11h30 amanhã não aparece livre na agenda da Planner.</div><div class="b sofia">Amanhã consigo 10h30, 12h30 ou 15h30, algum desses funciona pra vocês?</div></div>
+      <div class="evalbox">
+        <div class="evrow"><span class="evk ok">Como um ótimo SDR</span><span>A melhor leitura emocional da bateria. Acolheu o medo e a tristeza, NÃO forçou quando ela disse "melhor deixar pra frente", ofereceu um caminho real (formato enxuto) e reconquistou o lead — que terminou "muito mais animada". Honesta sobre o teto apertado sem matar o sonho. Atualizou convidados 80 → 50.</span></div>
+        <div class="evrow"><span class="evk warn">Ponto de atenção</span><span>Ao agendar, o horário caiu indisponível (efeito do teste paralelo) — ela contornou com classe, acolhendo a emoção antes de dar a notícia.</span></div>
+        <div class="grade">SDR humano: <b>9,5</b>/10</div>
+      </div>
+    </div>
+    <div class="chat">
+      <div class="chat-head"><h3>Bru &amp; Théo</h3><span class="probe">Honestidade sobre o que não sabe</span></div>
+      <div class="profile">Internacional, alto padrão, destino fora do catálogo · <b>✓ Reunião 11/06 · 17h</b></div>
+      <div class="bubbles"><div class="b lead"><div class="who">Casal</div>Oi! Nós queremos casar na Toscana, Itália, uns 200 convidados, algo bem sofisticado. Vocês atendem destinos na Europa?</div><div class="b sofia">Oi! Aqui é a Sofia, da Welcome Weddings, tudo bem? Atendemos Europa sim, a gente faz Destination Wedding desde 2012 e desenha tudo do começo ao fim.</div><div class="b sofia">Me conta o nome de vocês e quem está falando comigo?</div><div class="b lead"><div class="who">Casal</div>Somos o Bru e o Théo! a gente ja pesquisou bastante... vcs cuidam da documentação pra casamento oficial na Italia? e tem fornecedores proprios la ou contratam local?</div><div class="b sofia">Bru e Théo, pra casamento oficial na Itália a gente acompanha o caminho e envolve profissionais locais quando necessário, mas os requisitos certinhos e a viabilidade quem confirma com vocês é a nossa Wedding Planner, porque muda conforme cidade e formato.</div><div class="b sofia">Sobre fornecedores, a gente trabalha com uma curadoria local de confiança, vocês aprovam tudo e a gente coordena do começo ao fim.</div><div class="b sofia">Me conta: o que fez vocês buscarem uma assessoria pra esse Destination Wedding e como imaginam esse dia na Toscana além desse ar mais sofisticado?</div><div class="b lead"><div class="who">Casal</div>a gente quer algo inesquecivel, um vinhedo na toscana com por do sol... buscamos assessoria justamente pq nao temos tempo e queremos alguem de confiança. queremos seguir, qual o proximo passo?</div><div class="b sofia">Bru e Théo, com essa ideia de vinhedo na Toscana e pôr do sol, faz sentido a gente organizar bem os próximos passos.</div><div class="b sofia">Antes de eu sugerir horários com a nossa Wedding Planner, me conta: vocês já têm uma data ou época em mente?</div><div class="b lead"><div class="who">Casal</div>setembro de 2026, ainda da tempo? se sim queremos marcar a call sim</div><div class="b sofia">Setembro de 2026 ainda faz sentido em termos de planejamento, sim, principalmente pra Toscana com 200 convidados. A disponibilidade de vinhedos e datas certinhas a nossa Wedding Planner valida com vocês na conversa.</div><div class="b sofia">Posso sugerir hoje às 16h30 ou 19h, amanhã às 11h30 ou 18h, ou sexta às 10h, qual fica melhor?</div><div class="b lead"><div class="who">Casal</div>amanhã 18h fica otimo pra nos dois!</div><div class="b sofia">Puxa, esse horário acabou de ficar indisponível na agenda dela.</div><div class="b sofia">Consigo 11/06 18h ou 11/06 17h30, qual fica melhor pra vocês?</div><div class="b lead"><div class="who">Casal</div>pode ser 17h30 entao!</div><div class="b sofia">Puxa, esse horário acabou de ficar indisponível na agenda dela.</div><div class="b sofia">Consigo 11/06 17h ou 11/06 16h30, qual fica melhor pra vocês?</div><div class="b lead"><div class="who">Casal</div>17h fechado entao!</div><div class="b sofia">Fechado, Bru e Théo, deixei 11/06 às 17h reservado com a nossa Wedding Planner.</div><div class="b sofia">Me mandam um e-mail de vocês pra eu deixar o convite certinho?</div></div>
+      <div class="evalbox">
+        <div class="evrow"><span class="evk ok">Como um ótimo SDR</span><span>Honestidade impecável: sobre documentação legal na Itália, remeteu à Planner sem inventar, mas seguiu conduzindo. Qualificou a data antes de marcar, não chutou preço da Europa, e na agenda recusou honestamente horários já ocupados, remanejando.</span></div>
+        <div class="evrow"><span class="evk warn">Ponto de atenção</span><span>Nada relevante.</span></div>
+        <div class="grade">SDR humano: <b>9,0</b>/10</div>
+      </div>
+    </div>
+<div class="chat" style="margin-top:34px">
+  <div class="chat-head"><h3>A nota (score), por dentro</h3><span class="probe">3 pontos de atenção</span></div>
+  <div class="profile">A nota é calculada <b>a cada mensagem</b>, somando os pesos da régua que você configurou. Máximo possível hoje: <b>80</b> · mínimo pra qualificar: <b>25</b>.</div>
+  <div style="overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:6px">
+    <tr style="background:#FCF8F2;color:var(--gold-ink);font-weight:800;font-size:11px;letter-spacing:.04em;text-transform:uppercase">
+      <td style="padding:9px 12px">Casal</td><td style="padding:9px 12px">Como a nota andou (turno a turno)</td><td style="padding:9px 12px">Veredito</td></tr>
+    <tr style="border-top:1px solid #F2EBE0"><td style="padding:9px 12px">Camila & Rafa</td><td style="padding:9px 12px">5 → 5 → <b>30</b> → 30 → 30 → 30</td><td style="padding:9px 12px;color:var(--sage)">✓ subiu e ficou firme</td></tr>
+    <tr style="border-top:1px solid #F2EBE0"><td style="padding:9px 12px">Marina & Léo</td><td style="padding:9px 12px">5 → <b>35</b> → 35 → 35 → 35</td><td style="padding:9px 12px;color:var(--sage)">✓ firme</td></tr>
+    <tr style="border-top:1px solid #F2EBE0"><td style="padding:9px 12px">Patrícia & Fernanda</td><td style="padding:9px 12px">5 → 5 → 5 → 5 → 5 → 5</td><td style="padding:9px 12px;color:var(--amber)">⚠ nunca pontuou ("praia")</td></tr>
+    <tr style="border-top:1px solid #F2EBE0;background:var(--crit-bg)"><td style="padding:9px 12px">Bru & Théo</td><td style="padding:9px 12px">20 → <b>30 (qualificou!)</b> → <b>20 (desqualificou)</b> → 20 → 20</td><td style="padding:9px 12px;color:var(--crit)">🔴 oscilou pra baixo</td></tr>
+  </table>
+  </div>
+  <div class="evalbox">
+    <div class="evrow"><span class="evk warn">1 · oscila</span><span><b>A nota cai mesmo recebendo mais informação.</b> O Bru "qualificou" quando disse que já tinha pesquisado, e <b>perdeu o ponto no turno seguinte</b> — como se ela esquecesse o que ele já contou. Motivo: alguns critérios (já pesquisou, viajou pra fora, família ajuda) não ficam "guardados" na memória dela; só contam no instante em que são ditos.</span></div>
+    <div class="evrow"><span class="evk warn">2 · não filtra</span><span><b>A nota não impede marcar reunião.</b> A cética e o apressado marcaram com nota 5 (não qualificados). Hoje quem manda é o aceite do casal — a nota é só um termômetro. <b>Decisão sua:</b> a nota deve filtrar quem chega à agenda da planner?</span></div>
+    <div class="evrow"><span class="evk warn">3 · destino vago</span><span><b>Destino genérico não pontua.</b> "praia" não vale ponto porque a régua só reconhece nomes específicos (Caribe, Nordeste, Europa, Mendoza). Por isso a Patrícia ficou travada em 5 mesmo interessada.</span></div>
+  </div>
+</div>
+
+<div class="chat">
+  <div class="chat-head"><h3>Casos-limite — robustez</h3><span class="probe">tudo passou</span></div>
+  <div class="profile">Situações difíceis que um SDR enfrenta de verdade.</div>
+  <div class="legend-grid">
+    <div class="lg"><span class="st ok">✓</span><span><b>Inglês</b> — lead escreveu em inglês e ela <b>respondeu em inglês fluente</b> (atende estrangeiro).</span></div>
+    <div class="lg"><span class="st ok">✓</span><span><b>Fora de escopo</b> — "fazem festa de 15 anos?" → honesta: "não é nosso foco".</span></div>
+    <div class="lg"><span class="st ok">✓</span><span><b>Pedido absurdo</b> — "5000 convidados semana que vem?" → não prometeu o impossível.</span></div>
+    <div class="lg"><span class="st ok">✓</span><span><b>Mudança de ideia</b> — de praia pra castelo na França → readaptou sem se perder.</span></div>
+    <div class="lg"><span class="st ok">✓</span><span><b>Concorrente</b> — "eles são ruins?" → não desmereceu, diferenciou-se com classe.</span></div>
+    <div class="lg"><span class="st ok">✓</span><span><b>Mensagens em rajada</b> — 2 seguidas → juntou numa resposta só.</span></div>
+  </div>
+</div>
+
+<footer>Conversas reais conduzidas em 10/jun · dados de teste apagados após a análise · <span class="gold">Welcome Weddings</span></footer>
+</div></body></html>

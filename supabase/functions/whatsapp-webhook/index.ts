@@ -446,12 +446,27 @@ Deno.serve(async (req) => {
                                             text: m.body || "",
                                         }));
                                 }
-                                // Multimodal: se veio mídia (áudio/foto/PDF) sem texto, converte em
-                                // texto antes de mandar pro cérebro (gated pela config da Sofia).
+                                // Multimodal: Echo manda mídia (áudio/foto/PDF/sticker) com um
+                                // PLACEHOLDER de texto ('[Áudio]', '[Documento]'…) ou a legenda da
+                                // imagem — NUNCA vazio. Por isso o gatilho é o TIPO + media_url
+                                // (igual à Patricia em ai-agent-router-v2), e não "texto vazio".
+                                // O bug anterior (gate "texto vazio") nunca disparava → a Sofia
+                                // recebia literalmente "[Áudio]" e não entendia a mídia.
                                 let sdrwMessage = messageText;
                                 const sdrwMsgType = data.type || data.message_type || "text";
                                 const sdrwMediaUrl = data.media_url || data.media?.url || null;
-                                if ((!sdrwMessage || !sdrwMessage.trim()) && sdrwMediaUrl && sdrwMsgType !== "text") {
+                                // Reply do WhatsApp: quando o casal responde uma mensagem específica, o
+                                // Echo manda o trecho citado em data.quoted.content. Anexamos isso ao
+                                // que vai pro cérebro pra ela saber A QUE estão respondendo (ex: "esse aqui").
+                                const sdrwQuoted = (data.quoted && data.quoted.content)
+                                    ? String(data.quoted.content).slice(0, 280)
+                                    : ((singlePayload.quoted && singlePayload.quoted.content) ? String(singlePayload.quoted.content).slice(0, 280) : null);
+                                const sdrwIsMedia = !!sdrwMediaUrl && ["audio", "image", "document", "sticker"].includes(sdrwMsgType);
+                                if (sdrwIsMedia) {
+                                    // Legenda real (imagem com texto) vs placeholder do Echo: o
+                                    // placeholder é um único token entre colchetes ('[Áudio]');
+                                    // uma legenda real não casa com esse padrão.
+                                    const sdrwCaption = /^\[[^\]]+\]$/.test((messageText || "").trim()) ? "" : (messageText || "").trim();
                                     try {
                                         const { data: sdrwCfg } = await supabaseClient
                                             .from("wsdr_agent_config")
@@ -461,23 +476,43 @@ Deno.serve(async (req) => {
                                             .maybeSingle();
                                         const mm = sdrwCfg?.config?.capabilities?.multimodal || null;
                                         if (mm?.enabled) {
-                                            sdrwMessage = await processMediaToText(sdrwMsgType, sdrwMediaUrl, OPENAI_API_KEY, mm);
+                                            const sdrwMediaText = await processMediaToText(sdrwMsgType, sdrwMediaUrl, OPENAI_API_KEY, mm);
+                                            sdrwMessage = sdrwCaption ? `${sdrwCaption}\n${sdrwMediaText}` : sdrwMediaText;
                                         } else {
                                             sdrwMessage = `[o casal mandou um ${sdrwMsgType}, mas a Sofia não está processando mídia agora]`;
                                         }
                                     } catch (mErr) {
                                         console.error("[webhook] Sofia multimodal error:", mErr);
-                                        sdrwMessage = `[${sdrwMsgType} recebido]`;
+                                        sdrwMessage = sdrwCaption || `[${sdrwMsgType} recebido]`;
                                     }
+                                }
+                                // Persiste a mensagem do LEAD em whatsapp_messages (espelho do insert
+                                // das respostas dela), pra o histórico conter os DOIS lados nos próximos
+                                // turnos — hoje só as respostas dela ficavam salvas. Gravo DEPOIS de
+                                // montar sdrwHistory (pra não duplicar a msg atual neste turno) e com o
+                                // texto já resolvido (transcrição de áudio etc). Fire-and-forget pra não
+                                // somar latência antes do cérebro (completa durante o await do n8n).
+                                if (sdrwContactId && sdrwMessage && sdrwMessage.trim()) {
+                                    supabaseClient.from("whatsapp_messages").insert({
+                                        contact_id: sdrwContactId,
+                                        body: sdrwMessage,
+                                        direction: "inbound",
+                                        is_from_me: false,
+                                        type: "text",
+                                        status: "received",
+                                        sender_phone: normalizedContact,
+                                        phone_number_label: singlePayload.phone_number || data.phone_number || null,
+                                        metadata: { source: "sdr-weddings-inbound", original_type: sdrwMsgType, whatsapp_message_id: data.whatsapp_message_id || data.message_id || null },
+                                    }).then(() => {}).catch((e: Error) => console.error("[webhook] Sofia inbound save error:", e));
                                 }
                                 const sdrwRes = await fetch("https://n8n-n8n.ymnmx7.easypanel.host/webhook/sdr-weddings", {
                                     method: "POST",
-                                    headers: { "Content-Type": "application/json" },
+                                    headers: { "Content-Type": "application/json", "x-sofia-secret": Deno.env.get("SOFIA_WEBHOOK_SECRET") ?? "" },
                                     body: JSON.stringify({
                                         contact_phone: normalizedContact,
                                         contact_id: sdrwContactId,
                                         nome: data.contact_name || data.contact?.name || data.pushname || singlePayload.contact_name || sdrwContactNome || "",
-                                        message: sdrwMessage,
+                                        message: sdrwQuoted ? `[o casal está respondendo a esta mensagem anterior: "${sdrwQuoted}"]\n${sdrwMessage}` : sdrwMessage,
                                         history: sdrwHistory,
                                         org_id: sdrwRoute.org_id,
                                         agent_slug: sdrwRoute.agent_slug,

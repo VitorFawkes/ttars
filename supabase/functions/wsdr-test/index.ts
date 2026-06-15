@@ -29,7 +29,7 @@ serve(async (req) => {
     const phone = String(body.phone || "5511964293533").replace(/\D/g, "") || "5511964293533";
     const res = await fetch(N8N_WEBHOOK, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-sofia-secret": Deno.env.get("SOFIA_WEBHOOK_SECRET") ?? "" },
       body: JSON.stringify({ phone, nome: body.nome || "", message, history }),
     });
     const data = await res.json().catch(() => ({}));

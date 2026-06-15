@@ -583,6 +583,17 @@ test_rpc_exists "analytics_resumo_overview aceita p_date_ref" "analytics_resumo_
 test_rpc_exists "analytics_financeiro_overview aceita p_date_ref" "analytics_financeiro_overview" \
   '{"p_date_start":"2026-01-01T00:00:00Z","p_date_end":"2026-02-01T00:00:00Z","p_product":"TRIPS","p_date_ref":"created"}'
 
+# ── WW: painel não pode conter lead WelConnect (migration 20260612b) ──
+# Se uma migration recriar refresh_ww_funil_casal sem a CTE ww_contacts (evidência
+# WW), os 351 contatos de esteiras não-Weddings (WelConnect 37, Trips 6/8...) voltam.
+TOTAL=$((TOTAL + 1))
+WC_LEAK=$(curl -s "${URL}/rest/v1/ww_funil_casal?deal_title=ilike.WC*&select=contact_id&limit=1" \
+  -H "apikey: ${ANON}" -H "Authorization: Bearer ${KEY}" --max-time 10)
+if [ "$WC_LEAK" != "[]" ]; then
+  echo "  FAIL: ww_funil_casal contém lead WelConnect (título WC*) — refresh perdeu o filtro de evidência WW (20260612b)" >&2
+  FAILED=$((FAILED + 1))
+fi
+
 if [ $FAILED -gt 0 ]; then
   echo "" >&2
   echo "$FAILED/$TOTAL queries falharam. O banco não tem as colunas que o frontend espera." >&2

@@ -240,10 +240,23 @@ export function summarizeConfig(
         case 'action.branch': {
             const t = config.condition_type as string | undefined
             if (!t) return null
+            if (t === 'card_in_phase') {
+                const pid = config.phase_id as string | undefined
+                if (!pid) return 'Card na fase…'
+                return `Card na fase: ${resolveOr(labels, 'phaseById', pid, '(carregando)')}`
+            }
             if (t === 'card_in_stage') {
                 const sid = config.stage_id as string | undefined
                 if (!sid) return 'Card na etapa…'
                 return `Card na etapa: ${resolveOr(labels, 'stageById', sid, '(carregando)')}`
+            }
+            if (t === 'card_in_stages') {
+                const sids = Array.isArray(config.stage_ids) ? config.stage_ids as string[] : []
+                if (!sids.length) return 'Card em uma das etapas…'
+                const first = resolveOr(labels, 'stageById', sids[0], '(carregando)')
+                return sids.length === 1
+                    ? `Card na etapa: ${first}`
+                    : `Card em: ${first} +${sids.length - 1} etapa${sids.length > 2 ? 's' : ''}`
             }
             if (t === 'successful_contacts_gte') {
                 const min = (config.min_contacts as number) ?? 1
