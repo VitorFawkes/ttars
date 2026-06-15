@@ -1724,7 +1724,8 @@ Deno.serve(async (req) => {
                             // concierge is a separate role used only after trip delivery).
                             if (topology?.fase === 'SDR') {
                                 cardPayload.sdr_owner_id = targetOwnerId;
-                            } else if (topology?.fase === 'Planner') {
+                            } else if (topology?.fase === 'Planner' || topology?.fase === 'Closer') {
+                                // Fase de fechamento: 'Planner' no Trips, 'Closer' no Weddings → vendas_owner_id
                                 cardPayload.vendas_owner_id = targetOwnerId;
                             } else if (topology?.fase === 'Pós-venda') {
                                 cardPayload.pos_owner_id = targetOwnerId;

@@ -59,6 +59,7 @@ const FALLBACK_CONFIG: TypeConfig = {
 const TEAM_ROLE_TO_OWNER_COLUMN: Record<string, string> = {
     sdr: 'sdr_owner_id',
     planner: 'vendas_owner_id',
+    closer: 'vendas_owner_id', // Weddings: fase de fechamento (slug 'closer') usa vendas_owner_id
     pos_venda: 'pos_owner_id',
     concierge: 'concierge_owner_id',
 }
@@ -66,6 +67,7 @@ const TEAM_ROLE_TO_OWNER_COLUMN: Record<string, string> = {
 const TEAM_ROLE_LABEL: Record<string, string> = {
     sdr: 'SDR',
     planner: 'Planner',
+    closer: 'Planner', // Weddings: o time de fechamento se chama "Planner" (slug 'closer')
     pos_venda: 'Pós-Venda',
     concierge: 'Concierge',
 }
