@@ -22,7 +22,9 @@ export function DisparosBoard() {
   const { data: campanhas = [], isLoading } = useDisparoCampanhas()
   const { data: linhas = [] } = useWhatsAppLinhas('WEDDING')
   const [comporOpen, setComporOpen] = useState(false)
-  const [relatorio, setRelatorio] = useState<{ id: string; titulo: string } | null>(null)
+  const [relatorioId, setRelatorioId] = useState<string | null>(null)
+  // deriva da lista (fica fresco com o realtime) em vez de guardar uma cópia
+  const relatorioCampanha = relatorioId ? campanhas.find((c) => c.id === relatorioId) ?? null : null
 
   const linhaLabel = useMemo(() => {
     const m = new Map<string, string>()
@@ -65,19 +67,18 @@ export function DisparosBoard() {
               key={c.id}
               campanha={c}
               linhaLabel={linhaLabel.get(c.phone_number_id) ?? 'Linha removida'}
-              onRelatorio={() => setRelatorio({ id: c.id, titulo: c.titulo })}
+              onRelatorio={() => setRelatorioId(c.id)}
             />
           ))}
         </div>
       )}
 
       <ComporDisparoModal open={comporOpen} onClose={() => setComporOpen(false)} />
-      {relatorio && (
+      {relatorioCampanha && (
         <DisparoRelatorioModal
-          open={!!relatorio}
-          campaignId={relatorio.id}
-          titulo={relatorio.titulo}
-          onClose={() => setRelatorio(null)}
+          open={!!relatorioCampanha}
+          campanha={relatorioCampanha}
+          onClose={() => setRelatorioId(null)}
         />
       )}
     </div>
@@ -130,6 +131,9 @@ function CampanhaRow({ campanha, linhaLabel, onRelatorio }: { campanha: DisparoC
         <div className="flex items-center gap-2.5 text-sm shrink-0 tabular-nums">
           <span className="font-semibold text-ww-success">{campanha.enviados}</span>
           <span className="text-ww-n400">de {campanha.total}</span>
+          {campanha.total > 0 && campanha.total - processados > 0 && (
+            <span className="text-ww-n500">· {campanha.total - processados} faltam</span>
+          )}
           {campanha.falhados > 0 && <span className="text-ww-error">· {campanha.falhados} falhas</span>}
           {campanha.opt_outs > 0 && <span className="text-ww-n500">· {campanha.opt_outs} saíram</span>}
         </div>

@@ -16,6 +16,7 @@ import {
   baixarModeloPlanilha,
   type ParsedLista,
 } from './parseListaDisparo'
+import { derivarPorDia } from './ritmo'
 
 interface Props {
   open: boolean
@@ -106,11 +107,17 @@ export function ComporDisparoModal({ open, onClose }: Props) {
   const [corpos, setCorpos] = useState<string[]>([''])  // versão 1 + variações
   const [focusedIdx, setFocusedIdx] = useState(0)        // versão focada (alvo dos campos)
   const [phoneNumberId, setPhoneNumberId] = useState<string>('')
-  const [capDiario, setCapDiario] = useState(50)
+  const [tamanhoLeva, setTamanhoLeva] = useState(10)
+  const [intervaloValor, setIntervaloValor] = useState(30)
+  const [intervaloUnidade, setIntervaloUnidade] = useState<'min' | 'h'>('min')
   const [usarRamp, setUsarRamp] = useState(true)
   const corpoRefs = useRef<(HTMLTextAreaElement | null)[]>([])
   const didDefaultLine = useRef(false)
   const [iaBusy, setIaBusy] = useState(false)
+
+  // Ritmo derivado: minutos reais entre levas + estimativa de quantos por dia
+  const intervaloMin = intervaloUnidade === 'h' ? intervaloValor * 60 : intervaloValor
+  const perDia = derivarPorDia(tamanhoLeva, intervaloMin)
 
   // Lista colada/importada
   const [parsed, setParsed] = useState<ParsedLista>({ headers: [], rows: [] })
@@ -176,7 +183,7 @@ export function ComporDisparoModal({ open, onClose }: Props) {
 
   const reset = useCallback(() => {
     setTab('lista'); setTitulo(''); setCorpos(['']); setFocusedIdx(0); setPhoneNumberId('')
-    setCapDiario(50); setUsarRamp(true)
+    setTamanhoLeva(10); setIntervaloValor(30); setIntervaloUnidade('min'); setUsarRamp(true)
     setParsed({ headers: [], rows: [] }); setTelCol(null); setNomeCol(null)
     setWeddingId(''); setGuestIds(new Set())
     setBusy(false); setCampaignId(null); setResults(null); setErro(null)
@@ -309,8 +316,10 @@ export function ComporDisparoModal({ open, onClose }: Props) {
         corpo_mensagem: corpos[0],
         corpos_alternativos: corpos.slice(1).filter((c) => c.trim() !== ''),
         phone_number_id: phoneNumberId,
-        cap_diario: capDiario,
+        cap_diario: perDia,
         usar_ramp: usarRamp,
+        tamanho_leva: tamanhoLeva,
+        intervalo_leva_min: intervaloMin,
         variaveis_mapeadas: variaveis,
       })
       const publico = buildPublico()
@@ -323,7 +332,7 @@ export function ComporDisparoModal({ open, onClose }: Props) {
     } finally {
       setBusy(false)
     }
-  }, [canReview, criarCampanha, titulo, corpos, phoneNumberId, capDiario, usarRamp, variaveis, buildPublico, tab, guestIds, ingestRecipients])
+  }, [canReview, criarCampanha, titulo, corpos, phoneNumberId, perDia, tamanhoLeva, intervaloMin, usarRamp, variaveis, buildPublico, tab, guestIds, ingestRecipients])
 
   const handleEditar = useCallback(async () => {
     if (campaignId) { try { await cancelar(campaignId) } catch { /* draft */ } }
@@ -349,7 +358,7 @@ export function ComporDisparoModal({ open, onClose }: Props) {
   const novos = aceitos.filter((r) => r.out_criado_novo).length
   const rejeitados = results?.filter((r) => r.out_resultado === 'rejeitado') ?? []
   const optOuts = rejeitados.filter((r) => r.out_motivo === 'opt_out').length
-  const dias = estimarDias(aceitos.length, capDiario, usarRamp)
+  const dias = estimarDias(aceitos.length, perDia, usarRamp)
 
   // 3 primeiros exemplos REAIS — mensagem já com nome/campos da pessoa substituídos,
   // pra conferir se o "[nome]" foi lido certinho antes de disparar.
@@ -448,8 +457,10 @@ export function ComporDisparoModal({ open, onClose }: Props) {
                 )}
               </div>
               <div className="mt-3 text-xs text-ww-n500">
-                Linha <span className="font-semibold text-ww-n700">{linhaSelecionada?.phone_number_label}</span> · até{' '}
-                <span className="font-semibold text-ww-n700">{capDiario}/dia</span>{usarRamp ? ' (começa devagar)' : ''} · só das 08h às 20h
+                Linha <span className="font-semibold text-ww-n700">{linhaSelecionada?.phone_number_label}</span> · em levas de{' '}
+                <span className="font-semibold text-ww-n700">{tamanhoLeva}</span> a cada{' '}
+                <span className="font-semibold text-ww-n700">{intervaloValor} {intervaloUnidade === 'h' ? 'h' : 'min'}</span>{' '}
+                (≈ {perDia}/dia){usarRamp ? ' · começa devagar' : ''} · só das 08h às 20h
               </div>
             </div>
 
@@ -567,21 +578,35 @@ export function ComporDisparoModal({ open, onClose }: Props) {
               <div>
                 <FieldLabel>Ritmo de envio</FieldLabel>
                 <div className="mt-2 rounded-xl border border-ww-sand bg-ww-cream/50 p-3.5 space-y-3">
-                  <div className="flex items-center gap-3 text-sm">
-                    <span className="text-ww-n600">Máximo por dia</span>
+                  <div className="flex items-center gap-2 text-sm flex-wrap">
+                    <span className="text-ww-n600">Manda</span>
                     <input
-                      type="number" min={1} max={5000} value={capDiario}
-                      onChange={(e) => setCapDiario(Math.max(1, parseInt(e.target.value || '1', 10)))}
-                      className="w-24 h-9 px-3 text-sm rounded-lg border border-ww-sand bg-white text-ww-n700 focus:outline-none focus:border-ww-gold focus-visible:ring-2 focus-visible:ring-ww-gold/25"
+                      type="number" min={1} max={500} value={tamanhoLeva}
+                      onChange={(e) => setTamanhoLeva(Math.max(1, parseInt(e.target.value || '1', 10)))}
+                      className="w-16 h-9 px-2.5 text-sm text-center rounded-lg border border-ww-sand bg-white text-ww-n700 focus:outline-none focus:border-ww-gold focus-visible:ring-2 focus-visible:ring-ww-gold/25"
                     />
-                    <span className="text-xs text-ww-n400">recomendado: até ~50/dia</span>
+                    <span className="text-ww-n600">{tamanhoLeva === 1 ? 'pessoa' : 'pessoas'} a cada</span>
+                    <input
+                      type="number" min={1} max={999} value={intervaloValor}
+                      onChange={(e) => setIntervaloValor(Math.max(1, parseInt(e.target.value || '1', 10)))}
+                      className="w-16 h-9 px-2.5 text-sm text-center rounded-lg border border-ww-sand bg-white text-ww-n700 focus:outline-none focus:border-ww-gold focus-visible:ring-2 focus-visible:ring-ww-gold/25"
+                    />
+                    <select
+                      value={intervaloUnidade}
+                      onChange={(e) => setIntervaloUnidade(e.target.value as 'min' | 'h')}
+                      className="h-9 px-2.5 text-sm rounded-lg border border-ww-sand bg-white text-ww-n700 focus:outline-none focus:border-ww-gold focus-visible:ring-2 focus-visible:ring-ww-gold/25"
+                    >
+                      <option value="min">min</option>
+                      <option value="h">horas</option>
+                    </select>
                   </div>
-                  {capDiario > 80 && (
-                    <p className={cn('text-xs flex items-start gap-1.5', capDiario > 200 ? 'text-ww-rosewood' : 'text-ww-olive-ink')}>
+                  <p className="text-xs text-ww-n400">≈ {perDia} por dia · só das 08h às 20h</p>
+                  {perDia > 80 && (
+                    <p className={cn('text-xs flex items-start gap-1.5', perDia > 200 ? 'text-ww-rosewood' : 'text-ww-olive-ink')}>
                       <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                      {capDiario > 200
-                        ? 'Acima de 200/dia o risco de bloqueio do número é alto — ainda mais em linha não-oficial. O mais seguro é ficar perto de 50/dia.'
-                        : 'Acima de ~80/dia o risco de bloqueio começa a subir. Para proteger o número, o ideal é ficar perto de 50/dia.'}
+                      {perDia > 200
+                        ? 'Nesse ritmo passa de 200 por dia — o risco de bloqueio do número é alto, ainda mais em linha não-oficial. O mais seguro é ficar perto de 50/dia (menos pessoas por leva ou mais tempo entre elas).'
+                        : 'Nesse ritmo passa de ~80 por dia — o risco de bloqueio começa a subir. Para proteger o número, o ideal é ficar perto de 50/dia.'}
                     </p>
                   )}
                   <label className="flex items-center gap-2.5 text-sm text-ww-n600 cursor-pointer">
