@@ -19,12 +19,14 @@ import {
   X,
   ChevronDown,
   Pencil,
+  Check,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import { brl, formatDataLonga, daysUntil } from '../../lib/planejamento/format'
+import { brl, formatDataLonga, formatDataCurta, daysUntil, isPast } from '../../lib/planejamento/format'
 import { setorIcon } from '../../lib/planejamento/setorIcons'
 import { usePlanejamentoWeddings } from '../../hooks/planejamento/usePlanejamentoWeddings'
 import { useWeddingFornecedores } from '../../hooks/planejamento/useWeddingFornecedores'
+import { useWeddingChecklist } from '../../hooks/planejamento/useWeddingChecklist'
 import { useFornecedorBank } from '../../hooks/planejamento/useFornecedorBank'
 import { WipBadge } from '../../components/planejamento/WipBadge'
 import {
@@ -36,6 +38,7 @@ import {
   type Fornecedor,
   type FornecedorBankEntry,
   type FornecedorStatus,
+  type ChecklistItem,
 } from '../../hooks/planejamento/types'
 
 const FORNECEDOR_STATUS_CHIP: Record<FornecedorStatus, string> = {
@@ -68,7 +71,18 @@ export default function PlanejamentoDetailPage() {
   const wedding = data.find(w => w.id === cardId) ?? null
   const { fornecedores, add, remove, setStatus, update } = useWeddingFornecedores(cardId)
   const { bank, add: bankAdd } = useFornecedorBank()
+  const checklist = useWeddingChecklist(cardId)
   const [fornModal, setFornModal] = useState<{ edit: Fornecedor | null } | null>(null)
+  const [checklistModal, setChecklistModal] = useState<{ edit: ChecklistItem | null } | null>(null)
+
+  const handleSubmitChecklist = (payload: Omit<ChecklistItem, 'id'>) => {
+    const editing = checklistModal?.edit
+    if (editing) {
+      checklist.update.mutate({ ...editing, ...payload }, { onSuccess: () => setChecklistModal(null) })
+    } else {
+      checklist.add.mutate(payload, { onSuccess: () => setChecklistModal(null) })
+    }
+  }
 
   // Agrupa por setor uma vez (em vez de filtrar a lista por setor no map).
   const fornecedoresPorSetor = useMemo(() => {
@@ -237,6 +251,8 @@ export default function PlanejamentoDetailPage() {
         </div>
       </section>
 
+      {/* Fornecedores + Cronograma lado a lado */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
       {/* Fornecedores */}
       <section className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
         <header className="flex items-center justify-between gap-2 mb-3 flex-wrap">
@@ -343,15 +359,21 @@ export default function PlanejamentoDetailPage() {
         </ul>
       </section>
 
-      {/* Demais blocos de planejamento — esqueleto (WIP) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <WipSection icon={<BedDouble className="w-5 h-5 text-slate-500" />} title="Hospedagem">
-          Bloqueio de quartos, check-in/check-out e ocupação dos convidados — em construção.
-        </WipSection>
-        <WipSection icon={<ListChecks className="w-5 h-5 text-slate-500" />} title="Cronograma & Checklist">
-          Marcos do planejamento e pendências do casal — em construção.
-        </WipSection>
+      {/* Cronograma & Checklist */}
+      <ChecklistSection
+        items={checklist.items}
+        onAdd={() => setChecklistModal({ edit: null })}
+        onEdit={(item) => setChecklistModal({ edit: item })}
+        onToggle={(item) => checklist.toggle.mutate({ id: item.id, feito: !item.feito })}
+        onRemove={(id) => checklist.remove.mutate(id)}
+        removing={checklist.remove.isPending}
+      />
       </div>
+
+      {/* Hospedagem — em construção */}
+      <WipSection icon={<BedDouble className="w-5 h-5 text-slate-500" />} title="Hospedagem">
+        Bloqueio de quartos, check-in/check-out e ocupação dos convidados — em construção.
+      </WipSection>
 
       {fornModal && (
         <AddFornecedorModal
@@ -361,6 +383,15 @@ export default function PlanejamentoDetailPage() {
           saving={add.isPending || update.isPending}
           onClose={() => setFornModal(null)}
           onSubmit={handleSubmitForn}
+        />
+      )}
+
+      {checklistModal && (
+        <AddChecklistItemModal
+          initial={checklistModal.edit}
+          saving={checklist.add.isPending || checklist.update.isPending}
+          onClose={() => setChecklistModal(null)}
+          onSubmit={handleSubmitChecklist}
         />
       )}
     </div>
@@ -388,6 +419,208 @@ function WipSection({ icon, title, children }: { icon: React.ReactNode; title: s
       </header>
       <p className="text-sm text-slate-500">{children}</p>
     </section>
+  )
+}
+
+// ── Cronograma & Checklist ──────────────────────────────────────────────────
+
+function PrazoChip({ prazo, feito }: { prazo: string; feito: boolean }) {
+  const label = formatDataCurta(prazo)
+  if (!label) return null
+  if (feito) {
+    return <span className="text-[11px] text-slate-400 inline-flex items-center gap-1"><Calendar className="w-3 h-3" />{label}</span>
+  }
+  const past = isPast(prazo)
+  const d = daysUntil(prazo)
+  const tone = past ? 'text-rose-600' : d === 0 ? 'text-amber-600' : 'text-slate-500'
+  const sufixo = past ? ' · atrasado' : d === 0 ? ' · hoje' : d != null && d <= 7 ? ` · faltam ${d}d` : ''
+  return (
+    <span className={cn('text-[11px] inline-flex items-center gap-1', tone)}>
+      <Calendar className="w-3 h-3" />
+      {label}
+      {sufixo}
+    </span>
+  )
+}
+
+function ChecklistSection({
+  items,
+  onAdd,
+  onEdit,
+  onToggle,
+  onRemove,
+  removing,
+}: {
+  items: ChecklistItem[]
+  onAdd: () => void
+  onEdit: (item: ChecklistItem) => void
+  onToggle: (item: ChecklistItem) => void
+  onRemove: (id: string) => void
+  removing: boolean
+}) {
+  const total = items.length
+  const feitos = items.filter((i) => i.feito).length
+
+  return (
+    <section className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+      <header className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <ListChecks className="w-5 h-5 text-slate-500" />
+          <h2 className="text-base font-semibold text-slate-900">Cronograma & Checklist</h2>
+          {total > 0 && (
+            <span className="text-[11px] text-slate-500 tabular-nums">
+              {feitos} de {total} concluídos
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onAdd}
+          className="inline-flex items-center gap-1.5 h-8 px-2.5 text-xs font-medium text-indigo-600 border border-indigo-200 rounded-md hover:bg-indigo-50 transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" /> Adicionar item
+        </button>
+      </header>
+
+      {total === 0 ? (
+        <p className="text-sm text-slate-400 italic py-2">Nenhum item ainda — adicione marcos e tarefas do planejamento.</p>
+      ) : (
+        <ul className="divide-y divide-slate-100 border border-slate-100 rounded-lg overflow-hidden">
+          {items.map((item) => (
+            <li key={item.id} className="flex items-center gap-3 px-3 py-2.5">
+              <button
+                type="button"
+                onClick={() => onToggle(item)}
+                className={cn(
+                  'w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors',
+                  item.feito
+                    ? 'bg-emerald-500 border-emerald-500 text-white'
+                    : 'border-slate-300 hover:border-slate-400',
+                )}
+                aria-label={item.feito ? 'Marcar como pendente' : 'Marcar como feito'}
+              >
+                {item.feito && <Check className="w-3.5 h-3.5" />}
+              </button>
+              <div className="min-w-0 flex-1">
+                <p className={cn('text-sm break-words', item.feito ? 'text-slate-400 line-through' : 'text-slate-800')}>
+                  {item.titulo}
+                </p>
+                {item.prazo && (
+                  <div className="mt-0.5">
+                    <PrazoChip prazo={item.prazo} feito={item.feito} />
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => onEdit(item)}
+                  className="p-1 rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                  title="Editar item"
+                  aria-label={`Editar ${item.titulo}`}
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onRemove(item.id)}
+                  disabled={removing}
+                  className="p-1 rounded text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                  title="Remover item"
+                  aria-label={`Remover ${item.titulo}`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+function AddChecklistItemModal({
+  initial,
+  saving,
+  onClose,
+  onSubmit,
+}: {
+  initial?: ChecklistItem | null
+  saving: boolean
+  onClose: () => void
+  onSubmit: (payload: Omit<ChecklistItem, 'id'>) => void
+}) {
+  const isEdit = !!initial
+  const [titulo, setTitulo] = useState(initial?.titulo ?? '')
+  const [prazo, setPrazo] = useState(initial?.prazo ?? '')
+
+  const canSave = titulo.trim().length > 0
+
+  const handleSave = () => {
+    if (!canSave) return
+    onSubmit({
+      titulo: titulo.trim(),
+      prazo: prazo.trim() || null,
+      feito: initial?.feito ?? false,
+    })
+  }
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="w-full max-w-md bg-white border border-slate-200 shadow-lg rounded-xl flex flex-col">
+        <header className="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-200">
+          <h2 className="text-base font-semibold text-slate-900">{isEdit ? 'Editar item' : 'Adicionar item'}</h2>
+          <button onClick={onClose} className="p-1 rounded hover:bg-slate-100 text-slate-500" aria-label="Fechar">
+            <X className="w-4 h-4" />
+          </button>
+        </header>
+
+        <div className="px-5 py-4 flex flex-col gap-3">
+          <label className="text-xs font-medium text-slate-700 block">
+            Item *
+            {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+            <input
+              autoFocus
+              value={titulo}
+              onChange={(e) => setTitulo(e.target.value)}
+              placeholder="Ex.: Definir data, contratar buffet, enviar convites…"
+              className={FIELD_CLS}
+            />
+          </label>
+          <label className="text-xs font-medium text-slate-700 block">
+            Prazo (opcional)
+            <input type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} className={FIELD_CLS} />
+          </label>
+        </div>
+
+        <footer className="flex items-center justify-end gap-2 px-5 py-3 border-t border-slate-200 bg-slate-50">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex items-center justify-center h-9 rounded-md px-3 text-sm font-medium border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!canSave || saving}
+            className="inline-flex items-center justify-center h-9 rounded-md px-3 text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {saving ? 'Salvando…' : isEdit ? 'Salvar' : 'Adicionar'}
+          </button>
+        </footer>
+      </div>
+    </div>,
+    document.body,
   )
 }
 

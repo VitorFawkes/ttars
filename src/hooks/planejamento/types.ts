@@ -71,8 +71,17 @@ export const FORNECEDOR_SETORES: string[] = [
   'Transporte & Logística',
 ]
 
+/** Item do cronograma & checklist de um casamento. Itens com `prazo` formam o
+ *  cronograma; `feito` é o checklist. */
+export interface ChecklistItem {
+  id: string
+  titulo: string
+  prazo: string | null
+  feito: boolean
+}
+
 /** Entrada do banco de fornecedores (catálogo per-workspace, reutilizável
- *  entre casamentos). Interim em localStorage; migrar para tabela depois. */
+ *  entre casamentos). */
 export interface FornecedorBankEntry {
   id: string
   nome: string
