@@ -97,8 +97,31 @@ export default function PlanejamentoDetailPage() {
   const { data, isLoading, isError } = usePlanejamentoWeddings()
   const wedding = data.find(w => w.id === cardId) ?? null
   const { fornecedores, add, remove, setStatus } = useWeddingFornecedores(cardId)
-  const { bank } = useFornecedorBank()
+  const { bank, add: bankAdd } = useFornecedorBank()
   const [addOpen, setAddOpen] = useState(false)
+
+  // Adiciona o fornecedor ao casamento e, em paralelo, ao banco com a
+  // localização do card (sem duplicar quando já existe igual no mesmo local).
+  const handleAddFornecedor = (payload: Omit<Fornecedor, 'id'>) => {
+    add.mutate(payload, { onSuccess: () => setAddOpen(false) })
+    const loc = (wedding?.local ?? '').trim()
+    const jaExiste = bank.some(
+      (b) =>
+        b.nome.trim().toLowerCase() === payload.nome.trim().toLowerCase() &&
+        b.setor === payload.categoria &&
+        (b.localizacao ?? '').trim().toLowerCase() === loc.toLowerCase(),
+    )
+    if (!jaExiste) {
+      bankAdd.mutate({
+        nome: payload.nome,
+        setor: payload.categoria,
+        localizacao: loc,
+        contato: payload.contato ?? null,
+        valor: payload.valor ?? null,
+        observacoes: null,
+      })
+    }
+  }
 
   if (isLoading) {
     return (
@@ -342,7 +365,7 @@ export default function PlanejamentoDetailPage() {
           bankEntries={bank}
           saving={add.isPending}
           onClose={() => setAddOpen(false)}
-          onSubmit={(payload) => add.mutate(payload, { onSuccess: () => setAddOpen(false) })}
+          onSubmit={handleAddFornecedor}
         />
       )}
     </div>
