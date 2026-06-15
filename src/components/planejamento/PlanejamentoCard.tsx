@@ -1,7 +1,7 @@
 import { useDraggable } from '@dnd-kit/core'
 import { Heart, Calendar, MapPin, Users } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import { parseLocalDate } from '../../lib/localDate'
+import { formatDataCurta, isPast } from '../../lib/planejamento/format'
 import type { EtapaPlanejamento } from '../../hooks/planejamento/types'
 import type { WeddingPlanejamento } from '../../hooks/planejamento/usePlanejamentoWeddings'
 
@@ -12,27 +12,6 @@ const ACCENT: Record<EtapaPlanejamento, string> = {
   definicao: 'border-l-indigo-500',
   passagem: 'border-l-amber-400',
   aditivo: 'border-l-emerald-500',
-}
-
-const MONTH_FULL = [
-  'jan', 'fev', 'mar', 'abr', 'mai', 'jun',
-  'jul', 'ago', 'set', 'out', 'nov', 'dez',
-]
-
-function formatDate(iso: string | null): string | null {
-  if (!iso) return null
-  const d = parseLocalDate(iso)
-  if (!d) return null
-  return `${String(d.getDate()).padStart(2, '0')} ${MONTH_FULL[d.getMonth()]} ${d.getFullYear()}`
-}
-
-function isPast(iso: string | null): boolean {
-  if (!iso) return false
-  const d = parseLocalDate(iso)
-  if (!d) return false
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return d < today
 }
 
 interface PlanejamentoCardProps {
@@ -48,7 +27,7 @@ export function PlanejamentoCard({ wedding, onClick, isOverlay = false }: Planej
     disabled: isOverlay,
   })
 
-  const dateLabel = formatDate(wedding.wedding_date)
+  const dateLabel = formatDataCurta(wedding.wedding_date)
   const past = isPast(wedding.wedding_date)
   const { confirmado, total } = wedding.counts
 

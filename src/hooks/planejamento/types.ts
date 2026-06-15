@@ -50,8 +50,8 @@ export const FORNECEDOR_STATUS_LIST: FornecedorStatus[] = ['a_contratar', 'contr
 
 export interface Fornecedor {
   id: string
-  /** Categoria — bate com o label dos setores. */
-  categoria: string
+  /** Setor — bate com o label dos setores (FORNECEDOR_SETORES). */
+  setor: string
   nome: string
   contato?: string | null
   valor?: number | null

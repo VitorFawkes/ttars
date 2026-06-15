@@ -3,11 +3,10 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Store, Plus, Trash2, X, Search, MapPin, Pencil } from 'lucide-react'
 import { setorIcon } from '../../lib/planejamento/setorIcons'
+import { brl } from '../../lib/planejamento/format'
 import { useFornecedorBank } from '../../hooks/planejamento/useFornecedorBank'
 import { FORNECEDOR_SETORES, type FornecedorBankEntry } from '../../hooks/planejamento/types'
 import { WipBadge } from '../../components/planejamento/WipBadge'
-
-const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
 export default function BancoFornecedoresPage() {
   const navigate = useNavigate()

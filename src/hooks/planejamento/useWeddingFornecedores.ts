@@ -20,7 +20,7 @@ export function useWeddingFornecedores(cardId: string | null | undefined) {
       if (!orgId || !cardId) return []
       const { data, error } = await sbAny
         .from('wedding_fornecedores')
-        .select('id, categoria, nome, contato, valor, status')
+        .select('id, setor, nome, contato, valor, status')
         .eq('org_id', orgId)
         .eq('card_id', cardId)
         .order('created_at', { ascending: true })

@@ -21,7 +21,7 @@ import {
   Pencil,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import { parseLocalDate } from '../../lib/localDate'
+import { brl, formatDataLonga, daysUntil } from '../../lib/planejamento/format'
 import { setorIcon } from '../../lib/planejamento/setorIcons'
 import { usePlanejamentoWeddings } from '../../hooks/planejamento/usePlanejamentoWeddings'
 import { useWeddingFornecedores } from '../../hooks/planejamento/useWeddingFornecedores'
@@ -38,34 +38,10 @@ import {
   type FornecedorStatus,
 } from '../../hooks/planejamento/types'
 
-const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-
 const FORNECEDOR_STATUS_CHIP: Record<FornecedorStatus, string> = {
   a_contratar: 'bg-slate-100 text-slate-600 border-slate-200',
   contratado: 'bg-sky-50 text-sky-700 border-sky-200',
   pago: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-}
-
-const MONTH_FULL = [
-  'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
-  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
-]
-
-function longDate(iso: string | null): string | null {
-  if (!iso) return null
-  const d = parseLocalDate(iso)
-  if (!d) return null
-  return `${String(d.getDate()).padStart(2, '0')} de ${MONTH_FULL[d.getMonth()]} de ${d.getFullYear()}`
-}
-
-function daysUntil(iso: string | null): number | null {
-  if (!iso) return null
-  const d = parseLocalDate(iso)
-  if (!d) return null
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  d.setHours(0, 0, 0, 0)
-  return Math.round((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
 }
 
 const ETAPA_CHIP: Record<EtapaPlanejamento, string> = {
@@ -79,7 +55,7 @@ const ETAPA_CHIP: Record<EtapaPlanejamento, string> = {
 
 // Setores de fornecedor + ícone (labels vêm de FORNECEDOR_SETORES; ícone do
 // mapa compartilhado em lib/planejamento/setorIcons).
-const FORNECEDOR_CATEGORIAS: { label: string; icon?: string }[] = FORNECEDOR_SETORES.map(
+const SETORES_COM_ICONE: { label: string; icon?: string }[] = FORNECEDOR_SETORES.map(
   (label) => ({ label, icon: setorIcon(label) }),
 )
 
@@ -94,13 +70,13 @@ export default function PlanejamentoDetailPage() {
   const { bank, add: bankAdd } = useFornecedorBank()
   const [fornModal, setFornModal] = useState<{ edit: Fornecedor | null } | null>(null)
 
-  // Agrupa por categoria uma vez (em vez de filtrar a lista por categoria no map).
-  const fornecedoresPorCategoria = useMemo(() => {
+  // Agrupa por setor uma vez (em vez de filtrar a lista por setor no map).
+  const fornecedoresPorSetor = useMemo(() => {
     const map = new Map<string, Fornecedor[]>()
     for (const f of fornecedores) {
-      const list = map.get(f.categoria) ?? []
+      const list = map.get(f.setor) ?? []
       list.push(f)
-      map.set(f.categoria, list)
+      map.set(f.setor, list)
     }
     return map
   }, [fornecedores])
@@ -117,13 +93,13 @@ export default function PlanejamentoDetailPage() {
     const jaExiste = bank.some(
       (b) =>
         b.nome.trim().toLowerCase() === payload.nome.trim().toLowerCase() &&
-        b.setor === payload.categoria &&
+        b.setor === payload.setor &&
         (b.localizacao ?? '').trim().toLowerCase() === loc.toLowerCase(),
     )
     if (!jaExiste) {
       bankAdd.mutate({
         nome: payload.nome,
-        setor: payload.categoria,
+        setor: payload.setor,
         localizacao: loc,
         contato: payload.contato ?? null,
         valor: payload.valor ?? null,
@@ -153,7 +129,7 @@ export default function PlanejamentoDetailPage() {
     )
   }
 
-  const dateLong = longDate(wedding.wedding_date)
+  const dateLong = formatDataLonga(wedding.wedding_date)
   const days = daysUntil(wedding.wedding_date)
   const { confirmado, total } = wedding.counts
 
@@ -278,8 +254,8 @@ export default function PlanejamentoDetailPage() {
           </button>
         </header>
         <ul className="space-y-1.5">
-          {FORNECEDOR_CATEGORIAS.map((cat) => {
-            const itens = fornecedoresPorCategoria.get(cat.label) ?? []
+          {SETORES_COM_ICONE.map((cat) => {
+            const itens = fornecedoresPorSetor.get(cat.label) ?? []
             return (
               <li key={cat.label} className="border border-slate-100 rounded-lg overflow-hidden">
                 <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm bg-white">
@@ -380,7 +356,7 @@ export default function PlanejamentoDetailPage() {
       {fornModal && (
         <AddFornecedorModal
           initial={fornModal.edit}
-          categorias={FORNECEDOR_CATEGORIAS.map((c) => c.label)}
+          setores={SETORES_COM_ICONE.map((c) => c.label)}
           bankEntries={bank}
           saving={add.isPending || update.isPending}
           onClose={() => setFornModal(null)}
@@ -420,31 +396,31 @@ const FIELD_CLS =
 
 function AddFornecedorModal({
   initial,
-  categorias,
+  setores,
   bankEntries,
   saving,
   onClose,
   onSubmit,
 }: {
   initial?: Fornecedor | null
-  categorias: string[]
+  setores: string[]
   bankEntries: FornecedorBankEntry[]
   saving: boolean
   onClose: () => void
   onSubmit: (payload: Omit<Fornecedor, 'id'>) => void
 }) {
   const isEdit = !!initial
-  const [categoria, setCategoria] = useState(initial?.categoria ?? categorias[0] ?? '')
+  const [setor, setSetor] = useState(initial?.setor ?? setores[0] ?? '')
   const [nome, setNome] = useState(initial?.nome ?? '')
   const [contato, setContato] = useState(initial?.contato ?? '')
   const [valor, setValor] = useState(initial?.valor != null ? String(initial.valor) : '')
   const [bankPick, setBankPick] = useState('')
 
   // No modo edição não oferecemos puxar do banco (já é um registro existente).
-  const bankOptions = isEdit ? [] : bankEntries.filter((b) => b.setor === categoria)
+  const bankOptions = isEdit ? [] : bankEntries.filter((b) => b.setor === setor)
 
-  const onCategoria = (v: string) => {
-    setCategoria(v)
+  const onSetor = (v: string) => {
+    setSetor(v)
     setBankPick('')
   }
 
@@ -458,13 +434,13 @@ function AddFornecedorModal({
     }
   }
 
-  const canSave = nome.trim().length > 0 && !!categoria
+  const canSave = nome.trim().length > 0 && !!setor
 
   const handleSave = () => {
     if (!canSave) return
     const parsed = valor.trim() ? Number(valor.replace(/\./g, '').replace(',', '.')) : null
     onSubmit({
-      categoria,
+      setor,
       nome: nome.trim(),
       contato: contato.trim() || null,
       valor: parsed != null && !Number.isNaN(parsed) ? parsed : null,
@@ -493,11 +469,11 @@ function AddFornecedorModal({
 
         <div className="px-5 py-4 flex flex-col gap-3">
           <label className="text-xs font-medium text-slate-700 block">
-            Categoria
-            <select value={categoria} onChange={(e) => onCategoria(e.target.value)} className={FIELD_CLS}>
-              {categorias.map((c) => (
-                <option key={c} value={c}>
-                  {c}
+            Setor
+            <select value={setor} onChange={(e) => onSetor(e.target.value)} className={FIELD_CLS}>
+              {setores.map((s) => (
+                <option key={s} value={s}>
+                  {s}
                 </option>
               ))}
             </select>
