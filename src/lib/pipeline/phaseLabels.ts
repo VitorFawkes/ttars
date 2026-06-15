@@ -13,6 +13,7 @@ const PHASE_FALLBACKS: Record<string, string> = {
 const PHASE_OWNER_FIELD_FALLBACK: Record<string, string> = {
     [SystemPhase.SDR]: 'sdr_owner_id',
     [SystemPhase.PLANNER]: 'vendas_owner_id',
+    closer: 'vendas_owner_id', // Weddings: fase de fechamento (slug 'closer') → vendas_owner_id
     [SystemPhase.POS_VENDA]: 'pos_owner_id',
     [SystemPhase.RESOLUCAO]: 'pos_owner_id',
 }

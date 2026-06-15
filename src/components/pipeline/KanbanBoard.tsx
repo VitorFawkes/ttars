@@ -586,6 +586,7 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
     const PHASE_SLUG_TO_OWNER_COL_KB: Record<string, 'sdr_owner_id' | 'vendas_owner_id' | 'pos_owner_id' | 'concierge_owner_id'> = {
         sdr: 'sdr_owner_id',
         planner: 'vendas_owner_id',
+        closer: 'vendas_owner_id', // Weddings: fase de fechamento (slug 'closer') usa o mesmo owner column
         pos_venda: 'pos_owner_id',
         concierge: 'concierge_owner_id',
     }
