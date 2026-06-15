@@ -1,27 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useOrg } from '../../contexts/OrgContext'
+import { sbAny } from '../convidados/_supabaseUntyped'
 import type { FornecedorBankEntry } from './types'
 
-// Banco de fornecedores (catálogo per-workspace, reutilizável entre casamentos).
-// Interim em localStorage — mesmo padrão dos templates de fluxo de Convidados.
-// Migrar para tabela própria (fornecedores_bank) quando o modelo solidificar.
-
-const KEY = (orgId: string) => `welcomecrm:planejamento:fornecedor-bank:v1:${orgId}`
-
-function readBank(orgId: string): FornecedorBankEntry[] {
-  try {
-    const raw = localStorage.getItem(KEY(orgId))
-    const parsed = raw ? JSON.parse(raw) : []
-    return Array.isArray(parsed) ? (parsed as FornecedorBankEntry[]) : []
-  } catch {
-    return []
-  }
-}
-
-function writeBank(orgId: string, list: FornecedorBankEntry[]) {
-  localStorage.setItem(KEY(orgId), JSON.stringify(list))
-}
+// Banco de fornecedores — tabela fornecedor_bank (catálogo per-workspace,
+// reutilizável entre casamentos). org_id via DEFAULT requesting_org_id();
+// RLS isola por workspace. Queries filtram org_id.
 
 export function useFornecedorBank() {
   const { org } = useOrg()
@@ -31,16 +16,24 @@ export function useFornecedorBank() {
   const query = useQuery<FornecedorBankEntry[]>({
     queryKey: ['fornecedor-bank', orgId],
     enabled: !!orgId,
-    queryFn: async () => (orgId ? readBank(orgId) : []),
+    queryFn: async () => {
+      if (!orgId) return []
+      const { data, error } = await sbAny
+        .from('fornecedor_bank')
+        .select('id, nome, setor, localizacao, contato, valor, observacoes')
+        .eq('org_id', orgId)
+        .order('nome', { ascending: true })
+      if (error) throw error
+      return (data ?? []) as FornecedorBankEntry[]
+    },
   })
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['fornecedor-bank'] })
 
   const add = useMutation<void, Error, Omit<FornecedorBankEntry, 'id'>>({
     mutationFn: async (input) => {
-      if (!orgId) throw new Error('Workspace não identificado.')
-      const novo: FornecedorBankEntry = { ...input, id: crypto.randomUUID() }
-      writeBank(orgId, [...(query.data ?? []), novo])
+      const { error } = await sbAny.from('fornecedor_bank').insert(input)
+      if (error) throw error
     },
     onSuccess: async () => {
       await invalidate()
@@ -51,8 +44,8 @@ export function useFornecedorBank() {
 
   const remove = useMutation<void, Error, string>({
     mutationFn: async (id) => {
-      if (!orgId) throw new Error('Workspace não identificado.')
-      writeBank(orgId, (query.data ?? []).filter((e) => e.id !== id))
+      const { error } = await sbAny.from('fornecedor_bank').delete().eq('id', id).eq('org_id', orgId)
+      if (error) throw error
     },
     onSuccess: async () => {
       await invalidate()
@@ -63,8 +56,9 @@ export function useFornecedorBank() {
 
   const update = useMutation<void, Error, FornecedorBankEntry>({
     mutationFn: async (entry) => {
-      if (!orgId) throw new Error('Workspace não identificado.')
-      writeBank(orgId, (query.data ?? []).map((e) => (e.id === entry.id ? entry : e)))
+      const { id, ...rest } = entry
+      const { error } = await sbAny.from('fornecedor_bank').update(rest).eq('id', id).eq('org_id', orgId)
+      if (error) throw error
     },
     onSuccess: async () => {
       await invalidate()

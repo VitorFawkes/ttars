@@ -1253,3 +1253,6 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-06-15T12:45:03Z | supabase/migrations/20260615d_ww_closer_drop_oportunidade_futura_col.sql | applied_to_prod
 2026-06-15T12:53:34Z | supabase/migrations/20260615e_marcar_ganho_sdr_planner_or_closer.sql | applied_to_prod
 2026-06-15T13:23:42Z | supabase/migrations/20260615f_weddings_closer_flexibilizations.sql | applied_to_prod
+2026-06-15 | supabase/migrations/20260615g_wedding_planejamento_state.sql | aplicada em producao via Management API (token CLI)
+2026-06-15 | supabase/migrations/20260615h_wedding_fornecedores.sql | aplicada em producao via Management API (token CLI)
+2026-06-15 | supabase/migrations/20260615i_fornecedor_bank.sql | aplicada em producao via Management API (token CLI)
