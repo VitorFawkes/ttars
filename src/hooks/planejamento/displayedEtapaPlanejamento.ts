@@ -17,7 +17,7 @@ const STAGE_NOME_TO_COLUNA: Record<string, EtapaPlanejamento> = {
   'Pós-casamento': 'aditivo',
 }
 
-export function colunaFromStageNome(nome: string | null | undefined): EtapaPlanejamento {
+function colunaFromStageNome(nome: string | null | undefined): EtapaPlanejamento {
   if (!nome) return PLANEJAMENTO_DEFAULT
   return STAGE_NOME_TO_COLUNA[nome.trim()] ?? PLANEJAMENTO_DEFAULT
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
@@ -26,6 +26,7 @@ import { setorIcon } from '../../lib/planejamento/setorIcons'
 import { usePlanejamentoWeddings } from '../../hooks/planejamento/usePlanejamentoWeddings'
 import { useWeddingFornecedores } from '../../hooks/planejamento/useWeddingFornecedores'
 import { useFornecedorBank } from '../../hooks/planejamento/useFornecedorBank'
+import { WipBadge } from '../../components/planejamento/WipBadge'
 import {
   PLANEJAMENTO_LABEL,
   FORNECEDOR_SETORES,
@@ -82,14 +83,6 @@ const FORNECEDOR_CATEGORIAS: { label: string; icon?: string }[] = FORNECEDOR_SET
   (label) => ({ label, icon: setorIcon(label) }),
 )
 
-function WipBadge() {
-  return (
-    <span className="px-1.5 h-4 inline-flex items-center rounded text-[9px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 border border-amber-200">
-      WIP
-    </span>
-  )
-}
-
 export default function PlanejamentoDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -100,6 +93,17 @@ export default function PlanejamentoDetailPage() {
   const { fornecedores, add, remove, setStatus, update } = useWeddingFornecedores(cardId)
   const { bank, add: bankAdd } = useFornecedorBank()
   const [fornModal, setFornModal] = useState<{ edit: Fornecedor | null } | null>(null)
+
+  // Agrupa por categoria uma vez (em vez de filtrar a lista por categoria no map).
+  const fornecedoresPorCategoria = useMemo(() => {
+    const map = new Map<string, Fornecedor[]>()
+    for (const f of fornecedores) {
+      const list = map.get(f.categoria) ?? []
+      list.push(f)
+      map.set(f.categoria, list)
+    }
+    return map
+  }, [fornecedores])
 
   // Add (ao casamento + banco com o local do card, sem duplicar) ou edição.
   const handleSubmitForn = (payload: Omit<Fornecedor, 'id'>) => {
@@ -275,7 +279,7 @@ export default function PlanejamentoDetailPage() {
         </header>
         <ul className="space-y-1.5">
           {FORNECEDOR_CATEGORIAS.map((cat) => {
-            const itens = fornecedores.filter((f) => f.categoria === cat.label)
+            const itens = fornecedoresPorCategoria.get(cat.label) ?? []
             return (
               <li key={cat.label} className="border border-slate-100 rounded-lg overflow-hidden">
                 <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm bg-white">

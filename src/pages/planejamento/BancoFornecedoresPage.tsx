@@ -5,16 +5,9 @@ import { ArrowLeft, Store, Plus, Trash2, X, Search, MapPin, Pencil } from 'lucid
 import { setorIcon } from '../../lib/planejamento/setorIcons'
 import { useFornecedorBank } from '../../hooks/planejamento/useFornecedorBank'
 import { FORNECEDOR_SETORES, type FornecedorBankEntry } from '../../hooks/planejamento/types'
+import { WipBadge } from '../../components/planejamento/WipBadge'
 
 const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-
-function WipBadge() {
-  return (
-    <span className="px-1.5 h-4 inline-flex items-center rounded text-[9px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 border border-amber-200">
-      WIP
-    </span>
-  )
-}
 
 export default function BancoFornecedoresPage() {
   const navigate = useNavigate()
@@ -253,18 +246,21 @@ function AddBankModal({
 
   // Busca por parecidos enquanto digita o nome — evita cadastrar o mesmo
   // fornecedor com nomes diferentes. Clicar abre o registro existente p/ editar.
-  const termo = nome.trim().toLowerCase()
-  const parecidos =
-    termo.length >= 2
-      ? existing
-          .filter((e) => e.id !== initial?.id && e.nome.toLowerCase().includes(termo))
-          .slice(0, 5)
+  const parecidos = useMemo(() => {
+    const termo = nome.trim().toLowerCase()
+    return termo.length >= 2
+      ? existing.filter((e) => e.id !== initial?.id && e.nome.toLowerCase().includes(termo)).slice(0, 5)
       : []
+  }, [nome, existing, initial?.id])
 
   // Localizações já cadastradas — sugeridas no campo (autocomplete) p/ reusar
   // a mesma grafia em vez de criar variações ("Riviera Maya" vs "riviera maya").
-  const locOptions = [...new Set(existing.map((e) => e.localizacao.trim()).filter(Boolean))].sort(
-    (a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }),
+  const locOptions = useMemo(
+    () =>
+      [...new Set(existing.map((e) => e.localizacao.trim()).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }),
+      ),
+    [existing],
   )
 
   const canSave = nome.trim().length > 0 && localizacao.trim().length > 0 && !!setor
