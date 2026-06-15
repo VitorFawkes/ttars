@@ -7,9 +7,9 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-06-15
 > **Trigger:** ALWAYS ON
-> **Stats:** 234 tabelas | 209 paginas | 365 hooks | 28 views | 851 components
-> **Stats:** 234 tabelas | 209 paginas | 365 hooks | 28 views | 851 components
-> **Stats:** 234 tabelas | 209 paginas | 365 hooks | 28 views | 851 components
+> **Stats:** 234 tabelas | 210 paginas | 365 hooks | 28 views | 851 components
+> **Stats:** 234 tabelas | 210 paginas | 365 hooks | 28 views | 851 components
+> **Stats:** 234 tabelas | 210 paginas | 365 hooks | 28 views | 851 components
 
 ---
 
@@ -615,7 +615,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **209 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **210 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -805,6 +805,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `Terms` | `src/pages/legal/Terms.tsx` |
 | `MobileCardCreate` | `src/pages/mobile/MobileCardCreate.tsx` |
 | `MobileContactPicker` | `src/pages/mobile/MobileContactPicker.tsx` |
+| `PlanejamentoDetailPage` | `src/pages/planejamento/PlanejamentoDetailPage.tsx` |
 | `PlanejamentoLayout` | `src/pages/planejamento/PlanejamentoLayout.tsx` |
 | `PlanejamentoPage` | `src/pages/planejamento/PlanejamentoPage.tsx` |
 | `AuditPage` | `src/pages/platform/AuditPage.tsx` |

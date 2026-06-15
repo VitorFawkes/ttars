@@ -71,6 +71,7 @@ import ConfiguracaoFluxoPage from './pages/convidados/ConfiguracaoFluxoPage'
 import CalendarioPage from './pages/convidados/CalendarioPage'
 import PlanejamentoLayout from './pages/planejamento/PlanejamentoLayout'
 import PlanejamentoPage from './pages/planejamento/PlanejamentoPage'
+import PlanejamentoDetailPage from './pages/planejamento/PlanejamentoDetailPage'
 import ConciergeLayout from './pages/concierge/ConciergeLayout'
 import KanbanPage from './pages/concierge/KanbanPage'
 import PainelGestorPage from './pages/concierge/PainelGestorPage'
@@ -300,6 +301,7 @@ function App() {
                   </Route>
                   <Route path="/planejamento" element={<PlanejamentoLayout />}>
                     <Route index element={<PlanejamentoPage />} />
+                    <Route path="casamento/:id" element={<PlanejamentoDetailPage />} />
                   </Route>
                   <Route path="/concierge" element={<ConciergeLayout />}>
                     <Route index element={<KanbanPage />} />

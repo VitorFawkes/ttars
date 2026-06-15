@@ -175,7 +175,7 @@ export function PlanejamentoBoard() {
                       <PlanejamentoCard
                         key={w.id}
                         wedding={w}
-                        onClick={() => navigate(`/convidados/casamento/${w.id}`)}
+                        onClick={() => navigate(`/planejamento/casamento/${w.id}`)}
                       />
                     ))
                   )}

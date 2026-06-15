@@ -40,6 +40,7 @@ const navigation: {
   adminOnly?: boolean;
   phases?: string[];
   roles?: string[];
+  wip?: boolean;
 }[] = [
   { name: "Funil", href: "/pipeline", icon: Kanban },
   { name: "Gestão de Leads", href: "/leads", icon: Database },
@@ -68,7 +69,7 @@ const navigation: {
   },
   { name: "Presentes", href: "/presentes", icon: Gift, roles: ["pos_venda"] },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
-  { name: "NPS", href: "/nps", icon: Smile },
+  { name: "NPS", href: "/nps", icon: Smile, wip: true },
   {
     name: "SDR Sofia",
     href: "/weddings/sdr",
@@ -92,6 +93,7 @@ const navigation: {
     href: "/planejamento",
     icon: ClipboardList,
     orgsOnly: ["welcome-weddings"],
+    wip: true,
   },
   { name: "Configurações", href: "/settings", icon: Settings },
 ];
@@ -271,7 +273,7 @@ export default function Sidebar() {
               to={item.href}
               title={!isExpanded ? item.name : undefined}
               className={cn(
-                "group flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150",
+                "group relative flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150",
                 isActive
                   ? isWeddings
                     ? "bg-ww-gold text-white shadow-sm"
@@ -308,6 +310,13 @@ export default function Sidebar() {
                   )}
                 >
                   {todayCount}
+                </span>
+              )}
+              {/* Selo WIP — só quando expandido (recolhido a bolinha enganava
+                  o usuário, parecia notificação) */}
+              {item.wip && isExpanded && (
+                <span className="ml-auto flex-shrink-0 px-1 h-4 inline-flex items-center rounded text-[9px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 border border-amber-200">
+                  WIP
                 </span>
               )}
             </Link>
