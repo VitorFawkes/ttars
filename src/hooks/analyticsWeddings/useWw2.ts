@@ -88,6 +88,7 @@ export type Ww2Alerta = {
   phase_label: string
   dias_parado: number
   valor_estimado: number | null
+  ac_pipeline_nome: string | null
 }
 
 export type Ww2Overview = {
@@ -1325,15 +1326,28 @@ export type WwAgenda = {
 
 // Agenda usa os filtros de PERFIL da aba (origem/tipo/faixa/convidados/destino/consultor).
 // Canal de reunião NÃO se aplica: reunião futura ainda não tem canal registrado (intencional).
-export function useWwAgenda(filters: Pick<Ww2Filters, 'origins' | 'tipos' | 'faixas' | 'destinos' | 'convidados' | 'consultorIds'>, diasFuturo = 28, diasPendentes = 14, diasDesfechos = 30) {
+// Agenda futura (próximas/pendentes/por_dia) ignora período e canal — é o FUTURO.
+// Só os DESFECHOS respeitam o período (dateStart/dateEnd) e os canais SDR/Closer do filtro.
+export function useWwAgenda(
+  filters: Pick<Ww2Filters, 'origins' | 'tipos' | 'faixas' | 'destinos' | 'convidados' | 'consultorIds' | 'dateStart' | 'dateEnd' | 'canalSdr' | 'canalCloser'>,
+  diasFuturo = 28, diasPendentes = 14, diasDesfechos = 30,
+) {
   const orgId = useOrgId()
+  const dateStart = filters.dateStart ?? null
+  const dateEnd = filters.dateEnd ?? null
+  const sdrCanal = filters.canalSdr?.length ? filters.canalSdr : null
+  const closerCanal = filters.canalCloser?.length ? filters.canalCloser : null
   return useQuery({
-    queryKey: ['ww', 'agenda', orgId, filters.origins ?? null, filters.tipos ?? null, filters.faixas ?? null, filters.destinos ?? null, filters.convidados ?? null, filters.consultorIds ?? null, diasFuturo, diasPendentes, diasDesfechos],
+    queryKey: ['ww', 'agenda', orgId, filters.origins ?? null, filters.tipos ?? null, filters.faixas ?? null, filters.destinos ?? null, filters.convidados ?? null, filters.consultorIds ?? null, dateStart, dateEnd, sdrCanal, closerCanal, diasFuturo, diasPendentes, diasDesfechos],
     queryFn: () => callRpc<WwAgenda>('ww_agenda_reunioes', {
       p_org_id: orgId,
       p_dias_futuro: diasFuturo,
       p_dias_pendentes: diasPendentes,
       p_dias_desfechos: diasDesfechos,
+      p_date_start: dateStart,
+      p_date_end: dateEnd,
+      p_sdr_canal: sdrCanal,
+      p_closer_canal: closerCanal,
       p_origins: filters.origins?.length ? filters.origins : null,
       p_tipos: filters.tipos?.length ? filters.tipos : null,
       p_faixas: filters.faixas?.length ? filters.faixas : null,
