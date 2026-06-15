@@ -143,7 +143,7 @@ export default function KanbanColumn({ stage, cards, phaseColor, phaseSlug, onWi
 
             <div
                 className={cn(
-                    "flex flex-col gap-3 overflow-y-auto transition-colors scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent px-3 pt-3 pb-6 min-h-[120px] flex-1"
+                    "flex flex-col gap-3 overflow-y-auto transition-colors custom-scrollbar px-3 pt-3 pb-6 min-h-[120px] flex-1"
                 )}
             >
                 {cards.length === 0 ? (

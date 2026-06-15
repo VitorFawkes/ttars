@@ -179,24 +179,39 @@
     height: 6px;
     width: 6px;
   }
-  
+
+  /* Remove as setas (steppers) do scrollbar nativo — ex.: WSL/Linux/Windows */
+  .custom-scrollbar::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  /* Trilho transparente: assume a cor do fundo atrás dele (a coluna) em
+     qualquer estado — gray-50 normal, branco no hover da coluna. */
   .custom-scrollbar::-webkit-scrollbar-track {
     background-color: transparent;
   }
-  
+
+  /* Alça translúcida escura: apenas escurece de leve o fundo atrás dela (cinza no
+     Trips, creme no Weddings), então nunca fica mais clara que o fundo. */
   .custom-scrollbar::-webkit-scrollbar-thumb {
     border-radius: 9999px;
-    background-color: rgba(148, 163, 184, 0.4); /* slate-400/40 */
+    background-color: rgba(100, 116, 139, 0.2); /* slate-500/20 */
   }
-  
+
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(148, 163, 184, 0.6); /* slate-400/60 */
+    background-color: rgba(100, 116, 139, 0.35); /* slate-500/35 */
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-corner {
+    background-color: transparent;
   }
 
   /* Firefox */
   .custom-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+    scrollbar-color: rgba(100, 116, 139, 0.2) transparent;
   }
 
   /* Hide scrollbar but keep functionality */

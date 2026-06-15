@@ -124,8 +124,21 @@ serve(async (req) => {
       org_id?: string;
     };
 
-    // Resolve org_id: explicit > JWT > fallback
-    const resolvedOrgId = org_id || "b0000000-0000-0000-0000-000000000001";
+    // Resolve org_id: explícito (body) > JWT (app_metadata.org_id). SEM fallback p/ Trips —
+    // cair no Trips fazia um agente de outro workspace (ex.: Weddings) nascer na org errada.
+    const orgFromJwt = (() => {
+      try {
+        const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+        return JSON.parse(atob(token.split(".")[1]))?.app_metadata?.org_id ?? null;
+      } catch (_) { return null; }
+    })();
+    const resolvedOrgId = org_id ?? orgFromJwt;
+    if (!resolvedOrgId) {
+      return new Response(
+        JSON.stringify({ error: "org_id não informado e ausente no token" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     const s1 = wizard_data.step1;
     const s3 = wizard_data.step3;
