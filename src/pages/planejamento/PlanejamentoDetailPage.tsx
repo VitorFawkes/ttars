@@ -510,6 +510,11 @@ function ChecklistSection({
                     <PrazoChip prazo={item.prazo} feito={item.feito} />
                   </div>
                 )}
+                {item.observacoes && (
+                  <p className="text-[11px] text-slate-500 mt-0.5 break-words whitespace-pre-wrap">
+                    {item.observacoes}
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <button
@@ -554,6 +559,7 @@ function AddChecklistItemModal({
   const isEdit = !!initial
   const [titulo, setTitulo] = useState(initial?.titulo ?? '')
   const [prazo, setPrazo] = useState(initial?.prazo ?? '')
+  const [observacoes, setObservacoes] = useState(initial?.observacoes ?? '')
 
   const canSave = titulo.trim().length > 0
 
@@ -563,6 +569,7 @@ function AddChecklistItemModal({
       titulo: titulo.trim(),
       prazo: prazo.trim() || null,
       feito: initial?.feito ?? false,
+      observacoes: observacoes.trim() || null,
     })
   }
 
@@ -598,6 +605,16 @@ function AddChecklistItemModal({
           <label className="text-xs font-medium text-slate-700 block">
             Prazo (opcional)
             <input type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} className={FIELD_CLS} />
+          </label>
+          <label className="text-xs font-medium text-slate-700 block">
+            Observação (opcional)
+            <textarea
+              value={observacoes}
+              onChange={(e) => setObservacoes(e.target.value)}
+              rows={2}
+              placeholder="Detalhes, contexto, links…"
+              className={FIELD_CLS}
+            />
           </label>
         </div>
 

@@ -78,6 +78,7 @@ export interface ChecklistItem {
   titulo: string
   prazo: string | null
   feito: boolean
+  observacoes?: string | null
 }
 
 /** Entrada do banco de fornecedores (catálogo per-workspace, reutilizável

@@ -1258,3 +1258,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-06-15 | supabase/migrations/20260615i_fornecedor_bank.sql | aplicada em producao via Management API (token CLI)
 2026-06-15 | supabase/migrations/20260615j_planejamento_fornecedores_setor.sql | aplicada em producao via Management API (token CLI)
 2026-06-15 | supabase/migrations/20260615k_wedding_checklist.sql | aplicada em producao via Management API (token CLI)
+2026-06-15 | supabase/migrations/20260615l_wedding_checklist_observacoes.sql | aplicada em producao via Management API (token CLI)
