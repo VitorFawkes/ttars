@@ -1247,3 +1247,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-06-12T16:57:41Z | supabase/migrations/20260612c_ww_fez_so_com_registro_real.sql | applied_to_prod
 2026-06-12T16:59:18Z | supabase/migrations/20260612c_ww_fez_so_com_registro_real.sql | applied_to_prod
 2026-06-12T17:03:16Z | supabase/migrations/20260612d_ww_refresh_tipo_e_registro_real.sql | applied_to_prod
+2026-06-15T13:04:50Z | supabase/migrations/20260615a_ww_onde_estao_pipeline_primeiro.sql | applied_to_prod
