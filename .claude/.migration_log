@@ -1278,3 +1278,4 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-16T18:44:01Z | supabase/migrations/20260616k_planner_forecast_planner_phase_only.sql | applied_to_staging
 2026-06-16T18:53:09Z | supabase/migrations/20260616k_planner_forecast_planner_phase_only.sql | applied_to_prod
 2026-06-16T19:03:32Z | supabase/migrations/20260616l_planner_profile_forecast_planner_phase.sql | applied_to_prod
+2026-06-16T21:15:57Z | supabase/migrations/20260616k_ww_serie_temporal_entrou_dw_so_sdr.sql | applied_to_prod
