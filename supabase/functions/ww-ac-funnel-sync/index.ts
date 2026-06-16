@@ -51,7 +51,7 @@ const CONTACT_FIELD_UTM_CAMPAIGN = '48'
 const CONTACT_FIELD_ORIGEM_CONVERSAO = '137'
 
 type DealCustomFieldData = { dealId: number; customFieldId: number; fieldValue: string | null }
-type Deal = { id: string; group: string | null; title: string | null; contact?: string | null; cdate?: string | null }
+type Deal = { id: string; group: string | null; title: string | null; contact?: string | null; cdate?: string | null; status?: string | null; stage?: string | null }
 type ContactFieldValue = { contact: string; field: string; value: string | null }
 
 function parseDateTime(v: string | null | undefined): string | null {
@@ -299,6 +299,8 @@ Deno.serve(async (req) => {
         is_ww: isWw,
         // 20260612d: status do Active (0=aberto,1=ganho,2/3=perdido) — usado por is_perdido
         ac_status: deal?.status != null ? parseInt(String(deal.status), 10) : null,
+        // 20260616f: etapa atual do deal no Active (posição atual confiável do casal)
+        ac_current_stage_id: deal?.stage != null ? String(deal.stage) : null,
         deal_title: deal?.title ?? null,
         sdr_agendou_at: parseDateTime(data[FIELD_SDR_AGENDOU]),
         sdr_fez: sdrFez,

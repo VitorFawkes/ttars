@@ -44,7 +44,7 @@ const CONTACT_FIELD_UTM_MEDIUM = '47'
 const CONTACT_FIELD_UTM_CAMPAIGN = '48'
 const CONTACT_FIELD_ORIGEM_CONVERSAO = '137'
 
-type Deal = { id: string; group: string | null; title: string | null; contact?: string | null; cdate?: string | null }
+type Deal = { id: string; group: string | null; title: string | null; contact?: string | null; cdate?: string | null; status?: string | null; stage?: string | null }
 
 function parseDateTime(v: string | null | undefined): string | null {
   if (!v) return null
@@ -230,6 +230,9 @@ Deno.serve(async (req) => {
       // 20260612d: status do Active (0=aberto,1=ganho,2/3=perdido). Único sinal de
       // perda da esteira SDR (que não gera evento de jornada). is_perdido usa isso.
       ac_status: deal.status != null ? parseInt(String(deal.status), 10) : null,
+      // 20260616f: etapa atual do deal no Active (fonte confiável da "posição atual" do casal,
+      // substitui o last_stage da timeline ww_deal_event que estava incompleta).
+      ac_current_stage_id: deal.stage != null ? String(deal.stage) : null,
       deal_title: deal.title ?? null,
       sdr_agendou_at: parseDateTime(fieldMap[FIELD_SDR_AGENDOU]),
       sdr_fez: sdrFez,
