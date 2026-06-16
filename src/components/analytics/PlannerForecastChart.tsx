@@ -14,6 +14,7 @@ import { ptBR } from 'date-fns/locale'
 import { usePlannerForecastByDono, type ForecastCard } from '@/hooks/analytics/usePlannerForecastByDono'
 import { useFilterProfilesWithRole } from '@/hooks/analytics/useFilterOptions'
 import { usePipelineStages } from '@/hooks/usePipelineStages'
+import { usePipelinePhases } from '@/hooks/usePipelinePhases'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { forecastToDrillRows } from '@/hooks/analytics/forecastToDrillRows'
@@ -139,9 +140,22 @@ export default function PlannerForecastChart() {
   const profiles = useFilterProfilesWithRole()
   const meta = useCurrentProductMeta()
   const stages = usePipelineStages(meta.pipelineId)
+  const phases = usePipelinePhases(meta.pipelineId)
+
+  // A previsão só conta cards na etapa de Planner (a fase cujo dono é o vendas_owner).
+  // O filtro de etapas, portanto, só lista as etapas dessa fase.
+  const plannerPhaseId = useMemo(
+    () => (phases.data ?? []).find(ph => ph.owner_field === 'vendas_owner_id')?.id ?? null,
+    [phases.data],
+  )
 
   const allPlanners = useMemo(() => (profiles.data ?? []).filter(p => p.role === 'vendas'), [profiles.data])
-  const allStages = useMemo(() => (stages.data ?? []).filter((s) => (s as { ativo?: boolean }).ativo !== false), [stages.data])
+  const allStages = useMemo(
+    () => (stages.data ?? []).filter((s) =>
+      (s as { ativo?: boolean }).ativo !== false
+      && (!plannerPhaseId || s.phase_id === plannerPhaseId)),
+    [stages.data, plannerPhaseId],
+  )
 
   const [windowPreset, setWindowPreset] = useState<WindowPreset>('next_30d')
   const [customStart, setCustomStart] = useState(format(new Date(), 'yyyy-MM-dd'))
@@ -259,7 +273,7 @@ export default function PlannerForecastChart() {
         <div>
           <h3 className="text-base font-semibold text-slate-900">Previsão de fechamento</h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            {totalQtd} cards · {formatCurrency(totalGeral)} previstos {windowLabel(windowPreset)} · {dimensaoLabel(dimensao)}
+            {totalQtd} cards · {formatCurrency(totalGeral)} previstos {windowLabel(windowPreset)} · {dimensaoLabel(dimensao)} · só etapa Planner
           </p>
         </div>
         {isTempo && (

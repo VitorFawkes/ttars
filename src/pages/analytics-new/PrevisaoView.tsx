@@ -123,8 +123,9 @@ export default function PrevisaoView() {
       <header>
         <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Previsão de fechamento</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Quanto está previsto fechar e quando — por período e por consultor. Baseado na data prevista de
-          fechamento de cada card aberto ({stats.total} cards com data preenchida). Quem não tem data não entra na conta.
+          Quanto está previsto fechar e quando — por período e por consultor. Conta apenas cards que estão na
+          etapa de Planner, com data prevista de fechamento preenchida ({stats.total} cards), creditados ao
+          planner que está com o card. Quem não tem data, ou já saiu da etapa de Planner, não entra na conta.
         </p>
       </header>
 
