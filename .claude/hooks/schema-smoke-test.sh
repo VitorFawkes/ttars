@@ -148,6 +148,12 @@ test_query "wedding_guest_extras table" \
 test_query "v_wedding_guest_extras (view do kanban de extras)" \
   "v_wedding_guest_extras?select=guest_id,card_id,org_id,nome,casamento_nome,extras_status,itens,extras_id&limit=1"
 
+# ── Hotel unificado por casamento (20260616b) ──
+# Fonte única lida por Convidados (HotelSection/HotelBar) e Planejamento via
+# useWeddingHotel. 1:1 com o card (PK card_id). Per-org (trigger strict).
+test_query "wedding_hotel table" \
+  "wedding_hotel?select=card_id,org_id,nome,categoria,check_in,check_out,total_quartos,quartos_reservados,status&limit=1"
+
 # ── RPCs críticas (chamadas via rpc/) ──
 
 test_rpc() {

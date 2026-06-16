@@ -22,7 +22,7 @@ const C = {
   white: '#ffffff',
 }
 
-const LOGO_SRC = '/WelcomeWeddings_LogoHorizontal_Dourada_1080x1080.png'
+const LOGO_SRC = '/icons/WelcomeWeddings_LogoHorizontal_Dourada_1080x1080.png'
 
 const MONTHS = [
   'janeiro','fevereiro','março','abril','maio','junho',

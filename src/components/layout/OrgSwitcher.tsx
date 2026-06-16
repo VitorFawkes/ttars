@@ -19,8 +19,8 @@ interface OrgSwitcherProps {
 }
 
 const ORG_ICON_BY_SLUG: Record<string, string> = {
-    'welcome-trips': '/vacation.svg',
-    'welcome-weddings': '/wedding-rings.svg',
+    'welcome-trips': '/svg/vacation.svg',
+    'welcome-weddings': '/svg/wedding-rings.svg',
 }
 
 function OrgBadge({

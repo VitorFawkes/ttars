@@ -1222,6 +1222,14 @@
 2026-06-15T12:53:34Z | supabase/migrations/20260615e_marcar_ganho_sdr_planner_or_closer.sql | applied_to_prod
 2026-06-15T13:04:50Z | supabase/migrations/20260615a_ww_onde_estao_pipeline_primeiro.sql | applied_to_prod
 2026-06-15T13:23:42Z | supabase/migrations/20260615f_weddings_closer_flexibilizations.sql | applied_to_prod
+2026-06-15 | supabase/migrations/20260615g_wedding_planejamento_state.sql | aplicada em producao via Management API (token CLI)
+2026-06-15 | supabase/migrations/20260615h_wedding_fornecedores.sql | aplicada em producao via Management API (token CLI)
+2026-06-15 | supabase/migrations/20260615i_fornecedor_bank.sql | aplicada em producao via Management API (token CLI)
+2026-06-15 | supabase/migrations/20260615j_planejamento_fornecedores_setor.sql | aplicada em producao via Management API (token CLI)
+2026-06-15 | supabase/migrations/20260615k_wedding_checklist.sql | aplicada em producao via Management API (token CLI)
+2026-06-15 | supabase/migrations/20260615l_wedding_checklist_observacoes.sql | aplicada em producao via Management API (token CLI)
+2026-06-16T11:30:18Z | supabase/migrations/20260616a_wedding_hospedagem.sql | applied_to_prod
+2026-06-16T11:59:04Z | supabase/migrations/20260616b_wedding_hotel.sql | applied_to_prod
 2026-06-15T13:28:49Z | supabase/migrations/20260615b_ww_alertas_ac_deal_id.sql | applied_to_prod
 2026-06-15T14:18:13Z | supabase/migrations/20260614a_ww_lead_ideal_mix_entradas.sql | applied_to_prod
 2026-06-15T14:18:13Z | supabase/migrations/20260614b_ww_lead_ideal_cruzamento_topcombos_3num.sql | applied_to_prod
