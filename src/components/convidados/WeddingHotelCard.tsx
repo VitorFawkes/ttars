@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { BedDouble, Building2, Globe, ExternalLink, Pencil, Plus } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { BedDouble, Building2, Globe, ExternalLink, Pencil, Plus, Minus } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useWeddingHotel } from '../../hooks/convidados/useWeddingHotel'
 import { HOTEL_STATUS_LABEL, type HotelStatus } from '../../hooks/convidados/types'
@@ -26,8 +26,37 @@ export function WeddingHotelCard({ cardId, local }: { cardId: string | null; loc
   const { hotel, save, clear, isSaving } = useWeddingHotel(cardId)
   const [editing, setEditing] = useState(false)
 
-  const total = hotel?.total_quartos ?? 0
-  const reservados = hotel?.quartos_reservados ?? 0
+  // Quartos editáveis inline (+/-). Estado local pra resposta imediata; o save
+  // é debounced (500ms) pra não disparar um upsert por clique. Mantém o
+  // invariante reservados ≤ total.
+  const [total, setTotal] = useState(0)
+  const [reservados, setReservados] = useState(0)
+  useEffect(() => {
+    setTotal(hotel?.total_quartos ?? 0)
+    setReservados(hotel?.quartos_reservados ?? 0)
+  }, [hotel?.total_quartos, hotel?.quartos_reservados])
+
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current) }, [])
+
+  const bump = (field: 'total' | 'reservados', delta: number) => {
+    if (!hotel) return
+    let nextTotal = total
+    let nextReservados = reservados
+    if (field === 'total') {
+      nextTotal = Math.max(0, total + delta)
+      nextReservados = Math.min(reservados, nextTotal)
+    } else {
+      nextReservados = Math.min(Math.max(0, reservados + delta), total)
+    }
+    setTotal(nextTotal)
+    setReservados(nextReservados)
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      save({ ...hotel, total_quartos: nextTotal, quartos_reservados: nextReservados })
+    }, 500)
+  }
+
   const disponiveis = Math.max(0, total - reservados)
   const ocupacao = total > 0 ? Math.round((reservados / total) * 100) : 0
 
@@ -95,15 +124,16 @@ export function WeddingHotelCard({ cardId, local }: { cardId: string | null; loc
             )}
           </div>
 
-          {/* Stats de quartos */}
-          <div className="md:w-1/2 bg-slate-50 border border-slate-100 rounded-lg p-3 flex flex-col gap-2">
-            <div className="flex items-baseline justify-between">
-              <span className="text-sm text-slate-700">Quartos disponíveis</span>
-              <span className="text-sm tabular-nums">
-                <strong className="text-2xl text-slate-900 mr-1">{disponiveis}</strong>
-                <span className="text-slate-500">/ {total}</span>
-              </span>
-            </div>
+          {/* Stats de quartos — ajuste rápido com +/- */}
+          <div className="md:w-1/2 bg-slate-50 border border-slate-100 rounded-lg p-3 flex flex-col gap-2.5">
+            <Stepper label="Total de quartos" value={total} onDec={() => bump('total', -1)} onInc={() => bump('total', 1)} />
+            <Stepper
+              label="Reservados"
+              value={reservados}
+              onDec={() => bump('reservados', -1)}
+              onInc={() => bump('reservados', 1)}
+              incDisabled={reservados >= total}
+            />
 
             {/* Barra de ocupação */}
             <div className="h-2 bg-white border border-slate-200 rounded-full overflow-hidden">
@@ -117,7 +147,7 @@ export function WeddingHotelCard({ cardId, local }: { cardId: string | null; loc
             </div>
 
             <div className="flex items-center justify-between text-[11px] text-slate-500 tabular-nums">
-              <span>{reservados} reservados</span>
+              <span>{disponiveis} disponíveis</span>
               <span>{ocupacao}% ocupação</span>
             </div>
           </div>
@@ -141,5 +171,37 @@ export function WeddingHotelCard({ cardId, local }: { cardId: string | null; loc
         />
       )}
     </section>
+  )
+}
+
+/** Controle numérico +/- compacto (quartos). */
+function Stepper({
+  label,
+  value,
+  onDec,
+  onInc,
+  incDisabled,
+}: {
+  label: string
+  value: number
+  onDec: () => void
+  onInc: () => void
+  incDisabled?: boolean
+}) {
+  const btn =
+    'w-6 h-6 inline-flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors'
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-sm text-slate-700">{label}</span>
+      <div className="inline-flex items-center gap-1">
+        <button type="button" onClick={onDec} disabled={value <= 0} className={btn} aria-label={`Diminuir ${label}`}>
+          <Minus className="w-3.5 h-3.5" />
+        </button>
+        <span className="w-9 text-center tabular-nums font-semibold text-slate-900">{value}</span>
+        <button type="button" onClick={onInc} disabled={incDisabled} className={btn} aria-label={`Aumentar ${label}`}>
+          <Plus className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
   )
 }
