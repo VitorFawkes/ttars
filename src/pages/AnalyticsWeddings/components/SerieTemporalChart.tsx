@@ -104,10 +104,10 @@ export function SerieTemporalChart({
   /** Clique numa barra → drill da lista de casais daquele período/marco */
   onPointClick?: (ponto: WwSeriePonto, marco: SerieMarco, janela: { dateStart: string; dateEnd: string }) => void
 }) {
-  // Período bem curto (≤ ~45 dias) abre por DIA; curto (≤ ~92) por SEMANA; longo por MÊS.
-  // O usuário ainda troca livre no botão (Dia/Semana/Mês).
+  // Período curto (≤ ~92 dias) abre por SEMANA pra não virar 1 barra só; longo por MÊS.
+  // A visão DIÁRIA fica disponível no botão (Dia/Semana/Mês) — o usuário troca livre.
   const spanDias = (new Date(dateEnd).getTime() - new Date(dateStart).getTime()) / 86_400_000
-  const [gran, setGran] = useState<Gran>(spanDias <= 45 ? 'day' : spanDias <= 92 ? 'week' : 'month')
+  const [gran, setGran] = useState<Gran>(spanDias <= 92 ? 'week' : 'month')
   const [modo, setModo] = useState<Modo>(defaultModo)
 
   // periodo vem do banco como YYYY-MM-DD (início do bucket) — converte pra janela fechada
