@@ -1255,7 +1255,7 @@ export type WwSeriePonto = {
   ganho: number
 }
 export type WwSerieTemporal = {
-  granularidade: 'week' | 'month'
+  granularidade: 'day' | 'week' | 'month'
   date_mode: DateMode
   series: WwSeriePonto[]
   totais: { entrou: number; marcou_sdr: number; fez_sdr: number; marcou_closer: number; fez_closer: number; ganho: number }
@@ -1264,7 +1264,7 @@ export type WwSerieTemporal = {
 export type WwSerieParams = {
   dateStart: string
   dateEnd: string
-  granularidade: 'week' | 'month'
+  granularidade: 'day' | 'week' | 'month'
   dateMode: DateMode
   incluirElopement?: boolean
   origins?: string[]

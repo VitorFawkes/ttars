@@ -6,7 +6,7 @@ import { useWwSerieTemporal, type DateMode, type WwSeriePonto, type StatusLead }
 import { SectionCard, EmptyState, LoadingSkeleton } from './ui'
 import { formatNumber } from '../lib/format'
 
-type Gran = 'week' | 'month'
+type Gran = 'day' | 'week' | 'month'
 type Modo = 'quantidade' | 'conversao'
 
 // Paleta da marca ww — funil completo em pares (marcada = tom claro, feita = tom cheio);
@@ -104,17 +104,18 @@ export function SerieTemporalChart({
   /** Clique numa barra → drill da lista de casais daquele período/marco */
   onPointClick?: (ponto: WwSeriePonto, marco: SerieMarco, janela: { dateStart: string; dateEnd: string }) => void
 }) {
-  // Período curto (≤ ~90 dias) abre por SEMANA pra não virar 1 barra só; longo abre por MÊS.
-  // O usuário ainda troca livre no botão.
+  // Período bem curto (≤ ~45 dias) abre por DIA; curto (≤ ~92) por SEMANA; longo por MÊS.
+  // O usuário ainda troca livre no botão (Dia/Semana/Mês).
   const spanDias = (new Date(dateEnd).getTime() - new Date(dateStart).getTime()) / 86_400_000
-  const [gran, setGran] = useState<Gran>(spanDias <= 92 ? 'week' : 'month')
+  const [gran, setGran] = useState<Gran>(spanDias <= 45 ? 'day' : spanDias <= 92 ? 'week' : 'month')
   const [modo, setModo] = useState<Modo>(defaultModo)
 
   // periodo vem do banco como YYYY-MM-DD (início do bucket) — converte pra janela fechada
   const janelaDe = (periodo: string): { dateStart: string; dateEnd: string } => {
     const start = new Date(`${periodo}T00:00:00Z`)
     const end = new Date(start)
-    if (gran === 'week') end.setUTCDate(end.getUTCDate() + 7)
+    if (gran === 'day') end.setUTCDate(end.getUTCDate() + 1)
+    else if (gran === 'week') end.setUTCDate(end.getUTCDate() + 7)
     else end.setUTCMonth(end.getUTCMonth() + 1)
     end.setUTCSeconds(end.getUTCSeconds() - 1)
     return { dateStart: start.toISOString(), dateEnd: end.toISOString() }
@@ -150,8 +151,9 @@ export function SerieTemporalChart({
   const controls = (
     <div className="flex items-center gap-2">
       <div className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5">
-        <button onClick={() => setGran('month')} className={seg(gran === 'month')}>Mês</button>
+        <button onClick={() => setGran('day')} className={seg(gran === 'day')}>Dia</button>
         <button onClick={() => setGran('week')} className={seg(gran === 'week')}>Semana</button>
+        <button onClick={() => setGran('month')} className={seg(gran === 'month')}>Mês</button>
       </div>
       <div className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5">
         <button onClick={() => setModo('quantidade')} className={seg(modo === 'quantidade')}>Quantidade</button>

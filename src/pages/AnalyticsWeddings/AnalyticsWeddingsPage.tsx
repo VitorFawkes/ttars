@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useOrg } from '@/contexts/OrgContext'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { countActiveFilters, defaultFilters, type AppliedFilters, type TabProps } from './components/FilterBar'
@@ -26,20 +26,41 @@ const TABS: { id: Tab; label: string; icon: string; description: string }[] = [
 // Abas que usam o filtro padrão (por aba). Funil comparado tem o filtro próprio dele.
 const TABS_COM_FILTRO: Tab[] = ['visao', 'entrada-realidade', 'qualidade', 'perfil', 'marketing', 'perdas']
 
+// Persistência dos filtros por aba (localStorage, por org). Cada aba lembra o seu recorte
+// mesmo ao trocar de aba ou sair e voltar da página.
+const FILTERS_KEY = (orgId?: string) => `ww-analytics-filters-v1-${orgId ?? 'default'}`
+const TAB_IDS: Tab[] = ['visao', 'funil-comparado', 'entrada-realidade', 'qualidade', 'perfil', 'marketing', 'perdas']
+
+function loadFiltersByTab(orgId?: string): Record<Tab, AppliedFilters> {
+  const base = Object.fromEntries(TAB_IDS.map(t => [t, defaultFilters()])) as Record<Tab, AppliedFilters>
+  try {
+    const raw = orgId ? localStorage.getItem(FILTERS_KEY(orgId)) : null
+    if (raw) {
+      const saved = JSON.parse(raw) as Partial<Record<Tab, AppliedFilters>>
+      for (const t of TAB_IDS) {
+        // merge com o default pra absorver campos novos de filtro adicionados depois
+        if (saved[t]) base[t] = { ...defaultFilters(), ...saved[t] }
+      }
+    }
+  } catch { /* localStorage indisponível ou JSON inválido → defaults */ }
+  return base
+}
+
 export default function AnalyticsWeddingsPage() {
   const { org } = useOrg()
   const { product } = useCurrentProductMeta()
+  const orgId = org?.id
   const [activeTab, setActiveTab] = useState<Tab>('visao')
-  // Filtro POR ABA — cada aba lembra o seu (não há mais filtro global).
-  const [filtersByTab, setFiltersByTab] = useState<Record<Tab, AppliedFilters>>(() => ({
-    'visao': defaultFilters(),
-    'funil-comparado': defaultFilters(),
-    'entrada-realidade': defaultFilters(),
-    'qualidade': defaultFilters(),
-    'perfil': defaultFilters(),
-    'marketing': defaultFilters(),
-    'perdas': defaultFilters(),
-  }))
+  // Filtro POR ABA — cada aba lembra o seu (não há mais filtro global). Persistido por org.
+  const [filtersByTab, setFiltersByTab] = useState<Record<Tab, AppliedFilters>>(() => loadFiltersByTab(orgId))
+
+  // Recarrega os filtros guardados quando o workspace muda (ou ao montar com a org já definida).
+  useEffect(() => { if (orgId) setFiltersByTab(loadFiltersByTab(orgId)) }, [orgId])
+  // Salva sempre que mudar (não reseta mais ao trocar de aba/sair da página).
+  useEffect(() => {
+    if (!orgId) return
+    try { localStorage.setItem(FILTERS_KEY(orgId), JSON.stringify(filtersByTab)) } catch { /* quota/privado */ }
+  }, [filtersByTab, orgId])
   const tabProps = (tab: Tab): TabProps => ({
     filters: filtersByTab[tab],
     onFiltersChange: (next) => setFiltersByTab(prev => ({ ...prev, [tab]: next })),
