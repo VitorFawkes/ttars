@@ -1259,3 +1259,4 @@ supabase/migrations/20260310_backfill_orphan_contacts.sql|prod|2026-03-10T12:58:
 supabase/migrations/20260310_fix_contatos_insert_rls.sql|pending_manual|2026-03-10T13:06:23Z|staging_sem_tabelas_aguardando_access_token_para_prod
 supabase/migrations/20260325_section_field_config.sql — já aplicada em staging+prod
 2026-06-16T12:38:23Z | supabase/migrations/20260616b_ww_funil_conversao_entrou_dw_so_sdr.sql | applied_to_prod
+2026-06-16T12:46:13Z | supabase/migrations/20260616c_ww_onde_estao_standby_sdr_linha_propria.sql | applied_to_prod
