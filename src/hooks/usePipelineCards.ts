@@ -11,6 +11,16 @@ import { useSharedHandoffStageIds } from './useSharedHandoffStageIds'
 
 export type Card = Database['public']['Views']['view_cards_acoes']['Row']
 
+// Normaliza ww_tipo_casamento (texto livre) para o token canônico 'DW' | 'Elopement'.
+// Espelha _ww_norm_tipo() do backend (migration 20260526g) e o TipoSegment do Analytics.
+function normalizeWeddingType(raw: unknown): 'DW' | 'Elopement' | null {
+    if (typeof raw !== 'string') return null
+    const v = raw.toLowerCase().trim()
+    if (v.includes('elop')) return 'Elopement'
+    if (v.includes('dw') || v.includes('destination') || v.includes('convidados') || v.includes('praia')) return 'DW'
+    return null
+}
+
 interface UsePipelineCardsProps {
     productFilter: string
     viewMode: ViewMode
@@ -282,12 +292,17 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                 }
             }
 
-            if (filters.startDate) {
-                query = query.gte('data_viagem_inicio', filters.startDate)
-            }
+            // Data da Viagem — coluna data_viagem_inicio é nula em WEDDING (data do casamento
+            // mora em produto_data->>ww_data_casamento). Não aplicar em casamentos, senão o
+            // filtro (ou um valor herdado de uma sessão Trips) zera o quadro inteiro.
+            if (productFilter !== 'WEDDING') {
+                if (filters.startDate) {
+                    query = query.gte('data_viagem_inicio', filters.startDate)
+                }
 
-            if (filters.endDate) {
-                query = query.lte('data_viagem_inicio', filters.endDate)
+                if (filters.endDate) {
+                    query = query.lte('data_viagem_inicio', filters.endDate)
+                }
             }
 
             // NEW: Creation Date Filter (TIMESTAMP)
@@ -374,8 +389,9 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                 query = query.in('prioridade', filters.prioridade)
             }
 
-            // Status Taxa Filter
-            if ((filters.statusTaxa?.length ?? 0) > 0) {
+            // Status Taxa Filter — "Taxa de Planejamento" é conceito de Trips
+            // (produto_data->>taxa_planejamento). Não aplicar em WEDDING.
+            if (productFilter !== 'WEDDING' && (filters.statusTaxa?.length ?? 0) > 0) {
                 query = query.in('status_taxa', filters.statusTaxa)
             }
 
@@ -474,13 +490,26 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
             }
 
             // Monde Venda Num Filter (client-side — match exato no produto_data->>numero_venda_monde)
-            if ((filters.mondeVendaNums?.length ?? 0) > 0) {
+            // Monde é integração só de Trips — não aplicar em WEDDING.
+            if (productFilter !== 'WEDDING' && (filters.mondeVendaNums?.length ?? 0) > 0) {
                 const wanted = new Set(filters.mondeVendaNums!.map(v => String(v).trim()))
                 filteredData = filteredData.filter(card => {
                     const pd = card.produto_data as Record<string, unknown> | null
                     const num = pd?.numero_venda_monde
                     if (typeof num !== 'string' || num.trim() === '') return false
                     return wanted.has(num.trim())
+                })
+            }
+
+            // Tipo de casamento (client-side — só WEDDING). Normaliza produto_data->>ww_tipo_casamento
+            // igual o backend (_ww_norm_tipo) e Analytics. [] = "Os dois" → não filtra (mostra tudo,
+            // inclusive cards sem tipo preenchido).
+            if (productFilter === 'WEDDING' && (filters.weddingTypes?.length ?? 0) > 0) {
+                const wanted = new Set(filters.weddingTypes!)
+                filteredData = filteredData.filter(card => {
+                    const pd = card.produto_data as Record<string, unknown> | null
+                    const norm = normalizeWeddingType(pd?.['ww_tipo_casamento'])
+                    return norm != null && wanted.has(norm)
                 })
             }
 

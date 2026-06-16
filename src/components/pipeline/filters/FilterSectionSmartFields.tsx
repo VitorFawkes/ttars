@@ -2,6 +2,10 @@ import { useState } from 'react'
 import { Search, ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import type { FilterState } from '../../../hooks/usePipelineFilters'
+import { useCurrentProductMeta } from '../../../hooks/useCurrentProductMeta'
+
+// Campos de preenchimento que só existem em Trips — escondidos em WEDDING.
+const TRIPS_ONLY_FIELDS = new Set(['data_viagem_inicio', 'numero_venda_monde', 'destinos'])
 
 interface FilterSectionSmartFieldsProps {
     filters: FilterState
@@ -58,6 +62,15 @@ type FieldStatus = 'filled' | 'empty' | null
 
 export function FilterSectionSmartFields({ filters, onUpdate }: FilterSectionSmartFieldsProps) {
     const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['Contato', 'Valores']))
+    const { slug } = useCurrentProductMeta()
+    const isWedding = slug === 'WEDDING'
+
+    // Em WEDDING, remove os campos de Trips e descarta categorias que ficaram vazias.
+    const categories = isWedding
+        ? FIELD_CATEGORIES
+            .map(c => ({ ...c, fields: c.fields.filter(f => !TRIPS_ONLY_FIELDS.has(f.value)) }))
+            .filter(c => c.fields.length > 0)
+        : FIELD_CATEGORIES
 
     const getFieldStatus = (field: string): FieldStatus => {
         if (filters.filledFields?.includes(field)) return 'filled'
@@ -104,7 +117,7 @@ export function FilterSectionSmartFields({ filters, onUpdate }: FilterSectionSma
             </h3>
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                 <p className="text-xs text-gray-400 px-4 pt-3 pb-2">Filtre cards com campos preenchidos ou vazios</p>
-                {FIELD_CATEGORIES.map(category => {
+                {categories.map(category => {
                     const isExpanded = expandedCategories.has(category.label)
                     const categoryActiveCount = category.fields.filter(f => getFieldStatus(f.value) !== null).length
 

@@ -49,6 +49,8 @@ export interface FilterState {
     clienteRecorrente?: 'sim' | 'nao'
     // Identificadores externos
     mondeVendaNums?: string[] // Filtra cards por produto_data->>numero_venda_monde (match exato, OR entre valores)
+    // Tipo de casamento (só WEDDING) — segmento visível na barra: ['DW'] | ['Elopement'] | [] (= Os dois/todos)
+    weddingTypes?: string[]
 }
 
 export type ArrayFilterField = Exclude<{
@@ -209,7 +211,8 @@ export const usePipelineFilters = create<PipelineFiltersState>()(
 
 /** Campos que NAO contam como "filtro ativo" para o badge */
 const NON_FILTER_KEYS = new Set<keyof FilterState>([
-    'sortBy', 'sortDirection', 'showArchived', 'phaseFilters',
+    // weddingTypes é controle sempre visível na barra (segmento DW/Elop), não conta no badge
+    'sortBy', 'sortDirection', 'showArchived', 'phaseFilters', 'weddingTypes',
 ])
 
 /** Selector: conta quantos filtros estao ativos (para badge) */

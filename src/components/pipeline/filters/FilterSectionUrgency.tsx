@@ -1,5 +1,6 @@
 import { Clock, Plane } from 'lucide-react'
 import type { FilterState } from '../../../hooks/usePipelineFilters'
+import { useCurrentProductMeta } from '../../../hooks/useCurrentProductMeta'
 
 interface FilterSectionUrgencyProps {
     filters: FilterState
@@ -21,6 +22,10 @@ const URGENCIA_VIAGEM_PRESETS = [
 ]
 
 export function FilterSectionUrgency({ filters, onUpdate }: FilterSectionUrgencyProps) {
+    // "Urgência Viagem" usa dias_ate_viagem (data de viagem), nulo em casamentos — esconder em WEDDING.
+    const { slug } = useCurrentProductMeta()
+    const isWedding = slug === 'WEDDING'
+
     return (
         <>
             {/* Dias Sem Contato */}
@@ -51,7 +56,8 @@ export function FilterSectionUrgency({ filters, onUpdate }: FilterSectionUrgency
                 </div>
             </div>
 
-            {/* Urgência Viagem */}
+            {/* Urgência Viagem (só Trips) */}
+            {!isWedding && (
             <div className="space-y-4">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
                     <Plane className="h-3 w-3" /> Urgência Viagem
@@ -78,6 +84,7 @@ export function FilterSectionUrgency({ filters, onUpdate }: FilterSectionUrgency
                     </div>
                 </div>
             </div>
+            )}
         </>
     )
 }
