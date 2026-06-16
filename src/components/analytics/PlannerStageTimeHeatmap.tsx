@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { GitBranch, Users as UsersIcon, Calendar, Loader2, ChevronDown } from 'lucide-react'
 import { format, subDays } from 'date-fns'
 import { usePlannerStageXOwner, type StageXOwnerRow } from '@/hooks/analytics/usePlannerStageXOwner'
@@ -128,12 +128,27 @@ export default function PlannerStageTimeHeatmap() {
     return { stagesInGrid, ownersInGrid, valueMap, sampleByStage, sampleByOwner }
   }, [data, metric])
 
+  // "Carteira vendida": etapas DEPOIS da fase de Planner (pós-venda em diante). O card já
+  // saiu da mão do planner — o número conta quem VENDEU, não quem atende hoje.
+  const plannerPhaseOrder = useMemo(
+    () => stagesInGrid.find(s => s.phase_slug === 'planner')?.phase_order ?? null,
+    [stagesInGrid],
+  )
+  const isCarteira = (phaseOrder: number) => plannerPhaseOrder != null && phaseOrder > plannerPhaseOrder
+  const firstCarteiraIdx = useMemo(
+    () => stagesInGrid.findIndex(s => isCarteira(s.phase_order)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [stagesInGrid, plannerPhaseOrder],
+  )
+
   // Quando 1 etapa selecionada, mostra série temporal por planner (mock: pra real precisaria RPC por mês)
   // V1: só mostra o heatmap. Série temporal vira follow-up.
 
   const openCell = (stageId: string, stageNome: string, ownerId: string, ownerNome: string) => {
     // "Cards agora" (atuais): cards abertos NESSA etapa agora, do vendas_owner — current_stage casa.
     if (metric === 'atuais') {
+      const stagePhaseOrder = stagesInGrid.find(s => s.id === stageId)?.phase_order ?? -Infinity
+      const carteira = isCarteira(stagePhaseOrder)
       drillDown.open({
         label: `${ownerNome} · ${stageNome}`,
         contextIcon: '📊',
@@ -141,7 +156,7 @@ export default function PlannerStageTimeHeatmap() {
         drillStageId: stageId,
         drillOwnerId: ownerId,
         drillPhase: 'planner', // atribui por vendas_owner, igual à métrica
-        summary: 'cards parados nessa etapa agora',
+        summary: carteira ? `cards que ${ownerNome} vendeu, agora com o pós-venda` : 'cards parados nessa etapa agora',
       })
       return
     }
@@ -195,6 +210,10 @@ export default function PlannerStageTimeHeatmap() {
             {metric === 'medio' && 'Em média, quantos dias um card leva pra passar pela etapa, por pessoa.'}
             {metric === 'pior' && 'Pior caso: 9 em cada 10 cards passam em até X dias.'}
             {metric === 'atuais' && 'Quantos cards estão NESSA etapa AGORA, por pessoa.'}
+          </p>
+          <p className="text-[11px] text-amber-600 mt-1">
+            Nas etapas de <strong>pós-venda</strong>, o número é a <strong>carteira vendida</strong> pela pessoa — cards
+            que ela vendeu e já estão com o time de pós-venda, não o trabalho atual dela.
           </p>
         </div>
         <div className="flex items-center gap-0.5 bg-slate-50 rounded-md p-0.5">
@@ -373,12 +392,22 @@ export default function PlannerStageTimeHeatmap() {
               </tr>
             </thead>
             <tbody>
-              {stagesInGrid.map(s => {
+              {stagesInGrid.map((s, idx) => {
                 const sample = sampleByStage.get(s.id) ?? []
+                const carteira = isCarteira(s.phase_order)
                 return (
-                  <tr key={s.id} className="border-t border-slate-100">
+                  <Fragment key={s.id}>
+                    {idx === firstCarteiraIdx && firstCarteiraIdx > -1 && (
+                      <tr>
+                        <td colSpan={ownersInGrid.length + 1} className="pt-4 pb-1 sticky left-0 bg-white">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600">Carteira vendida</span>
+                          <span className="text-[10px] text-slate-400 ml-2">cards que o planner vendeu e já estão com o pós-venda — não é trabalho atual dele</span>
+                        </td>
+                      </tr>
+                    )}
+                  <tr className="border-t border-slate-100">
                     <td className="py-1.5 pr-3 text-slate-700 font-medium sticky left-0 bg-white z-10">
-                      <span className="text-[10px] uppercase text-slate-400 mr-1.5">{s.phase_slug}</span>
+                      <span className={cn('text-[10px] uppercase mr-1.5', carteira ? 'text-amber-500' : 'text-slate-400')}>{s.phase_slug}</span>
                       {s.nome}
                     </td>
                     {ownersInGrid.map(o => {
@@ -390,7 +419,9 @@ export default function PlannerStageTimeHeatmap() {
                       const tier = getRankTier(v, sample, direction)
                       const display = metric === 'atuais' ? `${v}` : `${v.toFixed(0)}d`
                       const tooltip = metric === 'atuais'
-                        ? `${v} cards de ${o.nome} parados em "${s.nome}" agora`
+                        ? (carteira
+                            ? `${v} cards que ${o.nome} vendeu e estão em "${s.nome}" (com o pós-venda)`
+                            : `${v} cards de ${o.nome} parados em "${s.nome}" agora`)
                         : `${o.nome} em "${s.nome}": ${display} (${row.cards_passaram} cards passaram). ${rankTierLabel(tier)}`
                       return (
                         <td key={o.id} className="py-1 px-1 text-center">
@@ -409,6 +440,7 @@ export default function PlannerStageTimeHeatmap() {
                       )
                     })}
                   </tr>
+                  </Fragment>
                 )
               })}
             </tbody>
