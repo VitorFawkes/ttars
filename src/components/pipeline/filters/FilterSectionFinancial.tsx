@@ -2,6 +2,7 @@ import { DollarSign, Receipt, RefreshCw } from 'lucide-react'
 import { FilterChipGroup } from './FilterChipGroup'
 import { cn } from '../../../lib/utils'
 import type { FilterState, ArrayFilterField } from '../../../hooks/usePipelineFilters'
+import { useCurrentProductMeta } from '../../../hooks/useCurrentProductMeta'
 
 const STATUS_TAXA_OPTIONS = [
     { value: 'paga', label: 'Paga', color: 'bg-green-500 text-white border-green-500' },
@@ -18,6 +19,10 @@ interface FilterSectionFinancialProps {
 }
 
 export function FilterSectionFinancial({ filters, onUpdate, onToggle }: FilterSectionFinancialProps) {
+    // "Taxa de Planejamento" (produto_data->>taxa_planejamento) é conceito de Trips — esconder em WEDDING.
+    const { slug } = useCurrentProductMeta()
+    const isWedding = slug === 'WEDDING'
+
     return (
         <>
             {/* Faixa de Valor */}
@@ -52,7 +57,8 @@ export function FilterSectionFinancial({ filters, onUpdate, onToggle }: FilterSe
                 </div>
             </div>
 
-            {/* Status da Taxa */}
+            {/* Status da Taxa (só Trips) */}
+            {!isWedding && (
             <div className="space-y-4">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
                     <Receipt className="h-3 w-3" /> Taxa de Planejamento
@@ -65,6 +71,7 @@ export function FilterSectionFinancial({ filters, onUpdate, onToggle }: FilterSe
                     />
                 </div>
             </div>
+            )}
 
             {/* Cliente Recorrente */}
             <div className="space-y-4">

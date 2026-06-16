@@ -68,6 +68,9 @@ const PRIORIDADE_LABELS: Record<string, string> = {
     baixa: 'Baixa',
 }
 
+// Campos de preenchimento que só existem em Trips — chip escondido em WEDDING.
+const TRIPS_ONLY_SMART_FIELDS = new Set(['data_viagem_inicio', 'numero_venda_monde', 'destinos'])
+
 export function ActiveFilters() {
     const {
         filters: rawFilters, showWonDirect,
@@ -76,7 +79,10 @@ export function ActiveFilters() {
     } = usePipelineFilters()
     const filters = rawFilters || {}
     const { data: options } = useFilterOptions()
-    const { pipelineId } = useCurrentProductMeta()
+    const { pipelineId, slug } = useCurrentProductMeta()
+    // Filtros só-de-Trips (data de viagem, urgência, taxa, Monde) não se aplicam a WEDDING —
+    // não exibir o chip mesmo que um valor tenha sobrado de uma sessão Trips no store global.
+    const isWedding = slug === 'WEDDING'
     const { data: phasesData } = usePipelinePhases(pipelineId ?? undefined)
     const { tags } = useCardTags()
 
@@ -92,8 +98,8 @@ export function ActiveFilters() {
         filters.statusComercial?.length ||
         filters.tagIds?.length ||
         filters.noTag ||
-        filters.startDate ||
-        filters.endDate ||
+        (!isWedding && filters.startDate) ||
+        (!isWedding && filters.endDate) ||
         filters.creationStartDate ||
         filters.creationEndDate ||
         filters.docStatus?.length ||
@@ -103,15 +109,15 @@ export function ActiveFilters() {
         filters.valorMin != null ||
         filters.valorMax != null ||
         filters.diasSemContato != null ||
-        filters.diasAteViagem != null ||
+        (!isWedding && filters.diasAteViagem != null) ||
         filters.emptyFields?.length ||
         filters.filledFields?.length ||
         filters.closingStartDate ||
         filters.closingEndDate ||
         filters.prioridade?.length ||
-        filters.statusTaxa?.length ||
+        (!isWedding && filters.statusTaxa?.length) ||
         filters.clienteRecorrente ||
-        filters.mondeVendaNums?.length ||
+        (!isWedding && filters.mondeVendaNums?.length) ||
         showWonDirect
     )
 
@@ -225,8 +231,8 @@ export function ActiveFilters() {
                     return <Chip key={`tag-${tagId}`} label={`Tag: ${tag?.name || 'Tag'}`} onRemove={() => toggleFilterValue('tagIds', tagId)} />
                 })}
 
-                {/* Dates */}
-                {(filters.startDate || filters.endDate) && (
+                {/* Dates (Data da Viagem — só Trips) */}
+                {!isWedding && (filters.startDate || filters.endDate) && (
                     <Chip
                         label={`Viagem: ${filters.startDate ? format(new Date(filters.startDate + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }) : '...'} - ${filters.endDate ? format(new Date(filters.endDate + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }) : '...'}`}
                         onRemove={() => { removeFilter('startDate'); removeFilter('endDate'); }}
@@ -253,8 +259,8 @@ export function ActiveFilters() {
                     <Chip label={`Sem contato > ${filters.diasSemContato}d`} onRemove={() => removeFilter('diasSemContato')} />
                 )}
 
-                {/* Urgência Viagem */}
-                {filters.diasAteViagem != null && (
+                {/* Urgência Viagem (só Trips) */}
+                {!isWedding && filters.diasAteViagem != null && (
                     <Chip label={`Viagem < ${filters.diasAteViagem}d`} onRemove={() => removeFilter('diasAteViagem')} />
                 )}
 
@@ -271,8 +277,8 @@ export function ActiveFilters() {
                     <Chip key={`prio-${p}`} label={`Prioridade: ${PRIORIDADE_LABELS[p] || p}`} onRemove={() => toggleFilterValue('prioridade', p)} />
                 ))}
 
-                {/* Status Taxa */}
-                {filters.statusTaxa?.map(s => (
+                {/* Status Taxa (só Trips) */}
+                {!isWedding && filters.statusTaxa?.map(s => (
                     <Chip key={`taxa-${s}`} label={`Taxa: ${STATUS_TAXA_LABELS[s] || s}`} onRemove={() => toggleFilterValue('statusTaxa', s)} />
                 ))}
 
@@ -286,7 +292,7 @@ export function ActiveFilters() {
                 )}
 
                 {/* Campos Preenchidos */}
-                {filters.filledFields?.map(f => (
+                {filters.filledFields?.filter(f => !isWedding || !TRIPS_ONLY_SMART_FIELDS.has(f)).map(f => (
                     <Chip
                         key={`filled-${f}`}
                         label={`${SMART_FIELD_LABELS[f] || f}: Preenchido`}
@@ -299,7 +305,7 @@ export function ActiveFilters() {
                 ))}
 
                 {/* Campos Vazios */}
-                {filters.emptyFields?.map(f => (
+                {filters.emptyFields?.filter(f => !isWedding || !TRIPS_ONLY_SMART_FIELDS.has(f)).map(f => (
                     <Chip
                         key={`empty-${f}`}
                         label={`${SMART_FIELD_LABELS[f] || f}: Vazio`}
@@ -311,8 +317,8 @@ export function ActiveFilters() {
                     />
                 ))}
 
-                {/* N° Venda Monde */}
-                {filters.mondeVendaNums?.map(num => (
+                {/* N° Venda Monde (só Trips) */}
+                {!isWedding && filters.mondeVendaNums?.map(num => (
                     <Chip
                         key={`monde-${num}`}
                         label={`Venda Monde: ${num}`}
