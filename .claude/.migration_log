@@ -1268,3 +1268,4 @@ supabase/migrations/20260310_fix_contatos_insert_rls.sql|pending_manual|2026-03-
 supabase/migrations/20260325_section_field_config.sql — já aplicada em staging+prod
 2026-06-16T12:38:23Z | supabase/migrations/20260616b_ww_funil_conversao_entrou_dw_so_sdr.sql | applied_to_prod
 2026-06-16T12:46:13Z | supabase/migrations/20260616c_ww_onde_estao_standby_sdr_linha_propria.sql | applied_to_prod
+2026-06-16T13:07:44Z | supabase/migrations/20260616e_ww_funil_cohort_gateia_so_entrou.sql | applied_to_prod
