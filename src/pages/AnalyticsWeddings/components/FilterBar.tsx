@@ -144,19 +144,19 @@ export function FilterBar({ value, onChange, show = DEFAULT_SHOW }: { value: App
         </div>
       )}
       {has('tipo') && <TipoSegment selected={value.tipos} onChange={(v) => set({ tipos: v })} />}
-      {has('origem') && <MultiPill label="🎯 Origem" options={options?.origens ?? []} selected={value.origins} onChange={(v) => set({ origins: v })} />}
-      {has('faixa') && <MultiPill label="💰 Faixa" options={options?.faixas ?? []} selected={value.faixas} onChange={(v) => set({ faixas: v })} />}
-      {has('convidados') && <MultiPill label="👥 Convidados" options={options?.convidados ?? []} selected={value.convidados} onChange={(v) => set({ convidados: v })} />}
-      {has('destino') && <MultiPill label="🏝️ Destino" options={options?.destinos ?? []} selected={value.destinos} onChange={(v) => set({ destinos: v })} />}
+      {has('origem') && <MultiPill label="Origem" options={options?.origens ?? []} selected={value.origins} onChange={(v) => set({ origins: v })} />}
+      {has('faixa') && <MultiPill label="Faixa" options={options?.faixas ?? []} selected={value.faixas} onChange={(v) => set({ faixas: v })} />}
+      {has('convidados') && <MultiPill label="Convidados" options={options?.convidados ?? []} selected={value.convidados} onChange={(v) => set({ convidados: v })} />}
+      {has('destino') && <MultiPill label="Destino" options={options?.destinos ?? []} selected={value.destinos} onChange={(v) => set({ destinos: v })} />}
       {has('consultor') && <ConsultorPill options={options?.consultores ?? []} selected={value.consultorIds} onChange={(v) => set({ consultorIds: v })} />}
-      {has('canal_sdr') && <MultiPill label="🎥 1ª reunião" options={options?.canais_sdr ?? []} selected={value.canalSdr} onChange={(v) => set({ canalSdr: v })} />}
-      {has('canal_closer') && <MultiPill label="🎥 Reunião fechamento" options={options?.canais_closer ?? []} selected={value.canalCloser} onChange={(v) => set({ canalCloser: v })} />}
+      {has('canal_sdr') && <MultiPill label="1ª reunião" options={options?.canais_sdr ?? []} selected={value.canalSdr} onChange={(v) => set({ canalSdr: v })} />}
+      {has('canal_closer') && <MultiPill label="Reunião fechamento" options={options?.canais_closer ?? []} selected={value.canalCloser} onChange={(v) => set({ canalCloser: v })} />}
       {activeCount > 0 && (
         <button
           onClick={() => onChange(defaultFilters(value.period, value.dateMode, value.tipos))}
           className="ml-auto px-3 py-1.5 text-xs font-medium text-ww-n500 hover:text-ww-n700 hover:bg-ww-cream rounded-lg transition-colors active:scale-[0.98]"
         >
-          ✕ Limpar filtros
+          Limpar filtros
         </button>
       )}
     </>
@@ -170,7 +170,7 @@ export function FilterBar({ value, onChange, show = DEFAULT_SHOW }: { value: App
 
         {has('period') && (
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-xs text-ww-n600 font-medium">📅 Período</span>
+            <span className="text-xs text-ww-n600 font-medium">Período</span>
             <span className="relative inline-flex items-center">
               <select
                 value={value.period}

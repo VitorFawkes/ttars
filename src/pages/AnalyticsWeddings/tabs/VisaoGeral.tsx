@@ -13,24 +13,16 @@ import { formatCurrency, formatNumber } from '../lib/format'
 const ETAPA_MARCO: Record<number, DrillMarco> = {
   1: 'entrou', 2: 'marcou_sdr', 3: 'fez_sdr', 4: 'marcou_closer', 5: 'fez_closer', 6: 'ganho',
 }
+// Rótulo único das etapas do funil — o MESMO em cohort e atividade. O que muda entre os
+// modos é a CONTAGEM (explicada no subtítulo), nunca o nome da etapa. Fonte única, usada
+// tanto nas linhas do funil quanto nos títulos do drill.
 const MARCO_TITULO: Record<string, string> = {
   entrou: 'Leads',
   marcou_sdr: 'Marcou 1ª reunião',
   fez_sdr: 'Fez 1ª reunião',
   marcou_closer: 'Marcou closer',
-  fez_closer: 'Fez reunião closer',
+  fez_closer: 'Fez closer',
   ganho: 'Vendas',
-}
-
-// No modo atividade as reuniões contam pela DATA da reunião dentro do período —
-// os rótulos respondem direto "quantas marcaram × quantas aconteceram" (comparecimento).
-const ROTULO_ATIVIDADE: Record<number, string> = {
-  1: 'Entrou',
-  2: '1ª reunião marcada',
-  3: '1ª reunião aconteceu',
-  4: 'Reunião closer marcada',
-  5: 'Reunião closer aconteceu',
-  6: 'Ganhou',
 }
 
 export function VisaoGeral({ filters, onFiltersChange }: TabProps) {
@@ -123,7 +115,7 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
 
       {/* Tendência ao longo do tempo (#7) — respeita o período do filtro (período curto abre por semana) */}
       <SerieTemporalChart
-        title="📈 Ao longo do tempo: o funil completo"
+        title="Ao longo do tempo: o funil completo"
         subtitle="Leads, reuniões marcadas e feitas (SDR e Closer) e vendas em cada período do recorte. Troque mês/semana e quantidade/conversão. Clique numa barra pra ver os casais."
         dateStart={filters.dateStart}
         dateEnd={filters.dateEnd}
@@ -157,9 +149,7 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
         >
           {conversoes.length === 0 ? <EmptyState message="Sem dados" /> : (
             <FunilEtapas
-              conversoes={filters.dateMode === 'throughput'
-                ? conversoes.map(c => ({ ...c, phase_label: ROTULO_ATIVIDADE[c.phase_order] ?? c.phase_label }))
-                : conversoes}
+              conversoes={conversoes.map(c => ({ ...c, phase_label: MARCO_TITULO[ETAPA_MARCO[c.phase_order]] ?? c.phase_label }))}
               onEtapaClick={(c) => {
                 const marco = ETAPA_MARCO[c.phase_order]
                 if (marco) openDrill({ ...baseCtx, marco, title: `${c.phase_label}: casais da etapa` })
@@ -289,11 +279,26 @@ function labelSegmento(props: unknown) {
   )
 }
 
+// Rótulo do TOTAL da pilha, ACIMA da barra. Aplicado na série do TOPO; lê o total já somado
+// da linha pelo índice (não depende do valor do segmento, então funciona mesmo se o topo é 0).
+function labelTotalTopo(rows: ReadonlyArray<{ total: number }>) {
+  return function TotalTopo(props: unknown) {
+    const p = props as { x?: number; y?: number; width?: number; index?: number }
+    const total = rows[p.index ?? -1]?.total ?? 0
+    if (!total) return <g />
+    return (
+      <text x={(p.x ?? 0) + (p.width ?? 0) / 2} y={(p.y ?? 0) - 4} textAnchor="middle" fontSize={10} fontWeight={700} fill="#475569">
+        {total}
+      </text>
+    )
+  }
+}
+
 function AgendaGrafico({ porDia }: { porDia: WwAgendaPorDia[] }) {
   const [escala, setEscala] = useState<'dia' | 'semana'>('dia')
   const mapa = new Map(porDia.map(d => [d.dia, d]))
 
-  let rows: { label: string; SDR: number; Closer: number }[]
+  let rows: { label: string; SDR: number; Closer: number; total: number }[]
   if (escala === 'dia') {
     rows = Array.from({ length: 14 }, (_, i) => {
       const d = new Date(); d.setDate(d.getDate() + i)
@@ -301,10 +306,11 @@ function AgendaGrafico({ porDia }: { porDia: WwAgendaPorDia[] }) {
       const v = mapa.get(key)
       const wd = d.toLocaleDateString('pt-BR', { weekday: 'short', timeZone: TZ }).replace('.', '')
       const dm = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: TZ })
-      return { label: `${wd} ${dm.slice(0, 5)}`, SDR: v?.sdr ?? 0, Closer: v?.closer ?? 0 }
+      const SDR = v?.sdr ?? 0, Closer = v?.closer ?? 0
+      return { label: `${wd} ${dm.slice(0, 5)}`, SDR, Closer, total: SDR + Closer }
     })
   } else {
-    const semanas = new Map<string, { label: string; SDR: number; Closer: number }>()
+    const semanas = new Map<string, { label: string; SDR: number; Closer: number; total: number }>()
     for (let i = 0; i < 28; i++) {
       const d = new Date(); d.setDate(d.getDate() + i)
       const key = diaKeyBRT(d)
@@ -315,10 +321,10 @@ function AgendaGrafico({ porDia }: { porDia: WwAgendaPorDia[] }) {
       if (!semanas.has(segKey)) {
         const dom = new Date(seg); dom.setDate(dom.getDate() + 6)
         const fmt = (x: Date) => `${String(x.getDate()).padStart(2, '0')}/${String(x.getMonth() + 1).padStart(2, '0')}`
-        semanas.set(segKey, { label: `${fmt(seg)}–${fmt(dom)}`, SDR: 0, Closer: 0 })
+        semanas.set(segKey, { label: `${fmt(seg)}–${fmt(dom)}`, SDR: 0, Closer: 0, total: 0 })
       }
       const v = mapa.get(key)
-      if (v) { const s = semanas.get(segKey)!; s.SDR += v.sdr; s.Closer += v.closer }
+      if (v) { const s = semanas.get(segKey)!; s.SDR += v.sdr; s.Closer += v.closer; s.total += v.sdr + v.closer }
     }
     rows = [...semanas.values()]
   }
@@ -337,7 +343,7 @@ function AgendaGrafico({ porDia }: { porDia: WwAgendaPorDia[] }) {
         ))}
       </div>
       <ResponsiveContainer width="100%" height={220}>
-        <BarChart data={rows} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
+        <BarChart data={rows} margin={{ top: 18, right: 12, left: 0, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
           <XAxis dataKey="label" stroke="#64748b" fontSize={10} tickLine={false} interval={0} angle={escala === 'dia' ? -38 : 0} textAnchor={escala === 'dia' ? 'end' : 'middle'} height={escala === 'dia' ? 46 : 24} />
           <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
@@ -348,6 +354,7 @@ function AgendaGrafico({ porDia }: { porDia: WwAgendaPorDia[] }) {
           </Bar>
           <Bar dataKey="Closer" stackId="a" fill={COR_CLOSER} radius={[3, 3, 0, 0]} maxBarSize={28}>
             <LabelList dataKey="Closer" content={labelSegmento} />
+            <LabelList content={labelTotalTopo(rows)} />
           </Bar>
         </BarChart>
       </ResponsiveContainer>
@@ -447,9 +454,11 @@ const DESF_SERIES = [
   { key: 'sem_registro', label: 'Sem registro', cor: '#94a3b8' },
 ] as const
 
-function DesfechosGrafico({ itens }: { itens: WwAgendaDesfechoItem[] }) {
-  // Bucketiza pela data da reunião em semanas (segunda→domingo, BRT) — mesma lógica do AgendaGrafico.
-  const semanas = new Map<string, { ord: string; label: string; feita: number; nao_aconteceu: number; reagendando: number; perdida: number; sem_registro: number }>()
+// Bucketiza os desfechos de UM papel (SDR ou Closer) em semanas (segunda→domingo, BRT) —
+// mesma lógica do AgendaGrafico. `total` por semana alimenta o rótulo no topo da pilha.
+type DesfSemana = { ord: string; label: string; feita: number; nao_aconteceu: number; reagendando: number; perdida: number; sem_registro: number; total: number }
+function semanasDesfecho(itens: WwAgendaDesfechoItem[]): DesfSemana[] {
+  const semanas = new Map<string, DesfSemana>()
   for (const it of itens) {
     const key = diaKeyBRT(new Date(it.quando))
     const [y, m, dd] = key.split('-').map(Number)
@@ -459,26 +468,66 @@ function DesfechosGrafico({ itens }: { itens: WwAgendaDesfechoItem[] }) {
     if (!semanas.has(segKey)) {
       const dom = new Date(seg); dom.setDate(dom.getDate() + 6)
       const fmt = (x: Date) => `${String(x.getDate()).padStart(2, '0')}/${String(x.getMonth() + 1).padStart(2, '0')}`
-      semanas.set(segKey, { ord: segKey, label: `${fmt(seg)}–${fmt(dom)}`, feita: 0, nao_aconteceu: 0, reagendando: 0, perdida: 0, sem_registro: 0 })
+      semanas.set(segKey, { ord: segKey, label: `${fmt(seg)}–${fmt(dom)}`, feita: 0, nao_aconteceu: 0, reagendando: 0, perdida: 0, sem_registro: 0, total: 0 })
     }
     const row = semanas.get(segKey)!
-    if (it.categoria in row) (row as unknown as Record<string, number>)[it.categoria] += 1
+    if (it.categoria in row) { (row as unknown as Record<string, number>)[it.categoria] += 1; row.total += 1 }
   }
-  const rows = [...semanas.values()].sort((a, b) => a.ord.localeCompare(b.ord))
-  if (rows.length === 0) return <EmptyState message="Sem reuniões marcadas no período pra montar o gráfico." />
+  return [...semanas.values()].sort((a, b) => a.ord.localeCompare(b.ord))
+}
+
+// Um gráfico por papel — barras empilhadas pela cor do desfecho, número de cada fatia dentro e
+// o total da semana no topo.
+function DesfechoBarras({ itens, titulo, accentDot }: { itens: WwAgendaDesfechoItem[]; titulo: string; accentDot: string }) {
+  const rows = semanasDesfecho(itens)
   return (
-    <ResponsiveContainer width="100%" height={240}>
-      <BarChart data={rows} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-        <XAxis dataKey="label" stroke="#64748b" fontSize={11} tickLine={false} />
-        <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
-        <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} />
-        <Legend wrapperStyle={{ fontSize: 11 }} />
-        {DESF_SERIES.map((s, i) => (
-          <Bar key={s.key} dataKey={s.key} name={s.label} stackId="d" fill={s.cor} maxBarSize={56} radius={i === DESF_SERIES.length - 1 ? [3, 3, 0, 0] : undefined} />
+    <div>
+      <div className="flex items-center gap-1.5 mb-2">
+        <span className={`w-2 h-2 rounded-full ${accentDot}`} />
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">{titulo}</span>
+        <span className="text-[11px] text-ww-n400 tabular-nums">{rows.reduce((s, r) => s + r.total, 0)} marcada{rows.reduce((s, r) => s + r.total, 0) === 1 ? '' : 's'}</span>
+      </div>
+      {rows.length === 0 ? (
+        <div className="h-[200px] flex items-center justify-center text-xs text-ww-n400">Nenhuma reunião marcada no período.</div>
+      ) : (
+        <ResponsiveContainer width="100%" height={200}>
+          <BarChart data={rows} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+            <XAxis dataKey="label" stroke="#64748b" fontSize={10} tickLine={false} />
+            <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+            <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} />
+            {DESF_SERIES.map((s, i) => (
+              <Bar key={s.key} dataKey={s.key} name={s.label} stackId="d" fill={s.cor} maxBarSize={48} radius={i === DESF_SERIES.length - 1 ? [3, 3, 0, 0] : undefined}>
+                <LabelList dataKey={s.key} content={labelSegmento} />
+                {i === DESF_SERIES.length - 1 && <LabelList content={labelTotalTopo(rows)} />}
+              </Bar>
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  )
+}
+
+function DesfechosGrafico({ itens }: { itens: WwAgendaDesfechoItem[] }) {
+  const sdr = itens.filter(i => i.reuniao === 'sdr')
+  const closer = itens.filter(i => i.reuniao === 'closer')
+  if (itens.length === 0) return <EmptyState message="Sem reuniões marcadas no período pra montar o gráfico." />
+  return (
+    <div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-4">
+        <DesfechoBarras itens={sdr} titulo="SDR · 1ª reunião" accentDot="bg-ww-gold" />
+        <DesfechoBarras itens={closer} titulo="Closer · fechamento" accentDot="bg-ww-rosewood" />
+      </div>
+      {/* Legenda única embaixo (as duas leem as mesmas categorias/cores) */}
+      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 pt-3 mt-1 border-t border-slate-100">
+        {DESF_SERIES.map(s => (
+          <span key={s.key} className="inline-flex items-center gap-1 text-[11px] text-slate-600">
+            <span className="w-2.5 h-2.5 rounded-[3px]" style={{ background: s.cor }} />{s.label}
+          </span>
         ))}
-      </BarChart>
-    </ResponsiveContainer>
+      </div>
+    </div>
   )
 }
 
@@ -507,7 +556,7 @@ function AgendaReunioes({ filters }: { filters: AppliedFilters }) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <SectionCard
           className="lg:col-span-2"
-          title="📅 Agenda de reuniões: próximos 7 dias"
+          title="Agenda de reuniões: próximos 7 dias"
           subtitle={`Reuniões marcadas no Active (1ª reunião do SDR e fechamento da Closer). Hoje: ${hoje.filter(p => p.reuniao === 'sdr').length} SDR · ${hoje.filter(p => p.reuniao === 'closer').length} Closer. Filtros de tipo de reunião não se aplicam aqui, a reunião ainda vai acontecer.`}
         >
           {proximas.length === 0 ? (
@@ -531,7 +580,7 @@ function AgendaReunioes({ filters }: { filters: AppliedFilters }) {
         </SectionCard>
 
         <SectionCard
-          title="⏰ Vencidas sem registro"
+          title="Vencidas sem registro"
           subtitle="A data passou e ninguém registrou como foi nem moveu o casal. Cobre o registro ou remarque; sem isso a reunião não conta no placar."
         >
           {pendentes.length === 0 ? (
@@ -554,14 +603,14 @@ function AgendaReunioes({ filters }: { filters: AppliedFilters }) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <SectionCard
           className="lg:col-span-2"
-          title="📆 Volume de reuniões marcadas: dias e semanas à frente"
+          title="Volume de reuniões marcadas: dias e semanas à frente"
           subtitle="Quantas reuniões já estão na agenda do time. Dia vazio = espaço pra agendar mais."
         >
           <AgendaGrafico porDia={data.por_dia ?? []} />
         </SectionCard>
 
         <SectionCard
-          title="🧭 Desfechos das reuniões"
+          title="Desfechos das reuniões"
           subtitle="No período do filtro, o que aconteceu com cada reunião marcada (SDR e Closer separados): feita, não aconteceu, em reagendamento, perdida ou ainda sem registro. Respeita o tipo de reunião selecionado."
         >
           {data.desfechos ? <DesfechosCard desfechos={data.desfechos} /> : <EmptyState message="Sem reuniões marcadas no período." />}
@@ -570,8 +619,8 @@ function AgendaReunioes({ filters }: { filters: AppliedFilters }) {
 
       {(data.desfechos?.itens?.length ?? 0) > 0 && (
         <SectionCard
-          title={`📊 Desfecho das reuniões ao longo do tempo: últimos ${data.desfechos?.janela_dias ?? 30} dias`}
-          subtitle="Reuniões marcadas, semana a semana, pela cor do que aconteceu: feita, não aconteceu, em reagendamento, perdida ou ainda sem registro."
+          title={`Desfecho das reuniões ao longo do tempo: últimos ${data.desfechos?.janela_dias ?? 30} dias`}
+          subtitle="SDR e Closer separados, semana a semana, pela cor do que aconteceu: feita, não aconteceu, em reagendamento, perdida ou ainda sem registro. Respeita período, tipo e canal do filtro."
         >
           <DesfechosGrafico itens={data.desfechos?.itens ?? []} />
         </SectionCard>
@@ -618,7 +667,7 @@ function AlertasParados({ alertas }: { alertas: Ww2Alerta[] }) {
 
   return (
     <SectionCard
-      title="⚠️ Alertas: leads parados há mais de 7 dias"
+      title="Alertas: leads parados há mais de 7 dias"
       subtitle="Mostra o pipeline do Active onde o casal está. Clique no cabeçalho pra ordenar; use o filtro pra focar num pipeline. Clique no nome pra abrir o card."
     >
       {alertas.length === 0 ? (
