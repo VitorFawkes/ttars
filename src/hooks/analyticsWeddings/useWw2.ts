@@ -65,7 +65,8 @@ export type Ww2FunnelStage = {
   phase_label: string
   phase_order: number | null
   phase_slug: string
-  stage_id: string
+  stage_id: string | null
+  stage_slug: string
   stage_name: string
   stage_order: number | null
   stage_active: boolean
@@ -88,6 +89,8 @@ export type Ww2Alerta = {
   phase_label: string
   dias_parado: number
   valor_estimado: number | null
+  ac_deal_id: string | null
+  ac_pipeline_nome: string | null
 }
 
 export type Ww2Overview = {
@@ -875,6 +878,10 @@ export type WwLeadIdealItem = {
   atual_pct: number | null
   lift: number | null
   delta_pp: number | null
+  // Variante "entradas" (leads que entravam na referência) — opcional: só vem
+  // quando a RPC devolve o lado de leads históricos além de quem fechou.
+  historico_leads_qtd?: number | null
+  historico_leads_pct?: number | null
 }
 
 export type WwLeadIdealDim = {
@@ -889,6 +896,10 @@ export type WwLeadIdealCruzamentoCell = {
   hist_pct: number | null
   atual_qtd: number
   atual_pct: number | null
+  // Lente "leads antes" (entrada na janela de referência) — opcional: só vem
+  // quando a RPC devolve o terceiro número (além de vendas e leads agora).
+  hist_leads_qtd?: number | null
+  hist_leads_pct?: number | null
 }
 
 export type WwLeadIdealPerfilTop = {
@@ -897,6 +908,20 @@ export type WwLeadIdealPerfilTop = {
   convidados: string
   qtd: number
   pct: number | null
+}
+
+// Top perfis UNIFICADO: combo (faixa+destino+convidados) com os 3 números na mesma
+// linha — vendas (referência), leads que entravam antes, leads que entram agora.
+export type WwLeadIdealPerfilUnif = {
+  faixa: string
+  destino: string
+  convidados: string
+  vendas: number
+  vendas_pct: number | null
+  leads_ref: number
+  leads_ref_pct: number | null
+  leads_agora: number
+  leads_agora_pct: number | null
 }
 
 export type WwLeadIdealData = {
@@ -914,6 +939,9 @@ export type WwLeadIdealData = {
   cruz_y?: string
   top_perfis_historico?: WwLeadIdealPerfilTop[]
   top_perfis_atual?: WwLeadIdealPerfilTop[]
+  // Top perfis unificado (vendas + leads antes + leads agora na mesma linha) —
+  // opcional: só vem quando a RPC monta o ranking unificado.
+  top_perfis_unificado?: WwLeadIdealPerfilUnif[]
   error?: string
 }
 
@@ -1325,15 +1353,28 @@ export type WwAgenda = {
 
 // Agenda usa os filtros de PERFIL da aba (origem/tipo/faixa/convidados/destino/consultor).
 // Canal de reunião NÃO se aplica: reunião futura ainda não tem canal registrado (intencional).
-export function useWwAgenda(filters: Pick<Ww2Filters, 'origins' | 'tipos' | 'faixas' | 'destinos' | 'convidados' | 'consultorIds'>, diasFuturo = 28, diasPendentes = 14, diasDesfechos = 30) {
+// Agenda futura (próximas/pendentes/por_dia) ignora período e canal — é o FUTURO.
+// Só os DESFECHOS respeitam o período (dateStart/dateEnd) e os canais SDR/Closer do filtro.
+export function useWwAgenda(
+  filters: Pick<Ww2Filters, 'origins' | 'tipos' | 'faixas' | 'destinos' | 'convidados' | 'consultorIds' | 'dateStart' | 'dateEnd' | 'canalSdr' | 'canalCloser'>,
+  diasFuturo = 28, diasPendentes = 14, diasDesfechos = 30,
+) {
   const orgId = useOrgId()
+  const dateStart = filters.dateStart ?? null
+  const dateEnd = filters.dateEnd ?? null
+  const sdrCanal = filters.canalSdr?.length ? filters.canalSdr : null
+  const closerCanal = filters.canalCloser?.length ? filters.canalCloser : null
   return useQuery({
-    queryKey: ['ww', 'agenda', orgId, filters.origins ?? null, filters.tipos ?? null, filters.faixas ?? null, filters.destinos ?? null, filters.convidados ?? null, filters.consultorIds ?? null, diasFuturo, diasPendentes, diasDesfechos],
+    queryKey: ['ww', 'agenda', orgId, filters.origins ?? null, filters.tipos ?? null, filters.faixas ?? null, filters.destinos ?? null, filters.convidados ?? null, filters.consultorIds ?? null, dateStart, dateEnd, sdrCanal, closerCanal, diasFuturo, diasPendentes, diasDesfechos],
     queryFn: () => callRpc<WwAgenda>('ww_agenda_reunioes', {
       p_org_id: orgId,
       p_dias_futuro: diasFuturo,
       p_dias_pendentes: diasPendentes,
       p_dias_desfechos: diasDesfechos,
+      p_date_start: dateStart,
+      p_date_end: dateEnd,
+      p_sdr_canal: sdrCanal,
+      p_closer_canal: closerCanal,
       p_origins: filters.origins?.length ? filters.origins : null,
       p_tipos: filters.tipos?.length ? filters.tipos : null,
       p_faixas: filters.faixas?.length ? filters.faixas : null,

@@ -19,6 +19,8 @@ export interface DisparoCampanha {
   opt_outs: number
   cap_diario: number
   usar_ramp: boolean
+  tamanho_leva: number
+  intervalo_leva_min: number
   janela_inicio: string
   janela_fim: string
   variaveis_mapeadas: string[]

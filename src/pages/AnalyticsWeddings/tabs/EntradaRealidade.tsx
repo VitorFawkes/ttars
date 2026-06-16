@@ -74,47 +74,47 @@ function EntradaRealidadeContent({ filters }: { filters: AppliedFilters }) {
         onLeadsClick={() => setDrill({ ...baseCtx, marco: 'entrou', title: 'Leads que entraram no período' })}
         onFechadosClick={() => setDrill({ ...baseCtx, marco: 'ganho', title: 'Casais que fecharam contrato' })}
       />
-      <BreakdownTipo data={data} onTipoClick={(tipo) => setDrill({ ...baseCtx, tipo, marco: 'ganho', title: `Casais — ${tipo} fechados` })} />
+      <BreakdownTipo data={data} onTipoClick={(tipo) => setDrill({ ...baseCtx, tipo, marco: 'ganho', title: `Casais: ${tipo} fechados` })} />
 
       {/* Análises cruzadas (Onda 6) — Investimento × Convidados × Destino */}
       {combos && !combos.error && (
         <>
-          <TopCombosFechados combos={combos} onComboClick={(faixa, destino) => setDrill({ ...baseCtx, faixa, destino, marco: 'ganho', title: `Vendas — ${faixa} + ${destino}` })} />
+          <TopCombosFechados combos={combos} onComboClick={(faixa, destino) => setDrill({ ...baseCtx, faixa, destino, marco: 'ganho', title: `Vendas: ${faixa} + ${destino}` })} />
           <HeatmapTaxaConversao
-            titulo="🔥 Onde a conversão acontece — Faixa × Convidados"
+            titulo="🔥 Onde a conversão acontece: Faixa × Convidados"
             subtitulo="Cada célula mostra entraram → fecharam (taxa). Quanto mais verde, melhor a combinação."
             cells={combos.matriz_faixa_conv}
             xLabel="Faixa"
             yLabel="Convidados"
             xOrder={FAIXA_ORDER}
             yOrder={CONV_ORDER}
-            onCellClick={(faixa, convidados) => setDrill({ ...baseCtx, faixa, convidados, marco: 'ganho', title: `Vendas — ${faixa} · ${convidados} convidados` })}
+            onCellClick={(faixa, convidados) => setDrill({ ...baseCtx, faixa, convidados, marco: 'ganho', title: `Vendas: ${faixa}, ${convidados} convidados` })}
           />
           <HeatmapTaxaConversao
-            titulo="🔥 Onde a conversão acontece — Faixa × Destino"
+            titulo="🔥 Onde a conversão acontece: Faixa × Destino"
             subtitulo="Identifica combos faixa de investimento + destino com maior taxa de fechamento."
             cells={combos.matriz_faixa_destino}
             xLabel="Faixa"
             yLabel="Destino"
             xOrder={FAIXA_ORDER}
-            onCellClick={(faixa, destino) => setDrill({ ...baseCtx, faixa, destino, marco: 'ganho', title: `Vendas — ${faixa} + ${destino}` })}
+            onCellClick={(faixa, destino) => setDrill({ ...baseCtx, faixa, destino, marco: 'ganho', title: `Vendas: ${faixa} + ${destino}` })}
           />
           <HeatmapTaxaConversao
-            titulo="🔥 Onde a conversão acontece — Convidados × Destino"
+            titulo="🔥 Onde a conversão acontece: Convidados × Destino"
             subtitulo="Combos de tamanho de celebração + destino que mais fecham."
             cells={combos.matriz_destino_conv}
             xLabel="Convidados"
             yLabel="Destino"
             xOrder={CONV_ORDER}
-            onCellClick={(convidados, destino) => setDrill({ ...baseCtx, convidados, destino, marco: 'ganho', title: `Vendas — ${destino} · ${convidados} convidados` })}
+            onCellClick={(convidados, destino) => setDrill({ ...baseCtx, convidados, destino, marco: 'ganho', title: `Vendas: ${destino}, ${convidados} convidados` })}
           />
         </>
       )}
 
-      <InvestimentoDrift data={data} onCellClick={(fe, fv) => setDrill({ ...baseCtx, faixa: fe, marco: 'ganho', title: `Casais — entrou em ${fe}, vendeu em ${fv}` })} />
-      <DestinoDrift data={data} onCellClick={(de, dv) => setDrill({ ...baseCtx, destino: de, marco: 'ganho', title: `Casais — declarou ${de}, vendeu ${dv}` })} />
+      <InvestimentoDrift data={data} onCellClick={(fe, fv) => setDrill({ ...baseCtx, faixa: fe, marco: 'ganho', title: `Casais: entrou em ${fe}, vendeu em ${fv}` })} />
+      <DestinoDrift data={data} onCellClick={(de, dv) => setDrill({ ...baseCtx, destino: de, marco: 'ganho', title: `Casais: declarou ${de}, vendeu ${dv}` })} />
       <ConvidadosDrift data={data} />
-      <DriftPorConsultor data={data} onConsultorClick={(consultor_id, consultor_nome) => setDrill({ ...baseCtx, consultorId: consultor_id, marco: 'ganho', title: `Vendas — ${consultor_nome ?? 'consultor'}` })} />
+      <DriftPorConsultor data={data} onConsultorClick={(consultor_id, consultor_nome) => setDrill({ ...baseCtx, consultorId: consultor_id, marco: 'ganho', title: `Vendas: ${consultor_nome ?? 'consultor'}` })} />
       <DriftPorMes data={data} />
       <VendasFechadasList data={data} />
       <DrillDrawer ctx={drill} onClose={() => setDrill(null)} />
@@ -134,7 +134,7 @@ function FonteV2Banner({ data }: { data: WwDriftVenda }) {
         <div className="flex-1">
           <p className="font-medium">Fonte: ActiveCampaign direto (sincroniza sozinho ao longo do dia)</p>
           <p className="text-emerald-700 text-xs mt-1">
-            Universo de <strong>{formatNumber(data.total_fechados)} casamentos fechados</strong> no recorte —
+            Universo de <strong>{formatNumber(data.total_fechados)} casamentos fechados</strong> no recorte,
             com o <strong>orçamento real</strong> e a <strong>previsão de convidados</strong> que a closer registrou.
             O CRM pode estar defasado pra ganhos antigos; a análise aqui usa o Active como fonte de verdade.
           </p>
@@ -597,7 +597,7 @@ function InvestimentoDrift({ data, onCellClick }: { data: WwDriftVenda; onCellCl
 
   if (data.total_leads === 0) {
     return (
-      <SectionCard title="💰 Investimento — entrada × valor vendido" subtitle="Nenhuma venda no período selecionado">
+      <SectionCard title="💰 Investimento: entrada × valor vendido" subtitle="Nenhuma venda no período selecionado">
         <EmptyState message="Sem vendas fechadas no período" />
       </SectionCard>
     )
@@ -610,7 +610,7 @@ function InvestimentoDrift({ data, onCellClick }: { data: WwDriftVenda; onCellCl
 
   return (
     <SectionCard
-      title="💰 Investimento — entrada × valor R$ que vendeu"
+      title="💰 Investimento: entrada × valor R$ que vendeu"
       subtitle={`Quanto a faixa que o casal disse no site bate com o valor real do pacote contratado.`}
     >
       <CoberturaBanner
@@ -682,7 +682,7 @@ function InvestimentoDrift({ data, onCellClick }: { data: WwDriftVenda; onCellCl
                             const isClick = qtd > 0 && !!onCellClick
                             return (
                               <td key={fv} className={`p-0 ${bg} ${qtd === 0 ? 'text-slate-300' : ''}`}
-                                  title={qtd > 0 ? `${qtd} venda(s) — ${pctLinha}% da linha` : 'Nenhuma venda nessa combinação'}>
+                                  title={qtd > 0 ? `${qtd} venda(s), ${pctLinha}% da linha` : 'Nenhuma venda nessa combinação'}>
                                 {isClick ? (
                                   <button onClick={() => onCellClick(fe, fv)} className="w-full h-full px-3 py-2 text-center cursor-pointer hover:ring-2 hover:ring-ww-gold focus:ring-2 focus:ring-ww-gold focus:outline-none">
                                     <div className="font-semibold text-sm">{qtd}</div>
@@ -743,7 +743,7 @@ function DestinoDrift({ data, onCellClick }: { data: WwDriftVenda; onCellClick?:
 
   return (
     <SectionCard
-      title="🏝️  Destino — entrada × destino vendido"
+      title="🏝️  Destino: entrada × destino vendido"
       subtitle="Para onde o casal disse que queria casar × onde a venda efetivamente saiu."
     >
       <CoberturaBanner
@@ -809,7 +809,7 @@ function DestinoDrift({ data, onCellClick }: { data: WwDriftVenda; onCellClick?:
                             const isClick = qtd > 0 && !!onCellClick
                             return (
                               <td key={dv} className={`p-0 ${bg}`}
-                                  title={qtd > 0 ? `${qtd} venda(s) — ${pctLinha}% da linha` : 'Nenhuma venda'}>
+                                  title={qtd > 0 ? `${qtd} venda(s), ${pctLinha}% da linha` : 'Nenhuma venda'}>
                                 {isClick ? (
                                   <button onClick={() => onCellClick(de, dv)} className="w-full h-full px-3 py-2 text-center cursor-pointer hover:ring-2 hover:ring-ww-gold focus:ring-2 focus:ring-ww-gold focus:outline-none">
                                     <div className="font-semibold text-sm">{qtd}</div>
@@ -870,7 +870,7 @@ function ConvidadosDrift({ data }: { data: WwDriftVenda }) {
 
   return (
     <SectionCard
-      title="👥 Convidados — entrada × refinado pela closer"
+      title="👥 Convidados: entrada × refinado pela closer"
       subtitle="Não temos campo de convidados confirmado na venda. Usamos o refinado pela closer como melhor aproximação."
     >
       <CoberturaBanner
@@ -927,7 +927,7 @@ function ConvidadosDrift({ data }: { data: WwDriftVenda }) {
                             }
                             return (
                               <td key={cr} className={`px-3 py-2 text-center ${bg}`}
-                                  title={qtd > 0 ? `${qtd} venda(s) — ${pctLinha}% da linha` : 'Nenhuma venda'}>
+                                  title={qtd > 0 ? `${qtd} venda(s), ${pctLinha}% da linha` : 'Nenhuma venda'}>
                                 {qtd > 0 ? (
                                   <div>
                                     <div className="font-semibold text-sm">{qtd}</div>

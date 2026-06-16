@@ -55,7 +55,7 @@ export function PerfilCompareChart({ dados, dimensao, onCategoriaClick, minSampl
               key={d.categoria}
               onClick={onCategoriaClick ? () => onCategoriaClick(d.categoria) : undefined}
               className={`w-full grid grid-cols-12 items-center px-3 py-2.5 text-xs ${onCategoriaClick ? 'hover:bg-ww-cream/50 cursor-pointer text-left' : ''}`}
-              title={onCategoriaClick ? `Ver casais — ${d.categoria}` : undefined}
+              title={onCategoriaClick ? `Ver casais: ${d.categoria}` : undefined}
             >
               <div className="col-span-3 font-medium text-slate-900 truncate" title={d.categoria}>{d.categoria}</div>
               <div className="col-span-4">

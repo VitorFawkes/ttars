@@ -40,15 +40,16 @@ const TOOLTIP_ORDER = [
 const tooltipSorter = (item: unknown) =>
   TOOLTIP_ORDER.indexOf(String((item as { dataKey?: string | number })?.dataKey ?? ''))
 
-// Número em cima da barra — só desenha quando a barra é larga o bastante (com 6 séries
-// × 13 meses os rótulos colidiam; o tooltip cobre o resto). Some quando 0 pra não poluir.
+// Número em cima da barra — desenha sempre que a barra tem largura mínima pro texto caber
+// e o valor é > 0 (some no 0 pra não poluir). Com o recorte do filtro são poucas barras,
+// então cabem; o tooltip cobre o resto quando ficam apertadas.
 const labelSeLarga = (fmt: (n: number) => string) => (props: unknown) => {
   const { x, y, width, value } = (props ?? {}) as { x?: number | string; y?: number | string; width?: number | string; value?: number | string }
   const w = Number(width ?? 0)
   const n = Number(value ?? 0)
-  if (w < 13 || !(n > 0)) return <g />
+  if (w < 8 || !(n > 0)) return <g />
   return (
-    <text x={Number(x) + w / 2} y={Number(y) - 4} textAnchor="middle" fontSize={9} fill="#64748b">
+    <text x={Number(x) + w / 2} y={Number(y) - 4} textAnchor="middle" fontSize={9} fontWeight={600} fill="#475569">
       {fmt(n)}
     </text>
   )
@@ -103,7 +104,10 @@ export function SerieTemporalChart({
   /** Clique numa barra → drill da lista de casais daquele período/marco */
   onPointClick?: (ponto: WwSeriePonto, marco: SerieMarco, janela: { dateStart: string; dateEnd: string }) => void
 }) {
-  const [gran, setGran] = useState<Gran>('month')
+  // Período curto (≤ ~90 dias) abre por SEMANA pra não virar 1 barra só; longo abre por MÊS.
+  // O usuário ainda troca livre no botão.
+  const spanDias = (new Date(dateEnd).getTime() - new Date(dateStart).getTime()) / 86_400_000
+  const [gran, setGran] = useState<Gran>(spanDias <= 92 ? 'week' : 'month')
   const [modo, setModo] = useState<Modo>(defaultModo)
 
   // periodo vem do banco como YYYY-MM-DD (início do bucket) — converte pra janela fechada

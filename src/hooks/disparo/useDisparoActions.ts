@@ -11,6 +11,8 @@ export interface CriarCampanhaInput {
   phone_number_id: string
   cap_diario: number
   usar_ramp: boolean
+  tamanho_leva: number
+  intervalo_leva_min: number
   variaveis_mapeadas: string[]
 }
 
@@ -43,6 +45,8 @@ export function useDisparoActions() {
           phone_number_id: input.phone_number_id,
           cap_diario: input.cap_diario,
           usar_ramp: input.usar_ramp,
+          tamanho_leva: input.tamanho_leva,
+          intervalo_leva_min: input.intervalo_leva_min,
           variaveis_mapeadas: input.variaveis_mapeadas,
           status: 'rascunho',
         })
@@ -109,5 +113,40 @@ export function useDisparoActions() {
     invalidate()
   }, [invalidate])
 
-  return { criarCampanha, ingestRecipients, calcularAgenda, pausar, retomar, cancelar, marcarOptOut, invalidate }
+  /** Antecipa o envio de uma leva: pessoas específicas (filaIds) OU os próximos N
+   *  pendentes. Saem agora, escalonadas com segurança. Retorna quantas foram. */
+  const enviarAgora = useCallback(
+    async (campaignId: string, opts: { filaIds?: string[]; proximosN?: number }): Promise<number> => {
+      const { data, error } = await sbAny.rpc('disparo_enviar_agora', {
+        p_campaign_id: campaignId,
+        p_fila_ids: opts.filaIds && opts.filaIds.length > 0 ? opts.filaIds : null,
+        p_proximos_n: opts.proximosN ?? null,
+      })
+      if (error) throw error
+      invalidate()
+      return (data ?? 0) as number
+    },
+    [invalidate],
+  )
+
+  /** Muda o ritmo (leva + intervalo) e reescala os pendentes. */
+  const ajustarRitmo = useCallback(
+    async (
+      campaignId: string,
+      r: { tamanhoLeva: number; intervaloMin: number; capDiario: number; usarRamp: boolean },
+    ) => {
+      const { error } = await sbAny.rpc('disparo_ajustar_ritmo', {
+        p_campaign_id: campaignId,
+        p_tamanho_leva: r.tamanhoLeva,
+        p_intervalo_leva_min: r.intervaloMin,
+        p_cap_diario: r.capDiario,
+        p_usar_ramp: r.usarRamp,
+      })
+      if (error) throw error
+      invalidate()
+    },
+    [invalidate],
+  )
+
+  return { criarCampanha, ingestRecipients, calcularAgenda, pausar, retomar, cancelar, marcarOptOut, enviarAgora, ajustarRitmo, invalidate }
 }
