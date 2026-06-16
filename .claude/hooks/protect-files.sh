@@ -6,6 +6,11 @@ if [ -z "$FILE" ]; then
   exit 0
 fi
 
+# Allowlist: modelos de exemplo são versionados de propósito (não contêm segredos).
+case "$FILE" in
+  *.env.example|*.env.sample) exit 0 ;;
+esac
+
 PROTECTED=(".env" ".env.local" ".env.development.staging" "package-lock.json" ".git/" "src/database.types.ts")
 
 for pattern in "${PROTECTED[@]}"; do

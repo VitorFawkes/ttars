@@ -1,73 +1,47 @@
-# React + TypeScript + Vite
+# WelcomeCRM
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+CRM multi-tenant da Welcome (Trips · Weddings · Courses). React + Vite + TailwindCSS +
+Supabase (PostgreSQL + Edge Functions) + TypeScript strict.
 
-Currently, two official plugins are available:
+## Começando
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+➡️ **[Guia do Desenvolvedor](docs/DEVELOPER_SETUP.md)** — setup, como rodar, como subir e
+**como reverter** com segurança.
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+cp .env.example .env   # preencha com os valores recebidos por canal seguro
+npm run dev            # http://localhost:5714
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+> Requer Node ≥ 22. Recomendado usar o **Claude Code** — as travas de segurança do projeto
+> rodam dentro dele.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Documentação
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+| Arquivo | O que é |
+|---|---|
+| [`CLAUDE.md`](CLAUDE.md) | Bíblia do projeto: arquitetura, multi-tenant, isolamento, regras invioláveis |
+| [`docs/DEVELOPER_SETUP.md`](docs/DEVELOPER_SETUP.md) | Onboarding: instalar, rodar, subir, reverter |
+| [`docs/SQL_SOP.md`](docs/SQL_SOP.md) | Procedimentos de SQL (ler antes de views/triggers) |
+| [`docs/SYSTEM_CONTEXT.md`](docs/SYSTEM_CONTEXT.md) | Decisões arquiteturais |
+| [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) | Regras de UI |
+| `.agent/CODEBASE.md` | Inventário (hooks, pages, componentes, tabelas) — gerado por `npm run sync:fix` |
+
+## Comandos
+
+```bash
+npm run dev          # servidor de desenvolvimento (porta 5714)
+npm run build        # build de produção (inclui checagem de tipos)
+npm run lint         # ESLint
+npm run test         # testes unitários (Vitest)
+npm run test:e2e     # testes de ponta a ponta (Playwright)
+npm run sync:fix     # atualiza o inventário .agent/CODEBASE.md
 ```
+
+## Como reverter (resumo)
+
+- **Site:** Instant Rollback no painel Vercel, ou `bash scripts/vercel-rollback.sh`, ou `git revert`.
+- **Banco:** Point-in-Time Recovery do Supabase + SQL de "como desfazer" guardado junto da migração.
+
+Detalhes em [`docs/DEVELOPER_SETUP.md`](docs/DEVELOPER_SETUP.md#7-como-desfazer-se-algo-der-errado-).

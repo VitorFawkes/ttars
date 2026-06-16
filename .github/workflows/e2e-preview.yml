@@ -9,6 +9,10 @@ concurrency:
   group: e2e-preview-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  deployments: read
+
 jobs:
   e2e:
     name: Playwright E2E contra preview
@@ -42,40 +46,45 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
 
-      - name: Aguardar preview Vercel (via API)
+      # Lê a URL do preview pelos Deployments do GitHub (que o Vercel popula automaticamente).
+      # Não depende do token do Vercel — que estava expirando e fazia o passo antigo falhar
+      # sempre no "esperar preview". O GitHub guarda environment_url + state=success do preview.
+      - name: Aguardar preview Vercel (via GitHub Deployments)
         id: wait-preview
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
-          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          echo "Aguardando deploy Vercel para sha=$COMMIT_SHA..."
-          for i in $(seq 1 60); do
-            RESULT=$(curl -sf \
-              "https://api.vercel.com/v6/deployments?projectId=${VERCEL_PROJECT_ID}&teamId=${VERCEL_TEAM_ID}&limit=5&target=preview" \
-              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-              | python3 -c "
-          import json, sys
-          deps = json.load(sys.stdin).get('deployments', [])
-          sha = '${COMMIT_SHA}'
-          for d in deps:
-              meta = d.get('meta', {})
-              if meta.get('githubCommitSha','') == sha and d.get('state') == 'READY':
-                  print(d.get('url',''))
-                  sys.exit(0)
-          sys.exit(1)
-          " 2>/dev/null) && break
-            echo "  tentativa $i/60 — preview não pronto ainda..."
-            sleep 10
-          done
-          if [ -z "$RESULT" ]; then
-            echo "::error::Preview Vercel não ficou pronto em 10 minutos"
-            exit 1
-          fi
-          PREVIEW_URL="https://${RESULT}"
-          echo "Preview pronto: ${PREVIEW_URL}"
-          echo "url=${PREVIEW_URL}" >> $GITHUB_OUTPUT
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = context.payload.pull_request.head.sha;
+            const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+            const deadline = Date.now() + 10 * 60 * 1000;
+            core.info(`Aguardando preview para sha=${sha}...`);
+            while (Date.now() < deadline) {
+              const deployments = await github.paginate(github.rest.repos.listDeployments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha,
+                per_page: 50,
+              });
+              for (const dep of deployments) {
+                if (!/preview/i.test(dep.environment || '')) continue;
+                const statuses = await github.rest.repos.listDeploymentStatuses({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  deployment_id: dep.id,
+                  per_page: 30,
+                });
+                const latest = statuses.data[0];
+                if (latest && latest.state === 'success' && (latest.environment_url || latest.target_url)) {
+                  const url = latest.environment_url || latest.target_url;
+                  core.info(`Preview pronto: ${url}`);
+                  core.setOutput('url', url);
+                  return;
+                }
+              }
+              core.info('preview ainda não pronto, aguardando 10s...');
+              await sleep(10000);
+            }
+            core.setFailed('Preview Vercel não ficou pronto em 10 minutos');
 
       - name: Rodar testes E2E
         env:

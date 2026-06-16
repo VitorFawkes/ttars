@@ -18,13 +18,19 @@ permissions:
 
 concurrency:
   group: smoke-prod
-  cancel-in-progress: false
+  # true: quando vem um push mais novo na main, descarta o smoke antigo na hora e roda
+  # o do commit mais recente até o fim (testa o que está REALMENTE no ar). Com false, pushes
+  # frequentes enfileiravam e cancelavam as execuções intermediárias — a reversão automática
+  # quase nunca completava.
+  cancel-in-progress: true
 
 jobs:
   smoke:
     name: Smoke test contra produção
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 20min: a espera pelo deploy do Vercel pode levar até ~15min no pior caso; o job inteiro
+    # (install + espera + testes) precisa caber com folga, senão expira no meio da espera.
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v4
@@ -52,37 +58,46 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
 
-      - name: Aguardar deploy produção Vercel (via API)
+      # Espera o deploy de produção pelos Deployments do GitHub (populado pelo Vercel) —
+      # sem depender do token do Vercel. Fallback para o domínio de produção se não confirmar.
+      - name: Aguardar deploy produção Vercel (via GitHub Deployments)
         id: wait-prod
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
-          COMMIT_SHA: ${{ github.sha }}
-        run: |
-          echo "Aguardando deploy produção para sha=$COMMIT_SHA..."
-          for i in $(seq 1 90); do
-            RESULT=$(curl -sf \
-              "https://api.vercel.com/v6/deployments?projectId=${VERCEL_PROJECT_ID}&teamId=${VERCEL_TEAM_ID}&limit=5&target=production" \
-              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-              | python3 -c "
-          import json, sys
-          deps = json.load(sys.stdin).get('deployments', [])
-          sha = '${COMMIT_SHA}'
-          for d in deps:
-              meta = d.get('meta', {})
-              if meta.get('githubCommitSha','') == sha and d.get('state') == 'READY':
-                  print(d.get('url',''))
-                  sys.exit(0)
-          sys.exit(1)
-          " 2>/dev/null) && break
-            echo "  tentativa $i/90 — deploy não pronto ainda..."
-            sleep 10
-          done
-          PROD_URL="${RESULT:+https://$RESULT}"
-          PROD_URL="${PROD_URL:-https://welcomecrm.vercel.app}"
-          echo "Produção: ${PROD_URL}"
-          echo "url=${PROD_URL}" >> $GITHUB_OUTPUT
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = context.sha;
+            const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+            const deadline = Date.now() + 12 * 60 * 1000;
+            const fallback = 'https://welcomecrm.vercel.app';
+            core.info(`Aguardando deploy produção para sha=${sha}...`);
+            while (Date.now() < deadline) {
+              const deployments = await github.paginate(github.rest.repos.listDeployments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha,
+                per_page: 50,
+              });
+              for (const dep of deployments) {
+                if (!/production/i.test(dep.environment || '')) continue;
+                const statuses = await github.rest.repos.listDeploymentStatuses({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  deployment_id: dep.id,
+                  per_page: 30,
+                });
+                const latest = statuses.data[0];
+                if (latest && latest.state === 'success') {
+                  const url = latest.environment_url || latest.target_url || fallback;
+                  core.info(`Produção pronta: ${url}`);
+                  core.setOutput('url', url);
+                  return;
+                }
+              }
+              core.info('deploy de produção ainda não pronto, aguardando 10s...');
+              await sleep(10000);
+            }
+            core.warning('Deploy de produção não confirmado em 12min; usando domínio padrão.');
+            core.setOutput('url', fallback);
 
       - name: Rodar smoke tests (só *.smoke.spec.ts)
         id: smoke

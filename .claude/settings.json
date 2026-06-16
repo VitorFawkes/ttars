@@ -1,0 +1,76 @@
+{
+  "enableAllProjectMcpServers": true,
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/protect-files.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/warn-function-rebase.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/enforce-rls-prewrite.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/enforce-workspace-isolation.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/enforce-metadata-isolation.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-edge-deploy.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/enforce-branch.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-before-done.sh",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'WelcomeCRM: ANTES de qualquer ação, chame get_context via MCP com a descrição da task. Produtos são isolados (TRIPS/WEDDING — nunca misturar). Schema do banco usa nomes em português (nome, não name; ordem, não position). Consulte get_dependencies antes de modificar código. Busque usages (grep) antes de modificar código existente.'"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/inject-topic-context.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
