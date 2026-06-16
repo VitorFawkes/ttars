@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, createElement } from 'react'
+import { LayoutDashboard, GitCompare, Shuffle, Target, TrendingUp, Megaphone, TrendingDown, type LucideIcon } from 'lucide-react'
 import { useOrg } from '@/contexts/OrgContext'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { countActiveFilters, defaultFilters, type AppliedFilters, type TabProps } from './components/FilterBar'
@@ -13,14 +14,14 @@ import { formatRange } from './lib/dates'
 
 type Tab = 'visao' | 'funil-comparado' | 'entrada-realidade' | 'qualidade' | 'perfil' | 'marketing' | 'perdas'
 
-const TABS: { id: Tab; label: string; icon: string; description: string }[] = [
-  { id: 'visao', label: 'Visão geral', icon: '📊', description: 'KPIs, funil, conversões, alertas' },
-  { id: 'funil-comparado', label: 'Funil comparado', icon: '🔍', description: 'Comparar a conversão de um perfil entre dois períodos' },
-  { id: 'entrada-realidade', label: 'Entrada × Realidade', icon: '🔄', description: 'O que disse no site × o que virou' },
-  { id: 'qualidade', label: 'Qualidade do lead', icon: '🎯', description: 'Faixa, convidados, local, cruzamentos' },
-  { id: 'perfil', label: 'Lead ideal × Pipeline', icon: '📈', description: 'Perfil de quem fechou × leads novos' },
-  { id: 'marketing', label: 'Marketing', icon: '📣', description: 'Origens, campanhas, atribuição' },
-  { id: 'perdas', label: 'Motivos de perda', icon: '📉', description: 'Onde leads caem e por quê' },
+const TABS: { id: Tab; label: string; icon: LucideIcon; description: string }[] = [
+  { id: 'visao', label: 'Visão geral', icon: LayoutDashboard, description: 'KPIs, funil, conversões, alertas' },
+  { id: 'funil-comparado', label: 'Funil comparado', icon: GitCompare, description: 'Comparar a conversão de um perfil entre dois períodos' },
+  { id: 'entrada-realidade', label: 'Entrada × Realidade', icon: Shuffle, description: 'O que disse no site × o que virou' },
+  { id: 'qualidade', label: 'Qualidade do lead', icon: Target, description: 'Faixa, convidados, local, cruzamentos' },
+  { id: 'perfil', label: 'Lead ideal × Pipeline', icon: TrendingUp, description: 'Perfil de quem fechou × leads novos' },
+  { id: 'marketing', label: 'Marketing', icon: Megaphone, description: 'Origens, campanhas, atribuição' },
+  { id: 'perdas', label: 'Motivos de perda', icon: TrendingDown, description: 'Onde leads caem e por quê' },
 ]
 
 // Abas que usam o filtro padrão (por aba). Funil comparado tem o filtro próprio dele.
@@ -137,7 +138,7 @@ function Sidebar({ activeTab, setActiveTab, filtersByTab }: { activeTab: Tab; se
               }`}
             >
               <div className="flex items-center gap-2 text-sm font-medium">
-                <span>{t.icon}</span>
+                {createElement(t.icon, { className: 'w-4 h-4 shrink-0' })}
                 <span className="flex-1 truncate">{t.label}</span>
                 {nFiltros > 0 && (
                   <span
