@@ -1280,3 +1280,4 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-16T19:03:32Z | supabase/migrations/20260616l_planner_profile_forecast_planner_phase.sql | applied_to_prod
 2026-06-16T21:15:57Z | supabase/migrations/20260616k_ww_serie_temporal_entrou_dw_so_sdr.sql | applied_to_prod
 2026-06-16T21:51:12Z | supabase/migrations/20260616l_ww_serie_temporal_granularidade_dia.sql | applied_to_prod
+2026-06-16T14:03:31Z | supabase/migrations/20260616_ww_ac_link_by_email.sql | applied_to_prod via Management API (token CLI)
