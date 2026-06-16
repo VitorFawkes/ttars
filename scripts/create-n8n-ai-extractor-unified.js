@@ -1139,11 +1139,13 @@ if (mode === 'novo' && source === 'briefing_audio') {
     }
     const currentObs = currentBriefing.observacoes || {};
     const mergedObs = { ...currentObs };
+    // Observações são do usuário: a IA só preenche campo VAZIO, nunca sobrescreve nota existente.
     for (const [key, value] of Object.entries(observacoesUpdate)) {
-      mergedObs[key] = smartMergeField(key, value, currentObs[key], fieldTypeMap[key]);
+      const atual = currentObs[key];
+      if (atual === null || atual === undefined || atual === '') mergedObs[key] = value;
     }
+    // Resumo da IA vai SÓ pra resumo_consultor (área separada) — nunca dentro das observações.
     if (temBriefingFinal) {
-      mergedObs.briefing = smartMergeField('briefing', briefingComNotas, currentObs.briefing, 'textarea');
       newBriefing.resumo_consultor = briefingComNotas;
       newBriefing.resumo_consultor_at = new Date().toISOString();
     }
@@ -1154,11 +1156,13 @@ if (mode === 'novo' && source === 'briefing_audio') {
     }
     const currentObs = currentProdutoData.observacoes_criticas || {};
     const mergedObs = { ...currentObs };
+    // Observações são do usuário: a IA só preenche campo VAZIO, nunca sobrescreve nota existente.
     for (const [key, value] of Object.entries(observacoesUpdate)) {
-      mergedObs[key] = smartMergeField(key, value, currentObs[key], fieldTypeMap[key]);
+      const atual = currentObs[key];
+      if (atual === null || atual === undefined || atual === '') mergedObs[key] = value;
     }
+    // Resumo da IA vai SÓ pra resumo_consultor (área separada) — nunca dentro das observações.
     if (temBriefingFinal) {
-      mergedObs.briefing = smartMergeField('briefing', briefingComNotas, currentObs.briefing, 'textarea');
       newProdutoData.resumo_consultor = briefingComNotas;
       newProdutoData.resumo_consultor_at = new Date().toISOString();
     }
@@ -1169,11 +1173,13 @@ if (mode === 'novo' && source === 'briefing_audio') {
     }
     const currentObs = currentProdutoData.observacoes_pos_venda || {};
     const mergedObs = { ...currentObs };
+    // Observações são do usuário: a IA só preenche campo VAZIO, nunca sobrescreve nota existente.
     for (const [key, value] of Object.entries(observacoesUpdate)) {
-      mergedObs[key] = smartMergeField(key, value, currentObs[key], fieldTypeMap[key]);
+      const atual = currentObs[key];
+      if (atual === null || atual === undefined || atual === '') mergedObs[key] = value;
     }
+    // Resumo da IA vai SÓ pra resumo_consultor (área separada) — nunca dentro das observações.
     if (temBriefingFinal) {
-      mergedObs.briefing = smartMergeField('briefing', briefingComNotas, currentObs.briefing, 'textarea');
       newProdutoData.resumo_consultor = briefingComNotas;
       newProdutoData.resumo_consultor_at = new Date().toISOString();
     }
