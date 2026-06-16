@@ -11,7 +11,6 @@ import {
   Users,
   Loader2,
   Store,
-  BedDouble,
   ListChecks,
   Plus,
   Heart,
@@ -29,6 +28,7 @@ import { useWeddingFornecedores } from '../../hooks/planejamento/useWeddingForne
 import { useWeddingChecklist } from '../../hooks/planejamento/useWeddingChecklist'
 import { useFornecedorBank } from '../../hooks/planejamento/useFornecedorBank'
 import { WipBadge } from '../../components/planejamento/WipBadge'
+import { HospedagemSection } from '../../components/planejamento/HospedagemSection'
 import {
   PLANEJAMENTO_LABEL,
   FORNECEDOR_SETORES,
@@ -370,10 +370,8 @@ export default function PlanejamentoDetailPage() {
       />
       </div>
 
-      {/* Hospedagem — em construção */}
-      <WipSection icon={<BedDouble className="w-5 h-5 text-slate-500" />} title="Hospedagem">
-        Bloqueio de quartos, check-in/check-out e ocupação dos convidados — em construção.
-      </WipSection>
+      {/* Hospedagem — blocos de hotel por casamento (full-width) */}
+      <HospedagemSection cardId={cardId} confirmados={confirmado} />
 
       {fornModal && (
         <AddFornecedorModal
@@ -406,19 +404,6 @@ function InfoItem({ label, value, icon }: { label: string; value: string; icon: 
       </p>
       <p className="font-medium text-slate-900 mt-0.5 break-words">{value}</p>
     </div>
-  )
-}
-
-function WipSection({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
-  return (
-    <section className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-      <header className="flex items-center gap-2 mb-2">
-        {icon}
-        <h2 className="text-base font-semibold text-slate-900">{title}</h2>
-        <WipBadge />
-      </header>
-      <p className="text-sm text-slate-500">{children}</p>
-    </section>
   )
 }
 
