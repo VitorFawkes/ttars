@@ -1274,3 +1274,6 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-16T13:27:07Z | supabase/migrations/20260616h_ww_agenda_reagendando_usa_cache.sql | applied_to_prod
 2026-06-16T14:49:54Z | supabase/migrations/20260616i_ww_onde_estao_snapshot_e_closer_etapas.sql | applied_to_prod
 2026-06-16T15:18:08Z | supabase/migrations/20260616j_ww_lead_ideal_periodo_robusto.sql | applied_to_prod
+2026-06-16T18:19:31Z | supabase/migrations/20260616j_ww_tipo_por_funil_sdr.sql | applied_to_prod
+2026-06-16T18:44:01Z | supabase/migrations/20260616k_planner_forecast_planner_phase_only.sql | applied_to_staging
+2026-06-16T18:53:09Z | supabase/migrations/20260616k_planner_forecast_planner_phase_only.sql | applied_to_prod
