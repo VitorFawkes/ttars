@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
     // 1. Buscar deal + custom field data em paralelo
     const [dealRes, fieldsRes] = await Promise.all([
       acFetch<{ deal: Deal | null }>(`/api/3/deals/${dealId}`),
-      acFetch<{ dealCustomFieldData: Array<{ customFieldId: string | number; fieldValue: string | null }> }>(
+      acFetch<{ dealCustomFieldData: Array<{ customFieldId: string | number; fieldValue: string | null; updatedTimestamp?: string | null }> }>(
         `/api/3/deals/${dealId}/dealCustomFieldData`
       ),
     ])
@@ -187,10 +187,13 @@ Deno.serve(async (req) => {
     const groupId = deal.group ? parseInt(deal.group, 10) : null
     const isWw = groupId !== null && WW_PIPELINE_GROUPS.has(groupId)
 
-    // 2. Construir mapa de campos do deal
+    // 2. Construir mapa de campos do deal (+ "quando foi marcada": updatedTimestamp dos campos 6/18)
     const fieldMap: Record<string, string | null> = {}
+    const tsMap: Record<string, string | null> = {}
     for (const f of (fieldsRes.dealCustomFieldData ?? [])) {
-      fieldMap[String(f.customFieldId)] = f.fieldValue == null ? null : String(f.fieldValue)
+      const fid = String(f.customFieldId)
+      fieldMap[fid] = f.fieldValue == null ? null : String(f.fieldValue)
+      if ((fid === FIELD_SDR_AGENDOU || fid === FIELD_CLOSER_AGEN) && f.fieldValue) tsMap[fid] = f.updatedTimestamp ?? null
     }
 
     // 3. Buscar contact fields (Welcome Form + UTMs) se for WW e tiver contato
@@ -245,9 +248,12 @@ Deno.serve(async (req) => {
       ac_current_stage_id: deal.stage != null ? String(deal.stage) : null,
       deal_title: deal.title ?? null,
       sdr_agendou_at: parseDateTime(fieldMap[FIELD_SDR_AGENDOU]),
+      // 20260616m: QUANDO foi marcada (updatedTimestamp do campo 6) — distinto de PARA QUANDO é
+      sdr_agendado_em: parseDateTime(tsMap[FIELD_SDR_AGENDOU]),
       sdr_fez: sdrFez,
       sdr_canal: sdrCanal.length ? sdrCanal : null,
       closer_agendou_at: parseDateTime(fieldMap[FIELD_CLOSER_AGEN]),
+      closer_agendado_em: parseDateTime(tsMap[FIELD_CLOSER_AGEN]),
       closer_fez: closer.fez,
       closer_canal: closer.canal,
       ganho_at: parseDateTime(fieldMap[FIELD_GANHO]),

@@ -52,8 +52,10 @@ const CONTACT_FIELD_UTM_MEDIUM = '47'
 const CONTACT_FIELD_UTM_CAMPAIGN = '48'
 const CONTACT_FIELD_ORIGEM_CONVERSAO = '137'
 
-type DealCustomFieldData = { dealId: number; customFieldId: number; fieldValue: string | null }
+type DealCustomFieldData = { dealId: number; customFieldId: number; fieldValue: string | null; updatedTimestamp?: string | null }
 type Deal = { id: string; group: string | null; title: string | null; contact?: string | null; cdate?: string | null; status?: string | null; stage?: string | null }
+// Campos cujo updatedTimestamp guardamos como "quando foi marcada" (6=SDR, 18=Closer).
+const AGENDA_TS_FIELDS = new Set(['6', '18'])
 type ContactFieldValue = { contact: string; field: string; value: string | null }
 
 function parseDateTime(v: string | null | undefined): string | null {
@@ -190,7 +192,10 @@ Deno.serve(async (req) => {
       if (!RELEVANT_FIELDS.has(String(r.customFieldId))) continue
       const id = String(r.dealId)
       if (!dealData.has(id)) dealData.set(id, {})
-      dealData.get(id)![String(r.customFieldId)] = r.fieldValue == null ? null : String(r.fieldValue)
+      const fid = String(r.customFieldId)
+      dealData.get(id)![fid] = r.fieldValue == null ? null : String(r.fieldValue)
+      // "Quando foi marcada": guarda o updatedTimestamp dos campos 6/18 (só quando há valor)
+      if (AGENDA_TS_FIELDS.has(fid) && r.fieldValue) dealData.get(id)![`__ts_${fid}`] = r.updatedTimestamp ?? null
     }
 
     // Paginação em paralelo (max 10 concurrent)
@@ -205,7 +210,9 @@ Deno.serve(async (req) => {
           if (!RELEVANT_FIELDS.has(String(row.customFieldId))) continue
           const id = String(row.dealId)
           if (!dealData.has(id)) dealData.set(id, {})
-          dealData.get(id)![String(row.customFieldId)] = row.fieldValue == null ? null : String(row.fieldValue)
+          const fid = String(row.customFieldId)
+          dealData.get(id)![fid] = row.fieldValue == null ? null : String(row.fieldValue)
+          if (AGENDA_TS_FIELDS.has(fid) && row.fieldValue) dealData.get(id)![`__ts_${fid}`] = row.updatedTimestamp ?? null
         }
       }
     }
@@ -313,9 +320,12 @@ Deno.serve(async (req) => {
         ac_current_stage_id: deal?.stage != null ? String(deal.stage) : null,
         deal_title: deal?.title ?? null,
         sdr_agendou_at: parseDateTime(data[FIELD_SDR_AGENDOU]),
+        // 20260616m: QUANDO foi marcada (updatedTimestamp do campo 6) — distinto de PARA QUANDO é
+        sdr_agendado_em: parseDateTime(data['__ts_6']),
         sdr_fez: sdrFez,
         sdr_canal: sdrCanal.length ? sdrCanal : null,
         closer_agendou_at: parseDateTime(data[FIELD_CLOSER_AGEN]),
+        closer_agendado_em: parseDateTime(data['__ts_18']),
         closer_fez: closer.fez,
         closer_canal: closer.canal,
         ganho_at: parseDateTime(data[FIELD_GANHO]),

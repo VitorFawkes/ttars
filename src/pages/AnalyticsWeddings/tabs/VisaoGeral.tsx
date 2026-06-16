@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList } from 'recharts'
-import { useWw2Overview, useWwAgenda, type Ww2Conversao, type Ww2Alerta, type DrillMarco, type WwAgendaItem, type WwAgendaPorDia, type WwAgendaDesfechos, type WwAgendaDesfechoItem } from '@/hooks/analyticsWeddings/useWw2'
+import { useWw2Overview, useWwAgenda, useWwAgendamentosPorDia, type Ww2Conversao, type Ww2Alerta, type DrillMarco, type WwAgendaItem, type WwAgendaPorDia, type WwAgendaDesfechos, type WwAgendaDesfechoItem } from '@/hooks/analyticsWeddings/useWw2'
 import { FilterBar, type TabProps, type AppliedFilters } from '../components/FilterBar'
 import { SectionCard, KpiCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
 import { DrillDrawer, type DrillContext } from '../components/DrillDrawer'
@@ -112,6 +112,14 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
 
       {/* Agenda — o FUTURO: reuniões marcadas (campo 6 = SDR, campo 18 = Closer) + vencidas sem registro */}
       <AgendaReunioes filters={filters} />
+
+      {/* Produtividade de agendamento: quantas reuniões foram MARCADAS por dia (data do agendamento) */}
+      <SectionCard
+        title="Reuniões agendadas por dia: quando foram marcadas"
+        subtitle="Quantas 1ªs reuniões (SDR) e reuniões de fechamento (Closer) o time MARCOU em cada dia do período, pela data em que agendou (não pela data da reunião). Respeita os filtros de tipo, período, origem e perfil."
+      >
+        <AgendamentosPorDia filters={filters} />
+      </SectionCard>
 
       {/* Tendência ao longo do tempo (#7) — respeita o período do filtro (período curto abre por semana) */}
       <SerieTemporalChart
@@ -358,6 +366,91 @@ function AgendaGrafico({ porDia }: { porDia: WwAgendaPorDia[] }) {
           </Bar>
         </BarChart>
       </ResponsiveContainer>
+    </div>
+  )
+}
+
+// Reuniões agendadas por dia = QUANDO foram marcadas (data do agendamento), SDR e Closer.
+// Fonte: ww_agendamentos_por_dia (updatedTimestamp dos campos 6/18 do Active). Respeita o
+// PERÍODO + filtros da aba. Por dia por padrão; vira semana em recortes longos.
+function AgendamentosPorDia({ filters }: { filters: AppliedFilters }) {
+  const { data, isLoading } = useWwAgendamentosPorDia({
+    origins: filters.origins, tipos: filters.tipos, faixas: filters.faixas,
+    destinos: filters.destinos, convidados: filters.convidados, consultorIds: filters.consultorIds,
+    dateStart: filters.dateStart, dateEnd: filters.dateEnd,
+  })
+  const d0 = filters.dateStart?.slice(0, 10) ?? ''
+  const d1 = filters.dateEnd?.slice(0, 10) ?? ''
+  const start = d0 ? new Date(`${d0}T12:00:00`) : null
+  const end = d1 ? new Date(`${d1}T12:00:00`) : null
+  const spanDias = start && end ? Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1 : 0
+  const [escala, setEscala] = useState<'dia' | 'semana'>(spanDias > 45 ? 'semana' : 'dia')
+
+  if (isLoading) return <LoadingSkeleton rows={3} />
+  if (!start || !end) return <EmptyState message="Defina um período no filtro." />
+
+  const mapa = new Map((data?.por_dia ?? []).map(d => [d.dia, d]))
+  const fmtDM = (x: Date) => `${String(x.getDate()).padStart(2, '0')}/${String(x.getMonth() + 1).padStart(2, '0')}`
+  type Row = { label: string; SDR: number; Closer: number; total: number }
+  let rows: Row[] = []
+  if (escala === 'dia') {
+    for (const t = new Date(start); t <= end; t.setDate(t.getDate() + 1)) {
+      const v = mapa.get(diaKeyBRT(t))
+      rows.push({ label: fmtDM(t), SDR: v?.sdr ?? 0, Closer: v?.closer ?? 0, total: (v?.sdr ?? 0) + (v?.closer ?? 0) })
+    }
+  } else {
+    const semanas = new Map<string, Row & { ord: string }>()
+    for (const t = new Date(start); t <= end; t.setDate(t.getDate() + 1)) {
+      const seg = new Date(t); seg.setDate(seg.getDate() - ((seg.getDay() + 6) % 7))
+      const segKey = diaKeyBRT(seg)
+      if (!semanas.has(segKey)) {
+        const dom = new Date(seg); dom.setDate(dom.getDate() + 6)
+        semanas.set(segKey, { ord: segKey, label: `${fmtDM(seg)}–${fmtDM(dom)}`, SDR: 0, Closer: 0, total: 0 })
+      }
+      const v = mapa.get(diaKeyBRT(t))
+      if (v) { const s = semanas.get(segKey)!; s.SDR += v.sdr; s.Closer += v.closer; s.total += v.sdr + v.closer }
+    }
+    rows = [...semanas.values()].sort((a, b) => a.ord.localeCompare(b.ord))
+  }
+  const totalSdr = data?.total_sdr ?? 0
+  const totalCloser = data?.total_closer ?? 0
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+        <div className="text-xs text-ww-n500">
+          <span className="font-semibold text-ww-gold-ink tabular-nums">{totalSdr}</span> SDR · <span className="font-semibold text-ww-rosewood tabular-nums">{totalCloser}</span> Closer marcadas no período
+        </div>
+        <div className="inline-flex items-center gap-1">
+          {(['dia', 'semana'] as const).map(e => (
+            <button key={e} onClick={() => setEscala(e)} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${escala === e ? 'bg-ww-gold-soft text-ww-gold-ink' : 'text-ww-n500 hover:bg-ww-cream'}`}>
+              {e === 'dia' ? 'Por dia' : 'Por semana'}
+            </button>
+          ))}
+        </div>
+      </div>
+      {totalSdr + totalCloser === 0 ? (
+        <EmptyState message="Nenhuma reunião marcada no período pra esse filtro." />
+      ) : (
+        <ResponsiveContainer width="100%" height={240}>
+          <BarChart data={rows} margin={{ top: 18, right: 12, left: 0, bottom: escala === 'dia' ? 20 : 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+            <XAxis dataKey="label" stroke="#64748b" fontSize={10} tickLine={false}
+              interval={escala === 'dia' && rows.length > 20 ? Math.floor(rows.length / 15) : 0}
+              angle={escala === 'dia' ? -38 : 0} textAnchor={escala === 'dia' ? 'end' : 'middle'} height={escala === 'dia' ? 40 : 24} />
+            <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+            <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Bar dataKey="SDR" stackId="a" name="SDR" fill={COR_SDR} maxBarSize={36}>
+              <LabelList dataKey="SDR" content={labelSegmento} />
+            </Bar>
+            <Bar dataKey="Closer" stackId="a" name="Closer" fill={COR_CLOSER} radius={[3, 3, 0, 0]} maxBarSize={36}>
+              <LabelList dataKey="Closer" content={labelSegmento} />
+              <LabelList content={labelTotalTopo(rows)} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      )}
     </div>
   )
 }

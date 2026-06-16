@@ -1386,3 +1386,38 @@ export function useWwAgenda(
     staleTime: 60_000,
   })
 }
+
+// Reuniões MARCADAS por dia (quando o consultor agendou, não para quando a reunião é).
+// Fonte: updatedTimestamp dos campos 6/18 do Active. Respeita o PERÍODO do filtro (são
+// agendamentos do recorte) + tipo/origem/faixa/convidados/destino/consultor.
+export type WwAgendamentos = {
+  por_dia: WwAgendaPorDia[]
+  total_sdr: number
+  total_closer: number
+  fonte?: string
+  error?: string
+}
+
+export function useWwAgendamentosPorDia(
+  filters: Pick<Ww2Filters, 'origins' | 'tipos' | 'faixas' | 'destinos' | 'convidados' | 'consultorIds' | 'dateStart' | 'dateEnd'>,
+) {
+  const orgId = useOrgId()
+  const dateStart = filters.dateStart ?? null
+  const dateEnd = filters.dateEnd ?? null
+  return useQuery({
+    queryKey: ['ww', 'agendamentos-dia', orgId, dateStart, dateEnd, filters.origins ?? null, filters.tipos ?? null, filters.faixas ?? null, filters.destinos ?? null, filters.convidados ?? null, filters.consultorIds ?? null],
+    queryFn: () => callRpc<WwAgendamentos>('ww_agendamentos_por_dia', {
+      p_org_id: orgId,
+      p_date_start: dateStart,
+      p_date_end: dateEnd,
+      p_tipos: filters.tipos?.length ? filters.tipos : null,
+      p_origins: filters.origins?.length ? filters.origins : null,
+      p_faixas: filters.faixas?.length ? filters.faixas : null,
+      p_destinos: filters.destinos?.length ? filters.destinos : null,
+      p_convidados: filters.convidados?.length ? filters.convidados : null,
+      p_consultor_ids: filters.consultorIds?.length ? filters.consultorIds : null,
+    }),
+    enabled: !!orgId && !!dateStart && !!dateEnd,
+    staleTime: 60_000,
+  })
+}
