@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Heart, ChevronRight, CheckCircle2, Users, Calendar, BedDouble, BellOff, Trash2, Check, X, Ban } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { parseLocalDate } from '../../../lib/localDate'
-import { mockHotelRooms } from '../../../hooks/convidados/mockHotel'
+import { useWeddingHotel } from '../../../hooks/convidados/useWeddingHotel'
 import { useUpdateWeddingEtapa } from '../../../hooks/convidados/useUpdateWeddingEtapa'
 import { useWeddingFluxo } from '../../../hooks/convidados/useWeddingFluxo'
 import { BaixarPdfButton } from '../pdf/BaixarPdfButton'
@@ -205,20 +205,27 @@ export function CasamentoCard({ wedding, onDrillIn }: CasamentoCardProps) {
   )
 }
 
-// Linha "Hotel" (mockup) — mesmo visual da linha "Convidados".
+// Linha "Hotel" — dado real (wedding_hotel via cache batch). Mesmo visual da
+// linha "Convidados". Sem ficha: mostra o local do card e "—".
 function HotelBar({ cardId, local }: { cardId: string; local: string | null }) {
-  const { total, disponiveis } = mockHotelRooms(cardId)
-  const hotelLabel = local ?? 'Hotel não definido'
+  const { hotel } = useWeddingHotel(cardId)
+  const hotelLabel = hotel?.nome ?? local ?? 'Hotel não definido'
+  const total = hotel?.total_quartos ?? 0
+  const disponiveis = Math.max(0, total - (hotel?.quartos_reservados ?? 0))
   return (
     <div className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-2.5 flex items-center justify-between gap-3">
       <div className="flex items-center gap-2 text-sm text-slate-700 min-w-0">
         <BedDouble className="w-4 h-4 text-slate-500 shrink-0" />
         <span className="truncate" title={hotelLabel}>{hotelLabel}</span>
       </div>
-      <div className="text-sm tabular-nums shrink-0">
-        <span className="font-semibold text-slate-900">{disponiveis}</span>
-        <span className="text-slate-500">/{total} quartos</span>
-      </div>
+      {hotel && total > 0 ? (
+        <div className="text-sm tabular-nums shrink-0">
+          <span className="font-semibold text-slate-900">{disponiveis}</span>
+          <span className="text-slate-500">/{total} quartos</span>
+        </div>
+      ) : (
+        <span className="text-xs text-slate-400 italic shrink-0">—</span>
+      )}
     </div>
   )
 }

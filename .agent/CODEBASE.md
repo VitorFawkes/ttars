@@ -7,9 +7,9 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-06-16
 > **Trigger:** ALWAYS ON
-> **Stats:** 239 tabelas | 211 paginas | 369 hooks | 28 views | 854 components
-> **Stats:** 239 tabelas | 211 paginas | 369 hooks | 28 views | 854 components
-> **Stats:** 239 tabelas | 211 paginas | 369 hooks | 28 views | 854 components
+> **Stats:** 239 tabelas | 211 paginas | 368 hooks | 28 views | 854 components
+> **Stats:** 239 tabelas | 211 paginas | 368 hooks | 28 views | 854 components
+> **Stats:** 239 tabelas | 211 paginas | 368 hooks | 28 views | 854 components
 
 ---
 
@@ -171,7 +171,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **369 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **368 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -272,7 +272,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `displayedEtapaPlanejamento()` | `displayedEtapaPlanejamento.ts` |
 | `filterContracts()` | `filterContracts.ts` |
 | `forecastToDrillRows()` | `forecastToDrillRows.ts` |
-| `mockHotel()` | `mockHotel.ts` |
 | `types()` | `types.ts` |
 | `types()` | `types.ts` |
 | `types()` | `types.ts` |
@@ -465,7 +464,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useWeddingEditValues()` | `useWeddingEditValues.ts` |
 | `useWeddingFluxo()` | `useWeddingFluxo.ts` |
 | `useWeddingFornecedores()` | `useWeddingFornecedores.ts` |
-| `useWeddingHospedagem()` | `useWeddingHospedagem.ts` |
+| `useWeddingHotel()` | `useWeddingHotel.ts` |
 | `useWeddingLotes()` | `useWeddingLotes.ts` |
 | `useWeddings()` | `useWeddings.ts` |
 | `useWeddingsWithGuestCounts()` | `useWeddingsWithGuestCounts.ts` |

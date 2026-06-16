@@ -81,36 +81,6 @@ export interface ChecklistItem {
   observacoes?: string | null
 }
 
-// ── Hospedagem ──────────────────────────────────────────────────────────────
-// Blocos de hotel por casamento — tabela wedding_hospedagem (per-org, FK ao
-// card). Ocupação fica agregada em hospedes_alocados; alocação nominal
-// convidado↔quarto fica para Fase 2.
-
-export type HospedagemStatus = 'a_definir' | 'bloqueado' | 'confirmado'
-
-export const HOSPEDAGEM_STATUS_LABEL: Record<HospedagemStatus, string> = {
-  a_definir: 'A definir',
-  bloqueado: 'Bloqueado',
-  confirmado: 'Confirmado',
-}
-
-export const HOSPEDAGEM_STATUS_LIST: HospedagemStatus[] = ['a_definir', 'bloqueado', 'confirmado']
-
-/** Bloco de hotel reservado para um casamento. */
-export interface HospedagemBloco {
-  id: string
-  hotel: string
-  contato?: string | null
-  localizacao?: string | null
-  check_in: string | null
-  check_out: string | null
-  quartos?: number | null
-  hospedes_alocados: number
-  tarifa?: number | null
-  status: HospedagemStatus
-  observacoes?: string | null
-}
-
 /** Entrada do banco de fornecedores (catálogo per-workspace, reutilizável
  *  entre casamentos). */
 export interface FornecedorBankEntry {

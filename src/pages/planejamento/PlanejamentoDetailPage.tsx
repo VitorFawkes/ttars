@@ -28,7 +28,7 @@ import { useWeddingFornecedores } from '../../hooks/planejamento/useWeddingForne
 import { useWeddingChecklist } from '../../hooks/planejamento/useWeddingChecklist'
 import { useFornecedorBank } from '../../hooks/planejamento/useFornecedorBank'
 import { WipBadge } from '../../components/planejamento/WipBadge'
-import { HospedagemSection } from '../../components/planejamento/HospedagemSection'
+import { WeddingHotelCard } from '../../components/convidados/WeddingHotelCard'
 import {
   PLANEJAMENTO_LABEL,
   FORNECEDOR_SETORES,
@@ -370,8 +370,8 @@ export default function PlanejamentoDetailPage() {
       />
       </div>
 
-      {/* Hospedagem — blocos de hotel por casamento (full-width) */}
-      <HospedagemSection cardId={cardId} confirmados={confirmado} />
+      {/* Hotel — mesma ficha de Convidados (fonte única, full-width) */}
+      <WeddingHotelCard cardId={cardId} local={wedding.local} />
 
       {fornModal && (
         <AddFornecedorModal

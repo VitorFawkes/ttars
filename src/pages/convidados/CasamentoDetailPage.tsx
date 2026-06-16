@@ -21,8 +21,6 @@ import {
   X,
   Loader2,
   Plus,
-  BedDouble,
-  Building2,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useWedding } from '../../hooks/convidados/useWedding'
@@ -35,7 +33,7 @@ import {
   type FluxoVariation,
 } from '../../hooks/convidados/useFluxoConfig'
 import { useWeddingFluxo, type WeddingFluxoAssignment } from '../../hooks/convidados/useWeddingFluxo'
-import { mockHotelRooms } from '../../hooks/convidados/mockHotel'
+import { WeddingHotelCard } from '../../components/convidados/WeddingHotelCard'
 import { NovoGuestModal } from '../../components/convidados/NovoGuestModal'
 import { EditarCasamentoModal } from '../../components/convidados/EditarCasamentoModal'
 import { GuestKanbanBoard } from '../../components/convidados/guests/GuestKanbanBoard'
@@ -291,8 +289,8 @@ export default function CasamentoDetailPage() {
       {/* Link do casal (lista pública) */}
       {cardId && <LinkCasalSection cardId={cardId} cardTitulo={wedding.titulo} />}
 
-      {/* Hotel — placeholder mockup (sem dados reais) */}
-      <HotelSection wedding={wedding} />
+      {/* Hotel — ficha real (fonte única, compartilhada com Planejamento) */}
+      {cardId && <WeddingHotelCard cardId={cardId} local={wedding.local} />}
 
       {/* Configuração do Fluxo */}
       <FluxoSection
@@ -347,80 +345,6 @@ export default function CasamentoDetailPage() {
         />
       )}
     </div>
-  )
-}
-
-// ──────────────────────────────────────────────────────────────────────────
-// Hotel — bloco visual (mockup). Substituir quando o schema/integração
-// de reserva de hotelaria existir.
-// ──────────────────────────────────────────────────────────────────────────
-
-interface HotelSectionProps {
-  wedding: {
-    id: string
-    titulo: string
-    local: string | null
-  }
-}
-
-function HotelSection({ wedding }: HotelSectionProps) {
-  // Mockup determinístico — bate com o `HotelBar` do CasamentoCard.
-  const { total, disponiveis, reservados, ocupacao } = mockHotelRooms(wedding.id)
-
-  const hotelNome = wedding.local ?? 'Hotel não definido'
-
-  return (
-    <section className="bg-white border border-slate-200 rounded-xl p-4">
-      <header className="flex items-center justify-between gap-2 mb-4">
-        <div className="flex items-center gap-2">
-          <BedDouble className="w-5 h-5 text-slate-500" />
-          <h2 className="text-base font-semibold text-slate-900">Hotel</h2>
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
-            <CheckCircle2 className="w-3 h-3" /> Bloco reservado
-          </span>
-        </div>
-        <span className="text-[11px] text-slate-400 italic">Mockup — dados ilustrativos</span>
-      </header>
-
-      <div className="flex flex-col gap-4 md:flex-row md:items-stretch">
-        {/* Identidade do hotel */}
-        <div className="md:w-1/2 flex flex-col gap-1.5">
-          <div className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
-            <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
-            {hotelNome}
-          </div>
-          <p className="text-xs text-slate-500">Categoria: Suíte Standard · Check-in 14/12 · Check-out 16/12</p>
-          <p className="text-xs text-slate-500">Contato: reservas@praiadoforte.test · +55 (71) 3676-4000</p>
-        </div>
-
-        {/* Stats de quartos */}
-        <div className="md:w-1/2 bg-slate-50 border border-slate-100 rounded-lg p-3 flex flex-col gap-2">
-          <div className="flex items-baseline justify-between">
-            <span className="text-sm text-slate-700">Quartos disponíveis</span>
-            <span className="text-sm tabular-nums">
-              <strong className="text-2xl text-slate-900 mr-1">{disponiveis}</strong>
-              <span className="text-slate-500">/ {total}</span>
-            </span>
-          </div>
-
-          {/* Barra de ocupação */}
-          <div className="h-2 bg-white border border-slate-200 rounded-full overflow-hidden">
-            <div
-              className={cn(
-                'h-full rounded-full transition-all',
-                ocupacao < 50 ? 'bg-emerald-500' : ocupacao < 80 ? 'bg-amber-500' : 'bg-rose-500',
-              )}
-              style={{ width: `${ocupacao}%` }}
-            />
-          </div>
-
-          <div className="flex items-center justify-between text-[11px] text-slate-500 tabular-nums">
-            <span>{reservados} reservados</span>
-            <span>{ocupacao}% ocupação</span>
-          </div>
-        </div>
-      </div>
-    </section>
   )
 }
 

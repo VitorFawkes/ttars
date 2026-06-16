@@ -148,11 +148,11 @@ test_query "wedding_guest_extras table" \
 test_query "v_wedding_guest_extras (view do kanban de extras)" \
   "v_wedding_guest_extras?select=guest_id,card_id,org_id,nome,casamento_nome,extras_status,itens,extras_id&limit=1"
 
-# ── Planejamento: hospedagem por casamento (20260616a) ──
-# HospedagemSection.tsx lê blocos de hotel via useWeddingHospedagem; sem a
-# tabela o bloco quebra. Per-org (org_id forçado pelo trigger strict).
-test_query "wedding_hospedagem table" \
-  "wedding_hospedagem?select=id,card_id,org_id,hotel,check_in,check_out,quartos,hospedes_alocados,tarifa,status&limit=1"
+# ── Hotel unificado por casamento (20260616b) ──
+# Fonte única lida por Convidados (HotelSection/HotelBar) e Planejamento via
+# useWeddingHotel. 1:1 com o card (PK card_id). Per-org (trigger strict).
+test_query "wedding_hotel table" \
+  "wedding_hotel?select=card_id,org_id,nome,categoria,check_in,check_out,total_quartos,quartos_reservados,status&limit=1"
 
 # ── RPCs críticas (chamadas via rpc/) ──
 

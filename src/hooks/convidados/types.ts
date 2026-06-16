@@ -105,6 +105,39 @@ export interface WeddingWithGuests extends Wedding {
   counts: RsvpCounts
 }
 
+// ── Hotel (acomodação dos convidados) ──────────────────────────────────────
+// Ficha única por casamento (1:1 com o card). Fonte de verdade compartilhada
+// entre Convidados e Planejamento. Ocupação por quartos.
+
+export type HotelStatus = 'a_definir' | 'bloqueado' | 'confirmado'
+
+export const HOTEL_STATUS_LABEL: Record<HotelStatus, string> = {
+  a_definir: 'A definir',
+  bloqueado: 'Bloco reservado',
+  confirmado: 'Confirmado',
+}
+
+export const HOTEL_STATUS_LIST: HotelStatus[] = ['a_definir', 'bloqueado', 'confirmado']
+
+/** Ficha de hotel de um casamento (campos editáveis; card_id/org_id são
+ *  gerenciados pelo hook/banco). */
+export interface WeddingHotel {
+  nome: string
+  categoria: string | null
+  localizacao: string | null
+  check_in: string | null
+  check_out: string | null
+  total_quartos: number | null
+  quartos_reservados: number
+  contato_nome: string | null
+  contato_email: string | null
+  contato_telefone: string | null
+  site_url: string | null
+  tarifa: number | null
+  status: HotelStatus
+  observacoes: string | null
+}
+
 // ── Extras (venda adicional a convidados confirmados) ──────────────────────
 
 /** Estágio comercial do extra para um convidado. Eixo independente do RSVP. */
