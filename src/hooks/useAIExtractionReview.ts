@@ -229,7 +229,7 @@ export function useAIExtractionReview(cardId: string) {
             newBriefing[key] = applyMerge(key, finalValue, newBriefing[key], fieldType, merge_mode)
           } else if (effectiveSection === 'observacoes') {
             const obs = (newBriefing.observacoes as Record<string, unknown>) || {}
-            obs[key] = applyMerge(key, finalValue, obs[key], fieldType, merge_mode)
+            obs[key] = fillEmptyOnly(obs[key], finalValue)
             newBriefing.observacoes = obs
           }
         } else if (fase === 'planner') {
@@ -237,7 +237,7 @@ export function useAIExtractionReview(cardId: string) {
             newProdutoData[key] = applyMerge(key, finalValue, newProdutoData[key], fieldType, merge_mode)
           } else if (effectiveSection === 'observacoes') {
             const obs = (newProdutoData.observacoes_criticas as Record<string, unknown>) || {}
-            obs[key] = applyMerge(key, finalValue, obs[key], fieldType, merge_mode)
+            obs[key] = fillEmptyOnly(obs[key], finalValue)
             newProdutoData.observacoes_criticas = obs
           }
         } else {
@@ -245,7 +245,7 @@ export function useAIExtractionReview(cardId: string) {
             newProdutoData[key] = applyMerge(key, finalValue, newProdutoData[key], fieldType, merge_mode)
           } else if (effectiveSection === 'observacoes') {
             const obs = (newProdutoData.observacoes_pos_venda as Record<string, unknown>) || {}
-            obs[key] = applyMerge(key, finalValue, obs[key], fieldType, merge_mode)
+            obs[key] = fillEmptyOnly(obs[key], finalValue)
             newProdutoData.observacoes_pos_venda = obs
           }
         }
@@ -254,7 +254,7 @@ export function useAIExtractionReview(cardId: string) {
       // ── Bidirectional sync: keep BOTH JSONBs in sync ──
       // UI may show trip_info:sdr (reads briefing_inicial) even for Planner/Pós-venda cards.
       // Ensure extracted fields are always available in both data sources.
-      if (fase !== 'SDR') {
+      if (fase !== 'sdr') {
         // Planner/Pós-venda → also sync to briefing_inicial
         for (const decision of acceptedFields) {
           const { key, merge_mode, value } = decision
@@ -267,7 +267,7 @@ export function useAIExtractionReview(cardId: string) {
             newBriefing[key] = applyMerge(key, finalValue, newBriefing[key], fieldType, merge_mode)
           } else if (effectiveSection === 'observacoes') {
             const obs = (newBriefing.observacoes as Record<string, unknown>) || {}
-            obs[key] = applyMerge(key, finalValue, obs[key], fieldType, merge_mode)
+            obs[key] = fillEmptyOnly(obs[key], finalValue)
             newBriefing.observacoes = obs
           }
         }
@@ -284,41 +284,21 @@ export function useAIExtractionReview(cardId: string) {
             newProdutoData[key] = applyMerge(key, finalValue, newProdutoData[key], fieldType, merge_mode)
           } else if (effectiveSection === 'observacoes') {
             const obs = (newProdutoData.observacoes_criticas as Record<string, unknown>) || {}
-            obs[key] = applyMerge(key, finalValue, obs[key], fieldType, merge_mode)
+            obs[key] = fillEmptyOnly(obs[key], finalValue)
             newProdutoData.observacoes_criticas = obs
           }
         }
       }
 
-      // Handle briefing_text
+      // Handle briefing_text — o resumo da IA vai SÓ pra resumo_consultor (área separada),
+      // NUNCA dentro das observações (que são do usuário). Gravamos nos dois JSONBs pra
+      // a UI exibir independente de qual fonte ela lê.
       if (approveBriefing && preview.briefing_text) {
-        const obsKey = fase === 'sdr' ? 'observacoes' : fase === 'planner' ? 'observacoes_criticas' : 'observacoes_pos_venda'
-        const target = fase === 'sdr' ? newBriefing : newProdutoData
-        const obs = (target[obsKey] as Record<string, unknown>) || {}
-        const currentBriefingText = (obs.briefing as string) || ''
-        obs.briefing = currentBriefingText
-          ? currentBriefingText + '\n\n' + preview.briefing_text
-          : preview.briefing_text
-        target[obsKey] = obs
-
-        // Also update resumo_consultor on primary target
-        target.resumo_consultor = preview.briefing_text
-        target.resumo_consultor_at = new Date().toISOString()
-
-        // Bidirectional sync for briefing_text
-        if (fase !== 'SDR') {
-          // Also sync briefing text to briefing_inicial.observacoes
-          const briefObs = (newBriefing.observacoes as Record<string, unknown>) || {}
-          const currentBT = (briefObs.briefing as string) || ''
-          briefObs.briefing = currentBT
-            ? currentBT + '\n\n' + preview.briefing_text
-            : preview.briefing_text
-          newBriefing.observacoes = briefObs
-        } else {
-          // SDR: also sync resumo_consultor to produto_data
-          newProdutoData.resumo_consultor = preview.briefing_text
-          newProdutoData.resumo_consultor_at = new Date().toISOString()
-        }
+        const now = new Date().toISOString()
+        newProdutoData.resumo_consultor = preview.briefing_text
+        newProdutoData.resumo_consultor_at = now
+        newBriefing.resumo_consultor = preview.briefing_text
+        newBriefing.resumo_consultor_at = now
       }
 
       console.log('[AIExtractionReview] Payload para RPC:', { newProdutoData, newBriefing })
@@ -396,6 +376,19 @@ function blobToBase64(blob: Blob): Promise<string> {
 }
 
 const TEXT_LIBRE_KEYS = ['briefing', 'observacoes', 'observacoes_criticas', 'observacoes_pos_venda']
+
+/**
+ * Observações são do usuário: a IA só preenche um campo de observação quando ele está
+ * vazio; nunca sobrescreve nem dá append numa nota que o usuário já escreveu.
+ */
+function fillEmptyOnly(currentValue: unknown, newValue: unknown): unknown {
+  const isEmpty =
+    currentValue === null ||
+    currentValue === undefined ||
+    currentValue === '' ||
+    (Array.isArray(currentValue) && currentValue.length === 0)
+  return isEmpty ? newValue : currentValue
+}
 
 /**
  * Simple merge logic based on user's explicit choice

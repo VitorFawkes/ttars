@@ -12,6 +12,7 @@ import { useFieldConfig } from '../../hooks/useFieldConfig'
 import { SystemPhase } from '../../types/pipeline'
 import UniversalFieldRenderer from '../fields/UniversalFieldRenderer'
 import { FieldLockButton } from './FieldLockButton'
+import ResumoIA from './ResumoIA'
 
 type Card = Database['public']['Tables']['cards']['Row'] & {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -261,6 +262,8 @@ export default function ObservacoesEstruturadas({ card, isExpanded: _isExpanded,
 
             {/* Content */}
             <div className="p-2" onKeyDown={handleKeyDown}>
+                {/* Resumo da IA (área separada) — read-only, não mistura com as observações do usuário */}
+                <ResumoIA card={card} />
                 {loadingConfig ? (
                     <div className="flex justify-center py-6">
                         <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
