@@ -40,7 +40,9 @@ const FIELD_DEAL_ORCAMENTO     = '27' // Quanto você pensa em investir? (form d
 const FIELD_DEAL_CONV_FORM     = '26' // Quantas pessoas vão no seu casamento? (form)
 const FIELD_DEAL_DESTINO       = '28' // Onde você quer casar? (form)
 const FIELD_DEAL_TIPO          = '30' // DW ou Elopment? (declarado)
-const RELEVANT_FIELDS = new Set([FIELD_SDR_AGENDOU, FIELD_SDR_COMO, FIELD_CLOSER_AGEN, FIELD_CLOSER_COMO, FIELD_GANHO, FIELD_DEAL_PACOTE_CONV, FIELD_DEAL_MOTIVO_CLOSER, FIELD_DEAL_MOTIVO_SDR, FIELD_DEAL_ORCAMENTO, FIELD_DEAL_CONV_FORM, FIELD_DEAL_DESTINO, FIELD_DEAL_TIPO])
+const FIELD_DEAL_CONV_2        = '163' // WW - Convidados 2 — fallback do 26 (mesmas opções de radio)
+const FIELD_DEAL_INVEST_2      = '164' // WW - Investimento 2 — fallback do 27 (mesmas opções de radio)
+const RELEVANT_FIELDS = new Set([FIELD_SDR_AGENDOU, FIELD_SDR_COMO, FIELD_CLOSER_AGEN, FIELD_CLOSER_COMO, FIELD_GANHO, FIELD_DEAL_PACOTE_CONV, FIELD_DEAL_MOTIVO_CLOSER, FIELD_DEAL_MOTIVO_SDR, FIELD_DEAL_ORCAMENTO, FIELD_DEAL_CONV_FORM, FIELD_DEAL_DESTINO, FIELD_DEAL_TIPO, FIELD_DEAL_CONV_2, FIELD_DEAL_INVEST_2])
 
 // Contact fields (Welcome Form pós-venda + atribuição de origem)
 const CONTACT_FIELD_CONVIDADOS = '121'  // DW - Previsão nº de convidados
@@ -63,6 +65,14 @@ function parseDateTime(v: string | null | undefined): string | null {
   const date = new Date(trimmed.includes('T') || trimmed.includes(' ') ? trimmed : trimmed + 'T00:00:00Z')
   if (isNaN(date.getTime())) return null
   return date.toISOString()
+}
+
+// Primeiro valor não-vazio (primário, depois fallback). Trata '' / espaços como vazio.
+function firstFilled(...vals: (string | null | undefined)[]): string | null {
+  for (const v of vals) {
+    if (v != null && String(v).trim() !== '') return v
+  }
+  return null
 }
 
 // Field 17 multiselect: armazenado como literal Python "['Vídeo']" ou "['Vídeo', 'Whatsapp']"
@@ -311,8 +321,10 @@ Deno.serve(async (req) => {
         ganho_at: parseDateTime(data[FIELD_GANHO]),
         // Dimensões DECLARADAS no form do site (campos do DEAL) — só p/ deals WW.
         // Cru (a limpeza/normalização acontece depois, no refresh_ww_funil_casal).
-        faixa_raw:      isWw ? (data[FIELD_DEAL_ORCAMENTO] ?? null) : null,
-        convidados_raw: isWw ? (data[FIELD_DEAL_CONV_FORM] ?? null) : null,
+        // Primário = form do site (27/26); fallback = "WW - Investimento/Convidados 2" (164/163),
+        // mesmas opções de radio. Usado quando o casal não preencheu o campo principal.
+        faixa_raw:      isWw ? firstFilled(data[FIELD_DEAL_ORCAMENTO], data[FIELD_DEAL_INVEST_2]) : null,
+        convidados_raw: isWw ? firstFilled(data[FIELD_DEAL_CONV_FORM], data[FIELD_DEAL_CONV_2])   : null,
         destino_raw:    isWw ? (data[FIELD_DEAL_DESTINO]   ?? null) : null,
         tipo_casamento: isWw ? (data[FIELD_DEAL_TIPO]      ?? null) : null,
         deal_created_at: parseDateTime(deal?.cdate),
