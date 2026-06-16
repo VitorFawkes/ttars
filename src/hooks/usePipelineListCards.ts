@@ -239,12 +239,16 @@ export function usePipelineListCards({
                 }
             }
 
-            if (filters.startDate) {
-                query = query.gte('data_viagem_inicio', filters.startDate)
-            }
+            // Data da Viagem — coluna nula em WEDDING (data do casamento mora em
+            // produto_data->>ww_data_casamento). Não aplicar em casamentos.
+            if (productFilter !== 'WEDDING') {
+                if (filters.startDate) {
+                    query = query.gte('data_viagem_inicio', filters.startDate)
+                }
 
-            if (filters.endDate) {
-                query = query.lte('data_viagem_inicio', filters.endDate)
+                if (filters.endDate) {
+                    query = query.lte('data_viagem_inicio', filters.endDate)
+                }
             }
 
             if (filters.creationStartDate) {
@@ -310,6 +314,22 @@ export function usePipelineListCards({
                 query = query.or(milestoneConditions)
             }
 
+            // Tipo de casamento (só WEDDING) — server-side aproximado, espelha _ww_norm_tipo.
+            // O segmento da barra é single-select (DW ou Elop por vez); [] = Os dois → não filtra.
+            if (productFilter === 'WEDDING' && (filters.weddingTypes?.length ?? 0) > 0) {
+                const col = 'produto_data->>ww_tipo_casamento'
+                const orParts: string[] = []
+                if (filters.weddingTypes!.includes('Elopement')) {
+                    orParts.push(`${col}.ilike.%elop%`)
+                }
+                if (filters.weddingTypes!.includes('DW')) {
+                    orParts.push(`${col}.ilike.%dw%`, `${col}.ilike.%destination%`, `${col}.ilike.%convidados%`, `${col}.ilike.%praia%`)
+                }
+                if (orParts.length > 0) {
+                    query = query.or(orParts.join(','))
+                }
+            }
+
             // Archived Filter — default esconde. Se 'arquivado' está no filtro de Status, NÃO esconder.
             const wantsArquivadoStatus = filters.statusComercial?.includes('arquivado') ?? false
             if (!wantsArquivadoStatus) {
@@ -345,8 +365,8 @@ export function usePipelineListCards({
                 query = query.gte('tempo_sem_contato', filters.diasSemContato)
             }
 
-            // Urgência viagem (dias até viagem <= N)
-            if (filters.diasAteViagem != null) {
+            // Urgência viagem (dias até viagem <= N) — dias_ate_viagem é nulo em WEDDING.
+            if (productFilter !== 'WEDDING' && filters.diasAteViagem != null) {
                 query = query.lte('dias_ate_viagem', filters.diasAteViagem).gte('dias_ate_viagem', 0)
             }
 

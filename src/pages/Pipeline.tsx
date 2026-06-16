@@ -4,6 +4,7 @@ import KanbanBoard from '../components/pipeline/KanbanBoard'
 import PipelineListView from '../components/pipeline/PipelineListView'
 import { cn } from '../lib/utils'
 import CreateCardModal from '../components/pipeline/CreateCardModal'
+import { WeddingTypeSegment } from '../components/pipeline/WeddingTypeSegment'
 
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { usePipelineFilters, useActiveFilterCount } from '../hooks/usePipelineFilters'
@@ -105,9 +106,11 @@ export default function Pipeline() {
         return `${meta.label} (${dirLabel})`
     }
 
+    // Em WEDDING, "Data da Viagem" não existe (coluna nula) — fora das opções de ordenação.
     const GLOBAL_SORT_FIELDS: SortBy[] = [
-        'created_at', 'updated_at', 'data_viagem_inicio', 'data_fechamento',
-        'titulo', 'valor_estimado', 'tempo_etapa_dias', 'data_proxima_tarefa',
+        'created_at', 'updated_at',
+        ...(currentProduct === 'WEDDING' ? [] : ['data_viagem_inicio' as SortBy]),
+        'data_fechamento', 'titulo', 'valor_estimado', 'tempo_etapa_dias', 'data_proxima_tarefa',
     ]
 
     const getDefaultDirection = (field: SortBy): SortDirection => {
@@ -169,7 +172,7 @@ export default function Pipeline() {
                                     <input
                                         type="search"
                                         name="pipeline-search"
-                                        placeholder="Buscar por nome, viajante, telefone, email, título..."
+                                        placeholder={currentProduct === 'WEDDING' ? 'Buscar por nome, noivos, telefone, email, título...' : 'Buscar por nome, viajante, telefone, email, título...'}
                                         className="block w-full pl-10 pr-3 py-1.5 border border-gray-200 rounded-lg leading-5 bg-white placeholder-gray-400 ww:border-ww-sand-dk ww:placeholder-ww-n500 focus:outline-none focus:bg-white focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition-all shadow-sm [&::-webkit-search-decoration]:hidden [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-results-button]:hidden [&::-webkit-search-results-decoration]:hidden"
                                         value={filters.search || ''}
                                         onChange={(e) => updateFilter({ search: e.target.value })}
@@ -276,6 +279,13 @@ export default function Pipeline() {
                                         <Trophy className="h-3 w-3 mr-1.5" />
                                         Sem {posVendaLabel}
                                     </button>
+                                    {/* Tipo de casamento (DW · Elop · Os dois) — só Weddings */}
+                                    {currentProduct === 'WEDDING' && (
+                                        <WeddingTypeSegment
+                                            selected={filters.weddingTypes ?? []}
+                                            onChange={(next) => updateFilter({ weddingTypes: next })}
+                                        />
+                                    )}
                                 </div>
                             </div>
 

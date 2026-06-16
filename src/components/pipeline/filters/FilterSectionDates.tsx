@@ -1,5 +1,6 @@
 import { Calendar, Clock, CalendarCheck } from 'lucide-react'
 import type { FilterState } from '../../../hooks/usePipelineFilters'
+import { useCurrentProductMeta } from '../../../hooks/useCurrentProductMeta'
 
 interface FilterSectionDatesProps {
     filters: FilterState
@@ -7,13 +8,18 @@ interface FilterSectionDatesProps {
 }
 
 export function FilterSectionDates({ filters, onUpdate }: FilterSectionDatesProps) {
+    // "Data da Viagem" filtra a coluna data_viagem_inicio, nula em casamentos — esconder em WEDDING.
+    const { slug } = useCurrentProductMeta()
+    const isWedding = slug === 'WEDDING'
+
     return (
         <div className="space-y-4">
             <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
                 <Calendar className="h-3 w-3" /> Datas
             </h3>
 
-            {/* Data da Viagem */}
+            {/* Data da Viagem (só Trips) */}
+            {!isWedding && (
             <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm space-y-3">
                 <label className="text-sm font-semibold text-gray-700 block">Data da Viagem</label>
                 <div className="grid grid-cols-2 gap-3">
@@ -37,6 +43,7 @@ export function FilterSectionDates({ filters, onUpdate }: FilterSectionDatesProp
                     </div>
                 </div>
             </div>
+            )}
 
             {/* Data de Criação */}
             <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm space-y-3">
