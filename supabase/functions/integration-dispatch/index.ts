@@ -8,7 +8,7 @@ interface OutboundEvent {
     integration_id: string;
     external_id: string | null;
     event_type: 'stage_change' | 'field_update' | 'won' | 'lost' | 'card_created'
-              | 'task_created' | 'task_completed' | 'task_updated';
+              | 'task_created' | 'task_completed' | 'task_updated' | 'link_by_email';
     payload: Record<string, unknown>;
     status: string;
     attempts: number;
@@ -211,6 +211,127 @@ Deno.serve(async (req) => {
             let isCardCreated = false;
 
             switch (event.event_type) {
+
+                // ═══════════════════════════════════════════════════════════════════
+                // LINK BY EMAIL: vincular card de Weddings a um deal EXISTENTE do AC
+                // pelo email do contato. NÃO cria nada no AC. Best-effort: se não
+                // achar contato/deal, marca 'sent' (skipped) sem erro.
+                // ═══════════════════════════════════════════════════════════════════
+                case 'link_by_email': {
+                    // Pipelines AC consideradas Weddings (mesma lista de ww-v2-sync-casamentos)
+                    const AC_WEDDING_PIPELINES = new Set(
+                        ['1', '3', '4', '5', '10', '12', '14', '17', '18', '19', '22', '23', '24', '25', '31']
+                    );
+
+                    const finishLink = async (reason: string, linkedDealId?: string) => {
+                        await supabase.from('integration_outbound_queue').update({
+                            status: 'sent',
+                            external_id: linkedDealId ?? event.external_id,
+                            processed_at: new Date().toISOString(),
+                            processing_log: `link_by_email: ${reason}`
+                        }).eq('id', event.id);
+                        results.push({ id: event.id, status: 'sent' });
+                    };
+
+                    // 1. Carregar card
+                    const { data: lbeCard } = await supabase
+                        .from('cards')
+                        .select('id, produto, external_id, pessoa_principal_id')
+                        .eq('id', event.card_id)
+                        .maybeSingle();
+
+                    if (!lbeCard) { await finishLink('card não encontrado'); continue; }
+                    if (lbeCard.external_id) { await finishLink(`já vinculado (${lbeCard.external_id})`); continue; }
+                    if (lbeCard.produto !== 'WEDDING') { await finishLink(`produto ${lbeCard.produto} fora de escopo`); continue; }
+                    if (!lbeCard.pessoa_principal_id) { await finishLink('sem contato principal'); continue; }
+
+                    // 2. Email do contato
+                    const { data: lbeContact } = await supabase
+                        .from('contatos')
+                        .select('id, email, external_id')
+                        .eq('id', lbeCard.pessoa_principal_id)
+                        .maybeSingle();
+
+                    const lbeEmail = lbeContact?.email?.trim();
+                    if (!lbeEmail) { await finishLink('contato sem email'); continue; }
+
+                    // 3. Buscar contato no AC pelo email
+                    const acContactRes = await fetch(
+                        `${acApiUrl}/api/3/contacts?email=${encodeURIComponent(lbeEmail)}`,
+                        { headers: { 'Api-Token': acApiKey } }
+                    );
+                    if (!acContactRes.ok) {
+                        throw new Error(`link_by_email: AC contacts lookup falhou: ${acContactRes.status} ${await acContactRes.text()}`);
+                    }
+                    const acContactsJson = await acContactRes.json();
+                    const acContact = acContactsJson?.contacts?.[0];
+                    if (!acContact?.id) { await finishLink(`nenhum contato no AC com email ${lbeEmail}`); continue; }
+                    const acContactId = String(acContact.id);
+
+                    // Bônus: linkar contato no ttars se ainda não tem external_id (ajuda dedup inbound)
+                    if (lbeContact && !lbeContact.external_id) {
+                        await supabase.from('contatos')
+                            .update({ external_id: acContactId, external_source: 'active_campaign' })
+                            .eq('id', lbeContact.id);
+                    }
+
+                    // 4. Buscar deals do contato no AC (endpoint de relacionamento)
+                    const acDealsRes = await fetch(
+                        `${acApiUrl}/api/3/contacts/${acContactId}/deals?limit=100`,
+                        { headers: { 'Api-Token': acApiKey } }
+                    );
+                    if (!acDealsRes.ok) {
+                        throw new Error(`link_by_email: AC contact deals falhou: ${acDealsRes.status} ${await acDealsRes.text()}`);
+                    }
+                    const acDealsJson = await acDealsRes.json();
+                    const allDeals: Array<Record<string, unknown>> = acDealsJson?.deals || [];
+
+                    // 5. Filtrar para pipelines de Weddings (isolamento de produto)
+                    const weddingDeals = allDeals.filter(d => AC_WEDDING_PIPELINES.has(String(d.group)));
+                    if (weddingDeals.length === 0) {
+                        await finishLink(`contato AC ${acContactId} sem deal em pipeline Weddings (${allDeals.length} deals no total)`);
+                        continue;
+                    }
+
+                    // 6. Escolher: aberto (status 0) primeiro, depois mais recente (cdate desc)
+                    weddingDeals.sort((a, b) => {
+                        const aOpen = String(a.status) === '0' ? 0 : 1;
+                        const bOpen = String(b.status) === '0' ? 0 : 1;
+                        if (aOpen !== bOpen) return aOpen - bOpen;
+                        const aDate = new Date(String(a.cdate ?? 0)).getTime();
+                        const bDate = new Date(String(b.cdate ?? 0)).getTime();
+                        return bDate - aDate;
+                    });
+                    const chosen = weddingDeals[0];
+                    const chosenDealId = String(chosen.id);
+
+                    // 7. Dedup: não vincular se outro card já aponta pra esse deal
+                    const { data: existingLinks } = await supabase
+                        .from('cards')
+                        .select('id')
+                        .eq('external_id', chosenDealId)
+                        .eq('external_source', 'active_campaign')
+                        .neq('id', lbeCard.id)
+                        .limit(1);
+                    if (existingLinks && existingLinks.length > 0) {
+                        await finishLink(`deal ${chosenDealId} já vinculado ao card ${existingLinks[0].id}`);
+                        continue;
+                    }
+
+                    // 8. Vincular. Setar só external_id/external_source NÃO dispara enqueue de
+                    //    saída (log_outbound_card_event só enfileira em mudança de etapa/status/
+                    //    campos monitorados) — sem risco de loop.
+                    const { error: lbeUpdErr } = await supabase.from('cards')
+                        .update({ external_id: chosenDealId, external_source: 'active_campaign' })
+                        .eq('id', lbeCard.id);
+                    if (lbeUpdErr) {
+                        throw new Error(`link_by_email: falha ao vincular card: ${lbeUpdErr.message}`);
+                    }
+
+                    console.log(`[integration-dispatch] link_by_email: card ${lbeCard.id} → deal ${chosenDealId} (pipeline ${chosen.group}, status ${chosen.status})`);
+                    await finishLink(`vinculado deal ${chosenDealId} (pipeline ${chosen.group}, status ${chosen.status}) via ${lbeEmail}`, chosenDealId);
+                    continue;
+                }
 
                 case 'card_created': {
                     httpMethod = 'POST';
