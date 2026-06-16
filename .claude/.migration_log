@@ -1263,3 +1263,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-06-16T11:59:04Z | supabase/migrations/20260616b_wedding_hotel.sql | applied_to_prod
 2026-06-16T14:03:31Z | supabase/migrations/20260616_ww_ac_link_by_email.sql | applied_to_prod via Management API (token CLI)
 2026-06-16T14:24:47Z | supabase/migrations/20260616c_ww_closer_stage_map_fix.sql | applied_to_prod via Management API (token CLI)
+2026-06-16T16:29:34Z | supabase/migrations/20260616f_ww_sdr_stage_map_fix.sql | applied_to_prod via Management API (token CLI)
