@@ -1390,8 +1390,20 @@ export function useWwAgenda(
 // Reuniões MARCADAS por dia (quando o consultor agendou, não para quando a reunião é).
 // Fonte: updatedTimestamp dos campos 6/18 do Active. Respeita o PERÍODO do filtro (são
 // agendamentos do recorte) + tipo/origem/faixa/convidados/destino/consultor.
+export type WwAgendamentoItem = {
+  dia: string
+  reuniao: 'sdr' | 'closer'
+  casal: string | null
+  ac_deal_id: string
+  contact_id: string | null
+  card_id: string | null
+  tipo: string | null
+  marcou_em: string
+  reuniao_em: string
+}
 export type WwAgendamentos = {
   por_dia: WwAgendaPorDia[]
+  itens: WwAgendamentoItem[]
   total_sdr: number
   total_closer: number
   fonte?: string

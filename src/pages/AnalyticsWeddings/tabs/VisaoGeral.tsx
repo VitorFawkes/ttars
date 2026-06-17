@@ -385,18 +385,21 @@ function AgendamentosPorDia({ filters }: { filters: AppliedFilters }) {
   const end = d1 ? new Date(`${d1}T12:00:00`) : null
   const spanDias = start && end ? Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1 : 0
   const [escala, setEscala] = useState<'dia' | 'semana' | 'mes'>(spanDias > 120 ? 'mes' : spanDias > 45 ? 'semana' : 'dia')
+  const [sel, setSel] = useState<{ titulo: string; reuniao: 'sdr' | 'closer'; dias: string[] } | null>(null)
 
   if (isLoading) return <LoadingSkeleton rows={3} />
   if (!start || !end) return <EmptyState message="Defina um período no filtro." />
 
   const mapa = new Map((data?.por_dia ?? []).map(d => [d.dia, d]))
   const fmtDM = (x: Date) => `${String(x.getDate()).padStart(2, '0')}/${String(x.getMonth() + 1).padStart(2, '0')}`
-  type Row = { label: string; SDR: number; Closer: number; total: number }
+  // `dias` = chaves YYYY-MM-DD que a barra cobre — usado pra filtrar os casais no clique.
+  type Row = { label: string; SDR: number; Closer: number; total: number; dias: string[] }
   let rows: Row[] = []
   if (escala === 'dia') {
     for (const t = new Date(start); t <= end; t.setDate(t.getDate() + 1)) {
-      const v = mapa.get(diaKeyBRT(t))
-      rows.push({ label: fmtDM(t), SDR: v?.sdr ?? 0, Closer: v?.closer ?? 0, total: (v?.sdr ?? 0) + (v?.closer ?? 0) })
+      const key = diaKeyBRT(t)
+      const v = mapa.get(key)
+      rows.push({ label: fmtDM(t), SDR: v?.sdr ?? 0, Closer: v?.closer ?? 0, total: (v?.sdr ?? 0) + (v?.closer ?? 0), dias: [key] })
     }
   } else if (escala === 'semana') {
     const semanas = new Map<string, Row & { ord: string }>()
@@ -405,10 +408,12 @@ function AgendamentosPorDia({ filters }: { filters: AppliedFilters }) {
       const segKey = diaKeyBRT(seg)
       if (!semanas.has(segKey)) {
         const dom = new Date(seg); dom.setDate(dom.getDate() + 6)
-        semanas.set(segKey, { ord: segKey, label: `${fmtDM(seg)}–${fmtDM(dom)}`, SDR: 0, Closer: 0, total: 0 })
+        semanas.set(segKey, { ord: segKey, label: `${fmtDM(seg)}–${fmtDM(dom)}`, SDR: 0, Closer: 0, total: 0, dias: [] })
       }
-      const v = mapa.get(diaKeyBRT(t))
-      if (v) { const s = semanas.get(segKey)!; s.SDR += v.sdr; s.Closer += v.closer; s.total += v.sdr + v.closer }
+      const key = diaKeyBRT(t)
+      const s = semanas.get(segKey)!; s.dias.push(key)
+      const v = mapa.get(key)
+      if (v) { s.SDR += v.sdr; s.Closer += v.closer; s.total += v.sdr + v.closer }
     }
     rows = [...semanas.values()].sort((a, b) => a.ord.localeCompare(b.ord))
   } else {
@@ -419,15 +424,27 @@ function AgendamentosPorDia({ filters }: { filters: AppliedFilters }) {
       const ord = key.slice(0, 7) // YYYY-MM
       if (!meses.has(ord)) {
         const [y, m] = ord.split('-').map(Number)
-        meses.set(ord, { ord, label: `${MES[m - 1]}/${String(y).slice(2)}`, SDR: 0, Closer: 0, total: 0 })
+        meses.set(ord, { ord, label: `${MES[m - 1]}/${String(y).slice(2)}`, SDR: 0, Closer: 0, total: 0, dias: [] })
       }
+      const s = meses.get(ord)!; s.dias.push(key)
       const v = mapa.get(key)
-      if (v) { const s = meses.get(ord)!; s.SDR += v.sdr; s.Closer += v.closer; s.total += v.sdr + v.closer }
+      if (v) { s.SDR += v.sdr; s.Closer += v.closer; s.total += v.sdr + v.closer }
     }
     rows = [...meses.values()].sort((a, b) => a.ord.localeCompare(b.ord))
   }
   const totalSdr = data?.total_sdr ?? 0
   const totalCloser = data?.total_closer ?? 0
+  // Drill: clicar numa coluna seleciona (papel + dias) e a lista de casais é derivada dos itens.
+  const itensTodos = data?.itens ?? []
+  const diasSel = sel ? new Set(sel.dias) : null
+  const selItens = sel && diasSel ? itensTodos.filter(i => i.reuniao === sel.reuniao && diasSel.has(i.dia)) : []
+  const abrir = (reuniao: 'sdr' | 'closer', row?: Row) => {
+    if (!row) return
+    const ds = new Set(row.dias)
+    const has = itensTodos.some(i => i.reuniao === reuniao && ds.has(i.dia))
+    setSel(has ? { titulo: `${reuniao === 'sdr' ? 'SDR · 1ª reunião' : 'Closer · fechamento'} — ${row.label}`, reuniao, dias: row.dias } : null)
+  }
+  const ddmm = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: TZ })
 
   return (
     <div>
@@ -437,7 +454,7 @@ function AgendamentosPorDia({ filters }: { filters: AppliedFilters }) {
         </div>
         <div className="inline-flex items-center gap-1">
           {(['dia', 'semana', 'mes'] as const).map(e => (
-            <button key={e} onClick={() => setEscala(e)} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${escala === e ? 'bg-ww-gold-soft text-ww-gold-ink' : 'text-ww-n500 hover:bg-ww-cream'}`}>
+            <button key={e} onClick={() => { setEscala(e); setSel(null) }} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${escala === e ? 'bg-ww-gold-soft text-ww-gold-ink' : 'text-ww-n500 hover:bg-ww-cream'}`}>
               {e === 'dia' ? 'Por dia' : e === 'semana' ? 'Por semana' : 'Por mês'}
             </button>
           ))}
@@ -446,24 +463,53 @@ function AgendamentosPorDia({ filters }: { filters: AppliedFilters }) {
       {totalSdr + totalCloser === 0 ? (
         <EmptyState message="Nenhuma reunião marcada no período pra esse filtro." />
       ) : (
-        <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={rows} margin={{ top: 18, right: 12, left: 0, bottom: escala === 'dia' ? 20 : 4 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-            <XAxis dataKey="label" stroke="#64748b" fontSize={10} tickLine={false}
-              interval={escala === 'dia' && rows.length > 20 ? Math.floor(rows.length / 15) : 0}
-              angle={escala === 'dia' ? -38 : 0} textAnchor={escala === 'dia' ? 'end' : 'middle'} height={escala === 'dia' ? 40 : 24} />
-            <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
-            <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
-            <Bar dataKey="SDR" stackId="a" name="SDR" fill={COR_SDR} maxBarSize={36}>
-              <LabelList dataKey="SDR" content={labelSegmento} />
-            </Bar>
-            <Bar dataKey="Closer" stackId="a" name="Closer" fill={COR_CLOSER} radius={[3, 3, 0, 0]} maxBarSize={36}>
-              <LabelList dataKey="Closer" content={labelSegmento} />
-              <LabelList content={labelTotalTopo(rows)} />
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        <>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={rows} margin={{ top: 18, right: 12, left: 0, bottom: escala === 'dia' ? 20 : 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+              <XAxis dataKey="label" stroke="#64748b" fontSize={10} tickLine={false}
+                interval={escala === 'dia' && rows.length > 20 ? Math.floor(rows.length / 15) : 0}
+                angle={escala === 'dia' ? -38 : 0} textAnchor={escala === 'dia' ? 'end' : 'middle'} height={escala === 'dia' ? 40 : 24} />
+              <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+              <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Bar dataKey="SDR" stackId="a" name="SDR" fill={COR_SDR} maxBarSize={36} cursor="pointer"
+                onClick={(d) => abrir('sdr', (d as { payload?: Row })?.payload)}>
+                <LabelList dataKey="SDR" content={labelSegmento} />
+              </Bar>
+              <Bar dataKey="Closer" stackId="a" name="Closer" fill={COR_CLOSER} radius={[3, 3, 0, 0]} maxBarSize={36} cursor="pointer"
+                onClick={(d) => abrir('closer', (d as { payload?: Row })?.payload)}>
+                <LabelList dataKey="Closer" content={labelSegmento} />
+                <LabelList content={labelTotalTopo(rows)} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+          <p className="text-[11px] text-ww-n400 mt-1 text-center">Clique numa barra (SDR ou Closer) pra ver os casais e abrir no Active.</p>
+
+          {sel && selItens.length > 0 && (
+            <div className="mt-3 rounded-xl border border-ww-sand bg-white overflow-hidden">
+              <div className="flex items-center justify-between px-3 py-2 bg-ww-cream/40 border-b border-ww-sand">
+                <span className="text-xs font-semibold text-slate-700">{sel.titulo} · {selItens.length} {selItens.length === 1 ? 'casal' : 'casais'}</span>
+                <button onClick={() => setSel(null)} className="text-[11px] text-ww-n500 hover:text-ww-n700">fechar</button>
+              </div>
+              <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
+                {selItens.map(it => {
+                  const nome = (it.casal ?? 'Casal sem nome').replace(/^(DW|EW|Elopement)\s*\|\s*/i, '')
+                  return (
+                    <div key={`${it.ac_deal_id}-${it.reuniao}`} className="flex items-center gap-2 px-3 py-1.5 hover:bg-ww-cream/30 transition-colors">
+                      <ReuniaoChip reuniao={it.reuniao} />
+                      {it.card_id
+                        ? <Link to={`/cards/${it.card_id}`} className="flex-1 min-w-0 truncate text-sm text-slate-800 hover:text-ww-gold-ink hover:underline" title={it.casal ?? ''}>{nome}</Link>
+                        : <span className="flex-1 min-w-0 truncate text-sm text-slate-800" title={it.casal ?? ''}>{nome}</span>}
+                      <span className="hidden sm:inline shrink-0 text-[11px] text-ww-n500 tabular-nums">marcou {ddmm(it.marcou_em)} · reunião {ddmm(it.reuniao_em)}</span>
+                      <OpenInACButton dealId={it.ac_deal_id} contactName={it.casal} />
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
