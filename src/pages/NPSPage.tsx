@@ -301,8 +301,15 @@ function NPSResponseCard({ row, cards }: { row: NPSResponseRow; cards: ContactCa
                     <div className="flex items-center justify-between gap-3 mt-3 text-xs text-slate-500">
                         <div className="flex items-center gap-3 min-w-0">
                             <span>{formatDate(row.responded_at)}</span>
-                            {row.channel && row.channel !== 'unknown' && (
-                                <span className="capitalize">via {row.channel}</span>
+                            {row.channel === 'form' ? (
+                                <span className="flex items-center gap-1">
+                                    via
+                                    <img src="/icons/looq.png" alt="Looq" className="h-3.5 w-auto" />
+                                </span>
+                            ) : (
+                                row.channel && row.channel !== 'unknown' && (
+                                    <span className="capitalize">via {row.channel}</span>
+                                )
                             )}
                         </div>
                         {canExpand && (
