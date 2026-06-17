@@ -69,7 +69,7 @@ const navigation: {
   },
   { name: "Presentes", href: "/presentes", icon: Gift, roles: ["pos_venda"] },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
-  { name: "NPS", href: "/nps", icon: Smile, wip: true },
+  { name: "NPS", href: "/nps", icon: Smile },
   {
     name: "SDR Sofia",
     href: "/weddings/sdr",
