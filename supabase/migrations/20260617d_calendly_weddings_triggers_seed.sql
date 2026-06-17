@@ -10,9 +10,10 @@
 --    do evento) em cada event_config.
 --
 -- Org Weddings: b0000000-0000-0000-0000-000000000002 · pipeline WEDDING f4611f84-…
--- São triggers DATA-ONLY: criam card + gravam data por-papel + criam tarefa de
--- reunião, tudo em SQL (process_cadence_entry_on_calendly_invitee). NÃO disparam
+-- São triggers DATA-ONLY: criam/casam card + gravam data/link por papel, tudo em
+-- SQL (process_cadence_entry_on_calendly_invitee). NÃO criam tarefa nem disparam
 -- cadência/mensagem → event_config.skip_cadence_queue=true (pula o cadence-engine).
+-- A tarefa de reunião é criada por AUTOMAÇÃO que o usuário monta no construtor.
 -- action_type='notify_internal' é só um valor que passa no CHECK de action_type
 -- (não há ação de fato, porque skip_cadence_queue impede o enfileiramento).
 -- target_template_id=NULL e action_config='{}' (Weddings não tem cadence_templates;
@@ -54,8 +55,6 @@ BEGIN
               'organizer_email',         'contato@welcomeweddings.com.br',
               'meeting_date_target',     'ww_sdr_data_reuniao',
               'meeting_link_target',     'ww_sdr_link_reuniao',
-              'create_meeting_task',     true,
-              'meeting_task_title',      'Reunião SDR (Calendly)',
               'create_card_if_missing',  true,
               'create_card_pipeline_id', v_pipeline::text,
               'create_card_stage_id',    v_sdr_stage::text,
@@ -78,8 +77,6 @@ BEGIN
               'organizer_email',         'weddingplanner@welcomeweddings.com.br',
               'meeting_date_target',     'ww_closer_data_reuniao',
               'meeting_link_target',     'ww_closer_link_reuniao',
-              'create_meeting_task',     true,
-              'meeting_task_title',      'Reunião Closer (Calendly)',
               'create_card_if_missing',  true,
               'create_card_pipeline_id', v_pipeline::text,
               'create_card_stage_id',    v_closer_stage::text,
@@ -89,6 +86,15 @@ BEGIN
               'skip_cadence_queue',      true
             ));
   END IF;
+
+  -- Remove a criação automática de tarefa: a tarefa de reunião deve vir de uma
+  -- AUTOMAÇÃO que o usuário monta no construtor (igual ao Trips), não da ingestão.
+  -- Idempotente — limpa rows já semeadas com as flags antigas.
+  UPDATE cadence_event_triggers
+  SET event_config = event_config - 'create_meeting_task' - 'meeting_task_title'
+  WHERE org_id = v_org
+    AND event_type = 'calendly_invitee_created'
+    AND (event_config ? 'create_meeting_task' OR event_config ? 'meeting_task_title');
 END
 $seed$;
 

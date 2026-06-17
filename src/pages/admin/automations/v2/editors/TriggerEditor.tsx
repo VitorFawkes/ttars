@@ -394,7 +394,6 @@ export const TriggerEditor: React.FC<TriggerEditorProps> = ({ type, config, onCh
                         meeting_date_target: 'ww_sdr_data_reuniao',
                         meeting_link_target: 'ww_sdr_link_reuniao',
                         owner_role: 'sdr',
-                        create_meeting_task: true,
                     },
                 },
                 ww_closer: {
@@ -404,7 +403,6 @@ export const TriggerEditor: React.FC<TriggerEditorProps> = ({ type, config, onCh
                         meeting_date_target: 'ww_closer_data_reuniao',
                         meeting_link_target: 'ww_closer_link_reuniao',
                         owner_role: 'vendas',
-                        create_meeting_task: true,
                     },
                 },
             }
@@ -425,7 +423,7 @@ export const TriggerEditor: React.FC<TriggerEditorProps> = ({ type, config, onCh
                                 value={currentDirection}
                                 onChange={(v) => {
                                     if (v === 'custom') {
-                                        set({ organizer_email: null, meeting_date_target: null, meeting_link_target: null, create_meeting_task: false })
+                                        set({ organizer_email: null, meeting_date_target: null, meeting_link_target: null })
                                     } else {
                                         set(WW_DIRECTIONS[v].cfg)
                                     }
@@ -438,7 +436,8 @@ export const TriggerEditor: React.FC<TriggerEditorProps> = ({ type, config, onCh
                             />
                             <p className="text-xs text-slate-400">
                                 Escolhe qual agenda do Calendly dispara este fluxo. A data e o link da reunião vão
-                                pro campo do papel certo (SDR ou Closer), e a reunião vira tarefa no card.
+                                pro campo do papel certo (SDR ou Closer). Pra criar a reunião como tarefa, adicione
+                                a ação "Criar tarefa" abaixo (com "usar data da reunião como vencimento").
                             </p>
                         </div>
                     )}
