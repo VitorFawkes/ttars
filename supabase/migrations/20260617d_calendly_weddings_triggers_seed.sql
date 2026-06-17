@@ -3,8 +3,8 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 -- ⚠️ ANTES DE PROMOVER: substituir os placeholders dos e-mails de organizer pelos
 --    e-mails Calendly reais (= event_memberships[0].user_email no payload):
---      __SDR_ORGANIZER_EMAIL__     → e-mail do link do SDR
---      __CLOSER_ORGANIZER_EMAIL__  → e-mail do link do Closer
+--      contato@welcomeweddings.com.br     → e-mail do link do SDR
+--      weddingplanner@welcomeweddings.com.br  → e-mail do link do Closer
 --    Se os DOIS links forem do MESMO usuário Calendly (mesmo organizer), trocar o
 --    discriminador 'organizer_email' por 'event_name_pattern' (substring do nome
 --    do evento) em cada event_config.
@@ -51,7 +51,7 @@ BEGIN
     VALUES (v_org, 'Calendly Weddings — SDR', 'calendly_invitee_created', TRUE,
             'notify_internal', '{}'::jsonb, NULL, 0,
             jsonb_build_object(
-              'organizer_email',         '__SDR_ORGANIZER_EMAIL__',
+              'organizer_email',         'contato@welcomeweddings.com.br',
               'meeting_date_target',     'ww_sdr_data_reuniao',
               'meeting_link_target',     'ww_sdr_link_reuniao',
               'create_meeting_task',     true,
@@ -75,7 +75,7 @@ BEGIN
     VALUES (v_org, 'Calendly Weddings — Closer', 'calendly_invitee_created', TRUE,
             'notify_internal', '{}'::jsonb, NULL, 0,
             jsonb_build_object(
-              'organizer_email',         '__CLOSER_ORGANIZER_EMAIL__',
+              'organizer_email',         'weddingplanner@welcomeweddings.com.br',
               'meeting_date_target',     'ww_closer_data_reuniao',
               'meeting_link_target',     'ww_closer_link_reuniao',
               'create_meeting_task',     true,
