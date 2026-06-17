@@ -115,6 +115,7 @@ export default {
                 mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
                 'ww-display': ['Nunito', 'system-ui', 'sans-serif'],
                 'ww-serif': ['"Roboto Serif"', '"Playfair Display"', 'Georgia', 'serif'],
+                coolvetica: ['Coolvetica', 'system-ui', 'sans-serif'],
             },
             boxShadow: {
                 'soft': '0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.02)',
@@ -125,6 +126,7 @@ export default {
             },
             transitionTimingFunction: {
                 'ww-soft': 'cubic-bezier(0.32, 0.72, 0, 1)',
+                'out-strong': 'cubic-bezier(0.23, 1, 0.32, 1)',
             }
         }
     },
