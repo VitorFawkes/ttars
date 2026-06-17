@@ -383,11 +383,65 @@ export const TriggerEditor: React.FC<TriggerEditorProps> = ({ type, config, onCh
 
         case 'trigger.calendly_invitee_created': {
             const createIfMissing = !!config.create_card_if_missing
+            // Weddings trabalha com 2 agendas Calendly distintas (SDR e Closer). O
+            // "direcionamento" só muda o roteamento (organizer + campos de data/link
+            // por papel); os dados/variáveis do gatilho são os mesmos.
+            const WW_DIRECTIONS: Record<string, { label: string; cfg: Record<string, unknown> }> = {
+                ww_sdr: {
+                    label: 'SDR — Welcome Weddings',
+                    cfg: {
+                        organizer_email: 'contato@welcomeweddings.com.br',
+                        meeting_date_target: 'ww_sdr_data_reuniao',
+                        meeting_link_target: 'ww_sdr_link_reuniao',
+                        owner_role: 'sdr',
+                        create_meeting_task: true,
+                    },
+                },
+                ww_closer: {
+                    label: 'Closer — Welcome Weddings',
+                    cfg: {
+                        organizer_email: 'weddingplanner@welcomeweddings.com.br',
+                        meeting_date_target: 'ww_closer_data_reuniao',
+                        meeting_link_target: 'ww_closer_link_reuniao',
+                        owner_role: 'vendas',
+                        create_meeting_task: true,
+                    },
+                },
+            }
+            const currentDirection =
+                config.organizer_email === 'contato@welcomeweddings.com.br' ? 'ww_sdr'
+                : config.organizer_email === 'weddingplanner@welcomeweddings.com.br' ? 'ww_closer'
+                : 'custom'
             return (
                 <div className="space-y-4">
                     <p className="text-xs text-slate-500">
                         Dispara quando uma reunião é agendada no Calendly. Os campos de filtro são opcionais.
                     </p>
+
+                    {product === 'WEDDING' && (
+                        <div className="space-y-2 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
+                            <Label className="text-xs font-semibold">Agenda</Label>
+                            <CustomSelect
+                                value={currentDirection}
+                                onChange={(v) => {
+                                    if (v === 'custom') {
+                                        set({ organizer_email: null, meeting_date_target: null, meeting_link_target: null, create_meeting_task: false })
+                                    } else {
+                                        set(WW_DIRECTIONS[v].cfg)
+                                    }
+                                }}
+                                options={[
+                                    { value: 'ww_sdr', label: WW_DIRECTIONS.ww_sdr.label },
+                                    { value: 'ww_closer', label: WW_DIRECTIONS.ww_closer.label },
+                                    { value: 'custom', label: 'Outra (personalizar)' },
+                                ]}
+                            />
+                            <p className="text-xs text-slate-400">
+                                Escolhe qual agenda do Calendly dispara este fluxo. A data e o link da reunião vão
+                                pro campo do papel certo (SDR ou Closer), e a reunião vira tarefa no card.
+                            </p>
+                        </div>
+                    )}
 
                     <details className="bg-indigo-50 border border-indigo-200 rounded-md px-3 py-2">
                         <summary className="text-xs font-medium text-indigo-900 cursor-pointer">
@@ -409,16 +463,18 @@ export const TriggerEditor: React.FC<TriggerEditorProps> = ({ type, config, onCh
                         </p>
                     </details>
 
-                    <div className="space-y-2">
-                        <Label className="text-xs">Organizador (email — opcional)</Label>
-                        <Input
-                            type="email"
-                            placeholder="ex: ana.carolina@welcometrips.com.br"
-                            value={(config.organizer_email as string) || ''}
-                            onChange={(e) => set({ organizer_email: e.target.value || null })}
-                        />
-                        <p className="text-xs text-slate-400">Só dispara se o organizador da reunião for esse email.</p>
-                    </div>
+                    {(product !== 'WEDDING' || currentDirection === 'custom') && (
+                        <div className="space-y-2">
+                            <Label className="text-xs">Organizador (email — opcional)</Label>
+                            <Input
+                                type="email"
+                                placeholder="ex: ana.carolina@welcometrips.com.br"
+                                value={(config.organizer_email as string) || ''}
+                                onChange={(e) => set({ organizer_email: e.target.value || null })}
+                            />
+                            <p className="text-xs text-slate-400">Só dispara se o organizador da reunião for esse email.</p>
+                        </div>
+                    )}
 
                     <div className="space-y-2">
                         <Label className="text-xs">Nome do evento contém (opcional)</Label>

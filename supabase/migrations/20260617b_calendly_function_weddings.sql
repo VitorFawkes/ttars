@@ -34,6 +34,11 @@
 --      ser "data-only" (card+data+tarefa em SQL, sem enfileirar no cadence-engine).
 --      Necessário pros triggers Weddings que não têm template (CHECK
 --      start_cadence_has_target) nem ação de mensagem.
+--   7) REUSO DE CARD ENTRE GATILHOS: vários gatilhos podem casar a MESMA reserva
+--      (ingestão data-only + automação que o usuário monta por direção). Ordenado
+--      pra ingestão vir 1º; o 1º cria/casa o card e grava a data, os seguintes reusam
+--      (sem regravar) só pra rodar a ação. Sem isso, automação de lead NOVO não
+--      acharia o card (criado na mesma transação) e não rodaria.
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- ─── sync trigger (sempre atualiza card casado) — curto-circuito p/ WEDDING ──
@@ -97,13 +102,21 @@ DECLARE
   v_date_key             TEXT;
   v_link_key             TEXT;
   v_task_title           TEXT;
+  v_event_card_id        UUID;
 BEGIN
   IF NEW.event_type <> 'invitee.created' THEN RETURN NEW; END IF;
+
+  v_event_card_id := NULL;
 
   FOR v_trigger IN
     SELECT * FROM cadence_event_triggers
     WHERE event_type = 'calendly_invitee_created' AND is_active = TRUE
       AND (NEW.source_org_id IS NULL OR org_id = NEW.source_org_id)   -- delta #1: fence por org
+    -- delta #7: gatilho de ingestão (tem meeting_date_target / cria card) primeiro,
+    -- pra ele resolver/criar o card e gravar a data antes das automações reusarem.
+    ORDER BY (event_config ? 'meeting_date_target') DESC,
+             (coalesce((event_config->>'create_card_if_missing')::BOOLEAN, FALSE)) DESC,
+             priority ASC
   LOOP
     v_organizer_filter   := v_trigger.event_config->>'organizer_email';
     v_event_name_pattern := v_trigger.event_config->>'event_name_pattern';
@@ -145,14 +158,21 @@ BEGIN
       LIMIT 1;
     END IF;
 
-    -- delta #3: só atualiza card casado se for da MESMA org do trigger; senão cria
+    -- delta #3: só atualiza card casado se for da MESMA org do trigger; senão cria.
+    -- delta #7: vários gatilhos podem casar a MESMA reserva (ingestão data-only +
+    -- automação do usuário). O 1º resolve/cria o card e grava a data; os seguintes
+    -- REUSAM o card (sem regravar a data) só pra rodar a própria ação.
     IF NEW.card_id IS NOT NULL AND NEW.org_id IS NOT DISTINCT FROM v_trigger.org_id THEN
       v_resolved_card_id := NEW.card_id;
-      UPDATE cards
-      SET produto_data     = coalesce(produto_data, '{}'::jsonb) || v_extra_data,
-          briefing_inicial = coalesce(briefing_inicial, '{}'::jsonb) || v_extra_data,
-          updated_at = NOW()
-      WHERE id = v_resolved_card_id;
+      IF v_event_card_id IS NULL THEN
+        UPDATE cards
+        SET produto_data     = coalesce(produto_data, '{}'::jsonb) || v_extra_data,
+            briefing_inicial = coalesce(briefing_inicial, '{}'::jsonb) || v_extra_data,
+            updated_at = NOW()
+        WHERE id = v_resolved_card_id;
+      END IF;
+    ELSIF v_event_card_id IS NOT NULL THEN
+      v_resolved_card_id := v_event_card_id;   -- card já criado/casado por gatilho anterior nesta reserva
     ELSIF coalesce((v_trigger.event_config->>'create_card_if_missing')::BOOLEAN, FALSE) THEN
       v_pipeline_id := nullif(v_trigger.event_config->>'create_card_pipeline_id', '')::UUID;
       v_stage_id    := nullif(v_trigger.event_config->>'create_card_stage_id', '')::UUID;
@@ -210,6 +230,9 @@ BEGIN
     ELSE
       CONTINUE;
     END IF;
+
+    -- memo do card desta reserva pro 1º gatilho criar/casar e os próximos reusarem
+    IF v_event_card_id IS NULL THEN v_event_card_id := v_resolved_card_id; END IF;
 
     -- delta #4: tarefa de reunião (opt-in) — espelha wsdr_book_meeting
     IF coalesce((v_trigger.event_config->>'create_meeting_task')::BOOLEAN, FALSE)
