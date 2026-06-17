@@ -1283,3 +1283,6 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-16T14:03:31Z | supabase/migrations/20260616_ww_ac_link_by_email.sql | applied_to_prod via Management API (token CLI)
 2026-06-16T14:24:47Z | supabase/migrations/20260616c_ww_closer_stage_map_fix.sql | applied_to_prod via Management API (token CLI)
 2026-06-16T16:29:34Z | supabase/migrations/20260616f_ww_sdr_stage_map_fix.sql | applied_to_prod via Management API (token CLI)
+2026-06-16T23:19:42Z | supabase/migrations/20260616m_ww_cache_agendado_em.sql | applied_to_prod
+2026-06-16T23:26:56Z | supabase/migrations/20260616n_ww_agendamentos_por_dia.sql | applied_to_prod
+2026-06-17T12:35:00Z | supabase/migrations/20260617a_ww_agendamentos_floor_junho.sql | applied_to_prod
