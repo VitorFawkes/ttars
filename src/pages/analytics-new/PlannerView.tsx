@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Briefcase, Trophy, ListX, Clock, Loader2, Layers } from 'lucide-react'
+import { Briefcase, Trophy, ListX, Clock, Loader2 } from 'lucide-react'
 import PlannerProfileDrawer from '@/components/analytics/PlannerProfileDrawer'
 import PlannerForecastChart from '@/components/analytics/PlannerForecastChart'
 import PlannerStageTimeHeatmap from '@/components/analytics/PlannerStageTimeHeatmap'
@@ -14,9 +13,8 @@ import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
 import { useResumoOverview, useResumoOverviewPrevious } from '@/hooks/analytics/useResumoOverview'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { useFilterProfilesWithRole } from '@/hooks/analytics/useFilterOptions'
-import { supabase } from '@/lib/supabase'
 import { formatCurrency } from '@/utils/whatsappFormatters'
-import { getRankTier, rankBadgeClass, rankTextClass, rankTierLabel } from '@/utils/rankColor'
+import { getRankTier, rankBadgeClass, rankTierLabel } from '@/utils/rankColor'
 import WidgetCard from './WidgetCard'
 import SimpleFilterBar from './SimpleFilterBar'
 import { FILTER_CONTRACTS } from '@/hooks/analytics/filterContracts'
@@ -35,35 +33,6 @@ const ORIGEM_LABELS: Record<string, string> = {
   sorrento: 'Sorrento',
   weddings: 'Weddings (cruzado)',
   sem_origem: 'Sem origem',
-}
-
-interface PlannerByOrigemRow {
-  planner_id: string
-  planner_nome: string
-  origem: string
-  leads: number
-  ganhos: number
-  conversao_pct: number
-  receita_total: number
-}
-
-function usePlannerByOrigem() {
-  const { dateRange, product, ownerIds } = useAnalyticsFilters()
-  return useQuery({
-    queryKey: ['analytics', 'planner_by_origem', dateRange.start, dateRange.end, product, ownerIds],
-    queryFn: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)('analytics_planner_by_origem', {
-        p_date_start: dateRange.start,
-        p_date_end: dateRange.end,
-        p_product: product,
-        p_owner_ids: ownerIds.length > 0 ? ownerIds : undefined,
-      })
-      if (error) throw error
-      return (data as PlannerByOrigemRow[] | null) ?? []
-    },
-    staleTime: 5 * 60 * 1000,
-  })
 }
 
 function pct(v: number): string {
@@ -87,17 +56,17 @@ function ConversionBadge({ rate, sample }: { rate: number; sample: readonly numb
 
 export default function PlannerView() {
   const [funnelLens, setFunnelLens] = useState<FunnelLens>('now')
+  // Lente temporal global (safra↔atividade). Controla o Ranking e a tabela de origem.
+  const { origins, setOrigins, dateRef } = useAnalyticsFilters()
   const funnel = useFunnelStagesLens(funnelLens)
   const velocity = useFunnelVelocity()
   const lossReasons = useLossReasons()
-  const leaderboard = useTeamLeaderboard()
+  const leaderboard = useTeamLeaderboard(dateRef)
   const ticketVar = useTeamTicketVariation()
   const resumo = useResumoOverview()
   const resumoPrev = useResumoOverviewPrevious()
-  const plannerByOrigem = usePlannerByOrigem()
   const profilesByRole = useFilterProfilesWithRole()
   const drillDown = useDrillDownStore()
-  const { origins, setOrigins } = useAnalyticsFilters()
 
   // IDs de quem é Planner de verdade (role='vendas') no workspace
   const plannerIds = useMemo(() => {
@@ -157,38 +126,6 @@ export default function PlannerView() {
         .map(r => Math.round((r.ganhos / r.leads) * 100)),
     [resumo.data?.por_origem],
   )
-  const cellConvSample = useMemo(
-    () =>
-      (plannerByOrigem.data ?? [])
-        .filter(r => plannerIds.has(r.planner_id) && r.leads > 0)
-        .map(r => r.conversao_pct ?? 0),
-    [plannerByOrigem.data, plannerIds],
-  )
-
-  // Pivot Origem × Planner — só planners de verdade
-  const plannerOrigemPivot = useMemo(() => {
-    const rows = (plannerByOrigem.data ?? []).filter(r => plannerIds.has(r.planner_id))
-    const origensSet = new Set<string>()
-    const byPlanner = new Map<string, { nome: string; origens: Record<string, PlannerByOrigemRow>; totalLeads: number; totalGanhos: number }>()
-    for (const r of rows) {
-      origensSet.add(r.origem)
-      const entry = byPlanner.get(r.planner_id) ?? { nome: r.planner_nome, origens: {}, totalLeads: 0, totalGanhos: 0 }
-      entry.origens[r.origem] = r
-      entry.totalLeads += r.leads
-      entry.totalGanhos += r.ganhos
-      byPlanner.set(r.planner_id, entry)
-    }
-    const origensList = Array.from(origensSet).sort((a, b) => {
-      const aTotal = rows.filter(r => r.origem === a).reduce((s, r) => s + r.leads, 0)
-      const bTotal = rows.filter(r => r.origem === b).reduce((s, r) => s + r.leads, 0)
-      return bTotal - aTotal
-    })
-    const plannersList = Array.from(byPlanner.entries())
-      .map(([id, v]) => ({ id, ...v }))
-      .sort((a, b) => b.totalLeads - a.totalLeads)
-    return { origensList, plannersList }
-  }, [plannerByOrigem.data, plannerIds])
-
   const openCardsInStage = (stageId: string, stageName: string) => {
     drillDown.open({
       label: `Cards na etapa: ${stageName}`,
@@ -231,15 +168,6 @@ export default function PlannerView() {
 
   const openLeadsByOrigin = (origem: string) => {
     setOrigins([origem])
-  }
-
-  const openPlannerOrigem = (ownerId: string, ownerName: string, origem: string) => {
-    setOrigins([origem])
-    drillDown.open({
-      label: `${ownerName} — ${ORIGEM_LABELS[origem] ?? origem}`,
-      drillSource: 'current_stage',
-      drillOwnerId: ownerId,
-    })
   }
 
   return (
@@ -610,93 +538,10 @@ export default function PlannerView() {
         )}
       </WidgetCard>
 
-      {/* Origem × Planner */}
-      <WidgetCard
-        title="Origem dos leads por Planner"
-        subtitle="Se diferença de conversão é skill ou mix de canal. Clique numa célula pra ver os cards do cruzamento."
-        action={<Layers className="w-4 h-4 text-slate-300" />}
-      >
-        {plannerByOrigem.isLoading ? (
-          <div className="h-40 flex items-center justify-center text-slate-400">
-            <Loader2 className="w-5 h-5 animate-spin" />
-          </div>
-        ) : plannerOrigemPivot.plannersList.length === 0 ? (
-          <div className="h-32 flex items-center justify-center text-sm text-slate-400">
-            Nenhum lead com Planner atribuído no período
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 text-xs text-slate-500 uppercase tracking-wider">
-                  <th className="text-left py-2 font-medium">Planner</th>
-                  <th className="text-right py-2 font-medium">Total</th>
-                  {plannerOrigemPivot.origensList.map(o => (
-                    <th key={o} className="text-right py-2 font-medium" title={o}>
-                      {ORIGEM_LABELS[o] ?? o}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {plannerOrigemPivot.plannersList.map(p => {
-                  const totalConv = p.totalLeads > 0 ? (p.totalGanhos / p.totalLeads) * 100 : 0
-                  return (
-                    <tr key={p.id} className="border-b border-slate-50">
-                      <td className="py-2.5 text-slate-900 font-medium">
-                        <button
-                          onClick={() => openCardsByOwner(p.id, p.nome)}
-                          className="hover:text-indigo-700 hover:underline"
-                        >
-                          {p.nome}
-                        </button>
-                      </td>
-                      <td className="py-2.5 text-right text-slate-700 tabular-nums">
-                        {p.totalGanhos}/{p.totalLeads}
-                        <span className="ml-1 text-xs text-slate-400">({totalConv.toFixed(0)}%)</span>
-                      </td>
-                      {plannerOrigemPivot.origensList.map(o => {
-                        const cell = p.origens[o]
-                        if (!cell || cell.leads === 0) {
-                          return <td key={o} className="py-2.5 text-right text-slate-300">—</td>
-                        }
-                        return (
-                          <td key={o} className="py-2.5 text-right tabular-nums">
-                            <button
-                              onClick={() => openPlannerOrigem(p.id, p.nome, o)}
-                              className="hover:bg-indigo-50 rounded px-1 py-0.5"
-                              title="Ver cards desse cruzamento"
-                            >
-                              <span className="text-slate-700">{cell.ganhos}/{cell.leads}</span>
-                              <span
-                                className={cn(
-                                  'ml-1 text-xs',
-                                  rankTextClass(getRankTier(cell.conversao_pct ?? 0, cellConvSample, 'higher_is_better')),
-                                )}
-                                title={rankTierLabel(getRankTier(cell.conversao_pct ?? 0, cellConvSample, 'higher_is_better'))}
-                              >
-                                ({cell.conversao_pct?.toFixed(0) ?? 0}%)
-                              </span>
-                            </button>
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-            <p className="text-xs text-slate-400 mt-3">
-              Formato: <span className="font-medium">ganhos/leads (% sucesso)</span>. Clique no nome pra ver tudo dele, ou numa célula pra ver o cruzamento.
-            </p>
-          </div>
-        )}
-      </WidgetCard>
-
       {/* Origem dos leads (linha clicável vira filtro global) */}
       <WidgetCard
         title="De onde vieram os leads no período"
-        subtitle="Clique numa linha pra filtrar a página inteira por aquela origem."
+        subtitle="Leads contados pela data de entrada. Ganhos e % seguem a lente lá em cima (Por safra = quanto a turma que entrou já fechou; Por atividade = o que fechou dentro do período). Clique numa linha pra filtrar a página inteira por aquela origem."
       >
         {resumo.isLoading ? (
           <div className="h-32 bg-slate-50 rounded-lg animate-pulse" />
