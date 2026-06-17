@@ -228,7 +228,10 @@ BEGIN
         BEGIN
           INSERT INTO tarefas (card_id, org_id, tipo, titulo, responsavel_id, data_vencimento, status, metadata)
           VALUES (v_resolved_card_id, v_resolved_org_id, 'reuniao', v_task_title,
-                  v_owner_user_id, NEW.event_start_time, 'agendada',
+                  -- organizer pode ser caixa compartilhada (não-usuário); cai pro dono do card
+                  -- pra a reunião aparecer na agenda de alguém
+                  coalesce(v_owner_user_id, (SELECT dono_atual_id FROM cards WHERE id = v_resolved_card_id)),
+                  NEW.event_start_time, 'agendada',
                   jsonb_build_object(
                     'source', 'calendly',
                     'role', v_owner_role,
