@@ -24,10 +24,8 @@
 --      um agendamento de Weddings pode casar com um card de TRIPS (card mais novo do
 --      contato). Só atualizamos o card casado se ele for da MESMA org do trigger;
 --      senão caímos no create (novo card no produto certo, reaproveitando o contato).
---   4) TAREFA DE REUNIÃO: event_config.create_meeting_task=true cria tarefa
---      tipo='reuniao' status='agendada' (espelha wsdr_book_meeting). Idempotente por
---      calendly_event_uuid; tarefas_unique_meeting_slot (23505) tratado como
---      duplicata. Não ecoa pro AC (app.update_source='integration' local).
+--   4) (removido) A ingestão NÃO cria tarefa de reunião. A tarefa vem de AUTOMAÇÃO
+--      que o usuário monta no construtor (ação "criar tarefa"), igual ao Trips.
 --   5) sync_card_meeting_data_from_calendly: curto-circuito p/ WEDDING (a data
 --      por-papel é dona exclusiva; não sobrescrever com data_reuniao genérico).
 --   6) SKIP DA FILA DE CADÊNCIA: event_config.skip_cadence_queue=true faz o trigger
@@ -101,7 +99,6 @@ DECLARE
   v_extra_data           JSONB;
   v_date_key             TEXT;
   v_link_key             TEXT;
-  v_task_title           TEXT;
   v_event_card_id        UUID;
 BEGIN
   IF NEW.event_type <> 'invitee.created' THEN RETURN NEW; END IF;
@@ -234,41 +231,10 @@ BEGIN
     -- memo do card desta reserva pro 1º gatilho criar/casar e os próximos reusarem
     IF v_event_card_id IS NULL THEN v_event_card_id := v_resolved_card_id; END IF;
 
-    -- delta #4: tarefa de reunião (opt-in) — espelha wsdr_book_meeting
-    IF coalesce((v_trigger.event_config->>'create_meeting_task')::BOOLEAN, FALSE)
-       AND v_resolved_card_id IS NOT NULL
-       AND NEW.event_start_time IS NOT NULL THEN
-      IF NOT EXISTS (
-        SELECT 1 FROM tarefas
-        WHERE card_id = v_resolved_card_id
-          AND metadata->>'calendly_event_uuid' = NEW.event_uuid
-          AND deleted_at IS NULL
-      ) THEN
-        v_task_title := coalesce(nullif(v_trigger.event_config->>'meeting_task_title', ''),
-                                 NEW.event_name, 'Reunião (Calendly)');
-        -- Calendly é integração inbound: não ecoar a tarefa de volta pro AC.
-        PERFORM set_config('app.update_source', 'integration', TRUE);
-        BEGIN
-          INSERT INTO tarefas (card_id, org_id, tipo, titulo, responsavel_id, data_vencimento, status, metadata)
-          VALUES (v_resolved_card_id, v_resolved_org_id, 'reuniao', v_task_title,
-                  -- organizer pode ser caixa compartilhada (não-usuário); cai pro dono do card
-                  -- pra a reunião aparecer na agenda de alguém
-                  coalesce(v_owner_user_id, (SELECT dono_atual_id FROM cards WHERE id = v_resolved_card_id)),
-                  NEW.event_start_time, 'agendada',
-                  jsonb_build_object(
-                    'source', 'calendly',
-                    'role', v_owner_role,
-                    'calendly_event_uuid', NEW.event_uuid,
-                    'calendly_event_name', NEW.event_name,
-                    'meeting_join_url', NEW.meeting_join_url
-                  ));
-        EXCEPTION WHEN unique_violation THEN
-          -- já existe reunião ativa nesse (card, horário) — ex.: sincronizada do AC.
-          -- tarefas_unique_meeting_slot. Trata como duplicata e segue.
-          NULL;
-        END;
-      END IF;
-    END IF;
+    -- NB: a INGESTÃO só cria/casa o card e grava data/link por papel. A TAREFA de
+    -- reunião (e qualquer mensagem) é responsabilidade de AUTOMAÇÃO configurada pelo
+    -- usuário no construtor (ação "criar tarefa" com "usar data da reunião como
+    -- vencimento"), igual ao modelo do Trips. Por isso NÃO criamos tarefa aqui.
 
     -- delta #6: triggers "data-only" (ex.: Calendly Weddings) já fizeram tudo que
     -- precisavam em SQL (card + data por-papel + tarefa de reunião). Não têm ação
