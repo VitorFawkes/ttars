@@ -116,7 +116,7 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
       {/* Produtividade de agendamento: quantas reuniões foram MARCADAS por dia (data do agendamento) */}
       <SectionCard
         title="Reuniões agendadas por dia: quando foram marcadas"
-        subtitle="Quantas 1ªs reuniões (SDR) e reuniões de fechamento (Closer) o time MARCOU em cada dia, pela data em que agendou (não pela data da reunião). Conta só agendamento feito até o dia da reunião (descarta edição em massa do campo). Respeita o período e os filtros do topo."
+        subtitle="Quantas 1ªs reuniões (SDR) e reuniões de fechamento (Closer) o time MARCOU em cada dia, pela data em que agendou (não pela data da reunião). Descarta edição em massa (vários negócios com o campo mexido de uma vez). Respeita o período e os filtros do topo."
       >
         <AgendamentosPorDia filters={filters} />
       </SectionCard>
