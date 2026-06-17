@@ -5,11 +5,11 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-06-16
+> **Last Updated:** 2026-06-17
 > **Trigger:** ALWAYS ON
-> **Stats:** 210 tabelas | 211 paginas | 368 hooks | 23 views | 856 components
-> **Stats:** 210 tabelas | 211 paginas | 368 hooks | 23 views | 856 components
-> **Stats:** 210 tabelas | 211 paginas | 368 hooks | 23 views | 856 components
+> **Stats:** 240 tabelas | 211 paginas | 368 hooks | 28 views | 856 components
+> **Stats:** 240 tabelas | 211 paginas | 368 hooks | 28 views | 856 components
+> **Stats:** 240 tabelas | 211 paginas | 368 hooks | 28 views | 856 components
 
 ---
 
@@ -499,6 +499,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useCardsDisponiveis()` | `useCardsDisponiveis.ts` |
 | `useCardsTravados()` | `useCardsTravados.ts` |
 | `useContactAvailableCards()` | `useContactAvailableCards.ts` |
+| `useCreateCardsSetting()` | `useCreateCardsSetting.ts` |
 | `useDeleteCard()` | `useDeleteCard.ts` |
 | `useDuplicateCard()` | `useDuplicateCard.ts` |
 | `useDuplicateCardDetection()` | `useDuplicateCardDetection.ts` |
@@ -510,7 +511,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useKanbanTarefas()` | `useKanbanTarefas.ts` |
 | `useKanbanViagens()` | `useKanbanViagens.ts` |
 | `useLeadsFilters()` | `useLeadsFilters.ts` |
-| `useLeadsterCreateCards()` | `useLeadsterCreateCards.ts` |
 | `useMyAssistCardIds()` | `useMyAssistCardIds.ts` |
 | `usePipelineCards()` | `usePipelineCards.ts` |
 | `usePipelineCurrent()` | `usePipelineCurrent.ts` |
