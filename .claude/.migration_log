@@ -1264,3 +1264,7 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-06-16T14:03:31Z | supabase/migrations/20260616_ww_ac_link_by_email.sql | applied_to_prod via Management API (token CLI)
 2026-06-16T14:24:47Z | supabase/migrations/20260616c_ww_closer_stage_map_fix.sql | applied_to_prod via Management API (token CLI)
 2026-06-16T16:29:34Z | supabase/migrations/20260616f_ww_sdr_stage_map_fix.sql | applied_to_prod via Management API (token CLI)
+2026-06-17T13:00:56Z | supabase/migrations/20260617a_calendly_source_org.sql | applied_to_prod via Management API (token CLI)
+2026-06-17T13:00:56Z | supabase/migrations/20260617b_calendly_function_weddings.sql | applied_to_prod via Management API (token CLI)
+2026-06-17T13:00:56Z | supabase/migrations/20260617c_ww_closer_data_reuniao_field.sql | applied_to_prod via Management API (token CLI)
+2026-06-17T13:00:56Z | supabase/migrations/20260617e_calendly_contato_no_phone.sql | applied_to_prod via Management API (token CLI)
