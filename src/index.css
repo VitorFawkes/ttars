@@ -19,6 +19,22 @@
   font-display: swap;
 }
 
+/* Coolvetica — wordmark "looq" (canal de NPS via Looq). */
+@font-face {
+  font-family: 'Coolvetica';
+  src: url('/font/coolvetica.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Coolvetica';
+  src: url('/font/coolvetica-heavy.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer base {
   :root {
     /* Marca por workspace (RGB triplets p/ alpha do Tailwind). Default = Trips. */

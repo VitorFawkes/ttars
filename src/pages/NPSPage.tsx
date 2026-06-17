@@ -302,9 +302,9 @@ function NPSResponseCard({ row, cards }: { row: NPSResponseRow; cards: ContactCa
                         <div className="flex items-center gap-3 min-w-0">
                             <span>{formatDate(row.responded_at)}</span>
                             {row.channel === 'form' ? (
-                                <span className="flex items-center gap-1">
+                                <span className="flex items-baseline gap-1">
                                     via
-                                    <img src="/icons/looq.png" alt="Looq" className="h-3.5 w-auto" />
+                                    <span className="font-coolvetica text-sm leading-none text-slate-700 lowercase">looq</span>
                                 </span>
                             ) : (
                                 row.channel && row.channel !== 'unknown' && (
