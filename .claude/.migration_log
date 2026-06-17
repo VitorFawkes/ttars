@@ -1270,3 +1270,4 @@ PENDING | supabase/migrations/20260416d_outbound_dashboard_antispam.sql | applie
 2026-06-17T13:00:56Z | supabase/migrations/20260617e_calendly_contato_no_phone.sql | applied_to_prod via Management API (token CLI)
 2026-06-17T13:53:17Z | supabase/migrations/20260617d_calendly_weddings_triggers_seed.sql | applied_to_prod via Management API (token CLI)
 2026-06-17T14:50:35Z | supabase/migrations/20260617f_create_nps_webhook_events.sql | applied_to_prod via Management API (token CLI)
+2026-06-17T15:51:17Z | supabase/migrations/20260617g_nps_ingest_transform.sql | applied_to_prod via Management API (token CLI, user-authorized)
