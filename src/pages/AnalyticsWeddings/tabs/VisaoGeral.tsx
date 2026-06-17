@@ -116,7 +116,7 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
       {/* Produtividade de agendamento: quantas reuniões foram MARCADAS por dia (data do agendamento) */}
       <SectionCard
         title="Reuniões agendadas por dia: quando foram marcadas"
-        subtitle="Quantas 1ªs reuniões (SDR) e reuniões de fechamento (Closer) o time MARCOU em cada dia, pela data em que agendou (não pela data da reunião). Dados a partir de junho/2026. Respeita os filtros de tipo, período, origem e perfil."
+        subtitle="Quantas 1ªs reuniões (SDR) e reuniões de fechamento (Closer) o time MARCOU em cada dia, pela data em que agendou (não pela data da reunião). Conta só agendamento feito até o dia da reunião (descarta edição em massa do campo). Respeita o período e os filtros do topo."
       >
         <AgendamentosPorDia filters={filters} />
       </SectionCard>
@@ -384,7 +384,7 @@ function AgendamentosPorDia({ filters }: { filters: AppliedFilters }) {
   const start = d0 ? new Date(`${d0}T12:00:00`) : null
   const end = d1 ? new Date(`${d1}T12:00:00`) : null
   const spanDias = start && end ? Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1 : 0
-  const [escala, setEscala] = useState<'dia' | 'semana'>(spanDias > 45 ? 'semana' : 'dia')
+  const [escala, setEscala] = useState<'dia' | 'semana' | 'mes'>(spanDias > 120 ? 'mes' : spanDias > 45 ? 'semana' : 'dia')
 
   if (isLoading) return <LoadingSkeleton rows={3} />
   if (!start || !end) return <EmptyState message="Defina um período no filtro." />
@@ -398,7 +398,7 @@ function AgendamentosPorDia({ filters }: { filters: AppliedFilters }) {
       const v = mapa.get(diaKeyBRT(t))
       rows.push({ label: fmtDM(t), SDR: v?.sdr ?? 0, Closer: v?.closer ?? 0, total: (v?.sdr ?? 0) + (v?.closer ?? 0) })
     }
-  } else {
+  } else if (escala === 'semana') {
     const semanas = new Map<string, Row & { ord: string }>()
     for (const t = new Date(start); t <= end; t.setDate(t.getDate() + 1)) {
       const seg = new Date(t); seg.setDate(seg.getDate() - ((seg.getDay() + 6) % 7))
@@ -411,6 +411,20 @@ function AgendamentosPorDia({ filters }: { filters: AppliedFilters }) {
       if (v) { const s = semanas.get(segKey)!; s.SDR += v.sdr; s.Closer += v.closer; s.total += v.sdr + v.closer }
     }
     rows = [...semanas.values()].sort((a, b) => a.ord.localeCompare(b.ord))
+  } else {
+    const MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+    const meses = new Map<string, Row & { ord: string }>()
+    for (const t = new Date(start); t <= end; t.setDate(t.getDate() + 1)) {
+      const key = diaKeyBRT(t)
+      const ord = key.slice(0, 7) // YYYY-MM
+      if (!meses.has(ord)) {
+        const [y, m] = ord.split('-').map(Number)
+        meses.set(ord, { ord, label: `${MES[m - 1]}/${String(y).slice(2)}`, SDR: 0, Closer: 0, total: 0 })
+      }
+      const v = mapa.get(key)
+      if (v) { const s = meses.get(ord)!; s.SDR += v.sdr; s.Closer += v.closer; s.total += v.sdr + v.closer }
+    }
+    rows = [...meses.values()].sort((a, b) => a.ord.localeCompare(b.ord))
   }
   const totalSdr = data?.total_sdr ?? 0
   const totalCloser = data?.total_closer ?? 0
@@ -422,9 +436,9 @@ function AgendamentosPorDia({ filters }: { filters: AppliedFilters }) {
           <span className="font-semibold text-ww-gold-ink tabular-nums">{totalSdr}</span> SDR · <span className="font-semibold text-ww-rosewood tabular-nums">{totalCloser}</span> Closer marcadas no período
         </div>
         <div className="inline-flex items-center gap-1">
-          {(['dia', 'semana'] as const).map(e => (
+          {(['dia', 'semana', 'mes'] as const).map(e => (
             <button key={e} onClick={() => setEscala(e)} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${escala === e ? 'bg-ww-gold-soft text-ww-gold-ink' : 'text-ww-n500 hover:bg-ww-cream'}`}>
-              {e === 'dia' ? 'Por dia' : 'Por semana'}
+              {e === 'dia' ? 'Por dia' : e === 'semana' ? 'Por semana' : 'Por mês'}
             </button>
           ))}
         </div>
@@ -752,6 +766,19 @@ function AgendaReunioes({ filters }: { filters: AppliedFilters }) {
 // Alertas: leads parados há 7+ dias. Mostra o PIPELINE do Active (não a fase do CRM),
 // filtra por pipeline e ordena clicando no cabeçalho.
 type AlertaSortKey = 'dias_parado' | 'valor_estimado' | 'titulo' | 'ac_pipeline_nome'
+
+function AlertaSeta({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
+  return active ? <span className="text-ww-gold-ink">{dir === 'asc' ? '↑' : '↓'}</span> : <span className="text-slate-300">↕</span>
+}
+function AlertaTh({ k, children, align = 'left', sortKey, sortDir, onSort }: { k: AlertaSortKey; children: React.ReactNode; align?: 'left' | 'right'; sortKey: AlertaSortKey; sortDir: 'asc' | 'desc'; onSort: (k: AlertaSortKey) => void }) {
+  return (
+    <th className={`py-2 font-medium ${align === 'right' ? 'text-right' : 'text-left'}`}>
+      <button onClick={() => onSort(k)} className={`inline-flex items-center gap-1 hover:text-ww-gold-ink transition-colors ${align === 'right' ? 'flex-row-reverse' : ''}`}>
+        {children} <AlertaSeta active={sortKey === k} dir={sortDir} />
+      </button>
+    </th>
+  )
+}
 function AlertasParados({ alertas }: { alertas: Ww2Alerta[] }) {
   const [sortKey, setSortKey] = useState<AlertaSortKey>('dias_parado')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
