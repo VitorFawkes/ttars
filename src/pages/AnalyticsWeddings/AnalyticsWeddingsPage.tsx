@@ -83,8 +83,8 @@ export default function AnalyticsWeddingsPage() {
   const activeFilters = TABS_COM_FILTRO.includes(activeTab) ? filtersByTab[activeTab] : undefined
 
   return (
-    <div className="h-full overflow-y-auto bg-ww-paper">
-      <div className="max-w-[1600px] mx-auto p-6 space-y-5">
+    <div className="h-full overflow-y-auto overflow-x-hidden bg-ww-paper">
+      <div className="max-w-[1600px] mx-auto p-6 space-y-5 min-w-0">
         <Header activeFilters={activeFilters} />
         {/* Mobile: navegação vira grade compacta acima do conteúdo; desktop: coluna fixa à esquerda */}
         <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 items-stretch lg:items-start">
