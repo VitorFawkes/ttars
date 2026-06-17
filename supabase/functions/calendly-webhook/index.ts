@@ -158,29 +158,54 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Could not read body" }, 400);
   }
 
-  const signatureHeader = req.headers.get("calendly-webhook-signature");
-  const signingKey = Deno.env.get("CALENDLY_SIGNING_KEY") || "";
-  let signatureValid: boolean | null = null;
-  if (signingKey) {
-    signatureValid = await validateSignature(signatureHeader, rawBody, signingKey);
-    if (!signatureValid) {
-      console.warn("[calendly-webhook] Invalid signature, rejecting");
-      return jsonResponse({ error: "Invalid signature" }, 401);
-    }
-  } else {
-    console.warn("[calendly-webhook] CALENDLY_SIGNING_KEY not configured — signature not validated");
-  }
-
+  // Parse + extract primeiro: precisamos do organizer_email pra rotear a org.
   let body: CalendlyPayload;
   try {
     body = JSON.parse(rawBody);
   } catch {
     return jsonResponse({ error: "Invalid JSON" }, 400);
   }
-
   const extracted = extractFromPayload(body);
   if (!extracted.event_type) {
     return jsonResponse({ error: "Missing event type" }, 400);
+  }
+
+  const signatureHeader = req.headers.get("calendly-webhook-signature");
+  const orgDefault = Deno.env.get("CALENDLY_ORG_DEFAULT") || "b0000000-0000-0000-0000-000000000001";
+  const orgWeddings = Deno.env.get("CALENDLY_ORG_WEDDINGS") || "b0000000-0000-0000-0000-000000000002";
+
+  // Roteamento da org de origem pelo DOMÍNIO do organizer. As contas Calendly de
+  // Weddings (contato@ / weddingplanner@welcomeweddings.com.br) não emitem signing
+  // key, então são roteadas pelo e-mail do organizer e aceitas sem HMAC. Trips
+  // valida HMAC normalmente (CALENDLY_SIGNING_KEY). source_org_id é usado pelo
+  // trigger SQL pra rodar só os gatilhos da org certa (evita card fantasma cross-org).
+  const weddingsDomains = (Deno.env.get("CALENDLY_WEDDINGS_ORGANIZER_DOMAINS") || "welcomeweddings.com.br")
+    .split(",").map((d) => d.trim().toLowerCase()).filter(Boolean);
+  const organizer = (extracted.organizer_email || "").toLowerCase();
+  const isWeddings = weddingsDomains.some((d) => organizer.endsWith("@" + d) || organizer.endsWith("." + d));
+  const sourceOrgId = isWeddings ? orgWeddings : orgDefault;
+
+  // Valida HMAC contra as chaves configuradas (Trips + Weddings, se algum dia existir).
+  const signingKeys = [
+    Deno.env.get("CALENDLY_SIGNING_KEY") || "",
+    Deno.env.get("CALENDLY_SIGNING_KEY_WEDDINGS_SDR") || "",
+    Deno.env.get("CALENDLY_SIGNING_KEY_WEDDINGS_CLOSER") || "",
+    Deno.env.get("CALENDLY_SIGNING_KEY_WEDDINGS") || "",
+  ].filter(Boolean);
+  let signatureValid: boolean | null = null;
+  if (signingKeys.length > 0 && signatureHeader) {
+    signatureValid = false;
+    for (const k of signingKeys) {
+      if (await validateSignature(signatureHeader, rawBody, k)) { signatureValid = true; break; }
+    }
+  }
+  // Trips DEVE ter assinatura válida; Weddings é aceito sem (conta sem signing key).
+  if (!isWeddings && signingKeys.length > 0 && signatureValid !== true) {
+    console.warn("[calendly-webhook] Trips event with invalid/missing signature — rejecting");
+    return jsonResponse({ error: "Invalid signature" }, 401);
+  }
+  if (isWeddings && signatureValid !== true) {
+    console.warn("[calendly-webhook] Weddings event accepted without HMAC (conta sem signing key)");
   }
 
   if (extracted.event_uuid) {
@@ -213,6 +238,7 @@ Deno.serve(async (req) => {
       meeting_location_type: extracted.meeting_location_type,
       meeting_join_url: extracted.meeting_join_url,
       organizer_email: extracted.organizer_email,
+      source_org_id: sourceOrgId,
       processed_status: "pending",
     })
     .select("id")
