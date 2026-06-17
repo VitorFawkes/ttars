@@ -1,0 +1,386 @@
+-- 20260617d — Perfil/Lead-Ideal e Ranking por nascimento certo
+-- ww_funil_ranking_combo: 'entrou' gateado por entrou_valido + filtro tipo_entrada.
+-- ww_v2_lead_ideal: 3 pools filtram por tipo_entrada e excluem convidado/vazio
+--   (tipo_entrada IS NOT NULL), pra o universo de leads bater com Visão Geral.
+-- Depende de 20260617a. Mantém DW/Elopement consistente entre todas as abas.
+
+-- ╔══ ww_funil_ranking_combo ══╗
+CREATE OR REPLACE FUNCTION public.ww_funil_ranking_combo(p_date_start timestamp with time zone DEFAULT (now() - '90 days'::interval), p_date_end timestamp with time zone DEFAULT now(), p_date_mode text DEFAULT 'cohort'::text, p_org_id uuid DEFAULT NULL::uuid, p_dimensoes text[] DEFAULT ARRAY['faixa'::text], p_origins text[] DEFAULT NULL::text[], p_tipos text[] DEFAULT NULL::text[], p_consultor_ids uuid[] DEFAULT NULL::uuid[], p_sdr_canal text[] DEFAULT NULL::text[], p_closer_canal text[] DEFAULT NULL::text[], p_faixas text[] DEFAULT NULL::text[], p_convidados text[] DEFAULT NULL::text[], p_destinos text[] DEFAULT NULL::text[], p_status_lead text DEFAULT NULL::text)
+ RETURNS json
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+    v_org UUID := COALESCE(p_org_id, requesting_org_id());
+    v_rows JSON; v_total INT:=0; v_dims TEXT[]; v_p0 NUMERIC:=0; v_bt INT:=0; v_bg INT:=0;
+BEGIN
+    SELECT ARRAY(SELECT DISTINCT d FROM unnest(COALESCE(p_dimensoes, ARRAY['faixa'])) d WHERE d IN ('faixa','convidados','destino','canal_sdr','canal_closer')) INTO v_dims;
+    IF v_dims IS NULL OR array_length(v_dims,1) IS NULL THEN v_dims := ARRAY['faixa']; END IF;
+
+    CREATE TEMP TABLE _pool ON COMMIT DROP AS
+    SELECT faixa, convidados, destino,
+           _ww_norm_canal_strict(c.sdr_canal)    AS canal_sdr,
+           _ww_norm_canal_strict(c.closer_canal) AS canal_closer,
+           COALESCE(c.lead_created_at BETWEEN p_date_start AND p_date_end AND c.entrou_valido, FALSE) AS k_entrou,
+           CASE WHEN p_date_mode='throughput'
+                THEN COALESCE(c.agendou_sdr    AND c.agendou_sdr_at    BETWEEN p_date_start AND p_date_end, FALSE)
+                ELSE COALESCE(c.agendou_sdr OR c.fez_sdr OR c.agendou_closer OR c.fez_closer OR c.ganho, FALSE) END AS k_msdr,
+           CASE WHEN p_date_mode='throughput'
+                THEN COALESCE(c.fez_sdr        AND c.fez_sdr_at        BETWEEN p_date_start AND p_date_end, FALSE)
+                ELSE COALESCE(c.fez_sdr OR c.agendou_closer OR c.fez_closer OR c.ganho, FALSE) END AS k_fsdr,
+           CASE WHEN p_date_mode='throughput'
+                THEN COALESCE(c.agendou_closer AND c.agendou_closer_at BETWEEN p_date_start AND p_date_end, FALSE)
+                ELSE COALESCE(c.agendou_closer OR c.fez_closer OR c.ganho, FALSE) END AS k_mclo,
+           CASE WHEN p_date_mode='throughput'
+                THEN COALESCE(c.fez_closer     AND c.fez_closer_at     BETWEEN p_date_start AND p_date_end, FALSE)
+                ELSE COALESCE(c.fez_closer OR c.ganho, FALSE) END AS k_fclo,
+           CASE WHEN p_date_mode='throughput'
+                THEN COALESCE(c.ganho          AND c.ganho_at          BETWEEN p_date_start AND p_date_end, FALSE)
+                ELSE COALESCE(c.ganho, FALSE) END AS k_g
+      FROM ww_funil_casal c
+     WHERE c.org_id = v_org
+       AND (CASE WHEN p_date_mode='throughput' THEN
+                  (c.lead_created_at    BETWEEN p_date_start AND p_date_end)
+               OR (c.agendou_sdr_at     BETWEEN p_date_start AND p_date_end)
+               OR (c.fez_sdr_at         BETWEEN p_date_start AND p_date_end)
+               OR (c.agendou_closer_at  BETWEEN p_date_start AND p_date_end)
+               OR (c.fez_closer_at      BETWEEN p_date_start AND p_date_end)
+               OR (c.ganho_at           BETWEEN p_date_start AND p_date_end)
+            ELSE (c.lead_created_at BETWEEN p_date_start AND p_date_end) END)
+       AND (p_origins IS NULL       OR c.origem = ANY(p_origins))
+       AND (p_tipos IS NULL         OR c.tipo_entrada = ANY(p_tipos))
+       AND (p_consultor_ids IS NULL OR c.consultor_id = ANY(p_consultor_ids))
+       AND (p_sdr_canal IS NULL     OR _ww_norm_canal_strict(c.sdr_canal) = ANY(p_sdr_canal))
+       AND (p_closer_canal IS NULL  OR _ww_norm_canal_strict(c.closer_canal) = ANY(p_closer_canal))
+       AND (p_faixas IS NULL        OR c.faixa = ANY(p_faixas))
+       AND (p_convidados IS NULL    OR c.convidados = ANY(p_convidados))
+       AND (p_destinos IS NULL      OR c.destino = ANY(p_destinos))
+       AND (p_status_lead IS NULL
+            OR (p_status_lead = 'perdido' AND COALESCE(c.is_perdido, FALSE))
+            OR (p_status_lead = 'aberto'  AND NOT COALESCE(c.ganho, FALSE) AND NOT COALESCE(c.is_perdido, FALSE)));
+
+    SELECT COUNT(*) FILTER (WHERE k_entrou) INTO v_total FROM _pool;
+    SELECT COUNT(*) FILTER (WHERE k_entrou), COUNT(*) FILTER (WHERE k_g) INTO v_bt, v_bg FROM _pool;
+    v_p0 := CASE WHEN v_bt>0 THEN v_bg::NUMERIC/v_bt ELSE 0 END;
+
+    SELECT json_agg(json_build_object('faixa',faixa,'convidados',convidados,'destino',destino,
+             'canal_sdr',canal_sdr,'canal_closer',canal_closer,'label',label,
+             'entrou',entrou,'marcou_sdr',m_sdr,'fez_sdr',f_sdr,'marcou_closer',m_cl,'fez_closer',f_cl,'ganho',ganho,'taxa_pct',taxa_pct)
+           ORDER BY score DESC, entrou DESC) INTO v_rows
+    FROM (
+        SELECT g_faixa AS faixa, g_conv AS convidados, g_dest AS destino, g_csdr AS canal_sdr, g_cclo AS canal_closer,
+               concat_ws(' · ', g_faixa, g_conv, g_dest, g_csdr, g_cclo) AS label, entrou, m_sdr, f_sdr, m_cl, f_cl, ganho,
+               ROUND(100.0*ganho/NULLIF(entrou,0),1) AS taxa_pct, (ganho + 15*v_p0)/(entrou+15) AS score
+        FROM (
+            SELECT g_faixa, g_conv, g_dest, g_csdr, g_cclo,
+                   COUNT(*) FILTER (WHERE k_entrou) AS entrou,
+                   COUNT(*) FILTER (WHERE k_msdr) AS m_sdr,
+                   COUNT(*) FILTER (WHERE k_fsdr) AS f_sdr,
+                   COUNT(*) FILTER (WHERE k_mclo) AS m_cl,
+                   COUNT(*) FILTER (WHERE k_fclo) AS f_cl,
+                   COUNT(*) FILTER (WHERE k_g) AS ganho
+            FROM (
+                SELECT CASE WHEN 'faixa'=ANY(v_dims) THEN COALESCE(faixa, 'Não informado') END AS g_faixa,
+                       CASE WHEN 'convidados'=ANY(v_dims) THEN COALESCE(convidados, 'Não informado') END AS g_conv,
+                       CASE WHEN 'destino'=ANY(v_dims) THEN COALESCE(destino, 'Não informado') END AS g_dest,
+                       CASE WHEN 'canal_sdr'=ANY(v_dims) THEN COALESCE(canal_sdr, 'Não informado') END AS g_csdr,
+                       CASE WHEN 'canal_closer'=ANY(v_dims) THEN COALESCE(canal_closer, 'Não informado') END AS g_cclo,
+                       k_entrou, k_msdr, k_fsdr, k_mclo, k_fclo, k_g
+                FROM _pool
+            ) sel GROUP BY g_faixa, g_conv, g_dest, g_csdr, g_cclo
+        ) grp ORDER BY score DESC, entrou DESC LIMIT 500
+    ) r;
+
+    DROP TABLE _pool;
+    RETURN json_build_object('dimensoes',v_dims,
+        'periodo',json_build_object('date_start',p_date_start,'date_end',p_date_end,'date_mode',p_date_mode),
+        'total_no_periodo',v_total,'rows',COALESCE(v_rows,'[]'::JSON));
+END $function$;
+
+-- ╔══ ww_v2_lead_ideal ══╗
+CREATE OR REPLACE FUNCTION public.ww_v2_lead_ideal(p_atual_start timestamp with time zone DEFAULT (now() - '30 days'::interval), p_atual_end timestamp with time zone DEFAULT now(), p_org_id uuid DEFAULT NULL::uuid, p_historico_start timestamp with time zone DEFAULT NULL::timestamp with time zone, p_historico_end timestamp with time zone DEFAULT NULL::timestamp with time zone, p_historico_meses integer DEFAULT 12, p_min_amostra integer DEFAULT 2, p_origins text[] DEFAULT NULL::text[], p_consultor_ids uuid[] DEFAULT NULL::uuid[], p_faixas text[] DEFAULT NULL::text[], p_destinos text[] DEFAULT NULL::text[], p_convidados text[] DEFAULT NULL::text[], p_tipos text[] DEFAULT NULL::text[], p_sdr_canal text[] DEFAULT NULL::text[], p_closer_canal text[] DEFAULT NULL::text[], p_referencia text DEFAULT 'ganho'::text, p_cruz_x text DEFAULT 'faixa'::text, p_cruz_y text DEFAULT 'convidados'::text)
+ RETURNS json
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+    v_org_id UUID := COALESCE(p_org_id, requesting_org_id());
+    v_pipeline_id UUID;
+    v_hist_start TIMESTAMPTZ;
+    v_hist_end   TIMESTAMPTZ;
+    v_total_hist INT := 0;
+    v_total_atual INT := 0;
+    v_total_hist_leads INT := 0;   -- NOVO: total de leads que ENTRARAM na janela de referência
+    v_perdido BOOLEAN := (lower(COALESCE(p_referencia,'ganho')) = 'perdido');
+    v_comparacoes JSON;
+    v_cruzamento JSON;
+    v_top_perfis_hist JSON;
+    v_top_perfis_atual JSON;
+    v_top_perfis_unif JSON;   -- NOVO: top combos unificado (3 números)
+    v_min INT := GREATEST(1, COALESCE(p_min_amostra, 2));
+BEGIN
+    SELECT id INTO v_pipeline_id FROM pipelines WHERE produto::TEXT='WEDDING' AND org_id=v_org_id LIMIT 1;
+    IF v_pipeline_id IS NULL THEN RETURN json_build_object('error','pipeline WEDDING não encontrado'); END IF;
+
+    IF p_historico_start IS NOT NULL AND p_historico_end IS NOT NULL THEN
+      v_hist_start := p_historico_start;
+      v_hist_end := p_historico_end;
+    ELSE
+      -- 20260616j: sem datas explícitas, usa a janela de p_historico_meses (default 12m),
+      -- NÃO 1970→agora. Garante que "vendas" e "leads do período" respeitem o período mesmo
+      -- quando o chamador não passa datas custom. (Hoje o Perfil sempre passa; blindagem.)
+      v_hist_start := NOW() - make_interval(months => GREATEST(1, COALESCE(p_historico_meses, 12)));
+      v_hist_end := NOW();
+    END IF;
+
+    -- Referência: quem FECHOU (ganho_at na janela) ou quem PERDEU (is_perdido, por data de entrada).
+    CREATE TEMP TABLE _ww_v2_pli_h ON COMMIT DROP AS
+    SELECT faixa, destino, convidados, tipo, origem,
+           _ww_norm_canal_strict(sdr_canal)    AS canal_sdr,
+           _ww_norm_canal_strict(closer_canal) AS canal_closer
+      FROM ww_funil_casal
+     WHERE org_id = v_org_id
+       AND (CASE WHEN v_perdido
+                 THEN is_perdido = TRUE AND (lead_created_at >= v_hist_start AND lead_created_at <= v_hist_end)
+                 ELSE ganho = TRUE AND ganho_at IS NOT NULL AND ganho_at >= v_hist_start AND ganho_at <= v_hist_end END)
+       AND (p_origins IS NULL       OR origem = ANY(p_origins))
+       AND (p_consultor_ids IS NULL OR consultor_id = ANY(p_consultor_ids))
+       AND (p_faixas IS NULL        OR faixa = ANY(p_faixas))
+       AND (p_destinos IS NULL      OR destino = ANY(p_destinos))
+       AND (p_convidados IS NULL    OR convidados = ANY(p_convidados))
+       AND (p_tipos IS NULL         OR tipo_entrada = ANY(p_tipos))
+       AND tipo_entrada IS NOT NULL  -- 20260617: universo = entradas válidas (sem convidado/vazio)
+       AND (p_sdr_canal IS NULL     OR _ww_norm_canal_strict(sdr_canal) = ANY(p_sdr_canal))
+       AND (p_closer_canal IS NULL  OR _ww_norm_canal_strict(closer_canal) = ANY(p_closer_canal));
+
+    CREATE TEMP TABLE _ww_v2_pli_a ON COMMIT DROP AS
+    SELECT faixa, destino, convidados, tipo, origem,
+           _ww_norm_canal_strict(sdr_canal)    AS canal_sdr,
+           _ww_norm_canal_strict(closer_canal) AS canal_closer
+      FROM ww_funil_casal
+     WHERE org_id = v_org_id
+       AND lead_created_at >= p_atual_start AND lead_created_at <= p_atual_end
+       AND (p_origins IS NULL       OR origem = ANY(p_origins))
+       AND (p_consultor_ids IS NULL OR consultor_id = ANY(p_consultor_ids))
+       AND (p_faixas IS NULL        OR faixa = ANY(p_faixas))
+       AND (p_destinos IS NULL      OR destino = ANY(p_destinos))
+       AND (p_convidados IS NULL    OR convidados = ANY(p_convidados))
+       AND (p_tipos IS NULL         OR tipo_entrada = ANY(p_tipos))
+       AND tipo_entrada IS NOT NULL  -- 20260617: universo = entradas válidas (sem convidado/vazio)
+       AND (p_sdr_canal IS NULL     OR _ww_norm_canal_strict(sdr_canal) = ANY(p_sdr_canal))
+       AND (p_closer_canal IS NULL  OR _ww_norm_canal_strict(closer_canal) = ANY(p_closer_canal));
+
+    -- NOVO — leads que ENTRARAM na janela de referência (mesmos filtros do "atual", janela histórica).
+    -- Universo = entrada (lead_created_at), independe de fechar/perder. É o lado esquerdo do "mix de leads".
+    CREATE TEMP TABLE _ww_v2_pli_he ON COMMIT DROP AS
+    SELECT faixa, destino, convidados, tipo, origem,
+           _ww_norm_canal_strict(sdr_canal)    AS canal_sdr,
+           _ww_norm_canal_strict(closer_canal) AS canal_closer
+      FROM ww_funil_casal
+     WHERE org_id = v_org_id
+       AND lead_created_at >= v_hist_start AND lead_created_at <= v_hist_end
+       AND (p_origins IS NULL       OR origem = ANY(p_origins))
+       AND (p_consultor_ids IS NULL OR consultor_id = ANY(p_consultor_ids))
+       AND (p_faixas IS NULL        OR faixa = ANY(p_faixas))
+       AND (p_destinos IS NULL      OR destino = ANY(p_destinos))
+       AND (p_convidados IS NULL    OR convidados = ANY(p_convidados))
+       AND (p_tipos IS NULL         OR tipo_entrada = ANY(p_tipos))
+       AND tipo_entrada IS NOT NULL  -- 20260617: universo = entradas válidas (sem convidado/vazio)
+       AND (p_sdr_canal IS NULL     OR _ww_norm_canal_strict(sdr_canal) = ANY(p_sdr_canal))
+       AND (p_closer_canal IS NULL  OR _ww_norm_canal_strict(closer_canal) = ANY(p_closer_canal));
+
+    SELECT COUNT(*) INTO v_total_hist  FROM _ww_v2_pli_h;
+    SELECT COUNT(*) INTO v_total_atual FROM _ww_v2_pli_a;
+    SELECT COUNT(*) INTO v_total_hist_leads FROM _ww_v2_pli_he;   -- NOVO
+
+    -- Comparação por dimensão (faixa/convidados/destino/tipo/origem/canal_sdr/canal_closer)
+    WITH dims AS (
+      SELECT 'faixa' AS dim, faixa AS cat FROM _ww_v2_pli_h WHERE faixa IS NOT NULL
+      UNION ALL SELECT 'destino', destino FROM _ww_v2_pli_h WHERE destino IS NOT NULL
+      UNION ALL SELECT 'convidados', convidados FROM _ww_v2_pli_h WHERE convidados IS NOT NULL
+      UNION ALL SELECT 'tipo', tipo FROM _ww_v2_pli_h WHERE tipo IS NOT NULL
+      UNION ALL SELECT 'origem', origem FROM _ww_v2_pli_h WHERE origem IS NOT NULL
+      UNION ALL SELECT 'canal_sdr', canal_sdr FROM _ww_v2_pli_h WHERE canal_sdr IS NOT NULL
+      UNION ALL SELECT 'canal_closer', canal_closer FROM _ww_v2_pli_h WHERE canal_closer IS NOT NULL
+    ),
+    dims_a AS (
+      SELECT 'faixa' AS dim, faixa AS cat FROM _ww_v2_pli_a WHERE faixa IS NOT NULL
+      UNION ALL SELECT 'destino', destino FROM _ww_v2_pli_a WHERE destino IS NOT NULL
+      UNION ALL SELECT 'convidados', convidados FROM _ww_v2_pli_a WHERE convidados IS NOT NULL
+      UNION ALL SELECT 'tipo', tipo FROM _ww_v2_pli_a WHERE tipo IS NOT NULL
+      UNION ALL SELECT 'origem', origem FROM _ww_v2_pli_a WHERE origem IS NOT NULL
+      UNION ALL SELECT 'canal_sdr', canal_sdr FROM _ww_v2_pli_a WHERE canal_sdr IS NOT NULL
+      UNION ALL SELECT 'canal_closer', canal_closer FROM _ww_v2_pli_a WHERE canal_closer IS NOT NULL
+    ),
+    dims_he AS (  -- NOVO: leads que entraram na janela de referência
+      SELECT 'faixa' AS dim, faixa AS cat FROM _ww_v2_pli_he WHERE faixa IS NOT NULL
+      UNION ALL SELECT 'destino', destino FROM _ww_v2_pli_he WHERE destino IS NOT NULL
+      UNION ALL SELECT 'convidados', convidados FROM _ww_v2_pli_he WHERE convidados IS NOT NULL
+      UNION ALL SELECT 'tipo', tipo FROM _ww_v2_pli_he WHERE tipo IS NOT NULL
+      UNION ALL SELECT 'origem', origem FROM _ww_v2_pli_he WHERE origem IS NOT NULL
+      UNION ALL SELECT 'canal_sdr', canal_sdr FROM _ww_v2_pli_he WHERE canal_sdr IS NOT NULL
+      UNION ALL SELECT 'canal_closer', canal_closer FROM _ww_v2_pli_he WHERE canal_closer IS NOT NULL
+    ),
+    tot_h AS (SELECT dim, COUNT(*) AS total FROM dims GROUP BY dim),
+    tot_a AS (SELECT dim, COUNT(*) AS total FROM dims_a GROUP BY dim),
+    tot_he AS (SELECT dim, COUNT(*) AS total FROM dims_he GROUP BY dim),  -- NOVO
+    by_h  AS (SELECT dim, cat, COUNT(*) AS qtd FROM dims GROUP BY dim, cat),
+    by_a  AS (SELECT dim, cat, COUNT(*) AS qtd FROM dims_a GROUP BY dim, cat),
+    by_he AS (SELECT dim, cat, COUNT(*) AS qtd FROM dims_he GROUP BY dim, cat),  -- NOVO
+    cats AS (SELECT DISTINCT dim, cat FROM (SELECT dim, cat FROM by_h UNION ALL SELECT dim, cat FROM by_a UNION ALL SELECT dim, cat FROM by_he) z),  -- NOVO inclui mix
+    rows AS (
+      SELECT c.dim, c.cat,
+             COALESCE(h.qtd, 0) AS historico_qtd,
+             COALESCE(a.qtd, 0) AS atual_qtd,
+             COALESCE(he.qtd, 0) AS historico_leads_qtd,   -- NOVO
+             CASE WHEN th.total > 0 THEN ROUND(100.0 * COALESCE(h.qtd,0) / th.total, 1) END AS historico_pct,
+             CASE WHEN ta.total > 0 THEN ROUND(100.0 * COALESCE(a.qtd,0) / ta.total, 1) END AS atual_pct,
+             CASE WHEN the.total > 0 THEN ROUND(100.0 * COALESCE(he.qtd,0) / the.total, 1) END AS historico_leads_pct   -- NOVO
+        FROM cats c
+        LEFT JOIN by_h h ON h.dim=c.dim AND h.cat=c.cat
+        LEFT JOIN by_a a ON a.dim=c.dim AND a.cat=c.cat
+        LEFT JOIN by_he he ON he.dim=c.dim AND he.cat=c.cat   -- NOVO
+        LEFT JOIN tot_h th ON th.dim=c.dim
+        LEFT JOIN tot_a ta ON ta.dim=c.dim
+        LEFT JOIN tot_he the ON the.dim=c.dim                 -- NOVO
+    )
+    SELECT COALESCE(json_agg(json_build_object('dimensao', dim, 'dados', dados)), '[]'::JSON) INTO v_comparacoes
+    FROM (
+      SELECT dim, json_agg(json_build_object(
+          'categoria', cat,
+          'historico_qtd', historico_qtd, 'historico_pct', historico_pct,
+          'atual_qtd', atual_qtd, 'atual_pct', atual_pct,
+          'historico_leads_qtd', historico_leads_qtd, 'historico_leads_pct', historico_leads_pct,   -- NOVO
+          'lift', CASE WHEN historico_pct IS NULL OR historico_pct = 0 OR atual_pct IS NULL THEN NULL
+                       ELSE ROUND((atual_pct / historico_pct)::numeric, 2) END,
+          'delta_pp', CASE WHEN historico_pct IS NULL OR atual_pct IS NULL THEN NULL
+                          ELSE ROUND((atual_pct - historico_pct)::numeric, 1) END,
+          'lift_entradas', CASE WHEN historico_leads_pct IS NULL OR historico_leads_pct = 0 OR atual_pct IS NULL THEN NULL
+                                ELSE ROUND((atual_pct / historico_leads_pct)::numeric, 2) END   -- NOVO: agora ÷ antes (mix)
+        ) ORDER BY historico_qtd DESC, atual_qtd DESC) AS dados
+        FROM rows WHERE historico_qtd >= v_min OR atual_qtd >= v_min OR historico_leads_qtd >= v_min   -- NOVO
+       GROUP BY dim
+    ) g;
+
+    -- Cruzamento LIVRE: dois eixos escolhidos (allowlist via CASE; valor inválido → NULL → some)
+    WITH hx AS (
+      SELECT
+        CASE p_cruz_x WHEN 'faixa' THEN faixa WHEN 'convidados' THEN convidados WHEN 'destino' THEN destino
+                      WHEN 'origem' THEN origem WHEN 'canal_sdr' THEN canal_sdr WHEN 'canal_closer' THEN canal_closer WHEN 'tipo' THEN tipo END AS x,
+        CASE p_cruz_y WHEN 'faixa' THEN faixa WHEN 'convidados' THEN convidados WHEN 'destino' THEN destino
+                      WHEN 'origem' THEN origem WHEN 'canal_sdr' THEN canal_sdr WHEN 'canal_closer' THEN canal_closer WHEN 'tipo' THEN tipo END AS y
+        FROM _ww_v2_pli_h
+    ),
+    ax AS (
+      SELECT
+        CASE p_cruz_x WHEN 'faixa' THEN faixa WHEN 'convidados' THEN convidados WHEN 'destino' THEN destino
+                      WHEN 'origem' THEN origem WHEN 'canal_sdr' THEN canal_sdr WHEN 'canal_closer' THEN canal_closer WHEN 'tipo' THEN tipo END AS x,
+        CASE p_cruz_y WHEN 'faixa' THEN faixa WHEN 'convidados' THEN convidados WHEN 'destino' THEN destino
+                      WHEN 'origem' THEN origem WHEN 'canal_sdr' THEN canal_sdr WHEN 'canal_closer' THEN canal_closer WHEN 'tipo' THEN tipo END AS y
+        FROM _ww_v2_pli_a
+    ),
+    hex AS (   -- NOVO: leads que entraram na referência, no cruzamento
+      SELECT
+        CASE p_cruz_x WHEN 'faixa' THEN faixa WHEN 'convidados' THEN convidados WHEN 'destino' THEN destino
+                      WHEN 'origem' THEN origem WHEN 'canal_sdr' THEN canal_sdr WHEN 'canal_closer' THEN canal_closer WHEN 'tipo' THEN tipo END AS x,
+        CASE p_cruz_y WHEN 'faixa' THEN faixa WHEN 'convidados' THEN convidados WHEN 'destino' THEN destino
+                      WHEN 'origem' THEN origem WHEN 'canal_sdr' THEN canal_sdr WHEN 'canal_closer' THEN canal_closer WHEN 'tipo' THEN tipo END AS y
+        FROM _ww_v2_pli_he
+    ),
+    h AS (SELECT x, y, COUNT(*) AS qtd FROM hx WHERE x IS NOT NULL AND y IS NOT NULL GROUP BY x, y),
+    a AS (SELECT x, y, COUNT(*) AS qtd FROM ax WHERE x IS NOT NULL AND y IS NOT NULL GROUP BY x, y),
+    hl AS (SELECT x, y, COUNT(*) AS qtd FROM hex WHERE x IS NOT NULL AND y IS NOT NULL GROUP BY x, y),   -- NOVO
+    cells AS (SELECT DISTINCT x, y FROM (SELECT x, y FROM h UNION ALL SELECT x, y FROM a UNION ALL SELECT x, y FROM hl) z)
+    SELECT COALESCE(json_agg(json_build_object(
+        'x', cells.x, 'y', cells.y,
+        'hist_qtd', COALESCE(h.qtd, 0),
+        'hist_pct', CASE WHEN v_total_hist > 0 THEN ROUND(100.0 * COALESCE(h.qtd,0) / v_total_hist, 1) END,
+        'atual_qtd', COALESCE(a.qtd, 0),
+        'atual_pct', CASE WHEN v_total_atual > 0 THEN ROUND(100.0 * COALESCE(a.qtd,0) / v_total_atual, 1) END,
+        'hist_leads_qtd', COALESCE(hl.qtd, 0),
+        'hist_leads_pct', CASE WHEN v_total_hist_leads > 0 THEN ROUND(100.0 * COALESCE(hl.qtd,0) / v_total_hist_leads, 1) END
+      )), '[]'::JSON) INTO v_cruzamento
+    FROM cells LEFT JOIN h ON h.x = cells.x AND h.y = cells.y LEFT JOIN a ON a.x = cells.x AND a.y = cells.y LEFT JOIN hl ON hl.x = cells.x AND hl.y = cells.y;
+
+    SELECT COALESCE(json_agg(json_build_object(
+      'faixa', faixa, 'destino', destino, 'convidados', convidados,
+      'qtd', qtd,
+      'pct', CASE WHEN v_total_hist > 0 THEN ROUND(100.0 * qtd / v_total_hist, 1) END
+    ) ORDER BY qtd DESC), '[]'::JSON) INTO v_top_perfis_hist
+    FROM (
+      SELECT faixa, destino, convidados, COUNT(*) AS qtd
+        FROM _ww_v2_pli_h WHERE faixa IS NOT NULL AND destino IS NOT NULL AND convidados IS NOT NULL
+       GROUP BY faixa, destino, convidados
+       HAVING COUNT(*) >= 1
+       ORDER BY COUNT(*) DESC LIMIT 10
+    ) g;
+
+    SELECT COALESCE(json_agg(json_build_object(
+      'faixa', faixa, 'destino', destino, 'convidados', convidados,
+      'qtd', qtd,
+      'pct', CASE WHEN v_total_atual > 0 THEN ROUND(100.0 * qtd / v_total_atual, 1) END
+    ) ORDER BY qtd DESC), '[]'::JSON) INTO v_top_perfis_atual
+    FROM (
+      SELECT faixa, destino, convidados, COUNT(*) AS qtd
+        FROM _ww_v2_pli_a WHERE faixa IS NOT NULL AND destino IS NOT NULL AND convidados IS NOT NULL
+       GROUP BY faixa, destino, convidados
+       HAVING COUNT(*) >= v_min
+       ORDER BY COUNT(*) DESC LIMIT 10
+    ) g;
+
+    -- NOVO — Top combos UNIFICADO (faixa+destino+convidados) com os 3 números lado a lado,
+    -- ranqueado por quem mais VENDEU (perfil ideal): responde "meus perfis campeões ainda entram?".
+    WITH cu AS (
+      SELECT faixa, destino, convidados FROM _ww_v2_pli_h  WHERE faixa IS NOT NULL AND destino IS NOT NULL AND convidados IS NOT NULL
+      UNION SELECT faixa, destino, convidados FROM _ww_v2_pli_he WHERE faixa IS NOT NULL AND destino IS NOT NULL AND convidados IS NOT NULL
+      UNION SELECT faixa, destino, convidados FROM _ww_v2_pli_a  WHERE faixa IS NOT NULL AND destino IS NOT NULL AND convidados IS NOT NULL
+    ),
+    cv AS (SELECT faixa, destino, convidados, COUNT(*) q FROM _ww_v2_pli_h  WHERE faixa IS NOT NULL AND destino IS NOT NULL AND convidados IS NOT NULL GROUP BY 1,2,3),
+    cl AS (SELECT faixa, destino, convidados, COUNT(*) q FROM _ww_v2_pli_he WHERE faixa IS NOT NULL AND destino IS NOT NULL AND convidados IS NOT NULL GROUP BY 1,2,3),
+    cn AS (SELECT faixa, destino, convidados, COUNT(*) q FROM _ww_v2_pli_a  WHERE faixa IS NOT NULL AND destino IS NOT NULL AND convidados IS NOT NULL GROUP BY 1,2,3)
+    SELECT COALESCE(json_agg(j ORDER BY vendas DESC, leads_agora DESC), '[]'::JSON) INTO v_top_perfis_unif
+    FROM (
+      SELECT json_build_object(
+          'faixa', cu.faixa, 'destino', cu.destino, 'convidados', cu.convidados,
+          'vendas', COALESCE(cv.q,0),
+          'vendas_pct', CASE WHEN v_total_hist > 0 THEN ROUND(100.0 * COALESCE(cv.q,0) / v_total_hist, 1) END,
+          'leads_ref', COALESCE(cl.q,0),
+          'leads_ref_pct', CASE WHEN v_total_hist_leads > 0 THEN ROUND(100.0 * COALESCE(cl.q,0) / v_total_hist_leads, 1) END,
+          'leads_agora', COALESCE(cn.q,0),
+          'leads_agora_pct', CASE WHEN v_total_atual > 0 THEN ROUND(100.0 * COALESCE(cn.q,0) / v_total_atual, 1) END
+        ) AS j,
+        COALESCE(cv.q,0) AS vendas, COALESCE(cn.q,0) AS leads_agora
+        FROM cu
+        LEFT JOIN cv ON cv.faixa=cu.faixa AND cv.destino=cu.destino AND cv.convidados=cu.convidados
+        LEFT JOIN cl ON cl.faixa=cu.faixa AND cl.destino=cu.destino AND cl.convidados=cu.convidados
+        LEFT JOIN cn ON cn.faixa=cu.faixa AND cn.destino=cu.destino AND cn.convidados=cu.convidados
+       WHERE COALESCE(cv.q,0) >= 1 OR COALESCE(cn.q,0) >= v_min
+       ORDER BY COALESCE(cv.q,0) DESC, COALESCE(cn.q,0) DESC
+       LIMIT 12
+    ) g;
+
+    DROP TABLE _ww_v2_pli_h;
+    DROP TABLE _ww_v2_pli_a;
+    DROP TABLE _ww_v2_pli_he;   -- NOVO
+
+    RETURN json_build_object(
+      'atual_start', p_atual_start, 'atual_end', p_atual_end,
+      'historico_start', v_hist_start, 'historico_end', v_hist_end,
+      'pipeline_id', v_pipeline_id, 'org_id', v_org_id,
+      'min_amostra', v_min,
+      'fonte_v2', 'ww_funil_casal',
+      'referencia', CASE WHEN v_perdido THEN 'perdido' ELSE 'ganho' END,
+      'cruz_x', p_cruz_x, 'cruz_y', p_cruz_y,
+      'filtros_aplicados', json_build_object('origins',p_origins,'consultor_ids',p_consultor_ids,'faixas',p_faixas,'destinos',p_destinos,'convidados',p_convidados,'tipos',p_tipos,'sdr_canal',p_sdr_canal,'closer_canal',p_closer_canal),
+      'total_historico', v_total_hist,
+      'total_atual', v_total_atual,
+      'total_historico_leads', v_total_hist_leads,   -- NOVO
+      'comparacoes', v_comparacoes,
+      'cruzamento', v_cruzamento,
+      'top_perfis_historico', v_top_perfis_hist,
+      'top_perfis_atual', v_top_perfis_atual,
+      'top_perfis_unificado', v_top_perfis_unif
+    );
+END $function$;
