@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, ChevronLeft, ChevronRight, Gauge, Loader2, MessageSquare, Percent, Plane, Search, Send, Smile, X } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { AlertTriangle, ChevronLeft, ChevronRight, Gauge, Loader2, MessageSquare, Percent, Plane, Search, Send, Smile, Ticket, X } from 'lucide-react'
 import {
     CartesianGrid,
     Line,
@@ -14,7 +15,14 @@ import AdminPageHeader from '../components/admin/ui/AdminPageHeader'
 import { useNPSKpis, type NPSKpis, type NPSPeriod } from '../hooks/useNPSKpis'
 import { useNPSResponses, type NPSResponseRow } from '../hooks/useNPSResponses'
 import { useNPSMonthlyTrend, type TrendGranularity } from '../hooks/useNPSMonthlyTrend'
+import { useContactAvailableCards } from '../hooks/useContactAvailableCards'
 import { cn } from '../lib/utils'
+
+/** Card resumido (id + título) de uma viagem do contato, pra renderizar como chip. */
+interface ContactCardChip {
+    id: string
+    titulo: string
+}
 
 type StatColor = 'indigo' | 'green' | 'red' | 'amber' | 'blue' | 'purple' | 'slate' | 'emerald' | 'rose'
 
@@ -199,86 +207,75 @@ function NPSEmptyState({ kpis, hasFilters }: { kpis: NPSKpis | undefined; hasFil
     )
 }
 
-function NPSResponseCard({ row }: { row: NPSResponseRow }) {
+function NPSResponseCard({ row, cards }: { row: NPSResponseRow; cards: ContactCardChip[] }) {
+    const navigate = useNavigate()
     const segment = segmentOf(row.score)
-    const hasCard = row.card_id !== null
-    const headerLabel = row.card_titulo || row.original_name || row.contato_nome || 'Resposta sem card vinculado'
-    const subLabel = row.card_titulo
-        ? row.contato_nome
-        : row.contato_nome && row.contato_nome !== row.card_titulo
-            ? row.contato_nome
-            : null
+    const contactName = row.contato_nome || row.original_name || null
+    const headerLabel = contactName || row.card_titulo || 'Resposta sem contato vinculado'
 
-    const containerClass = cn(
-        'block bg-white rounded-xl border border-slate-200 shadow-sm transition-all duration-200',
-        hasCard
-            ? 'hover:shadow-md hover:border-indigo-200 cursor-pointer'
-            : 'cursor-default',
-    )
-
-    const content = (
-        <div className="p-4 flex items-start gap-4">
-            <div className={cn('flex flex-col items-center justify-center w-14 h-14 rounded-xl border', segment.container)}>
-                <span className="text-2xl font-bold leading-none tracking-tight">{row.score}</span>
-                <span className="text-[10px] font-medium opacity-80 mt-0.5">/10</span>
-            </div>
-
-            <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2 mb-1">
-                    <div className="min-w-0">
-                        <h3 className="font-medium text-slate-900 truncate">
-                            {headerLabel}
-                        </h3>
-                        {subLabel && (
-                            <p className="text-xs text-slate-500 mt-0.5">{subLabel}</p>
-                        )}
-                        {!hasCard && (
-                            <p className="text-xs text-slate-400 mt-0.5 italic">Sem card vinculado</p>
-                        )}
-                    </div>
-                    <span className={cn('shrink-0 px-2 py-0.5 rounded-full text-xs font-medium', segment.badge)}>
-                        {segment.label}
-                    </span>
+    return (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+            <div className="p-4 flex items-start gap-4">
+                <div className={cn('flex flex-col items-center justify-center w-14 h-14 rounded-xl border', segment.container)}>
+                    <span className="text-2xl font-bold leading-none tracking-tight">{row.score}</span>
+                    <span className="text-[10px] font-medium opacity-80 mt-0.5">/10</span>
                 </div>
 
-                {row.comment && (
-                    <p className="text-sm text-slate-600 whitespace-pre-wrap mt-2">
-                        “{row.comment}”
-                    </p>
-                )}
-
-                {row.proximo_destino && (
-                    <div className="flex items-start gap-1.5 mt-2 text-xs text-slate-600">
-                        <Plane className="w-3.5 h-3.5 text-indigo-500 shrink-0 mt-0.5" />
-                        <span className="text-slate-500 shrink-0">Próximo destino:</span>
-                        <span className="font-medium text-slate-700 whitespace-pre-wrap break-words">{row.proximo_destino}</span>
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                        <h3 className="font-medium text-slate-900 truncate min-w-0">
+                            {headerLabel}
+                        </h3>
+                        <span className={cn('shrink-0 px-2 py-0.5 rounded-full text-xs font-medium', segment.badge)}>
+                            {segment.label}
+                        </span>
                     </div>
-                )}
 
-                <div className="flex items-center gap-3 mt-3 text-xs text-slate-500">
-                    <span>{formatDate(row.responded_at)}</span>
-                    {row.channel && row.channel !== 'unknown' && (
-                        <span className="capitalize">via {row.channel}</span>
+                    {row.comment && (
+                        <p className="text-sm text-slate-600 whitespace-pre-wrap mt-2">
+                            “{row.comment}”
+                        </p>
                     )}
+
+                    {row.proximo_destino && (
+                        <div className="flex items-start gap-1.5 mt-2 text-xs text-slate-600">
+                            <Plane className="w-3.5 h-3.5 text-indigo-500 shrink-0 mt-0.5" />
+                            <span className="text-slate-500 shrink-0">Próximo destino:</span>
+                            <span className="font-medium text-slate-700 whitespace-pre-wrap break-words">{row.proximo_destino}</span>
+                        </div>
+                    )}
+
+                    {/* Cards do contato (um contato pode ter mais de uma viagem) */}
+                    <div className="flex flex-wrap items-center gap-1.5 mt-3">
+                        {cards.length > 0 ? (
+                            cards.map((c) => (
+                                <button
+                                    key={c.id}
+                                    onClick={() => navigate(`/cards/${c.id}`)}
+                                    title={c.titulo}
+                                    className="inline-flex items-center gap-1 max-w-[240px] px-2 py-1 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100 hover:bg-indigo-100 transition-colors"
+                                >
+                                    <Ticket className="w-3 h-3 shrink-0" />
+                                    <span className="truncate">{c.titulo}</span>
+                                </button>
+                            ))
+                        ) : (
+                            <span className="text-xs text-slate-400 italic">
+                                {contactName ? 'Contato sem card de viagem' : 'Sem contato vinculado'}
+                            </span>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-3 mt-3 text-xs text-slate-500">
+                        <span>{formatDate(row.responded_at)}</span>
+                        {row.channel && row.channel !== 'unknown' && (
+                            <span className="capitalize">via {row.channel}</span>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
     )
-
-    if (hasCard) {
-        return (
-            <a
-                href={`/cards/${row.card_id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={containerClass}
-            >
-                {content}
-            </a>
-        )
-    }
-
-    return <div className={containerClass}>{content}</div>
 }
 
 function TrendChart({ period }: { period: NPSPeriod }) {
@@ -379,6 +376,21 @@ export default function NPSPage() {
 
     const { data: kpis, isLoading: loadingKpis } = useNPSKpis(period)
     const { data: allResponses = [], isLoading: loadingList } = useNPSResponses(period)
+
+    // Cards de cada contato que respondeu (um contato pode ter várias viagens).
+    const contactIds = useMemo(
+        () => [...new Set(allResponses.map((r) => r.contact_id).filter((v): v is string => !!v))],
+        [allResponses],
+    )
+    const { data: cardsByContact = {} } = useContactAvailableCards(contactIds)
+    const cardsForRow = useMemo(() => {
+        return (row: NPSResponseRow): ContactCardChip[] => {
+            if (!row.contact_id) return []
+            return (cardsByContact[row.contact_id] ?? [])
+                .filter((c) => (c.produto ?? '').toUpperCase() === 'TRIPS')
+                .map((c) => ({ id: c.id, titulo: c.titulo }))
+        }
+    }, [cardsByContact])
 
     const filteredResponses = useMemo(() => {
         const q = normalize(searchQuery)
@@ -548,7 +560,7 @@ export default function NPSPage() {
                     <>
                         <div className="space-y-3">
                             {pagedResponses.map((row) => (
-                                <NPSResponseCard key={row.id} row={row} />
+                                <NPSResponseCard key={row.id} row={row} cards={cardsForRow(row)} />
                             ))}
                         </div>
 

@@ -11,6 +11,7 @@ export interface NPSResponseRow {
     responded_at: string
     card_id: string | null
     card_titulo: string | null
+    contact_id: string | null
     contato_nome: string | null
     channel: string | null
     original_name: string | null
@@ -27,7 +28,7 @@ interface RawRow {
     cards: { titulo: string | null } | null
     nps_surveys: {
         channel: string | null
-        contatos: { nome: string | null; sobrenome: string | null } | null
+        contatos: { id: string; nome: string | null; sobrenome: string | null } | null
     } | null
 }
 
@@ -58,7 +59,7 @@ export function useNPSResponses(
                     cards(titulo),
                     nps_surveys!inner(
                         channel,
-                        contatos(nome, sobrenome)
+                        contatos(id, nome, sobrenome)
                     )
                 `)
                 .eq('org_id', activeOrgId)
@@ -85,6 +86,7 @@ export function useNPSResponses(
                     responded_at: row.responded_at,
                     card_id: row.card_id,
                     card_titulo: row.cards?.titulo ?? null,
+                    contact_id: contato?.id ?? null,
                     contato_nome: fullName,
                     channel: row.nps_surveys?.channel ?? null,
                     original_name: row.raw_payload?.original_name ?? null,
