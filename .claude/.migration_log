@@ -1298,3 +1298,4 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-17T18:57:07Z | supabase/migrations/20260617f_ww_entrada_por_nascimento.sql | applied_to_prod
 2026-06-17T18:57:31Z | supabase/migrations/20260617g_ww_drill_casais_nascimento.sql | applied_to_prod
 2026-06-17T18:57:54Z | supabase/migrations/20260617h_ww_perfil_ranking_nascimento.sql | applied_to_prod
+2026-06-17T19:30:58Z | supabase/migrations/20260617b_drill_current_stage_no_date_filter.sql | applied_to_prod
