@@ -1290,3 +1290,7 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-17T12:48:02Z | supabase/migrations/20260617b_ww_agendamentos_respeita_filtro_e_coerencia.sql | applied_to_prod
 2026-06-17T13:05:46Z | supabase/migrations/20260617c_ww_agendamentos_itens_drill.sql | applied_to_prod
 2026-06-17T13:25:27Z | supabase/migrations/20260617d_ww_agendamentos_anti_massa.sql | applied_to_prod
+2026-06-17T13:00:56Z | supabase/migrations/20260617a_calendly_source_org.sql | applied_to_prod via Management API (token CLI)
+2026-06-17T13:00:56Z | supabase/migrations/20260617b_calendly_function_weddings.sql | applied_to_prod via Management API (token CLI)
+2026-06-17T13:00:56Z | supabase/migrations/20260617c_ww_closer_data_reuniao_field.sql | applied_to_prod via Management API (token CLI)
+2026-06-17T13:00:56Z | supabase/migrations/20260617e_calendly_contato_no_phone.sql | applied_to_prod via Management API (token CLI)

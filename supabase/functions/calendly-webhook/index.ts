@@ -159,16 +159,38 @@ Deno.serve(async (req) => {
   }
 
   const signatureHeader = req.headers.get("calendly-webhook-signature");
-  const signingKey = Deno.env.get("CALENDLY_SIGNING_KEY") || "";
+  // Múltiplas contas Calendly: cada conta tem sua própria signing key e
+  // pertence a uma org. Qual chave validou o evento define a org de origem
+  // (source_org_id), usada pelo trigger SQL pra rotear só os triggers daquela org.
+  // Trips = chave default; Weddings = chave própria (conta Calendly separada).
+  const signingAccounts = [
+    {
+      orgId: Deno.env.get("CALENDLY_ORG_DEFAULT") || "b0000000-0000-0000-0000-000000000001",
+      key: Deno.env.get("CALENDLY_SIGNING_KEY") || "",
+    },
+    {
+      orgId: Deno.env.get("CALENDLY_ORG_WEDDINGS") || "b0000000-0000-0000-0000-000000000002",
+      key: Deno.env.get("CALENDLY_SIGNING_KEY_WEDDINGS") || "",
+    },
+  ].filter((a) => a.key);
+
   let signatureValid: boolean | null = null;
-  if (signingKey) {
-    signatureValid = await validateSignature(signatureHeader, rawBody, signingKey);
+  let sourceOrgId: string | null = null;
+  if (signingAccounts.length > 0) {
+    for (const account of signingAccounts) {
+      if (await validateSignature(signatureHeader, rawBody, account.key)) {
+        signatureValid = true;
+        sourceOrgId = account.orgId;
+        break;
+      }
+    }
     if (!signatureValid) {
+      signatureValid = false;
       console.warn("[calendly-webhook] Invalid signature, rejecting");
       return jsonResponse({ error: "Invalid signature" }, 401);
     }
   } else {
-    console.warn("[calendly-webhook] CALENDLY_SIGNING_KEY not configured — signature not validated");
+    console.warn("[calendly-webhook] No CALENDLY signing keys configured — signature not validated");
   }
 
   let body: CalendlyPayload;
@@ -213,6 +235,7 @@ Deno.serve(async (req) => {
       meeting_location_type: extracted.meeting_location_type,
       meeting_join_url: extracted.meeting_join_url,
       organizer_email: extracted.organizer_email,
+      source_org_id: sourceOrgId,
       processed_status: "pending",
     })
     .select("id")
