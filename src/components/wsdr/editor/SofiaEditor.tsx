@@ -2,7 +2,7 @@ import { useMemo, useState, type ComponentType } from 'react'
 import {
   User, MessageSquare, Wallet, Zap, ShieldAlert, Eye, Loader2, CheckCircle, AlertCircle,
   Smile, Languages, Sparkles, Target, Coins, Info, ListOrdered, Search, Gauge,
-  AlertTriangle, RotateCcw, Power, Code, ChevronDown, Phone, Eraser,
+  AlertTriangle, RotateCcw, Power, Code, ChevronDown, Phone, Eraser, Copy, Check,
 } from 'lucide-react'
 import { PricingEditor } from '@/components/wsdr/editor/PricingEditor'
 import { MomentsEditor } from '@/components/wsdr/editor/MomentsEditor'
@@ -27,8 +27,11 @@ import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import {
   type SofiaConfigV2, type SofiaCapabilities, type Tom, type CapabilityKey, type AberturaMode,
-  TOM_OPTIONS, CAPABILITY_META, humanPromptPreview, computeSofiaWarnings, assembleSofiaPromptPreview, defaultSofiaConfig,
+  TOM_OPTIONS, CAPABILITY_META, humanPromptPreview, computeSofiaWarnings, defaultSofiaConfig,
 } from '@/components/wsdr/sofiaConfig'
+import {
+  type PromptSegment, assembleSofiaPromptParts, promptPartsToText,
+} from '@/components/wsdr/sofiaPromptStructured'
 import { useSofiaConfig } from '@/hooks/wsdr/useSofiaConfig'
 
 // Helper tipado: liga/desliga uma capacidade sem brigar com a união de tipos.
@@ -91,6 +94,47 @@ const FIELD_SKIN = [
   '[&_textarea]:border-ww-sand',
 ].join(' ')
 
+// Destaque por origem do trecho do prompt: campo (suas configs) vs preenchido na conversa.
+const SEG_STYLE: Record<'field' | 'runtime', string> = {
+  field: 'bg-ww-gold-soft text-ww-gold-ink rounded px-1 py-0.5 cursor-help',
+  runtime: 'bg-ww-olive-soft text-ww-olive-ink rounded px-1 py-0.5 cursor-help',
+}
+
+function PromptLegend() {
+  const items = [
+    { cls: 'bg-ww-gold-soft text-ww-gold-ink', label: 'vem das suas configurações' },
+    { cls: 'bg-ww-olive-soft text-ww-olive-ink', label: 'preenchido na conversa' },
+    { cls: 'bg-ww-cream border border-ww-sand', label: 'fixo (inteligência da Sofia)' },
+  ]
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+      {items.map(it => (
+        <span key={it.label} className="inline-flex items-center gap-1.5 text-[11px] text-ww-n600">
+          <span className={cn('inline-block w-3 h-3 rounded-sm', it.cls)} />{it.label}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+// Um dos dois textos reais (System ou User), com cada trecho colorido pela origem.
+// Passar o mouse num trecho destacado mostra de qual ajuste da tela ele veio.
+function PromptBlock({ title, desc, segments }: { title: string; desc: string; segments: PromptSegment[] }) {
+  return (
+    <div>
+      <div className="flex items-baseline gap-2 mb-1.5">
+        <span className="text-[11px] font-bold uppercase tracking-wide text-ww-n700">{title}</span>
+        <span className="text-[11px] text-ww-n400">{desc}</span>
+      </div>
+      <pre className="bg-ww-cream/60 border border-ww-sand rounded-lg p-4 text-xs text-ww-n700 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">
+        {segments.map((s, i) => s.kind === 'fixed'
+          ? <span key={i}>{s.text}</span>
+          : <span key={i} className={SEG_STYLE[s.kind]} title={s.label}>{s.text}</span>)}
+      </pre>
+    </div>
+  )
+}
+
 export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
   const { config, setConfig, loading, status, error, save } = useSofiaConfig(slug)
   const [activeTheme, setActiveTheme] = useState<ThemeKey | null>(null)
@@ -112,9 +156,19 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
   }
 
   const preview = useMemo(() => (config ? humanPromptPreview(config) : ''), [config])
-  const promptCru = useMemo(() => (config ? assembleSofiaPromptPreview(config) : ''), [config])
+  const promptParts = useMemo(() => (config ? assembleSofiaPromptParts(config) : null), [config])
   const warnings = useMemo(() => (config ? computeSofiaWarnings(config) : []), [config])
   const [showCru, setShowCru] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const copyPrompt = async () => {
+    if (!promptParts) return
+    try {
+      await navigator.clipboard.writeText(promptPartsToText(promptParts))
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch { /* clipboard indisponível, ignora */ }
+  }
 
   // Restaurar uma parte ao recomendado (rede de segurança do controle total).
   const restore = (key: keyof SofiaConfigV2) => {
@@ -483,10 +537,31 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
           </EditorCard>
 
           <EditorCard accent="slate" icon={<Eye className="w-5 h-5" />} title="O que a Sofia entende"
-            desc="Resumo, em linguagem simples, de como a Sofia vai se comportar com as configurações atuais. Atualiza ao vivo."
-            aside={<button type="button" onClick={() => setShowCru(s => !s)} className="flex items-center gap-1 text-xs text-ww-n400 hover:text-ww-gold-ink shrink-0"><Code className="w-3.5 h-3.5" />{showCru ? 'Ver resumo simples' : 'Ver prompt técnico'}</button>}>
-            <pre className="bg-ww-cream/60 border border-ww-sand rounded-lg p-4 text-xs text-ww-n700 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">{showCru ? promptCru : preview}</pre>
-            {showCru && <p className="text-[11px] text-ww-n400 mt-2">Prévia técnica da estrutura do cérebro com as suas configurações. Os blocos marcados FIXOS são o raciocínio da Camila e não mudam.</p>}
+            desc="Como a Sofia se comporta com as configurações atuais. Em resumo simples, ou no prompt técnico real (System e User Prompt) com cada trecho marcado pela origem. Atualiza ao vivo."
+            aside={
+              <div className="flex items-center gap-3 shrink-0">
+                {showCru && promptParts && (
+                  <button type="button" onClick={copyPrompt} className="flex items-center gap-1 text-xs text-ww-n400 hover:text-ww-gold-ink">
+                    {copied ? <Check className="w-3.5 h-3.5 text-ww-olive-ink" /> : <Copy className="w-3.5 h-3.5" />}{copied ? 'Copiado' : 'Copiar'}
+                  </button>
+                )}
+                <button type="button" onClick={() => setShowCru(s => !s)} className="flex items-center gap-1 text-xs text-ww-n400 hover:text-ww-gold-ink">
+                  <Code className="w-3.5 h-3.5" />{showCru ? 'Ver resumo simples' : 'Ver prompt técnico'}
+                </button>
+              </div>
+            }>
+            {showCru && promptParts ? (
+              <div className="space-y-4">
+                <p className="text-[11px] text-ww-n400">
+                  Estes são os dois textos que a Sofia recebe de verdade, montados com as suas configurações. O que está destacado <strong className="text-ww-gold-ink">vem dos seus ajustes</strong>; o resto é fixo (o raciocínio dela) ou preenchido na hora da conversa.
+                </p>
+                <PromptLegend />
+                <PromptBlock title="System Prompt" desc="quem ela é e como pensa (vale a conversa toda)" segments={promptParts.system} />
+                <PromptBlock title="User Prompt" desc="o que ela recebe a cada nova mensagem do casal" segments={promptParts.user} />
+              </div>
+            ) : (
+              <pre className="bg-ww-cream/60 border border-ww-sand rounded-lg p-4 text-xs text-ww-n700 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">{preview}</pre>
+            )}
           </EditorCard>
 
           <EditorCard accent="slate" icon={<Eraser className="w-5 h-5" />} title="Zerar conversa pra começar do zero"
