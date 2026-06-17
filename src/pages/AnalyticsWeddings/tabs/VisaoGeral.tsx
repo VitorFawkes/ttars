@@ -803,15 +803,6 @@ function AlertasParados({ alertas }: { alertas: Ww2Alerta[] }) {
       return dir * (av - bv)
     })
 
-  const Seta = ({ k }: { k: AlertaSortKey }) => sortKey === k ? <span className="text-ww-gold-ink">{sortDir === 'asc' ? '↑' : '↓'}</span> : <span className="text-slate-300">↕</span>
-  const Th = ({ k, children, align = 'left' }: { k: AlertaSortKey; children: React.ReactNode; align?: 'left' | 'right' }) => (
-    <th className={`py-2 font-medium ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button onClick={() => toggleSort(k)} className={`inline-flex items-center gap-1 hover:text-ww-gold-ink transition-colors ${align === 'right' ? 'flex-row-reverse' : ''}`}>
-        {children} <Seta k={k} />
-      </button>
-    </th>
-  )
-
   return (
     <SectionCard
       title="Alertas: leads parados há mais de 7 dias"
@@ -837,11 +828,11 @@ function AlertasParados({ alertas }: { alertas: Ww2Alerta[] }) {
           <table className="w-full text-xs">
             <thead className="text-slate-500">
               <tr>
-                <Th k="titulo">Card</Th>
+                <AlertaTh k="titulo" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>Card</AlertaTh>
                 <th className="py-2 font-medium text-left">Etapa</th>
-                <Th k="ac_pipeline_nome">Pipeline (Active)</Th>
-                <Th k="valor_estimado" align="right">Valor</Th>
-                <Th k="dias_parado" align="right">Parado há</Th>
+                <AlertaTh k="ac_pipeline_nome" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>Pipeline (Active)</AlertaTh>
+                <AlertaTh k="valor_estimado" align="right" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>Valor</AlertaTh>
+                <AlertaTh k="dias_parado" align="right" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>Parado há</AlertaTh>
                 <th className="py-2 font-medium text-right">Active</th>
               </tr>
             </thead>
