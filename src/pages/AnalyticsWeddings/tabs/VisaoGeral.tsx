@@ -547,32 +547,43 @@ const DESF_SERIES = [
   { key: 'sem_registro', label: 'Sem registro', cor: '#94a3b8' },
 ] as const
 
-// Bucketiza os desfechos de UM papel (SDR ou Closer) em semanas (segunda→domingo, BRT) —
-// mesma lógica do AgendaGrafico. `total` por semana alimenta o rótulo no topo da pilha.
-type DesfSemana = { ord: string; label: string; feita: number; nao_aconteceu: number; reagendando: number; perdida: number; sem_registro: number; total: number }
-function semanasDesfecho(itens: WwAgendaDesfechoItem[]): DesfSemana[] {
-  const semanas = new Map<string, DesfSemana>()
+// Bucketiza os desfechos de UM papel (SDR ou Closer) por dia, semana (segunda→domingo,
+// BRT) ou mês. `total` por bucket alimenta o rótulo no topo da pilha. A granularidade é
+// escolha do usuário (toggle no DesfechosGrafico); a janela é o período do filtro.
+type EscalaTempo = 'dia' | 'semana' | 'mes'
+type DesfBucket = { ord: string; label: string; feita: number; nao_aconteceu: number; reagendando: number; perdida: number; sem_registro: number; total: number }
+const MESES_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+function bucketizarDesfecho(itens: WwAgendaDesfechoItem[], escala: EscalaTempo): DesfBucket[] {
+  const buckets = new Map<string, DesfBucket>()
+  const fmtDM = (x: Date) => `${String(x.getDate()).padStart(2, '0')}/${String(x.getMonth() + 1).padStart(2, '0')}`
   for (const it of itens) {
     const key = diaKeyBRT(new Date(it.quando))
     const [y, m, dd] = key.split('-').map(Number)
     const local = new Date(y, m - 1, dd, 12)
-    const seg = new Date(local); seg.setDate(seg.getDate() - ((seg.getDay() + 6) % 7))
-    const segKey = `${seg.getFullYear()}-${String(seg.getMonth() + 1).padStart(2, '0')}-${String(seg.getDate()).padStart(2, '0')}`
-    if (!semanas.has(segKey)) {
+    let ord: string, label: string
+    if (escala === 'dia') {
+      ord = key
+      label = fmtDM(local)
+    } else if (escala === 'mes') {
+      ord = `${y}-${String(m).padStart(2, '0')}`
+      label = `${MESES_PT[m - 1]}/${String(y).slice(2)}`
+    } else {
+      const seg = new Date(local); seg.setDate(seg.getDate() - ((seg.getDay() + 6) % 7))
+      ord = `${seg.getFullYear()}-${String(seg.getMonth() + 1).padStart(2, '0')}-${String(seg.getDate()).padStart(2, '0')}`
       const dom = new Date(seg); dom.setDate(dom.getDate() + 6)
-      const fmt = (x: Date) => `${String(x.getDate()).padStart(2, '0')}/${String(x.getMonth() + 1).padStart(2, '0')}`
-      semanas.set(segKey, { ord: segKey, label: `${fmt(seg)}–${fmt(dom)}`, feita: 0, nao_aconteceu: 0, reagendando: 0, perdida: 0, sem_registro: 0, total: 0 })
+      label = `${fmtDM(seg)}–${fmtDM(dom)}`
     }
-    const row = semanas.get(segKey)!
+    if (!buckets.has(ord)) buckets.set(ord, { ord, label, feita: 0, nao_aconteceu: 0, reagendando: 0, perdida: 0, sem_registro: 0, total: 0 })
+    const row = buckets.get(ord)!
     if (it.categoria in row) { (row as unknown as Record<string, number>)[it.categoria] += 1; row.total += 1 }
   }
-  return [...semanas.values()].sort((a, b) => a.ord.localeCompare(b.ord))
+  return [...buckets.values()].sort((a, b) => a.ord.localeCompare(b.ord))
 }
 
 // Um gráfico por papel — barras empilhadas pela cor do desfecho, número de cada fatia dentro e
 // o total da semana no topo.
-function DesfechoBarras({ itens, titulo, accentDot }: { itens: WwAgendaDesfechoItem[]; titulo: string; accentDot: string }) {
-  const rows = semanasDesfecho(itens)
+function DesfechoBarras({ itens, titulo, accentDot, escala }: { itens: WwAgendaDesfechoItem[]; titulo: string; accentDot: string; escala: EscalaTempo }) {
+  const rows = bucketizarDesfecho(itens, escala)
   return (
     <div>
       <div className="flex items-center gap-1.5 mb-2">
@@ -583,10 +594,10 @@ function DesfechoBarras({ itens, titulo, accentDot }: { itens: WwAgendaDesfechoI
       {rows.length === 0 ? (
         <div className="h-[200px] flex items-center justify-center text-xs text-ww-n400">Nenhuma reunião marcada no período.</div>
       ) : (
-        <ResponsiveContainer width="100%" height={200}>
+        <ResponsiveContainer width="100%" height={escala === 'dia' ? 224 : 200}>
           <BarChart data={rows} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-            <XAxis dataKey="label" stroke="#64748b" fontSize={10} tickLine={false} />
+            <XAxis dataKey="label" stroke="#64748b" fontSize={10} tickLine={false} interval={0} angle={escala === 'dia' ? -38 : 0} textAnchor={escala === 'dia' ? 'end' : 'middle'} height={escala === 'dia' ? 46 : 20} />
             <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
             <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} />
             {DESF_SERIES.map((s, i) => (
@@ -602,15 +613,28 @@ function DesfechoBarras({ itens, titulo, accentDot }: { itens: WwAgendaDesfechoI
   )
 }
 
-function DesfechosGrafico({ itens }: { itens: WwAgendaDesfechoItem[] }) {
+function DesfechosGrafico({ itens, spanDias }: { itens: WwAgendaDesfechoItem[]; spanDias: number }) {
+  // Granularidade default pela largura do período: curto → dia, médio → semana, longo → mês.
+  const [escala, setEscala] = useState<EscalaTempo>(spanDias <= 16 ? 'dia' : spanDias <= 92 ? 'semana' : 'mes')
   const sdr = itens.filter(i => i.reuniao === 'sdr')
   const closer = itens.filter(i => i.reuniao === 'closer')
   if (itens.length === 0) return <EmptyState message="Sem reuniões marcadas no período pra montar o gráfico." />
   return (
     <div>
+      <div className="flex items-center gap-1 mb-3">
+        {(['dia', 'semana', 'mes'] as const).map(e => (
+          <button
+            key={e}
+            onClick={() => setEscala(e)}
+            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${escala === e ? 'bg-ww-gold-soft text-ww-gold-ink' : 'text-ww-n500 hover:bg-ww-cream'}`}
+          >
+            {e === 'dia' ? 'Por dia' : e === 'semana' ? 'Por semana' : 'Por mês'}
+          </button>
+        ))}
+      </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-4">
-        <DesfechoBarras itens={sdr} titulo="SDR · 1ª reunião" accentDot="bg-ww-gold" />
-        <DesfechoBarras itens={closer} titulo="Closer · fechamento" accentDot="bg-ww-rosewood" />
+        <DesfechoBarras itens={sdr} titulo="SDR · 1ª reunião" accentDot="bg-ww-gold" escala={escala} />
+        <DesfechoBarras itens={closer} titulo="Closer · fechamento" accentDot="bg-ww-rosewood" escala={escala} />
       </div>
       {/* Legenda única embaixo (as duas leem as mesmas categorias/cores) */}
       <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 pt-3 mt-1 border-t border-slate-100">
@@ -712,10 +736,13 @@ function AgendaReunioes({ filters }: { filters: AppliedFilters }) {
 
       {(data.desfechos?.itens?.length ?? 0) > 0 && (
         <SectionCard
-          title={`Desfecho das reuniões ao longo do tempo: últimos ${data.desfechos?.janela_dias ?? 30} dias`}
-          subtitle="SDR e Closer separados, semana a semana, pela cor do que aconteceu: feita, não aconteceu, em reagendamento, perdida ou ainda sem registro. Respeita período, tipo e canal do filtro."
+          title="Desfecho das reuniões ao longo do tempo"
+          subtitle="SDR e Closer separados, no período do filtro, pela cor do que aconteceu: feita, não aconteceu, em reagendamento, perdida ou ainda sem registro. Troque entre dia, semana e mês. Respeita período, tipo e canal do filtro."
         >
-          <DesfechosGrafico itens={data.desfechos?.itens ?? []} />
+          <DesfechosGrafico
+            itens={data.desfechos?.itens ?? []}
+            spanDias={filters.dateStart && filters.dateEnd ? Math.round((new Date(filters.dateEnd).getTime() - new Date(filters.dateStart).getTime()) / 86_400_000) + 1 : 30}
+          />
         </SectionCard>
       )}
     </div>
