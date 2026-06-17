@@ -125,6 +125,7 @@ export default {
             },
             transitionTimingFunction: {
                 'ww-soft': 'cubic-bezier(0.32, 0.72, 0, 1)',
+                'out-strong': 'cubic-bezier(0.23, 1, 0.32, 1)',
             }
         }
     },
