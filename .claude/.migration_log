@@ -1286,3 +1286,4 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-16T23:19:42Z | supabase/migrations/20260616m_ww_cache_agendado_em.sql | applied_to_prod
 2026-06-16T23:26:56Z | supabase/migrations/20260616n_ww_agendamentos_por_dia.sql | applied_to_prod
 2026-06-17T12:35:00Z | supabase/migrations/20260617a_ww_agendamentos_floor_junho.sql | applied_to_prod
+2026-06-17T12:47:23Z | supabase/migrations/20260617a_funnel_conversion_only_active_stages.sql | applied_to_prod
