@@ -14,7 +14,7 @@ type Card = Database['public']['Tables']['cards']['Row']
 
 interface AttachmentsWidgetProps {
   cardId: string
-  card: Card
+  card?: Card
   isExpanded?: boolean
   onToggleCollapse?: () => void
 }

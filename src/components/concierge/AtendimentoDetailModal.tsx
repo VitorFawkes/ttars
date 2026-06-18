@@ -22,6 +22,7 @@ import { SourceIcon } from './Badges'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { CardContextBlocks } from './CardContextBlocks'
+import AttachmentsWidget from '../card/attachments/AttachmentsWidget'
 import { cn } from '../../lib/utils'
 
 interface AtendimentoDetailModalProps {
@@ -121,6 +122,7 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   )
   useEffect(() => {
     if (!item) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPrazoDate(item.data_vencimento ? isoToDateInput(item.data_vencimento) : '')
   }, [item?.atendimento_id, item?.data_vencimento]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -130,11 +132,13 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   // por atendimento, se existir.
   useEffect(() => {
     if (!item) return
+    /* eslint-disable react-hooks/set-state-in-effect */
     setDestinoSelecionado(null)
     setComoAceito(false)
     setValorFinal(item.valor?.toString() ?? '')
     setCobradoDe(item.cobrado_de ?? '')
     setObservacao(lerRascunhoObs(item.atendimento_id))
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [item?.atendimento_id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persiste rascunho enquanto o usuário digita. Some quando confirma
@@ -142,7 +146,7 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
   useEffect(() => {
     if (!item) return
     escreverRascunhoObs(item.atendimento_id, observacao)
-  }, [observacao, item?.atendimento_id])
+  }, [observacao, item?.atendimento_id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { mutate: marcarOutcome, isPending: isMarkingOutcome } = useMarcarOutcome()
   const { mutateAsync: moverEstadoAsync, isPending: isMovingEstado } = useMoverEstadoFunil()
@@ -655,6 +659,15 @@ export function AtendimentoDetailModal(props: AtendimentoDetailModalProps) {
             </div>
           )}
 
+          {/* Anexos da viagem — ligados ao card raiz (mesmo id de "Abrir card
+              completo"), então o arquivo enviado aqui também aparece no card.
+              `key` força remontar ao trocar de atendimento (o modal não
+              desmonta), zerando estado interno como o lightbox aberto. */}
+          <AttachmentsWidget
+            key={item.root_card_id ?? item.card_id}
+            cardId={item.root_card_id ?? item.card_id}
+          />
+
           <div className="text-[10.5px] text-slate-400 flex items-center gap-2 pt-2 border-t border-slate-100">
             <span>Criado {formatDistanceToNow(new Date(item.atendimento_criado_em), { locale: ptBR, addSuffix: true })}</span>
             {item.notificou_cliente_em && (
@@ -960,6 +973,7 @@ function PrazoTarefaEditor({ dataVencimento, prazoDate, onChangePrazoDate, onSal
 
   if (dataVencimento) {
     const target = new Date(dataVencimento).getTime()
+    // eslint-disable-next-line react-hooks/purity
     const now = Date.now()
     const diffD = Math.round((target - now) / (1000 * 60 * 60 * 24))
     if (diffD < 0) {

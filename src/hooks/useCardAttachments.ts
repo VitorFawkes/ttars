@@ -24,9 +24,15 @@ export function useCardAttachments(cardId: string) {
   const { user } = useAuth()
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null)
 
-  const { data: rawArquivos = [], isLoading } = useQuery({
+  // Sem default `= []` aqui de propósito: o destructuring default cria um
+  // array NOVO a cada render enquanto a query está pendente (data === undefined),
+  // o que muda a referência de `rawArquivos` toda vez e re-dispara o efeito
+  // abaixo em loop infinito ("Maximum update depth exceeded"). Mantendo
+  // `undefined` durante o carregamento, a dependência fica estável.
+  const { data: rawArquivos, isLoading } = useQuery({
     queryKey: ['card-attachments', cardId],
     queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.from('arquivos') as any)
         .select('*')
         .eq('card_id', cardId)
@@ -42,8 +48,12 @@ export function useCardAttachments(cardId: string) {
   const [arquivos, setArquivos] = useState<Arquivo[]>([])
 
   useEffect(() => {
-    if (rawArquivos.length === 0) {
-      setArquivos([])
+    const raw = rawArquivos ?? []
+    if (raw.length === 0) {
+      // Bail-out funcional: não troca por um `[]` novo se já está vazio, senão
+      // o setState força re-render → efeito roda de novo → loop.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setArquivos((prev) => (prev.length === 0 ? prev : []))
       return
     }
 
@@ -51,7 +61,7 @@ export function useCardAttachments(cardId: string) {
 
     async function fetchUrls() {
       const withUrls = await Promise.all(
-        rawArquivos.map(async (arq) => {
+        raw.map(async (arq) => {
           const { data } = await supabase.storage
             .from('card-documents')
             // 24h só para a miniatura aparecer; abrir/baixar gera link fresco na hora do clique
@@ -122,6 +132,7 @@ export function useCardAttachments(cardId: string) {
         }
 
         // Insert metadata
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: insertError } = await (supabase.from('arquivos') as any)
           .insert({
             card_id: cardId,
@@ -150,6 +161,7 @@ export function useCardAttachments(cardId: string) {
       await supabase.storage.from('card-documents').remove([path])
 
       // Delete from DB
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase.from('arquivos') as any)
         .delete()
         .eq('id', id)
@@ -167,6 +179,7 @@ export function useCardAttachments(cardId: string) {
 
   const updateDescricao = useMutation({
     mutationFn: async ({ id, descricao }: { id: string; descricao: string }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase.from('arquivos') as any)
         .update({ descricao: descricao || null })
         .eq('id', id)
