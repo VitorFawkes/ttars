@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from 'recharts'
 import {
   useWwPerfilTemporal, useWwFunilRanking,
   type WwPerfilDim, type WwPerfilMarco, type WwPerfilGran, type WwPerfilCategoria, type WwPerfilTemporal,
@@ -67,6 +67,52 @@ const drillBucket = (dim: Dim, bucket: string): Partial<DrillContext> => {
   return { tipo: v }
 }
 
+// Janela de datas de um período do gráfico (início do bucket → fim), recortada ao filtro.
+function periodWindow(periodo: string, gran: WwPerfilGran, clampStart: string, clampEnd: string): { start: string; end: string } {
+  const [y, m, d] = periodo.split('-').map(Number)
+  const start = new Date(Date.UTC(y, m - 1, d, 0, 0, 0))
+  let end: Date
+  if (gran === 'day') end = new Date(Date.UTC(y, m - 1, d, 23, 59, 59))
+  else if (gran === 'week') { end = new Date(start); end.setUTCDate(end.getUTCDate() + 6); end.setUTCHours(23, 59, 59) }
+  else end = new Date(Date.UTC(y, m, 0, 23, 59, 59)) // último dia do mês
+  const cs = new Date(clampStart), ce = new Date(clampEnd)
+  const s = start < cs ? cs : start
+  const e = end > ce ? ce : end
+  return { start: s.toISOString(), end: e.toISOString() }
+}
+
+// Rótulo do valor de cada fatia/coluna (dentro no empilhado, em cima no lado a lado).
+function makeSegLabel(measure: 'qtd' | 'pct', layout: 'stack' | 'group') {
+  return function Seg(props: unknown) {
+    const p = props as { x?: number; y?: number; width?: number; height?: number; value?: number }
+    const v = Number(p.value ?? 0)
+    if (!v) return null
+    const txt = measure === 'pct' ? `${v}%` : formatNumber(v)
+    if (layout === 'stack') {
+      if ((p.height ?? 0) < 14 || (p.width ?? 0) < 18) return null
+      return (
+        <text x={(p.x ?? 0) + (p.width ?? 0) / 2} y={(p.y ?? 0) + (p.height ?? 0) / 2}
+          fill="#fff" fontSize={10} fontWeight={600} textAnchor="middle" dominantBaseline="central">{txt}</text>
+      )
+    }
+    if ((p.width ?? 0) < 8) return null
+    return (
+      <text x={(p.x ?? 0) + (p.width ?? 0) / 2} y={(p.y ?? 0) - 3} fill="#475569" fontSize={9} fontWeight={600} textAnchor="middle">{txt}</text>
+    )
+  }
+}
+// Total da pilha, acima da barra (só no empilhado em quantidade).
+function makeTotalLabel(totals: number[]) {
+  return function Total(props: unknown) {
+    const p = props as { x?: number; y?: number; width?: number; index?: number }
+    const t = totals[p.index ?? -1] ?? 0
+    if (!t) return <g />
+    return (
+      <text x={(p.x ?? 0) + (p.width ?? 0) / 2} y={(p.y ?? 0) - 5} textAnchor="middle" fontSize={10} fontWeight={700} fill="#475569">{formatNumber(t)}</text>
+    )
+  }
+}
+
 type View = 'tempo' | 'tabela' | 'cruz'
 const VIEW_OPTS: { id: View; label: string }[] = [
   { id: 'tempo', label: 'Ao longo do tempo' },
@@ -126,6 +172,12 @@ export function PerfilLeadsExplorer({ filters, baseCtx, onDrill }: Props) {
   const selCount = sel?.length ?? 0
 
   const trocaDim = (d: Dim) => { setDim(d); setSel(null); setPickerOpen(false); if (!FORM_DIMS.includes(d) && view === 'cruz') setView('tempo') }
+
+  // Clique numa barra do gráfico → casais daquele período + categoria + etapa.
+  const onBarClick = (bucket: string, periodo: string, label: string) => {
+    const { start, end } = periodWindow(periodo, gran, filters.dateStart, filters.dateEnd)
+    onDrill({ ...baseCtx, dateStart: start, dateEnd: end, dateMode: filters.dateMode, marco, ...drillBucket(dim, bucket), title: `${stageLabel} — ${DIM_LABEL[dim]}: ${bucket} · ${label}` } as DrillContext)
+  }
 
   return (
     <SectionCard
@@ -249,7 +301,7 @@ export function PerfilLeadsExplorer({ filters, baseCtx, onDrill }: Props) {
       {view === 'tempo' && (
         temporal.isLoading ? <LoadingSkeleton rows={5} />
           : totalMarco === 0 ? <EmptyState message="Sem leads nessa etapa pra esse recorte. Amplie o período ou tire filtros." />
-          : <TempoChart temporal={temporal.data!} dim={dim} layout={layout} measure={measure} selecionado={selCount > 0} />
+          : <TempoChart temporal={temporal.data!} dim={dim} layout={layout} measure={measure} selecionado={selCount > 0} onBarClick={onBarClick} />
       )}
       {view === 'tabela' && (
         temporal.isLoading ? <LoadingSkeleton rows={6} />
@@ -271,12 +323,13 @@ export function PerfilLeadsExplorer({ filters, baseCtx, onDrill }: Props) {
 }
 
 // ── Visão 1: composição AO LONGO DO TEMPO (empilhado/lado a lado, qtd/%) ────────
-function TempoChart({ temporal, dim, layout, measure, selecionado }: {
+function TempoChart({ temporal, dim, layout, measure, selecionado, onBarClick }: {
   temporal: WwPerfilTemporal
   dim: Dim
   layout: 'stack' | 'group'
   measure: 'qtd' | 'pct'
   selecionado: boolean
+  onBarClick: (bucket: string, periodo: string, label: string) => void
 }) {
   const hasOutros = !selecionado && temporal.series.some(s => s.bucket === 'Outros')
   const stackKeys = [...temporal.buckets_top.filter(b => b !== 'Outros'), ...(hasOutros ? ['Outros'] : [])]
@@ -286,7 +339,7 @@ function TempoChart({ temporal, dim, layout, measure, selecionado }: {
   for (const s of temporal.series) if (!vistos.has(s.periodo)) { vistos.add(s.periodo); ordem.push({ periodo: s.periodo, label: s.label }) }
   const rowMap = new Map<string, Record<string, number | string>>()
   for (const p of ordem) {
-    const row: Record<string, number | string> = { label: p.label }
+    const row: Record<string, number | string> = { label: p.label, periodo: p.periodo }
     for (const k of stackKeys) row[k] = 0
     rowMap.set(p.periodo, row)
   }
@@ -295,30 +348,42 @@ function TempoChart({ temporal, dim, layout, measure, selecionado }: {
     if (r && (stackKeys.includes(s.bucket))) r[s.bucket] = s.n
   }
   let data = ordem.map(p => rowMap.get(p.periodo)!)
+  const totals = data.map(row => stackKeys.reduce((s, k) => s + (Number(row[k]) || 0), 0))
   if (measure === 'pct') {
-    data = data.map(row => {
-      const tot = stackKeys.reduce((s, k) => s + (Number(row[k]) || 0), 0)
-      const r: Record<string, number | string> = { label: row.label as string }
+    data = data.map((row, idx) => {
+      const tot = totals[idx]
+      const r: Record<string, number | string> = { label: row.label as string, periodo: row.periodo as string }
       for (const k of stackKeys) r[k] = tot > 0 ? Math.round(((Number(row[k]) || 0) / tot) * 1000) / 10 : 0
       return r
     })
   }
 
   const fmtTip = (v: number | string) => measure === 'pct' ? `${v}%` : formatNumber(Number(v))
+  const segLabel = makeSegLabel(measure, layout)
+  const totalLabel = makeTotalLabel(totals)
+  const clickable = (k: string) => k !== 'Outros'
 
   return (
     <div>
-      <ResponsiveContainer width="100%" height={320}>
-        <BarChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
+      <ResponsiveContainer width="100%" height={340}>
+        <BarChart data={data} margin={{ top: 18, right: 12, left: 0, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
           <XAxis dataKey="label" stroke="#64748b" fontSize={11} tickLine={false} interval="preserveStartEnd" minTickGap={16} />
           <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false}
             domain={measure === 'pct' ? [0, 100] : undefined} tickFormatter={measure === 'pct' ? (v) => `${v}%` : undefined} />
-          <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} formatter={(v) => fmtTip(v as number)} />
+          <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} formatter={(v) => fmtTip(v as number)} cursor={{ fill: 'rgba(189,150,92,0.06)' }} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           {stackKeys.map((k, i) => (
             <Bar key={k} dataKey={k} stackId={layout === 'stack' ? 'a' : undefined} fill={corBucket(k, i)} maxBarSize={layout === 'group' ? 18 : 44}
-              radius={layout === 'stack' && i === stackKeys.length - 1 ? [3, 3, 0, 0] : layout === 'group' ? [2, 2, 0, 0] : undefined} />
+              cursor={clickable(k) ? 'pointer' : 'default'}
+              onClick={clickable(k) ? ((d: unknown) => {
+                const pl = (d as { payload?: { periodo?: string; label?: string } })?.payload
+                if (pl?.periodo) onBarClick(k, pl.periodo, String(pl.label ?? ''))
+              }) : undefined}
+              radius={layout === 'stack' && i === stackKeys.length - 1 ? [3, 3, 0, 0] : layout === 'group' ? [2, 2, 0, 0] : undefined}>
+              <LabelList content={segLabel} />
+              {measure === 'qtd' && layout === 'stack' && i === stackKeys.length - 1 && <LabelList content={totalLabel} />}
+            </Bar>
           ))}
         </BarChart>
       </ResponsiveContainer>
@@ -326,7 +391,7 @@ function TempoChart({ temporal, dim, layout, measure, selecionado }: {
         {layout === 'stack' ? 'Cada barra = um período, fatiada' : 'Cada período = colunas lado a lado'} pelas {DIM_LABEL[dim].toLowerCase()}s
         {selecionado ? ' escolhidas' : ' mais comuns (as demais somam em "Outros")'}.
         {measure === 'pct' ? ' Em participação % (mostra a mudança de mix mesmo quando o volume oscila).' : ' Em quantidade de casais.'}
-        {' '}Troque a etapa lá em cima pra ver entradas, reuniões ou fechamentos.
+        {' '}<strong className="text-slate-500">Clique numa fatia</strong> pra ver os casais daquele período. Troque a etapa lá em cima pra ver entradas, reuniões ou fechamentos.
       </p>
     </div>
   )
