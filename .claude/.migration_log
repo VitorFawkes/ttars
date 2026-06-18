@@ -1298,3 +1298,4 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-17T20:02:18Z | supabase/migrations/20260617h_site_contato_exempt.sql | applied_to_prod
 2026-06-18T14:05:02Z | supabase/migrations/20260618a_ww_campos_sdr_closer.sql | applied_to_prod via Management API (token CLI)
 2026-06-18T14:53:55Z | supabase/migrations/20260618b_ww_funil_sdr_closer_etapas.sql | applied_to_prod via Management API (token CLI)
+2026-06-18T17:02:15Z | supabase/migrations/20260618c_ww_ac_field_map_reconcile.sql | applied_to_prod via Management API (token CLI)
