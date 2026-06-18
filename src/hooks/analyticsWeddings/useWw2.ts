@@ -1242,6 +1242,81 @@ export function useWwFunilRanking(params: {
 }
 
 
+// ── Perfil temporal — composição dos leads ao longo do tempo + funil por categoria ──
+// Alimenta a seção "Perfil dos leads" da Visão Geral (ww_perfil_temporal).
+export type WwPerfilDim = 'destino' | 'faixa' | 'convidados' | 'origem' | 'tipo'
+export type WwPerfilMarco = 'entrou' | 'fez_sdr' | 'marcou_closer' | 'fez_closer' | 'ganho'
+
+export type WwPerfilSeriePonto = { periodo: string; label: string; bucket: string; n: number }
+export type WwPerfilCategoria = {
+  bucket: string
+  entrou: number
+  fez_sdr: number
+  marcou_closer: number
+  fez_closer: number
+  ganho: number
+  taxa_pct: number | null
+}
+export type WwPerfilTemporal = {
+  dim: WwPerfilDim
+  marco: WwPerfilMarco
+  granularidade: 'week' | 'month'
+  date_mode: DateMode
+  total_marco: number
+  buckets_top: string[]
+  series: WwPerfilSeriePonto[]
+  por_categoria: WwPerfilCategoria[]
+  error?: string
+}
+
+export function useWwPerfilTemporal(params: {
+  dateStart: string
+  dateEnd: string
+  dateMode: DateMode
+  dim: WwPerfilDim
+  marco: WwPerfilMarco
+  granularidade: 'week' | 'month'
+  origins?: string[]
+  tipos?: string[]
+  consultorIds?: string[]
+  faixas?: string[]
+  convidados?: string[]
+  destinos?: string[]
+  canalSdr?: string[]
+  canalCloser?: string[]
+  statusLead?: StatusLead | ''
+  maxBuckets?: number
+}) {
+  const orgId = useOrgId()
+  const arr = (v?: string[]) => (v && v.length ? v : null)
+  return useQuery({
+    queryKey: ['ww', 'perfil-temporal', orgId, params.dateStart, params.dateEnd, params.dateMode, params.dim, params.marco, params.granularidade,
+      params.origins ?? null, params.tipos ?? null, params.consultorIds ?? null, params.faixas ?? null, params.convidados ?? null, params.destinos ?? null,
+      params.canalSdr ?? null, params.canalCloser ?? null, params.statusLead ?? null, params.maxBuckets ?? 8],
+    queryFn: () => callRpc<WwPerfilTemporal>('ww_perfil_temporal', {
+      p_date_start: params.dateStart,
+      p_date_end: params.dateEnd,
+      p_org_id: orgId,
+      p_dim: params.dim,
+      p_marco: params.marco,
+      p_granularidade: params.granularidade,
+      p_date_mode: params.dateMode,
+      p_origins: arr(params.origins),
+      p_tipos: arr(params.tipos),
+      p_consultor_ids: arr(params.consultorIds),
+      p_faixas: arr(params.faixas),
+      p_convidados: arr(params.convidados),
+      p_destinos: arr(params.destinos),
+      p_sdr_canal: arr(params.canalSdr),
+      p_closer_canal: arr(params.canalCloser),
+      p_status_lead: params.statusLead || null,
+      p_max_buckets: params.maxBuckets ?? 8,
+    }),
+    enabled: !!orgId,
+    staleTime: 60_000,
+  })
+}
+
 // ── Série temporal (semana/mês) — alimenta os gráficos de #3 e #7 ────────────
 // 20260612c: funil completo — marcou_sdr/marcou_closer entre os marcos existentes
 export type WwSeriePonto = {
