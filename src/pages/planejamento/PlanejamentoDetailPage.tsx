@@ -29,6 +29,8 @@ import { useWeddingChecklist } from '../../hooks/planejamento/useWeddingChecklis
 import { useFornecedorBank } from '../../hooks/planejamento/useFornecedorBank'
 import { EtapaPanel } from '../../components/planejamento/EtapaPanel'
 import { RelatorioCasamento } from '../../components/planejamento/RelatorioCasamento'
+import { CasalSection } from '../../components/planejamento/CasalSection'
+import { WeddingEquipeSection } from '../../components/planejamento/WeddingEquipeSection'
 import { WeddingHotelCard } from '../../components/convidados/WeddingHotelCard'
 import {
   PLANEJAMENTO_LABEL,
@@ -231,6 +233,12 @@ export default function PlanejamentoDetailPage() {
             <ExternalLink className="w-4 h-4" /> Acessar card
           </a>
         </div>
+      </div>
+
+      {/* Casal (clientes) + Equipe do casamento (interno: planejadora, closer, apoio) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        <CasalSection cardId={wedding.id} />
+        <WeddingEquipeSection cardId={wedding.id} />
       </div>
 
       {/* Etapa atual: trava (o que falta) + avançar + campos da etapa */}
