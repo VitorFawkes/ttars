@@ -1248,6 +1248,7 @@ export type WwPerfilDim = 'destino' | 'faixa' | 'convidados' | 'origem' | 'tipo'
 export type WwPerfilMarco = 'entrou' | 'fez_sdr' | 'marcou_closer' | 'fez_closer' | 'ganho'
 
 export type WwPerfilSeriePonto = { periodo: string; label: string; bucket: string; n: number }
+export type WwPerfilBucketTotal = { bucket: string; total: number }
 export type WwPerfilCategoria = {
   bucket: string
   entrou: number
@@ -1257,13 +1258,15 @@ export type WwPerfilCategoria = {
   ganho: number
   taxa_pct: number | null
 }
+export type WwPerfilGran = 'day' | 'week' | 'month'
 export type WwPerfilTemporal = {
   dim: WwPerfilDim
   marco: WwPerfilMarco
-  granularidade: 'week' | 'month'
+  granularidade: WwPerfilGran
   date_mode: DateMode
   total_marco: number
   buckets_top: string[]
+  buckets_all: WwPerfilBucketTotal[]
   series: WwPerfilSeriePonto[]
   por_categoria: WwPerfilCategoria[]
   error?: string
@@ -1275,7 +1278,7 @@ export function useWwPerfilTemporal(params: {
   dateMode: DateMode
   dim: WwPerfilDim
   marco: WwPerfilMarco
-  granularidade: 'week' | 'month'
+  granularidade: WwPerfilGran
   origins?: string[]
   tipos?: string[]
   consultorIds?: string[]
@@ -1286,13 +1289,14 @@ export function useWwPerfilTemporal(params: {
   canalCloser?: string[]
   statusLead?: StatusLead | ''
   maxBuckets?: number
+  buckets?: string[]
 }) {
   const orgId = useOrgId()
   const arr = (v?: string[]) => (v && v.length ? v : null)
   return useQuery({
     queryKey: ['ww', 'perfil-temporal', orgId, params.dateStart, params.dateEnd, params.dateMode, params.dim, params.marco, params.granularidade,
       params.origins ?? null, params.tipos ?? null, params.consultorIds ?? null, params.faixas ?? null, params.convidados ?? null, params.destinos ?? null,
-      params.canalSdr ?? null, params.canalCloser ?? null, params.statusLead ?? null, params.maxBuckets ?? 8],
+      params.canalSdr ?? null, params.canalCloser ?? null, params.statusLead ?? null, params.maxBuckets ?? 8, params.buckets ?? null],
     queryFn: () => callRpc<WwPerfilTemporal>('ww_perfil_temporal', {
       p_date_start: params.dateStart,
       p_date_end: params.dateEnd,
@@ -1311,6 +1315,7 @@ export function useWwPerfilTemporal(params: {
       p_closer_canal: arr(params.canalCloser),
       p_status_lead: params.statusLead || null,
       p_max_buckets: params.maxBuckets ?? 8,
+      p_buckets: arr(params.buckets),
     }),
     enabled: !!orgId,
     staleTime: 60_000,
