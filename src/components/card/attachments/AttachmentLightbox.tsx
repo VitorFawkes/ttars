@@ -1,6 +1,7 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useState } from 'react'
 import { X, Download, ChevronLeft, ChevronRight } from 'lucide-react'
 import { formatFileSize } from '../../../lib/fileUtils'
+import { openWithFreshUrl } from '../../../lib/openWithFreshUrl'
 import type { Arquivo } from '../../../hooks/useCardAttachments'
 
 interface AttachmentLightboxProps {
@@ -8,6 +9,7 @@ interface AttachmentLightboxProps {
   images: Arquivo[] // all image attachments for navigation
   onClose: () => void
   onNavigate: (arquivo: Arquivo) => void
+  getSignedUrl: (path: string) => Promise<string | null>
 }
 
 export default function AttachmentLightbox({
@@ -15,7 +17,26 @@ export default function AttachmentLightbox({
   images,
   onClose,
   onNavigate,
+  getSignedUrl,
 }: AttachmentLightboxProps) {
+  const [imgSrc, setImgSrc] = useState(arquivo.signedUrl)
+  const [imgBase, setImgBase] = useState(arquivo.signedUrl)
+  const [imgRetried, setImgRetried] = useState(false)
+
+  // Troca de imagem (navegação) ou refetch da URL: ressincroniza sem effect
+  if (arquivo.signedUrl !== imgBase) {
+    setImgBase(arquivo.signedUrl)
+    setImgSrc(arquivo.signedUrl)
+    setImgRetried(false)
+  }
+
+  const handleImgError = async () => {
+    if (imgRetried) return
+    setImgRetried(true)
+    const fresh = await getSignedUrl(arquivo.caminho_arquivo)
+    if (fresh) setImgSrc(fresh)
+  }
+
   const currentIndex = images.findIndex((img) => img.id === arquivo.id)
   const hasPrev = currentIndex > 0
   const hasNext = currentIndex < images.length - 1
@@ -76,17 +97,14 @@ export default function AttachmentLightbox({
         </div>
 
         <div className="flex items-center gap-2">
-          {arquivo.signedUrl && (
-            <a
-              href={arquivo.signedUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2 rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-colors"
-              title="Download"
-            >
-              <Download className="h-5 w-5" />
-            </a>
-          )}
+          <button
+            type="button"
+            onClick={() => openWithFreshUrl(arquivo.caminho_arquivo, getSignedUrl)}
+            className="p-2 rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+            title="Download"
+          >
+            <Download className="h-5 w-5" />
+          </button>
           <button
             onClick={onClose}
             className="p-2 rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-colors"
@@ -98,10 +116,11 @@ export default function AttachmentLightbox({
 
       {/* Image */}
       <img
-        src={arquivo.signedUrl}
+        src={imgSrc}
         alt={arquivo.nome_original}
         className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl"
         onClick={(e) => e.stopPropagation()}
+        onError={handleImgError}
       />
 
       {/* Navigation arrows */}

@@ -30,6 +30,7 @@ export default function AttachmentsWidget(props: AttachmentsWidgetProps) {
     updateDescricao,
     isUploading,
     uploadProgress,
+    getSignedUrl,
   } = useCardAttachments(cardId)
 
   const [lightboxFile, setLightboxFile] = useState<Arquivo | null>(null)
@@ -141,6 +142,7 @@ export default function AttachmentsWidget(props: AttachmentsWidgetProps) {
                 onDelete={handleDelete}
                 onUpdateDescricao={handleUpdateDescricao}
                 onClickImage={handleClickImage}
+                getSignedUrl={getSignedUrl}
               />
             ))}
           </div>
@@ -154,6 +156,7 @@ export default function AttachmentsWidget(props: AttachmentsWidgetProps) {
           images={imageFiles}
           onClose={() => setLightboxFile(null)}
           onNavigate={setLightboxFile}
+          getSignedUrl={getSignedUrl}
         />
       )}
     </div>
