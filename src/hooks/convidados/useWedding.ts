@@ -62,6 +62,7 @@ export function useWedding(cardId: string | null | undefined) {
         wedding_date: row.data_viagem_inicio,
         local: readString(row.produto_data, 'ww_local', 'local_casamento', 'local', 'venue', 'ww_destino'),
         site_url: readString(row.produto_data, 'ww_site_casamento', 'ww_site', 'site_casamento', 'site_url', 'website'),
+        produto_data: row.produto_data,
         etapa: pickEtapa(row.wedding_convidados_state),
       }
     },

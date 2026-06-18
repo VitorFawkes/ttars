@@ -1,5 +1,5 @@
 import { useDraggable } from '@dnd-kit/core'
-import { Heart, Calendar, MapPin, Users } from 'lucide-react'
+import { Heart, Calendar, MapPin, Users, CheckCircle2, CircleDashed } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { formatDataCurta, isPast } from '../../lib/planejamento/format'
 import type { EtapaPlanejamento } from '../../hooks/planejamento/types'
@@ -74,6 +74,22 @@ export function PlanejamentoCard({ wedding, onClick, isOverlay = false }: Planej
             <span className="text-slate-400 italic">sem convidados</span>
           )}
         </span>
+      </div>
+
+      {/* Saúde da trava da etapa atual */}
+      <div className="pt-1.5 border-t border-slate-100">
+        {wedding.gate.allOk ? (
+          <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-1.5 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">
+            <CheckCircle2 className="w-3 h-3" /> Pronto para avançar
+          </span>
+        ) : (
+          <span
+            className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-1.5 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200"
+            title={wedding.gate.criteria.filter((c) => !c.ok).map((c) => c.label).join('; ')}
+          >
+            <CircleDashed className="w-3 h-3" /> Trava {wedding.gate.met}/{wedding.gate.total}
+          </span>
+        )}
       </div>
     </article>
   )

@@ -27,7 +27,8 @@ import { usePlanejamentoWeddings } from '../../hooks/planejamento/usePlanejament
 import { useWeddingFornecedores } from '../../hooks/planejamento/useWeddingFornecedores'
 import { useWeddingChecklist } from '../../hooks/planejamento/useWeddingChecklist'
 import { useFornecedorBank } from '../../hooks/planejamento/useFornecedorBank'
-import { WipBadge } from '../../components/planejamento/WipBadge'
+import { EtapaPanel } from '../../components/planejamento/EtapaPanel'
+import { RelatorioCasamento } from '../../components/planejamento/RelatorioCasamento'
 import { WeddingHotelCard } from '../../components/convidados/WeddingHotelCard'
 import {
   PLANEJAMENTO_LABEL,
@@ -232,6 +233,9 @@ export default function PlanejamentoDetailPage() {
         </div>
       </div>
 
+      {/* Etapa atual: trava (o que falta) + avançar + campos da etapa */}
+      <EtapaPanel wedding={wedding} />
+
       {/* Informações do casamento — o que já existe (vem do funil / AC) */}
       <section className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
         <h2 className="text-base font-semibold text-slate-900 mb-3">Informações do casamento</h2>
@@ -259,7 +263,6 @@ export default function PlanejamentoDetailPage() {
           <div className="flex items-center gap-2">
             <Store className="w-5 h-5 text-slate-500" />
             <h2 className="text-base font-semibold text-slate-900">Fornecedores</h2>
-            <WipBadge />
           </div>
           <button
             type="button"
@@ -372,6 +375,9 @@ export default function PlanejamentoDetailPage() {
 
       {/* Hotel — mesma ficha de Convidados (fonte única, full-width) */}
       <WeddingHotelCard cardId={cardId} local={wedding.local} />
+
+      {/* Relatório do casamento — saúde, financeiro, convidados, prazos */}
+      <RelatorioCasamento wedding={wedding} />
 
       {fornModal && (
         <AddFornecedorModal
