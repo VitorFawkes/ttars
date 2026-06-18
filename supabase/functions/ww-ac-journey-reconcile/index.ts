@@ -137,28 +137,39 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── PASSO 1.5: STATUS do Active (rede de segurança p/ perdas) ──────────────
+    // ── PASSO 1.5: STATUS + ETAPA ATUAL do Active (rede de segurança) ──────────
     // 20260612d: deal marcado PERDIDO no Active (status=2) sem motivo escrito não
     // gera evento de jornada (esp. esteira SDR) — o webhook pode perder. Aqui varre
     // os deals modificados mais recentemente (mdate DESC) e atualiza ac_status no
     // cache (UPDATE só atinge linhas existentes). Bounded: ~8 páginas / 15s.
-    let statusVistos = 0, statusAtualizados = 0
+    // 20260618: além do status, atualiza ac_current_stage_id (deal.stage). Se o webhook
+    // do sync incremental perde um movimento de etapa, a cache trava na etapa antiga e o
+    // "Onde estão agora" do Analytics WW conta o casal na coluna errada. O deal.stage já
+    // vem no mesmo fetch (custo zero); deal que move tem mdate recente → cai nessa varredura.
+    let statusVistos = 0, statusAtualizados = 0, stageAtualizados = 0
     try {
       const statusDeadline = startedAt + 70000 // antes do passo 1 (que vai até 125s)
       for (let page = 0; page < 8; page++) {
         if (Date.now() > statusDeadline) break
-        const j = await acFetch<{ deals?: Array<{ id: string | number; status?: string | number }> }>(
+        const j = await acFetch<{ deals?: Array<{ id: string | number; status?: string | number; stage?: string | number | null }> }>(
           `/api/3/deals?limit=100&offset=${page * 100}&orders[mdate]=DESC`
         )
         const deals = j.deals ?? []
         if (deals.length === 0) break
-        // agrupa por status p/ poucos UPDATEs
+        // agrupa por status e por etapa atual p/ poucos UPDATEs
         const byStatus = new Map<number, string[]>()
+        const byStage = new Map<string, string[]>()
         for (const d of deals) {
           const st = d.status != null ? parseInt(String(d.status), 10) : null
-          if (st == null) continue
-          if (!byStatus.has(st)) byStatus.set(st, [])
-          byStatus.get(st)!.push(String(d.id))
+          if (st != null) {
+            if (!byStatus.has(st)) byStatus.set(st, [])
+            byStatus.get(st)!.push(String(d.id))
+          }
+          const stage = d.stage != null ? String(d.stage) : null
+          if (stage != null) {
+            if (!byStage.has(stage)) byStage.set(stage, [])
+            byStage.get(stage)!.push(String(d.id))
+          }
         }
         for (const [st, ids] of byStatus) {
           statusVistos += ids.length
@@ -170,11 +181,22 @@ Deno.serve(async (req) => {
           if (error) { console.warn('passo 1.5 update:', error.message); continue }
           statusAtualizados += count ?? 0
         }
+        // etapa atual: mesma varredura, mantém a coluna que o "Onde estão agora" lê
+        for (const [stage, ids] of byStage) {
+          const { error, count } = await supabase
+            .from('ww_ac_deal_funnel_cache')
+            .update({ ac_current_stage_id: stage }, { count: 'exact' })
+            .in('ac_deal_id', ids)
+            .neq('ac_current_stage_id', stage)
+          if (error) { console.warn('passo 1.5 stage update:', error.message); continue }
+          stageAtualizados += count ?? 0
+        }
         await sleep(PACING_MS)
       }
     } catch (e) {
       console.warn('passo 1.5 status sweep:', (e as Error).message)
     }
+    console.log(`passo 1.5: status_vistos=${statusVistos} status_upd=${statusAtualizados} stage_upd=${stageAtualizados}`)
 
     // 1) coletar deals ativos nas esteiras de fechamento (paginado)
     type Row = { ac_deal_id: string; contact_id: string | null }
