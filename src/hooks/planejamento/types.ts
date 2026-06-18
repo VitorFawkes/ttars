@@ -21,19 +21,20 @@ export const PLANEJAMENTO_LABEL: Record<EtapaPlanejamento, string> = {
   boas_vindas: 'Boas-vindas & Preparação',
   onboarding: 'Primeira Reunião & Onboarding',
   propostas: 'Ciclo de Definição',
-  definicao: 'Reserva & Documentação',
-  passagem: 'Bloqueio do Hotel & Ação Promocional',
+  definicao: 'Reserva do Evento & Documentação',
+  passagem: 'Bloqueio de Hospedagem & Ação Promocional',
   aditivo: 'Programação Final',
 }
 
-/** Objetivo curto de cada etapa (mostrado na tela do casamento). */
+/** Objetivo curto de cada etapa (mostrado na tela do casamento). Alinhado ao
+ *  blueprint (EstudoWeddings): Planejamento DEFINE/CONTRATA; Convidados/Produção EXECUTA. */
 export const PLANEJAMENTO_OBJETIVO: Record<EtapaPlanejamento, string> = {
   boas_vindas: 'Ler contrato e formulário, montar 3 opções de destino + hotel e marcar a 1ª reunião.',
   onboarding: 'Apresentar resumo, as 3 opções e a linha do tempo. O casal começa a lista de convidados.',
   propostas: 'Reuniões de ajuste até decidir a região e o formato (resort, pousada ou espaço).',
-  definicao: 'Confirmar hotel e valores, enviar documentação, receber o contrato assinado e o sinal.',
-  passagem: 'Fechar o hotel, contratar os fornecedores críticos e disparar a ação promocional aos convidados.',
-  aditivo: 'Montar o roteiro dia a dia e os eventos extras. Fechar o Planejamento.',
+  definicao: 'Definir o espaço/pacote do casamento, enviar a documentação e receber o contrato do casamento assinado + o sinal.',
+  passagem: 'Pagar o sinal do bloqueio, contratar o hotel, definir o nº de quartos a bloquear e definir a ação promocional (tarifa + janela). O disparo das mensagens é em Convidados.',
+  aditivo: 'Montar a programação dia a dia e garantir a lista de convidados preenchida. Fecha o Planejamento.',
 }
 
 /** Ordem das colunas: do início ao fim do planejamento. */
@@ -71,11 +72,19 @@ export const PLANEJ_FIELD = {
   regiao: 'ww_planej_regiao',
   formato: 'ww_planej_formato',
   proximaReuniao: 'ww_planej_proxima_reuniao',
+  // Etapa 4 — Reserva do Evento (espaço/pacote) + documentação
+  espaco: 'ww_planej_espaco',
   contratoAssinado: 'ww_planej_contrato_assinado',
   sinalPagoEm: 'ww_planej_sinal_pago_em',
   sinalValor: 'ww_planej_sinal_valor',
   valorTotal: 'ww_planej_valor_total',
-  acaoPromo: 'ww_planej_acao_promo',
+  // Etapa 5 — Bloqueio de hospedagem + ação promocional (definição)
+  quartosBloquear: 'ww_planej_quartos_bloquear',
+  promoTarifa: 'ww_planej_promo_tarifa',
+  promoInicio: 'ww_planej_promo_inicio',
+  promoFim: 'ww_planej_promo_fim',
+  // Etapa 6 — Programação + lista preenchida
+  listaPreenchida: 'ww_planej_lista_preenchida',
   dataHoraCasamento: 'ww_planej_data_hora_casamento',
   notas: 'ww_planej_notas',
 } as const

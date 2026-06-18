@@ -1,18 +1,11 @@
-// Travas (portões) do Planejamento — decisão do Vitor (18/06): cada etapa só
-// avança quando cumpre critérios claros (sim/não). Tudo calculado no app a
-// partir do que já é preenchido (produto_data do card + tabelas wedding_*),
-// sem nova fonte de verdade. A trava IMPEDE o avanço (não é só aviso).
+// Travas (portões) do Planejamento — decisão do Vitor (18/06) + blueprint
+// (EstudoWeddings). Padrão: Planejamento DEFINE/CONTRATA; Convidados/Produção
+// EXECUTA. Tudo calculado no app a partir do que já é preenchido (produto_data
+// do card + tabelas wedding_*), sem nova fonte de verdade. A trava IMPEDE o
+// avanço (não é só aviso).
 
 import type { HotelStatus } from '../convidados/types'
-import {
-  PLANEJ_FIELD,
-  type EtapaPlanejamento,
-  type FornecedorStatus,
-} from './types'
-
-/** Setores considerados "críticos" pra fechar a etapa de Bloqueio/Programação. */
-const SETOR_CELEBRANTE = 'Celebrante'
-const SETOR_TRANSPORTE = 'Transporte & Logística'
+import { PLANEJ_FIELD, type EtapaPlanejamento, type FornecedorStatus } from './types'
 
 export interface GateContext {
   produtoData: Record<string, unknown> | null
@@ -59,25 +52,11 @@ function isTrue(pd: Record<string, unknown> | null, key: string): boolean {
   return v === true || v === 'true' || v === 'sim' || v === 'Sim' || v === '1'
 }
 
-function criticoContratado(forns: GateContext['fornecedores'], setor: string): boolean {
-  return forns.some(f => f.setor === setor && (f.status === 'contratado' || f.status === 'pago'))
-}
-
-function parseIntSafe(v: unknown): number | null {
-  if (typeof v === 'number') return Number.isFinite(v) ? v : null
-  if (typeof v === 'string') {
-    const n = parseInt(v.replace(/\D/g, ''), 10)
-    return Number.isNaN(n) ? null : n
-  }
-  return null
-}
-
-// ── definição das travas por etapa ──────────────────────────────────────────
+// ── definição das travas por etapa (alinhadas ao blueprint) ─────────────────
 
 export function computeGate(etapa: EtapaPlanejamento, ctx: GateContext): GateResult {
   const pd = ctx.produtoData
   const hotelBloqueado = ctx.hotelStatus === 'bloqueado' || ctx.hotelStatus === 'confirmado'
-  const hotelConfirmado = ctx.hotelStatus === 'confirmado'
 
   let criteria: GateCriterion[] = []
 
@@ -104,34 +83,26 @@ export function computeGate(etapa: EtapaPlanejamento, ctx: GateContext): GateRes
         { key: 'proxima', label: 'Próxima reunião agendada', ok: isSet(pd, PLANEJ_FIELD.proximaReuniao) },
       ]
       break
-    case 'definicao':
+    case 'definicao': // Reserva do Evento & Documentação
       criteria = [
-        { key: 'hotel', label: 'Hotel bloqueado ou confirmado', ok: hotelBloqueado },
+        { key: 'espaco', label: 'Espaço / pacote do casamento definido', ok: isSet(pd, PLANEJ_FIELD.espaco) },
         { key: 'contrato', label: 'Contrato do casamento assinado', ok: isTrue(pd, PLANEJ_FIELD.contratoAssinado) },
         { key: 'sinal', label: 'Sinal recebido', ok: isSet(pd, PLANEJ_FIELD.sinalPagoEm) },
       ]
       break
-    case 'passagem':
+    case 'passagem': // Bloqueio de Hospedagem & Ação Promocional
       criteria = [
-        { key: 'sinal', label: 'Sinal pago', ok: isSet(pd, PLANEJ_FIELD.sinalPagoEm) },
-        { key: 'hotel_conf', label: 'Hotel confirmado', ok: hotelConfirmado },
-        {
-          key: 'promo',
-          label: 'Ação promocional disparada',
-          ok: ctx.convitesCount > 0 || pd?.[PLANEJ_FIELD.acaoPromo] === 'disparada' || pd?.[PLANEJ_FIELD.acaoPromo] === 'encerrada',
-        },
+        { key: 'hotel', label: 'Hotel contratado / bloco reservado', ok: hotelBloqueado },
+        { key: 'quartos', label: 'Nº de quartos a bloquear definido', ok: isSet(pd, PLANEJ_FIELD.quartosBloquear) },
+        { key: 'promo', label: 'Ação promocional definida (tarifa + janela)', ok: isSet(pd, PLANEJ_FIELD.promoTarifa) && isSet(pd, PLANEJ_FIELD.promoFim) },
       ]
       break
-    case 'aditivo': {
-      const estimado = parseIntSafe(pd?.[PLANEJ_FIELD.convidadosEstimado]) ?? parseIntSafe(pd?.['ww_num_convidados'])
-      const confirmadoOk = estimado != null && estimado > 0 ? ctx.guestConfirmado >= estimado * 0.5 : false
-      const criticosOk = criticoContratado(ctx.fornecedores, SETOR_CELEBRANTE) && criticoContratado(ctx.fornecedores, SETOR_TRANSPORTE)
+    case 'aditivo': // Programação Final + lista preenchida
       criteria = [
-        { key: 'cronograma', label: 'Cronograma mínimo montado (5+ marcos com prazo)', ok: ctx.checklistComPrazo >= 5 },
-        { key: 'convidados_ou_criticos', label: 'Convidados confirmados ≥ 50% do estimado OU celebrante + transporte contratados', ok: confirmadoOk || criticosOk },
+        { key: 'programacao', label: 'Programação / cronograma montado (5+ marcos com prazo)', ok: ctx.checklistComPrazo >= 5 },
+        { key: 'lista_preenchida', label: 'Lista de convidados preenchida', ok: isTrue(pd, PLANEJ_FIELD.listaPreenchida) || ctx.guestTotal >= 1 },
       ]
       break
-    }
   }
 
   const met = criteria.filter(c => c.ok).length

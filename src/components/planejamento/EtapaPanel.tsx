@@ -11,8 +11,6 @@ import {
   PLANEJ_FIELD,
   REGIAO_OPTIONS,
   FORMATO_OPTIONS,
-  ACAO_PROMO_LIST,
-  ACAO_PROMO_LABEL,
   nextEtapa,
   type EtapaPlanejamento,
 } from '../../hooks/planejamento/types'
@@ -41,20 +39,20 @@ const CAMPOS_POR_ETAPA: Record<EtapaPlanejamento, CampoDef[]> = {
     { key: PLANEJ_FIELD.proximaReuniao, label: 'Próxima reunião', type: 'date' },
   ],
   definicao: [
+    { key: PLANEJ_FIELD.espaco, label: 'Espaço / pacote do casamento', type: 'text' },
     { key: PLANEJ_FIELD.contratoAssinado, label: 'Contrato do casamento assinado', type: 'bool' },
     { key: PLANEJ_FIELD.sinalPagoEm, label: 'Sinal pago em', type: 'date' },
     { key: PLANEJ_FIELD.sinalValor, label: 'Valor do sinal (R$)', type: 'number' },
-    { key: PLANEJ_FIELD.valorTotal, label: 'Valor total confirmado (R$)', type: 'number' },
+    { key: PLANEJ_FIELD.valorTotal, label: 'Valor total do casamento (R$)', type: 'number' },
   ],
   passagem: [
-    {
-      key: PLANEJ_FIELD.acaoPromo,
-      label: 'Ação promocional',
-      type: 'select',
-      options: ACAO_PROMO_LIST.map((v) => ({ value: v, label: ACAO_PROMO_LABEL[v] })),
-    },
+    { key: PLANEJ_FIELD.quartosBloquear, label: 'Nº de quartos a bloquear', type: 'number' },
+    { key: PLANEJ_FIELD.promoTarifa, label: 'Tarifa promocional (R$/noite)', type: 'number' },
+    { key: PLANEJ_FIELD.promoInicio, label: 'Início da promo', type: 'date' },
+    { key: PLANEJ_FIELD.promoFim, label: 'Fim da promo', type: 'date' },
   ],
   aditivo: [
+    { key: PLANEJ_FIELD.listaPreenchida, label: 'Lista de convidados preenchida', type: 'bool' },
     { key: PLANEJ_FIELD.dataHoraCasamento, label: 'Data/hora do casamento', type: 'datetime-local' },
     { key: PLANEJ_FIELD.notas, label: 'Notas finais', type: 'text' },
   ],
