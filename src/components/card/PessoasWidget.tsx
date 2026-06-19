@@ -1,4 +1,4 @@
-import { Plus, Eye, ChevronDown, MessageCircle } from 'lucide-react'
+import { Plus, Eye, ChevronDown, MessageCircle, ArrowLeftRight, Trash2 } from 'lucide-react'
 import { useState, useMemo } from 'react'
 import { cn } from '../../lib/utils'
 import ContactSelector from './ContactSelector'
@@ -6,7 +6,7 @@ import CardTravelers from './CardTravelers'
 import TravelHistorySection from './TravelHistorySection'
 import ContactIntelligenceWidget from './ContactIntelligenceWidget'
 import PersonDetailDrawer from '../people/PersonDetailDrawer'
-import { useCardPeople } from '../../hooks/useCardPeople'
+import { useCardPeople, type CardPerson } from '../../hooks/useCardPeople'
 import { useStageSectionConfig } from '../../hooks/useStageSectionConfig'
 import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
@@ -18,6 +18,78 @@ type Card = Database['public']['Tables']['cards']['Row']
 
 interface PessoasWidgetProps {
     card: Card
+}
+
+interface OwnerCardProps {
+    person: CardPerson
+    roleLabel: string
+    messageCount: number
+    isUpdating: boolean
+    onOpenConversations: () => void
+    onOpenDetails: () => void
+    onSwap: () => void
+    swapTitle: string
+    onRemove: () => void
+}
+
+// Cartão de "dono" do card: Contato Principal (TRIPS) ou Noivo 1 / Noivo 2 (WEDDING).
+function OwnerCard({ person, roleLabel, messageCount, isUpdating, onOpenConversations, onOpenDetails, onSwap, swapTitle, onRemove }: OwnerCardProps) {
+    return (
+        <div className="group relative bg-gray-50 rounded-lg p-2 border border-gray-100 hover:border-indigo-100 hover:shadow-sm transition-all">
+            <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2.5">
+                    <div className="h-8 w-8 rounded-full bg-white border border-gray-300 flex items-center justify-center text-indigo-600 font-semibold text-xs shadow-sm">
+                        {getContactInitials(person)}
+                    </div>
+                    <div>
+                        <p className="text-xs font-semibold text-gray-900">{formatContactName(person)}</p>
+                        <p className="text-xs text-gray-500">{roleLabel}</p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-1">
+                    <button
+                        onClick={onOpenConversations}
+                        className="relative p-1.5 text-gray-400 hover:text-indigo-600 rounded-md hover:bg-white transition-colors"
+                        title="Ver conversas"
+                    >
+                        <MessageCircle className="h-4 w-4" />
+                        {messageCount > 0 && (
+                            <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-1 flex items-center justify-center rounded-full bg-indigo-600 text-white text-[9px] font-medium">
+                                {messageCount > 99 ? '99+' : messageCount}
+                            </span>
+                        )}
+                    </button>
+                    <button
+                        onClick={onOpenDetails}
+                        className="p-1.5 text-gray-400 hover:text-indigo-600 rounded-md hover:bg-white transition-colors"
+                        title="Ver detalhes completos"
+                    >
+                        <Eye className="h-4 w-4" />
+                    </button>
+                    <button
+                        onClick={onSwap}
+                        disabled={isUpdating}
+                        className="p-1.5 text-gray-400 hover:text-indigo-600 rounded-md hover:bg-white transition-colors disabled:opacity-50"
+                        title={swapTitle}
+                    >
+                        <ArrowLeftRight className="h-4 w-4" />
+                    </button>
+                    <button
+                        onClick={onRemove}
+                        disabled={isUpdating}
+                        className="p-1.5 text-gray-400 hover:text-red-600 rounded-md hover:bg-white transition-colors disabled:opacity-50"
+                        title="Remover"
+                    >
+                        <Trash2 className="h-4 w-4" />
+                    </button>
+                </div>
+            </div>
+
+            {/* Intelligence Widget */}
+            <ContactIntelligenceWidget contactId={person.id} />
+        </div>
+    )
 }
 
 export default function PessoasWidget({ card }: PessoasWidgetProps) {
@@ -56,6 +128,12 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
     const adultos = travelers?.filter(t => t.tipo_pessoa === 'adulto' || !t.tipo_pessoa).length || 0
     const criancas = travelers?.filter(t => t.tipo_pessoa === 'crianca').length || 0
 
+    // WEDDING: o card tem 2 donos (Noivo 1 = principal, Noivo 2 = 1º contato adicional).
+    // Demais contatos viram "Convidados". TRIPS segue com Principal + Acompanhantes.
+    const isWedding = card.produto === 'WEDDING'
+    const noivo2 = isWedding ? (travelers?.[0] ?? null) : null
+    const extraGuests = isWedding ? (travelers?.slice(1) ?? []) : []
+
     // Count of WhatsApp messages of primary contact (for badge on conversation button)
     const { data: messageCount = 0 } = useQuery({
         queryKey: ['contact-whatsapp-count', primary?.id],
@@ -69,6 +147,21 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
             return count || 0
         },
         enabled: !!primary?.id,
+    })
+
+    // Contagem de mensagens do Noivo 2 (badge no botão de conversa)
+    const { data: noivo2MessageCount = 0 } = useQuery({
+        queryKey: ['contact-whatsapp-count', noivo2?.id],
+        queryFn: async () => {
+            if (!noivo2?.id) return 0
+            const { count, error } = await supabase
+                .from('whatsapp_messages')
+                .select('id', { count: 'exact', head: true })
+                .eq('contact_id', noivo2.id)
+            if (error) return 0
+            return count || 0
+        },
+        enabled: !!noivo2?.id,
     })
 
     // Travel history count (shared cache with TravelHistorySection)
@@ -130,77 +223,30 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
         setSelectorMode('none')
     }
 
-    const displayNome = primary ? formatContactName(primary) : ''
-
     return (
         <div data-section="people" className="rounded-lg border bg-white p-2.5 shadow-sm">
             <h3 className="text-xs font-semibold text-gray-900 mb-1.5">Pessoas</h3>
 
             <div className="space-y-2">
-                {/* Primary Contact */}
+                {/* Dono 1 — Contato Principal (TRIPS) / Noivo 1 (WEDDING) */}
                 {primary ? (
-                    <div className="group relative bg-gray-50 rounded-lg p-2 border border-gray-100 hover:border-indigo-100 hover:shadow-sm transition-all">
-                        <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-2.5">
-                                <div className="h-8 w-8 rounded-full bg-white border border-gray-300 flex items-center justify-center text-indigo-600 font-semibold text-xs shadow-sm">
-                                    {getContactInitials(primary || {})}
-                                </div>
-                                <div>
-                                    <p className="text-xs font-semibold text-gray-900">
-                                        {displayNome}
-                                    </p>
-                                    <p className="text-xs text-gray-500">Contato Principal</p>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-1">
-                                <button
-                                    onClick={() => {
-                                        setDrawerInitialTab('conversations')
-                                        setSelectedContact(primary as unknown as Database['public']['Tables']['contatos']['Row'])
-                                    }}
-                                    className="relative p-1.5 text-gray-400 hover:text-indigo-600 rounded-md hover:bg-white transition-colors"
-                                    title="Ver conversas"
-                                >
-                                    <MessageCircle className="h-4 w-4" />
-                                    {messageCount > 0 && (
-                                        <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-1 flex items-center justify-center rounded-full bg-indigo-600 text-white text-[9px] font-medium">
-                                            {messageCount > 99 ? '99+' : messageCount}
-                                        </span>
-                                    )}
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setDrawerInitialTab('info')
-                                        setSelectedContact(primary as unknown as Database['public']['Tables']['contatos']['Row'])
-                                    }}
-                                    className="p-1.5 text-gray-400 hover:text-indigo-600 rounded-md hover:bg-white transition-colors"
-                                    title="Ver detalhes completos"
-                                >
-                                    <Eye className="h-4 w-4" />
-                                </button>
-                                <button
-                                    onClick={() => setSelectorMode('set_primary')}
-                                    disabled={isUpdating}
-                                    className="p-1.5 text-gray-400 hover:text-indigo-600 rounded-md hover:bg-white transition-colors disabled:opacity-50"
-                                    title="Trocar contato principal"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-arrow-left-right"><path d="M8 3 4 7l4 4" /><path d="M4 7h16" /><path d="m16 21 4-4-4-4" /><path d="M20 17H4" /></svg>
-                                </button>
-                                <button
-                                    onClick={handleRemovePrimaryContact}
-                                    disabled={isUpdating}
-                                    className="p-1.5 text-gray-400 hover:text-red-600 rounded-md hover:bg-white transition-colors disabled:opacity-50"
-                                    title="Remover contato principal"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-trash-2"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></svg>
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Intelligence Widget */}
-                        <ContactIntelligenceWidget contactId={primary.id} />
-                    </div>
+                    <OwnerCard
+                        person={primary}
+                        roleLabel={isWedding ? 'Noivo 1' : 'Contato Principal'}
+                        messageCount={messageCount}
+                        isUpdating={isUpdating}
+                        onOpenConversations={() => {
+                            setDrawerInitialTab('conversations')
+                            setSelectedContact(primary as unknown as Database['public']['Tables']['contatos']['Row'])
+                        }}
+                        onOpenDetails={() => {
+                            setDrawerInitialTab('info')
+                            setSelectedContact(primary as unknown as Database['public']['Tables']['contatos']['Row'])
+                        }}
+                        onSwap={() => setSelectorMode('set_primary')}
+                        swapTitle={isWedding ? 'Trocar Noivo 1' : 'Trocar contato principal'}
+                        onRemove={handleRemovePrimaryContact}
+                    />
                 ) : (
                     <button
                         onClick={() => setSelectorMode('set_primary')}
@@ -209,13 +255,88 @@ export default function PessoasWidget({ card }: PessoasWidgetProps) {
                         <div className="h-8 w-8 rounded-full bg-gray-50 flex items-center justify-center mb-1.5 group-hover:bg-white group-hover:shadow-sm transition-all">
                             <Plus className="h-4 w-4 text-gray-400 group-hover:text-indigo-600" />
                         </div>
-                        <p className="text-xs font-medium text-gray-600 group-hover:text-indigo-700">Definir Contato Principal</p>
-                        <p className="text-xs text-gray-400 group-hover:text-indigo-500/70">Quem negocia/paga pela viagem</p>
+                        <p className="text-xs font-medium text-gray-600 group-hover:text-indigo-700">{isWedding ? 'Definir Noivo 1' : 'Definir Contato Principal'}</p>
+                        {!isWedding && <p className="text-xs text-gray-400 group-hover:text-indigo-500/70">Quem negocia/paga pela viagem</p>}
                     </button>
                 )}
 
-                {/* Contatos adicionais — TRIPS (acompanhantes) e WEDDING (2º contato/noivo) */}
-                {(card.produto === 'TRIPS' || card.produto === 'WEDDING') && travelersVisible && (
+                {/* WEDDING — Noivo 2 (segundo dono do card) */}
+                {isWedding && (
+                    noivo2 ? (
+                        <OwnerCard
+                            person={noivo2}
+                            roleLabel="Noivo 2"
+                            messageCount={noivo2MessageCount}
+                            isUpdating={isUpdating}
+                            onOpenConversations={() => {
+                                setDrawerInitialTab('conversations')
+                                setSelectedContact(noivo2 as unknown as Database['public']['Tables']['contatos']['Row'])
+                            }}
+                            onOpenDetails={() => {
+                                setDrawerInitialTab('info')
+                                setSelectedContact(noivo2 as unknown as Database['public']['Tables']['contatos']['Row'])
+                            }}
+                            onSwap={() => promoteToPrimary(noivo2.id)}
+                            swapTitle="Tornar Noivo 1"
+                            onRemove={() => removePerson(noivo2)}
+                        />
+                    ) : (
+                        <button
+                            onClick={() => setSelectorMode('add_traveler')}
+                            className="w-full flex flex-col items-center justify-center py-2.5 border-2 border-dashed border-gray-300 rounded-lg hover:border-indigo-300 hover:bg-indigo-50/30 transition-all group"
+                        >
+                            <div className="h-8 w-8 rounded-full bg-gray-50 flex items-center justify-center mb-1.5 group-hover:bg-white group-hover:shadow-sm transition-all">
+                                <Plus className="h-4 w-4 text-gray-400 group-hover:text-indigo-600" />
+                            </div>
+                            <p className="text-xs font-medium text-gray-600 group-hover:text-indigo-700">Adicionar Noivo 2</p>
+                        </button>
+                    )
+                )}
+
+                {/* WEDDING — convidados/contatos extras (raro: além dos 2 noivos) */}
+                {isWedding && extraGuests.length > 0 && (
+                    <div className="pt-2 border-t">
+                        <button
+                            onClick={() => setTravelersExpanded(prev => !prev)}
+                            className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase hover:text-gray-700 transition-colors mb-1.5"
+                        >
+                            <ChevronDown className={cn("w-3 h-3 transition-transform", !travelersExpanded && "-rotate-90")} />
+                            Convidados ({extraGuests.length})
+                        </button>
+                        {travelersExpanded && (
+                            <div className="space-y-1.5">
+                                {extraGuests.map(g => (
+                                    <div key={g.id} className="flex items-center justify-between bg-gray-50 rounded-md px-2 py-1 border border-gray-100">
+                                        <span className="text-xs text-gray-800">{formatContactName(g)}</span>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                onClick={() => {
+                                                    setDrawerInitialTab('info')
+                                                    setSelectedContact(g as unknown as Database['public']['Tables']['contatos']['Row'])
+                                                }}
+                                                className="p-1 text-gray-400 hover:text-indigo-600 rounded-md hover:bg-white transition-colors"
+                                                title="Ver detalhes"
+                                            >
+                                                <Eye className="h-3.5 w-3.5" />
+                                            </button>
+                                            <button
+                                                onClick={() => removePerson(g)}
+                                                disabled={isUpdating}
+                                                className="p-1 text-gray-400 hover:text-red-600 rounded-md hover:bg-white transition-colors disabled:opacity-50"
+                                                title="Remover"
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Acompanhantes — só TRIPS (WEDDING usa os cards de Noivo 1/2 acima) */}
+                {!isWedding && card.produto === 'TRIPS' && travelersVisible && (
                     <div className="pt-2 border-t">
                         <div className="flex items-center justify-between mb-1.5">
                             <button
