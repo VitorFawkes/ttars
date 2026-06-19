@@ -58,6 +58,15 @@ export async function isCreateEnabled(
   return (v ?? "false").toLowerCase() === "true";
 }
 
+/** Junta os dois nomes no corpo do título ("Ana & João"). Só Noivo 1 → só ele. */
+function joinNoivos(n1: string | null, n2: string | null, fallback: string): string {
+  const a = (n1 ?? "").trim();
+  const b = (n2 ?? "").trim();
+  if (!b || b.toLowerCase() === a.toLowerCase()) return a || fallback; // Noivo 2 ausente/igual
+  if (!a) return b; // só Noivo 2 (raro)
+  return `${a} & ${b}`;
+}
+
 /**
  * Processa um lead de WEDDING: dedup de contato e card e (só quando
  * `createEnabled`) criação de verdade. Sem `createEnabled` é puro SELECT
@@ -112,13 +121,20 @@ export async function createWeddingLead(
   // --- 3. Etapa de entrada do pipeline WEDDING ("Novo Lead") ---
   const stageId = WEDDING_ENTRY_STAGE_ID;
 
+  // --- Título combinado (Noivo 1 & Noivo 2), no padrão do funil WW ---
+  //   "Elopement | Ana & João" quando o form responde "Apenas o casal";
+  //   "DW | Ana & João" (Destination Wedding) para os demais.
+  const isElopement = (lead.convidados ?? "").trim().toLowerCase() === "apenas o casal";
+  const coupleName = joinNoivos(nome, lead.nomeNoivos, fallbackName);
+  const titulo = `${isElopement ? "Elopement" : "DW"} | ${coupleName}`;
+
   // --- Plano legível (vale tanto pro ensaio quanto pro log de produção) ---
   const contatoPlan = contactId
     ? `contato existente ${contactId} (via ${matchedBy})`
     : "criaria contato novo (org Welcome Group)";
   const cardPlan = existingCardId
     ? `card WEDDING aberto já existe ${existingCardId} → DEDUP, não criaria`
-    : "criaria card WEDDING novo";
+    : `criaria card WEDDING novo (título "${titulo}")`;
   // Noivo(a) 2 só é criado quando há card novo e o nome difere do principal (igual ao passo 4e).
   // Aparece no plano (inclusive ensaio) pra dar pra conferir o de-para do campo de parceiro(a).
   const noivo2 = lead.nomeNoivos;
@@ -166,12 +182,8 @@ export async function createWeddingLead(
   if (lead.orcamentoFaixa) produtoData.ww_orcamento_faixa = lead.orcamentoFaixa;
   if (lead.cidade) produtoData.ww_sdr_cidade = lead.cidade;
 
-  // Título no padrão do funil WW (igual aos cards vindos do Active):
-  //   "Elopement | Nome" quando o form responde "Apenas o casal";
-  //   "DW | Nome" (Destination Wedding) para os demais.
-  const isElopement = (lead.convidados ?? "").trim().toLowerCase() === "apenas o casal";
+  // Tipo do casamento (Elopement quando "apenas o casal"); título já calculado acima.
   produtoData.ww_tipo_casamento = isElopement ? "Elopement" : "Destination Wedding";
-  const titulo = `${isElopement ? "Elopement" : "DW"} | ${nome ?? fallbackName}`;
 
   // 4d. Criar card WEDDING.
   const { data: card, error: cardErr } = await supabase
