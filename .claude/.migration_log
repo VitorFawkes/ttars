@@ -1315,3 +1315,5 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-19T13:01:38Z | supabase/migrations/20260619e_ww_sync_analytics_fields_cron.sql | applied_to_prod via Management API (token CLI)
 2026-06-19T13:10:29Z | supabase/migrations/20260619f_ww_drill_native_rpcs.sql | applied_to_prod via Management API (token CLI)
 2026-06-17T19:30:58Z | supabase/migrations/20260617b_drill_current_stage_no_date_filter.sql | applied_to_prod
+2026-06-19T18:46:36Z | supabase/migrations/20260619r_ww_destino_form_entry.sql | applied_to_prod via Management API (token CLI)
+2026-06-19T18:46:36Z | supabase/migrations/20260619s_ww_motivo_perda_closer_field.sql | applied_to_prod via Management API (token CLI)
