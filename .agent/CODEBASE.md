@@ -5,6 +5,11 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
+> **Last Updated:** 2026-06-19
+> **Trigger:** ALWAYS ON
+> **Stats:** 240 tabelas | 212 paginas | 368 hooks | 29 views | 856 components
+> **Stats:** 240 tabelas | 212 paginas | 368 hooks | 29 views | 856 components
+> **Stats:** 240 tabelas | 212 paginas | 368 hooks | 29 views | 856 components
 > **Last Updated:** 2026-06-18
 > **Trigger:** ALWAYS ON
 > **Stats:** 240 tabelas | 211 paginas | 368 hooks | 28 views | 856 components
@@ -499,6 +504,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useCardsDisponiveis()` | `useCardsDisponiveis.ts` |
 | `useCardsTravados()` | `useCardsTravados.ts` |
 | `useContactAvailableCards()` | `useContactAvailableCards.ts` |
+| `useCreateCardsSetting()` | `useCreateCardsSetting.ts` |
 | `useDeleteCard()` | `useDeleteCard.ts` |
 | `useDuplicateCard()` | `useDuplicateCard.ts` |
 | `useDuplicateCardDetection()` | `useDuplicateCardDetection.ts` |
@@ -510,7 +516,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useKanbanTarefas()` | `useKanbanTarefas.ts` |
 | `useKanbanViagens()` | `useKanbanViagens.ts` |
 | `useLeadsFilters()` | `useLeadsFilters.ts` |
-| `useLeadsterCreateCards()` | `useLeadsterCreateCards.ts` |
 | `useMyAssistCardIds()` | `useMyAssistCardIds.ts` |
 | `usePipelineCards()` | `usePipelineCards.ts` |
 | `usePipelineCurrent()` | `usePipelineCurrent.ts` |
@@ -618,7 +623,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **211 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **212 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -631,6 +636,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `Perfil` | `src/pages/AnalyticsWeddings/tabs/Perfil.tsx` |
 | `Qualidade` | `src/pages/AnalyticsWeddings/tabs/Qualidade.tsx` |
 | `VisaoGeral` | `src/pages/AnalyticsWeddings/tabs/VisaoGeral.tsx` |
+| `Analytics2Page` | `src/pages/AnalyticsWeddings2/Analytics2Page.tsx` |
 | `CalendarPage` | `src/pages/CalendarPage.tsx` |
 | `CardByConversation` | `src/pages/CardByConversation.tsx` |
 | `CardDetail` | `src/pages/CardDetail.tsx` |

@@ -613,7 +613,12 @@ export default function KanbanBoard({ productFilter, viewMode, subView, filters:
 
     const handleConfirmStageChange = (newOwnerId: string) => {
         if (pendingMove) {
-            const isWinHandoff = pendingMove.targetStageName.startsWith('Ganho ')
+            // Venda ganha = etapa is_won (ex.: "Contrato Assinado" do Weddings) OU
+            // a convenção legada de nome "Ganho ...". Arrastar pra uma etapa is_won
+            // dispara marcar_ganho em vez de mover o card sem marcar.
+            const winStage = stages?.find((s) => s.id === pendingMove.stageId)
+            const isWinHandoff = (winStage as unknown as { is_won?: boolean })?.is_won === true
+                || pendingMove.targetStageName.startsWith('Ganho ')
 
             const execute = async () => {
                 if (isWinHandoff) {
