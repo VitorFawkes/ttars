@@ -119,7 +119,13 @@ export async function createWeddingLead(
   const cardPlan = existingCardId
     ? `card WEDDING aberto já existe ${existingCardId} → DEDUP, não criaria`
     : "criaria card WEDDING novo";
-  const planBase = `${contatoPlan}; ${cardPlan}`;
+  // Noivo(a) 2 só é criado quando há card novo e o nome difere do principal (igual ao passo 4e).
+  // Aparece no plano (inclusive ensaio) pra dar pra conferir o de-para do campo de parceiro(a).
+  const noivo2 = lead.nomeNoivos;
+  const noivo2Plan = !existingCardId && noivo2 && noivo2.toLowerCase() !== (nome ?? "").toLowerCase()
+    ? `; criaria Noivo(a) 2: ${noivo2}`
+    : "";
+  const planBase = `${contatoPlan}; ${cardPlan}${noivo2Plan}`;
 
   // --- Modo ensaio: para por aqui, nada é criado ---
   if (!createEnabled) {

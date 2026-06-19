@@ -44,13 +44,15 @@ const pick = (p: Record<string, unknown>, ...keys: string[]): string | null => {
 };
 
 // De-para dos campos do formulário do site → WeddingLead.
-// Os field[N] são ids do form builder. Confirmados com a 1ª submissão de teste:
-//   field[11]  = Onde Casar (destino)   ex.: "Portugal"
-//   field[185] = nº de convidados        ex.: "Entre 80 a 100 Convidados"
-//   field[81], field[12] = AINDA NÃO CONFIRMADOS → ficam crus em marketing_data
-//   (orçamento/data do casamento? resolver com 1º payload real). Nada se perde.
+// Os field[N] são ids do form builder. Confirmados com submissões reais:
+//   field[11]  = Onde Casar (destino)        ex.: "Nordeste Brasileiro", "Caribe"
+//   field[185] = nº de convidados             ex.: "Entre 80 a 100 Convidados"
+//   field[81]  = nome do 2º noivo(a)          ex.: "gabriel marins" (lead "jennyfer aranha")
+//   field[12]  = sempre vazio nas submissões reais → mantém cru em marketing_data
+//                (significado a confirmar; nada se perde).
 const FIELD_DESTINO = "field[11]";
 const FIELD_CONVIDADOS = "field[185]";
+const FIELD_NOIVO2 = "field[81]";
 
 // Normaliza o payload do formulário do site para o WeddingLead comum.
 function normalizeSitePayload(p: Record<string, unknown>): WeddingLead {
@@ -75,7 +77,7 @@ function normalizeSitePayload(p: Record<string, unknown>): WeddingLead {
     convidados: pick(p, FIELD_CONVIDADOS),
     orcamentoFaixa: null, // campo de orçamento do site ainda não mapeado
     cidade: null,
-    nomeNoivos: null, // formulário do site não captura o 2º noivo(a)
+    nomeNoivos: pick(p, FIELD_NOIVO2), // field[81] = nome do 2º noivo(a) → cria acompanhante
     marketing,
   };
 }
@@ -155,7 +157,12 @@ Deno.serve(async (req) => {
     // Default (off) = modo ensaio: só calcula e loga o que faria, sem criar nada.
     const createEnabled = await isCreateEnabled(supabase, "site_create_cards");
     try {
-      const lead = normalizeSitePayload(p);
+      // O form do site passa pelo n8n, que embrulha os dados em
+      // { body, query, params, headers, webhookUrl, executionMode }. Desembrulha pra ler
+      // os campos reais; aceita também POST direto (sem envelope) — robusto aos dois caminhos.
+      const isN8nEnvelope = p.body != null && typeof p.body === "object" && !Array.isArray(p.body);
+      const form = (isN8nEnvelope ? (p.body as Record<string, unknown>) : p);
+      const lead = normalizeSitePayload(form);
       const { plan, createdCardId } = await createWeddingLead(supabase, lead, {
         createEnabled,
         origem: "site",
