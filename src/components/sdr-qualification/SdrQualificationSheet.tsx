@@ -133,6 +133,17 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
     const qualificado = qualifiedByIndicacao || (scoreResult?.qualificado ?? false)
     const disqualified = !qualifiedByIndicacao && (scoreResult?.disqualified ?? false)
 
+    // Nota inicial (do formulário) × nota pós-reunião (handoff §SDR).
+    // Decisão de produto: no início só o DESTINO conta (orçamento/convidados vêm
+    // em faixa e só viram nota quando a SDR confirma os números exatos na conversa).
+    // Derivada do mesmo breakdown já persistido — destino é grupo exclusivo (1 entrada).
+    const notaFormDestino = useMemo(() => {
+        const bd = scoreResult?.breakdown ?? []
+        return bd
+            .filter((b) => b.exclusion_group === 'destino' && b.rule_type === 'qualify')
+            .reduce((acc, b) => acc + (b.weight ?? 0), 0)
+    }, [scoreResult])
+
     const destinosSelecionados = useMemo(() => {
         const catalogo = findRulesByGroup(rules, 'destino')
             .filter((r) => session.scoringInputs[r.id] === true)
@@ -283,6 +294,7 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                             {/* Header com SCORE DESTACADO no topo */}
                             <ScoreHeader
                                 score={score}
+                                notaFormDestino={notaFormDestino}
                                 threshold={threshold}
                                 qualificado={qualificado}
                                 disqualified={disqualified}
@@ -895,6 +907,7 @@ function FaixasValorModal({
 
 function ScoreHeader({
     score,
+    notaFormDestino,
     threshold,
     qualificado,
     disqualified,
@@ -905,6 +918,7 @@ function ScoreHeader({
     onDesvincular,
 }: {
     score: number
+    notaFormDestino: number
     threshold: number
     qualificado: boolean
     disqualified: boolean
@@ -978,6 +992,24 @@ function ScoreHeader({
             <div className="h-2 bg-white rounded-full overflow-hidden border border-slate-200">
                 <div className={`h-full transition-all duration-300 ${status.barColor}`} style={{ width: `${pct}%` }} />
             </div>
+
+            {/* Comparativo nota do form (só destino) × nota pós-reunião (handoff §SDR) */}
+            {!qualifiedByIndicacao && (notaFormDestino > 0 || score > 0) && (
+                <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                    <span className="text-slate-500">
+                        Nota do form (destino): <span className="font-semibold text-slate-700">{notaFormDestino}</span>
+                    </span>
+                    <span className="text-slate-300" aria-hidden>→</span>
+                    <span className="text-slate-500">
+                        Pós-reunião: <span className="font-semibold text-slate-700">{score}</span>
+                    </span>
+                    {score - notaFormDestino > 0 && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
+                            +{score - notaFormDestino} na conversa
+                        </span>
+                    )}
+                </div>
+            )}
 
             <div className="h-5 mt-2 flex items-center" aria-live="polite">
                 {saving ? (
