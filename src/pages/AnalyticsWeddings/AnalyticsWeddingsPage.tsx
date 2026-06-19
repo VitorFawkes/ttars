@@ -2,6 +2,7 @@ import { useState, useEffect, createElement } from 'react'
 import { LayoutDashboard, GitCompare, Shuffle, Target, TrendingUp, Megaphone, TrendingDown, type LucideIcon } from 'lucide-react'
 import { useOrg } from '@/contexts/OrgContext'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
+import { useAnalyticsVariant } from '@/hooks/analyticsWeddings/AnalyticsVariantContext'
 import { countActiveFilters, defaultFilters, type AppliedFilters, type TabProps } from './components/FilterBar'
 import { VisaoGeral } from './tabs/VisaoGeral'
 import { FunilComparado } from './tabs/FunilComparado'
@@ -105,12 +106,21 @@ export default function AnalyticsWeddingsPage() {
 }
 
 function Header({ activeFilters }: { activeFilters?: AppliedFilters }) {
+  const variant = useAnalyticsVariant()
+  const isNative = variant === 'native'
   return (
     <div className="flex items-end justify-between">
       <div>
-        <h1 className="font-ww-serif text-2xl font-semibold text-ww-n700 tracking-tight">Welcome Weddings · Indicadores</h1>
+        <h1 className="font-ww-serif text-2xl font-semibold text-ww-n700 tracking-tight">
+          Welcome Weddings · Indicadores
+          {isNative && (
+            <span className="ml-2 align-middle text-[11px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-800 rounded px-1.5 py-0.5">WIP</span>
+          )}
+        </h1>
         <p className="text-sm text-ww-n500 mt-0.5">
-          Análise de vendas e marketing com base em ActiveCampaign
+          {isNative
+            ? 'Análise de vendas e marketing com base nos dados do ttars (funil próprio)'
+            : 'Análise de vendas e marketing com base em ActiveCampaign'}
           {activeFilters && (
             <span className="ml-2 text-ww-n400">· {formatRange(activeFilters.dateStart, activeFilters.dateEnd)}</span>
           )}

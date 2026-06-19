@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useOrg } from '@/contexts/OrgContext'
+import { useAnalyticsVariant, rpcName } from './AnalyticsVariantContext'
 
 export type DateMode = 'cohort' | 'throughput'
 
@@ -219,9 +220,10 @@ async function callRpc<T>(fnName: string, params: Record<string, unknown>): Prom
 
 export function useWw2Overview(filters: Ww2Filters) {
   const orgId = useOrgId()
+  const variant = useAnalyticsVariant()
   return useQuery({
-    queryKey: ['ww2', 'overview', orgId, filters],
-    queryFn: () => callRpc<Ww2Overview>('ww2_overview', {
+    queryKey: ['ww2', 'overview', variant, orgId, filters],
+    queryFn: () => callRpc<Ww2Overview>(rpcName('ww2_overview', variant), {
       ...baseParams(orgId, filters),
       ...canalParams(filters),
       ...statusParam(filters),
@@ -1117,11 +1119,12 @@ export type WwFunilConversaoData = {
 
 export function useWwFunilConversao(filters: Ww2Filters) {
   const orgId = useOrgId()
+  const variant = useAnalyticsVariant()
   return useQuery({
-    queryKey: ['ww', 'funil-conversao-v1', orgId, filters.dateStart, filters.dateEnd, filters.dateMode,
+    queryKey: ['ww', 'funil-conversao-v1', variant, orgId, filters.dateStart, filters.dateEnd, filters.dateMode,
       filters.faixas, filters.convidados, filters.destinos, filters.origins, filters.tipos, filters.consultorIds,
       filters.canalSdr ?? null, filters.canalCloser ?? null, filters.statusLead ?? null],
-    queryFn: () => callRpc<WwFunilConversaoData>('ww_funil_conversao_v1', {
+    queryFn: () => callRpc<WwFunilConversaoData>(rpcName('ww_funil_conversao_v1', variant), {
       p_date_start: filters.dateStart,
       p_date_end: filters.dateEnd,
       p_date_mode: filters.dateMode,
@@ -1279,12 +1282,13 @@ export type WwSerieParams = {
 }
 export function useWwSerieTemporal(params: WwSerieParams) {
   const orgId = useOrgId()
+  const variant = useAnalyticsVariant()
   const arr = (v?: string[]) => (v && v.length ? v : null)
   return useQuery({
-    queryKey: ['ww', 'serie-temporal', orgId, params.dateStart, params.dateEnd, params.granularidade, params.dateMode,
+    queryKey: ['ww', 'serie-temporal', variant, orgId, params.dateStart, params.dateEnd, params.granularidade, params.dateMode,
       params.incluirElopement ?? true, params.origins ?? null, params.faixas ?? null, params.destinos ?? null, params.convidados ?? null, params.consultorIds ?? null, params.tipos ?? null,
       params.canalSdr ?? null, params.canalCloser ?? null, params.statusLead ?? null],
-    queryFn: () => callRpc<WwSerieTemporal>('ww_serie_temporal', {
+    queryFn: () => callRpc<WwSerieTemporal>(rpcName('ww_serie_temporal', variant), {
       p_date_start: params.dateStart,
       p_date_end: params.dateEnd,
       p_granularidade: params.granularidade,
@@ -1360,13 +1364,14 @@ export function useWwAgenda(
   diasFuturo = 28, diasPendentes = 14, diasDesfechos = 30,
 ) {
   const orgId = useOrgId()
+  const variant = useAnalyticsVariant()
   const dateStart = filters.dateStart ?? null
   const dateEnd = filters.dateEnd ?? null
   const sdrCanal = filters.canalSdr?.length ? filters.canalSdr : null
   const closerCanal = filters.canalCloser?.length ? filters.canalCloser : null
   return useQuery({
-    queryKey: ['ww', 'agenda', orgId, filters.origins ?? null, filters.tipos ?? null, filters.faixas ?? null, filters.destinos ?? null, filters.convidados ?? null, filters.consultorIds ?? null, dateStart, dateEnd, sdrCanal, closerCanal, diasFuturo, diasPendentes, diasDesfechos],
-    queryFn: () => callRpc<WwAgenda>('ww_agenda_reunioes', {
+    queryKey: ['ww', 'agenda', variant, orgId, filters.origins ?? null, filters.tipos ?? null, filters.faixas ?? null, filters.destinos ?? null, filters.convidados ?? null, filters.consultorIds ?? null, dateStart, dateEnd, sdrCanal, closerCanal, diasFuturo, diasPendentes, diasDesfechos],
+    queryFn: () => callRpc<WwAgenda>(rpcName('ww_agenda_reunioes', variant), {
       p_org_id: orgId,
       p_dias_futuro: diasFuturo,
       p_dias_pendentes: diasPendentes,
@@ -1414,11 +1419,12 @@ export function useWwAgendamentosPorDia(
   filters: Pick<Ww2Filters, 'origins' | 'tipos' | 'faixas' | 'destinos' | 'convidados' | 'consultorIds' | 'dateStart' | 'dateEnd'>,
 ) {
   const orgId = useOrgId()
+  const variant = useAnalyticsVariant()
   const dateStart = filters.dateStart ?? null
   const dateEnd = filters.dateEnd ?? null
   return useQuery({
-    queryKey: ['ww', 'agendamentos-dia', orgId, dateStart, dateEnd, filters.origins ?? null, filters.tipos ?? null, filters.faixas ?? null, filters.destinos ?? null, filters.convidados ?? null, filters.consultorIds ?? null],
-    queryFn: () => callRpc<WwAgendamentos>('ww_agendamentos_por_dia', {
+    queryKey: ['ww', 'agendamentos-dia', variant, orgId, dateStart, dateEnd, filters.origins ?? null, filters.tipos ?? null, filters.faixas ?? null, filters.destinos ?? null, filters.convidados ?? null, filters.consultorIds ?? null],
+    queryFn: () => callRpc<WwAgendamentos>(rpcName('ww_agendamentos_por_dia', variant), {
       p_org_id: orgId,
       p_date_start: dateStart,
       p_date_end: dateEnd,
