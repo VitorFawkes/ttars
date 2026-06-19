@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList } from 'recharts'
-import { useWw2Overview, useWwAgenda, useWwAgendamentosPorDia, type Ww2Conversao, type Ww2Alerta, type DrillMarco, type WwAgendaItem, type WwAgendaPorDia, type WwAgendaDesfechos, type WwAgendaDesfechoItem } from '@/hooks/analyticsWeddings/useWw2'
+import { useWw2Overview, useWwAgenda, useWwAgendamentosPorDia, type Ww2Conversao, type DrillMarco, type WwAgendaItem, type WwAgendaPorDia, type WwAgendaDesfechos, type WwAgendaDesfechoItem } from '@/hooks/analyticsWeddings/useWw2'
 import { FilterBar, type TabProps, type AppliedFilters } from '../components/FilterBar'
 import { SectionCard, KpiCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
 import { DrillDrawer, type DrillContext } from '../components/DrillDrawer'
 import { SerieTemporalChart } from '../components/SerieTemporalChart'
+import { PerfilLeadsExplorer } from '../components/PerfilLeadsExplorer'
 import { OpenInACButton } from '../components/OpenInACButton'
 import { formatCurrency, formatNumber } from '../lib/format'
 
@@ -44,7 +45,7 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
   if (error) return <ErrorBanner error={error as Error} />
   if (!data || data.error) return <EmptyState message={data?.error ?? 'Sem dados'} />
 
-  const { kpis, funnel, conversoes, alertas } = data
+  const { kpis, funnel, conversoes } = data
 
   // "Onde estão agora" (v9): cada linha do funnel é uma ETAPA real ("SDR · Lead", "Closer · Negociação"…).
   // Agrupa por macro (phase_slug = sdr/closer), tira o prefixo do rótulo e ordena pela ordem do funil.
@@ -211,8 +212,9 @@ function VisaoGeralContent({ filters }: { filters: AppliedFilters }) {
         </SectionCard>
       </div>
 
-      {/* Alertas — leads parados, com pipeline do Active, filtro, ordenação e link pro Active */}
-      <AlertasParados alertas={alertas} />
+      {/* Perfil dos leads — quem são (cidade/investimento/convidados do formulário),
+          por etapa do funil, com cruzamento e filtros ricos. Substitui os Alertas. */}
+      <PerfilLeadsExplorer filters={filters} baseCtx={baseCtx} onDrill={openDrill} />
 
       <DrillDrawer ctx={drill} onClose={() => setDrill(null)} />
     </div>
@@ -806,104 +808,6 @@ function AgendaReunioes({ filters }: { filters: AppliedFilters }) {
         </SectionCard>
       )}
     </div>
-  )
-}
-
-// Alertas: leads parados há 7+ dias. Mostra o PIPELINE do Active (não a fase do CRM),
-// filtra por pipeline e ordena clicando no cabeçalho.
-type AlertaSortKey = 'dias_parado' | 'valor_estimado' | 'titulo' | 'ac_pipeline_nome'
-
-function AlertaSeta({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
-  return active ? <span className="text-ww-gold-ink">{dir === 'asc' ? '↑' : '↓'}</span> : <span className="text-slate-300">↕</span>
-}
-function AlertaTh({ k, children, align = 'left', sortKey, sortDir, onSort }: { k: AlertaSortKey; children: React.ReactNode; align?: 'left' | 'right'; sortKey: AlertaSortKey; sortDir: 'asc' | 'desc'; onSort: (k: AlertaSortKey) => void }) {
-  return (
-    <th className={`py-2 font-medium ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button onClick={() => onSort(k)} className={`inline-flex items-center gap-1 hover:text-ww-gold-ink transition-colors ${align === 'right' ? 'flex-row-reverse' : ''}`}>
-        {children} <AlertaSeta active={sortKey === k} dir={sortDir} />
-      </button>
-    </th>
-  )
-}
-function AlertasParados({ alertas }: { alertas: Ww2Alerta[] }) {
-  const [sortKey, setSortKey] = useState<AlertaSortKey>('dias_parado')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
-  const [pipeFilter, setPipeFilter] = useState<string>('')
-
-  const pipelines = Array.from(new Set(alertas.map(a => a.ac_pipeline_nome).filter(Boolean) as string[])).sort()
-
-  const toggleSort = (k: AlertaSortKey) => {
-    if (k === sortKey) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
-    else { setSortKey(k); setSortDir(k === 'titulo' || k === 'ac_pipeline_nome' ? 'asc' : 'desc') }
-  }
-
-  const visiveis = alertas
-    .filter(a => !pipeFilter || a.ac_pipeline_nome === pipeFilter)
-    .slice()
-    .sort((a, b) => {
-      const dir = sortDir === 'asc' ? 1 : -1
-      if (sortKey === 'titulo' || sortKey === 'ac_pipeline_nome') {
-        return dir * String(a[sortKey] ?? '').localeCompare(String(b[sortKey] ?? ''), 'pt-BR')
-      }
-      const av = Number(a[sortKey] ?? 0), bv = Number(b[sortKey] ?? 0)
-      return dir * (av - bv)
-    })
-
-  return (
-    <SectionCard
-      title="Alertas: leads parados há mais de 7 dias"
-      subtitle="Mostra o pipeline do Active onde o casal está. Clique no cabeçalho pra ordenar; use o filtro pra focar num pipeline. Clique no nome pra abrir o card."
-    >
-      {alertas.length === 0 ? (
-        <EmptyState message="Nenhum lead parado. Tudo fluindo." />
-      ) : (
-        <div className="space-y-2">
-          {pipelines.length > 1 && (
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-slate-500">Pipeline (Active):</span>
-              <select
-                value={pipeFilter}
-                onChange={e => setPipeFilter(e.target.value)}
-                className="px-2 py-1 rounded-md border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-ww-gold/40"
-              >
-                <option value="">Todos ({alertas.length})</option>
-                {pipelines.map(p => <option key={p} value={p}>{p} ({alertas.filter(a => a.ac_pipeline_nome === p).length})</option>)}
-              </select>
-            </div>
-          )}
-          <table className="w-full text-xs">
-            <thead className="text-slate-500">
-              <tr>
-                <AlertaTh k="titulo" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>Card</AlertaTh>
-                <th className="py-2 font-medium text-left">Etapa</th>
-                <AlertaTh k="ac_pipeline_nome" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>Pipeline (Active)</AlertaTh>
-                <AlertaTh k="valor_estimado" align="right" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>Valor</AlertaTh>
-                <AlertaTh k="dias_parado" align="right" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>Parado há</AlertaTh>
-                <th className="py-2 font-medium text-right">Active</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visiveis.map(a => (
-                <tr key={a.card_id} className="border-t border-slate-100 hover:bg-ww-cream/40 transition-colors">
-                  <td className="py-2">
-                    <a href={`/cards/${a.card_id}`} className="text-indigo-700 hover:underline font-medium">{a.titulo.slice(0, 60)}{a.titulo.length > 60 ? '…' : ''}</a>
-                  </td>
-                  <td className="py-2 text-slate-700">{a.stage_name}</td>
-                  <td className="py-2 text-slate-700">{a.ac_pipeline_nome ?? <span className="text-slate-300">—</span>}</td>
-                  <td className="py-2 text-right tabular-nums text-slate-700">{a.valor_estimado ? formatCurrency(a.valor_estimado) : '—'}</td>
-                  <td className="py-2 text-right">
-                    <span className={`tabular-nums font-medium ${a.dias_parado > 14 ? 'text-rose-600' : 'text-amber-600'}`}>{a.dias_parado}d</span>
-                  </td>
-                  <td className="py-2 text-right">
-                    <div className="inline-flex justify-end"><OpenInACButton dealId={a.ac_deal_id} contactName={a.titulo} /></div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </SectionCard>
   )
 }
 

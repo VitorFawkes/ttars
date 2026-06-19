@@ -1290,6 +1290,14 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-17T12:48:02Z | supabase/migrations/20260617b_ww_agendamentos_respeita_filtro_e_coerencia.sql | applied_to_prod
 2026-06-17T13:05:46Z | supabase/migrations/20260617c_ww_agendamentos_itens_drill.sql | applied_to_prod
 2026-06-17T13:25:27Z | supabase/migrations/20260617d_ww_agendamentos_anti_massa.sql | applied_to_prod
+2026-06-17T17:35:33Z | supabase/migrations/20260617e_ww_tipo_entrada_nascimento.sql | VALIDADO (sintaxe staging + lógica prod read-only) — PENDENTE promoção prod (aguarda 'pode subir')
+2026-06-17T17:35:33Z | supabase/migrations/20260617f_ww_entrada_por_nascimento.sql | VALIDADO (sintaxe staging + lógica prod read-only) — PENDENTE promoção prod (aguarda 'pode subir')
+2026-06-17T17:35:33Z | supabase/migrations/20260617g_ww_drill_casais_nascimento.sql | VALIDADO (sintaxe staging + lógica prod read-only) — PENDENTE promoção prod (aguarda 'pode subir')
+2026-06-17T17:35:33Z | supabase/migrations/20260617h_ww_perfil_ranking_nascimento.sql | VALIDADO (sintaxe staging + lógica prod read-only) — PENDENTE promoção prod (aguarda 'pode subir')
+2026-06-17T18:56:16Z | supabase/migrations/20260617e_ww_tipo_entrada_nascimento.sql | applied_to_prod
+2026-06-17T18:57:07Z | supabase/migrations/20260617f_ww_entrada_por_nascimento.sql | applied_to_prod
+2026-06-17T18:57:31Z | supabase/migrations/20260617g_ww_drill_casais_nascimento.sql | applied_to_prod
+2026-06-17T18:57:54Z | supabase/migrations/20260617h_ww_perfil_ranking_nascimento.sql | applied_to_prod
 2026-06-17T13:00:56Z | supabase/migrations/20260617a_calendly_source_org.sql | applied_to_prod via Management API (token CLI)
 2026-06-17T13:00:56Z | supabase/migrations/20260617b_calendly_function_weddings.sql | applied_to_prod via Management API (token CLI)
 2026-06-17T13:00:56Z | supabase/migrations/20260617c_ww_closer_data_reuniao_field.sql | applied_to_prod via Management API (token CLI)
@@ -1306,3 +1314,4 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-19T12:54:29Z | supabase/migrations/20260619d_ww_funil_casal_native_exclude_test.sql | applied_to_prod via Management API (token CLI)
 2026-06-19T13:01:38Z | supabase/migrations/20260619e_ww_sync_analytics_fields_cron.sql | applied_to_prod via Management API (token CLI)
 2026-06-19T13:10:29Z | supabase/migrations/20260619f_ww_drill_native_rpcs.sql | applied_to_prod via Management API (token CLI)
+2026-06-17T19:30:58Z | supabase/migrations/20260617b_drill_current_stage_no_date_filter.sql | applied_to_prod

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, createElement } from 'react'
 import { Download, Trash2, X, Check } from 'lucide-react'
+import { openWithFreshUrl } from '../../../lib/openWithFreshUrl'
 import { cn } from '../../../lib/utils'
 import {
   getFileIcon,
@@ -19,6 +20,7 @@ interface AttachmentItemProps {
   onDelete: (id: string, path: string) => Promise<void>
   onUpdateDescricao: (id: string, descricao: string) => Promise<void>
   onClickImage: (arquivo: Arquivo) => void
+  getSignedUrl: (path: string) => Promise<string | null>
 }
 
 export default function AttachmentItem({
@@ -26,11 +28,22 @@ export default function AttachmentItem({
   onDelete,
   onUpdateDescricao,
   onClickImage,
+  getSignedUrl,
 }: AttachmentItemProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [isEditingNote, setIsEditingNote] = useState(false)
   const [noteValue, setNoteValue] = useState(arquivo.descricao || '')
+  const [thumbSrc, setThumbSrc] = useState(arquivo.signedUrl)
+  const [thumbBase, setThumbBase] = useState(arquivo.signedUrl)
+  const [thumbRetried, setThumbRetried] = useState(false)
   const noteRef = useRef<HTMLInputElement>(null)
+
+  // Reage à URL pré-gerada ser (re)carregada, sem effect (padrão React de ajuste no render)
+  if (arquivo.signedUrl !== thumbBase) {
+    setThumbBase(arquivo.signedUrl)
+    setThumbSrc(arquivo.signedUrl)
+    setThumbRetried(false)
+  }
   const isImage = isImageMime(arquivo.mime_type)
   const iconColor = getFileIconColor(arquivo.mime_type)
 
@@ -44,6 +57,13 @@ export default function AttachmentItem({
       noteRef.current.focus()
     }
   }, [isEditingNote])
+
+  const handleThumbError = async () => {
+    if (thumbRetried) return
+    setThumbRetried(true)
+    const fresh = await getSignedUrl(arquivo.caminho_arquivo)
+    if (fresh) setThumbSrc(fresh)
+  }
 
   const handleSaveNote = async () => {
     setIsEditingNote(false)
@@ -60,8 +80,8 @@ export default function AttachmentItem({
   const handleClick = () => {
     if (isImage) {
       onClickImage(arquivo)
-    } else if (arquivo.signedUrl) {
-      window.open(arquivo.signedUrl, '_blank')
+    } else {
+      openWithFreshUrl(arquivo.caminho_arquivo, getSignedUrl)
     }
   }
 
@@ -96,12 +116,13 @@ export default function AttachmentItem({
         onClick={handleClick}
         className="flex-shrink-0 h-8 w-8 rounded-md overflow-hidden flex items-center justify-center bg-slate-100 cursor-pointer hover:ring-2 hover:ring-indigo-300 transition-all"
       >
-        {isImage && arquivo.signedUrl ? (
+        {isImage && thumbSrc ? (
           <img
-            src={arquivo.signedUrl}
+            src={thumbSrc}
             alt={arquivo.nome_original}
             className="h-full w-full object-cover"
             loading="lazy"
+            onError={handleThumbError}
           />
         ) : (
           <FileTypeIcon mimeType={arquivo.mime_type} className={cn('h-4 w-4', iconColor)} />
@@ -168,17 +189,14 @@ export default function AttachmentItem({
             Nota
           </button>
         )}
-        {arquivo.signedUrl && (
-          <a
-            href={arquivo.signedUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-            title="Download"
-          >
-            <Download className="h-3.5 w-3.5" />
-          </a>
-        )}
+        <button
+          type="button"
+          onClick={() => openWithFreshUrl(arquivo.caminho_arquivo, getSignedUrl)}
+          className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+          title="Download"
+        >
+          <Download className="h-3.5 w-3.5" />
+        </button>
         <button
           type="button"
           onClick={() => setConfirmDelete(true)}
