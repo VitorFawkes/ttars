@@ -375,10 +375,11 @@ const statusParaMarco = (f: DrillFilters): DrillMarco | null => {
 
 export function useWwDrillCasais(filters: DrillFilters | null) {
   const orgId = useOrgId()
+  const variant = useAnalyticsVariant()
   return useQuery({
-    queryKey: ['ww', 'drill-casais', orgId, filters],
+    queryKey: ['ww', 'drill-casais', variant, orgId, filters],
     queryFn: () => filters
-      ? callRpc<WwDrillCasais>('ww_drill_casais', {
+      ? callRpc<WwDrillCasais>(rpcName('ww_drill_casais', variant), {
           p_date_start: filters.dateStart,
           p_date_end: filters.dateEnd,
           p_date_mode: filters.dateMode ?? 'cohort',
@@ -1220,9 +1221,10 @@ export function useWwFunilRanking(params: {
   statusLead?: StatusLead | ''
 }) {
   const orgId = useOrgId()
+  const variant = useAnalyticsVariant()
   return useQuery({
-    queryKey: ['ww', 'funil-ranking-combo', orgId, params.dateStart, params.dateEnd, params.dateMode, params.dimensoes, params.origins, params.tipos, params.consultorIds, params.canalSdr ?? null, params.canalCloser ?? null, params.faixas ?? null, params.convidados ?? null, params.destinos ?? null, params.statusLead ?? null],
-    queryFn: () => callRpc<WwFunilRanking>('ww_funil_ranking_combo', {
+    queryKey: ['ww', 'funil-ranking-combo', variant, orgId, params.dateStart, params.dateEnd, params.dateMode, params.dimensoes, params.origins, params.tipos, params.consultorIds, params.canalSdr ?? null, params.canalCloser ?? null, params.faixas ?? null, params.convidados ?? null, params.destinos ?? null, params.statusLead ?? null],
+    queryFn: () => callRpc<WwFunilRanking>(rpcName('ww_funil_ranking_combo', variant), {
       p_date_start: params.dateStart,
       p_date_end: params.dateEnd,
       p_date_mode: params.dateMode,

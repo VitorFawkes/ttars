@@ -1305,3 +1305,4 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-19T12:45:21Z | supabase/migrations/20260619c_ww_backfill_analytics_fields.sql | applied_to_prod via Management API (token CLI)
 2026-06-19T12:54:29Z | supabase/migrations/20260619d_ww_funil_casal_native_exclude_test.sql | applied_to_prod via Management API (token CLI)
 2026-06-19T13:01:38Z | supabase/migrations/20260619e_ww_sync_analytics_fields_cron.sql | applied_to_prod via Management API (token CLI)
+2026-06-19T13:10:29Z | supabase/migrations/20260619f_ww_drill_native_rpcs.sql | applied_to_prod via Management API (token CLI)
