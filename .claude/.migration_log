@@ -1302,3 +1302,4 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-18T17:17:26Z | supabase/migrations/20260618d_ww_campos_followups.sql | applied_to_prod via Management API (token CLI)
 2026-06-19T12:01:54Z | supabase/migrations/20260619a_ww_analytics_native_rpcs.sql | applied_to_prod via Management API (token CLI)
 2026-06-19T12:35:44Z | supabase/migrations/20260619b_ww_funil_casal_native_relink.sql | applied_to_prod via Management API (token CLI)
+2026-06-19T12:45:21Z | supabase/migrations/20260619c_ww_backfill_analytics_fields.sql | applied_to_prod via Management API (token CLI)
