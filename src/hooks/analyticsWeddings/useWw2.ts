@@ -257,9 +257,10 @@ export function useWw2LeadQuality(filters: Ww2Filters) {
 
 export function useWw2Marketing(filters: Ww2Filters) {
   const orgId = useOrgId()
+  const variant = useAnalyticsVariant()
   return useQuery({
-    queryKey: ['ww2', 'marketing', orgId, filters],
-    queryFn: () => callRpc<Ww2Marketing>('ww2_marketing', {
+    queryKey: ['ww2', 'marketing', variant, orgId, filters],
+    queryFn: () => callRpc<Ww2Marketing>(rpcName('ww2_marketing', variant), {
       ...baseParams(orgId, filters),
       ...canalParams(filters),
     }),
@@ -270,9 +271,10 @@ export function useWw2Marketing(filters: Ww2Filters) {
 
 export function useWw2LossReasons(filters: Ww2Filters) {
   const orgId = useOrgId()
+  const variant = useAnalyticsVariant()
   return useQuery({
-    queryKey: ['ww2', 'loss', orgId, filters],
-    queryFn: () => callRpc<Ww2LossReasons>('ww2_loss_reasons', {
+    queryKey: ['ww2', 'loss', variant, orgId, filters],
+    queryFn: () => callRpc<Ww2LossReasons>(rpcName('ww2_loss_reasons', variant), {
       ...baseParams(orgId, filters),
       ...canalParams(filters),
       // só envia quando usado — mantém compat com a função antiga até a promoção
@@ -692,12 +694,13 @@ export type WwQualidadeLead = {
 
 export function useWwQualidadeLead(filters: Ww2Filters, eventStageId?: string | null, minAmostra: number = 3) {
   const orgId = useOrgId()
+  const variant = useAnalyticsVariant()
   // cohort: leads criados no período.
   // throughput: leads que tiveram stage_changed para eventStageId no período (obrigatório).
   const isThroughput = filters.dateMode === 'throughput'
   return useQuery({
-    queryKey: ['ww', 'qualidade-lead', orgId, filters.dateStart, filters.dateEnd, filters.dateMode, eventStageId ?? null, filters.origins, filters.tipos, filters.canalSdr ?? null, filters.canalCloser ?? null, filters.statusLead ?? null, minAmostra],
-    queryFn: () => callRpc<WwQualidadeLead>('ww_qualidade_lead', {
+    queryKey: ['ww', 'qualidade-lead', variant, orgId, filters.dateStart, filters.dateEnd, filters.dateMode, eventStageId ?? null, filters.origins, filters.tipos, filters.canalSdr ?? null, filters.canalCloser ?? null, filters.statusLead ?? null, minAmostra],
+    queryFn: () => callRpc<WwQualidadeLead>(rpcName('ww_qualidade_lead', variant), {
       p_date_start: filters.dateStart,
       p_date_end: filters.dateEnd,
       p_org_id: orgId,
@@ -805,9 +808,10 @@ export type WwDriftVenda = {
 
 export function useWwDriftVenda(filters: Ww2Filters) {
   const orgId = useOrgId()
+  const variant = useAnalyticsVariant()
   return useQuery({
-    queryKey: ['ww', 'drift-venda-v2', orgId, filters.dateStart, filters.dateEnd, filters.dateMode, filters.origins, filters.tipos, filters.canalSdr ?? null, filters.canalCloser ?? null],
-    queryFn: () => callRpc<WwDriftVenda>('ww_v2_drift_venda', {
+    queryKey: ['ww', 'drift-venda-v2', variant, orgId, filters.dateStart, filters.dateEnd, filters.dateMode, filters.origins, filters.tipos, filters.canalSdr ?? null, filters.canalCloser ?? null],
+    queryFn: () => callRpc<WwDriftVenda>(rpcName('ww_v2_drift_venda', variant), {
       p_date_start: filters.dateStart,
       p_date_end: filters.dateEnd,
       p_org_id: orgId,
@@ -855,9 +859,10 @@ export type WwDriftCombos = {
 
 export function useWwDriftCombos(filters: Ww2Filters) {
   const orgId = useOrgId()
+  const variant = useAnalyticsVariant()
   return useQuery({
-    queryKey: ['ww', 'drift-combos', orgId, filters.dateStart, filters.dateEnd, filters.dateMode, filters.tipos, filters.origins, filters.canalSdr ?? null, filters.canalCloser ?? null],
-    queryFn: () => callRpc<WwDriftCombos>('ww_drift_combos', {
+    queryKey: ['ww', 'drift-combos', variant, orgId, filters.dateStart, filters.dateEnd, filters.dateMode, filters.tipos, filters.origins, filters.canalSdr ?? null, filters.canalCloser ?? null],
+    queryFn: () => callRpc<WwDriftCombos>(rpcName('ww_drift_combos', variant), {
       p_date_start: filters.dateStart,
       p_date_end: filters.dateEnd,
       p_org_id: orgId,
@@ -970,6 +975,7 @@ export type WwLeadIdealParams = {
 
 export function useWwLeadIdeal(params: WwLeadIdealParams) {
   const orgId = useOrgId()
+  const variant = useAnalyticsVariant()
   const minAmostra = params.minAmostra ?? 2
   const usaJanelaCustom = !!(params.historicoStart && params.historicoEnd)
   const referencia = params.referencia ?? 'ganho'
@@ -977,10 +983,10 @@ export function useWwLeadIdeal(params: WwLeadIdealParams) {
   const cruzY = params.cruzY ?? 'convidados'
   const arr = (v?: string[]) => (v && v.length ? v : null)
   return useQuery({
-    queryKey: ['ww', 'lead-ideal-v2', orgId, params.atualStart, params.atualEnd, params.historicoStart ?? null, params.historicoEnd ?? null, params.historicoMeses ?? 12, minAmostra,
+    queryKey: ['ww', 'lead-ideal-v2', variant, orgId, params.atualStart, params.atualEnd, params.historicoStart ?? null, params.historicoEnd ?? null, params.historicoMeses ?? 12, minAmostra,
       params.origins ?? null, params.consultorIds ?? null, params.faixas ?? null, params.destinos ?? null, params.convidados ?? null, params.tipos ?? null,
       params.sdrCanal ?? null, params.closerCanal ?? null, referencia, cruzX, cruzY],
-    queryFn: () => callRpc<WwLeadIdealData>('ww_v2_lead_ideal', {
+    queryFn: () => callRpc<WwLeadIdealData>(rpcName('ww_v2_lead_ideal', variant), {
       p_atual_start: params.atualStart,
       p_atual_end: params.atualEnd,
       p_org_id: orgId,
@@ -1060,9 +1066,10 @@ export type WwMarketingQualidade = {
 
 export function useWwMarketingQualidade(filters: Ww2Filters, minAmostra: number = 2) {
   const orgId = useOrgId()
+  const variant = useAnalyticsVariant()
   return useQuery({
-    queryKey: ['ww', 'marketing-qualidade', orgId, filters.dateStart, filters.dateEnd, filters.origins, filters.tipos, filters.canalSdr ?? null, filters.canalCloser ?? null, minAmostra],
-    queryFn: () => callRpc<WwMarketingQualidade>('ww_marketing_qualidade', {
+    queryKey: ['ww', 'marketing-qualidade', variant, orgId, filters.dateStart, filters.dateEnd, filters.origins, filters.tipos, filters.canalSdr ?? null, filters.canalCloser ?? null, minAmostra],
+    queryFn: () => callRpc<WwMarketingQualidade>(rpcName('ww_marketing_qualidade', variant), {
       p_date_start: filters.dateStart,
       p_date_end: filters.dateEnd,
       p_org_id: orgId,
@@ -1156,10 +1163,11 @@ export type WwFunilFilterOptions = {
 
 export function useWwFunilFilterOptions() {
   const orgId = useOrgId()
+  const variant = useAnalyticsVariant()
   return useQuery({
-    queryKey: ['ww', 'funil-filter-options', orgId],
+    queryKey: ['ww', 'funil-filter-options', variant, orgId],
     queryFn: async () => {
-      const data = await callRpc<WwFunilFilterOptions>('ww_funil_filter_options', { p_org_id: orgId })
+      const data = await callRpc<WwFunilFilterOptions>(rpcName('ww_funil_filter_options', variant), { p_org_id: orgId })
       if (!data) return data
       // Guarda contra consultor repetido (mesmo id com nomes diferentes) — a 20260611a
       // conserta na fonte, mas prod antiga ainda devolve duplicado.
