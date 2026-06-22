@@ -42,6 +42,8 @@ const STAGE_LABEL = (m: WwPerfilMarco) => STAGE_OPTS.find(s => s.id === m)!.labe
 const ORDER: Partial<Record<Dim, string[]>> = {
   faixa: ['Até R$50 mil', 'R$50-100 mil', 'R$100-200 mil', 'R$200-500 mil', '+R$500 mil'],
   convidados: ['Apenas o casal', 'Até 20', '20-50', '50-100', '50-80', '80-100', '+100'],
+  // ordem fixa dos destinos (pedido do Vitor); os demais seguem por volume, "Outros"/sem info no fim
+  destino: ['Caribe', 'Nordeste', 'Itália', 'Mendoza'],
 }
 const isNI = (b: string) => /n[ãa]o\s*informad/i.test(b) || b === 'Desconhecida'
 
@@ -54,7 +56,9 @@ function ordenarBuckets(dim: Dim, buckets: string[], peso: (b: string) => number
   const arr = [...buckets]
   if (order) arr.sort((a, b) => ((order.indexOf(a) + 1) || 999) - ((order.indexOf(b) + 1) || 999))
   else arr.sort((a, b) => peso(b) - peso(a))
-  arr.sort((a, b) => Number(isNI(a)) - Number(isNI(b)))
+  // sempre por último: "Não informado" e depois o agregado "Outros"
+  const trail = (b: string) => (b === 'Outros' ? 2 : isNI(b) ? 1 : 0)
+  arr.sort((a, b) => trail(a) - trail(b))
   return arr
 }
 
@@ -332,7 +336,8 @@ function TempoChart({ temporal, dim, layout, measure, selecionado, onBarClick }:
   onBarClick: (bucket: string, periodo: string, label: string) => void
 }) {
   const hasOutros = !selecionado && temporal.series.some(s => s.bucket === 'Outros')
-  const stackKeys = [...temporal.buckets_top.filter(b => b !== 'Outros'), ...(hasOutros ? ['Outros'] : [])]
+  const totalsByBucket = new Map(temporal.buckets_all.map(b => [b.bucket, b.total]))
+  const stackKeys = ordenarBuckets(dim, [...temporal.buckets_top.filter(b => b !== 'Outros'), ...(hasOutros ? ['Outros'] : [])], b => totalsByBucket.get(b) ?? 0)
 
   const ordem: { periodo: string; label: string }[] = []
   const vistos = new Set<string>()
