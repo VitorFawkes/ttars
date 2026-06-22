@@ -1304,3 +1304,8 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-17T13:00:56Z | supabase/migrations/20260617e_calendly_contato_no_phone.sql | applied_to_prod via Management API (token CLI)
 2026-06-17T13:53:17Z | supabase/migrations/20260617d_calendly_weddings_triggers_seed.sql | applied_to_prod via Management API (token CLI)
 2026-06-17T19:30:58Z | supabase/migrations/20260617b_drill_current_stage_no_date_filter.sql | applied_to_prod
+2026-06-18T13:03:10Z | supabase/migrations/20260618a_ww_onde_estao_etapas_reais_active.sql | applied_to_prod
+2026-06-18T14:11:55Z | supabase/migrations/20260618b_ww_perfil_temporal.sql | applied_to_prod
+2026-06-18T16:41:08Z | supabase/migrations/20260618c_ww_perfil_temporal_dia_buckets.sql | applied_to_prod
+2026-06-22T18:02:33Z | supabase/migrations/20260622a_analytics_sdr_funil_periodo.sql | applied_to_prod
+2026-06-22T18:06:41Z | supabase/migrations/20260622a_analytics_sdr_funil_periodo.sql | applied_to_prod
