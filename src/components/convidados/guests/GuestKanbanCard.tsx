@@ -1,4 +1,4 @@
-import { useState, type MouseEvent } from 'react'
+import { memo, useState, type MouseEvent } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { Pencil, Trash2, Phone, Mail, X, Check, Heart } from 'lucide-react'
 import { cn } from '../../../lib/utils'
@@ -23,7 +23,7 @@ interface GuestKanbanCardProps {
   isOverlay?: boolean
 }
 
-export function GuestKanbanCard({ guest, isOverlay = false }: GuestKanbanCardProps) {
+function GuestKanbanCardBase({ guest, isOverlay = false }: GuestKanbanCardProps) {
   const weddingTitle = hasWeddingTitle(guest) ? guest.card_titulo : null
   const [editing, setEditing] = useState(false)
   const [confirming, setConfirming] = useState(false)
@@ -159,3 +159,9 @@ export function GuestKanbanCard({ guest, isOverlay = false }: GuestKanbanCardPro
     </>
   )
 }
+
+// memo: a lista renderiza milhares destes (cada um com useDraggable). Sem memo,
+// qualquer re-render do board (busca, filtro, indicador de loading, drag) re-
+// renderiza todos e trava a aba. O objeto `guest` é referencialmente estável
+// (vem do cache do react-query), então a comparação rasa de props basta.
+export const GuestKanbanCard = memo(GuestKanbanCardBase)

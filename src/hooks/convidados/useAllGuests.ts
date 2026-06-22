@@ -4,7 +4,6 @@ import { sbAny } from './_supabaseUntyped'
 import type { GuestWithWedding, StatusRSVP } from './types'
 
 export interface AllGuestsFilters {
-  search: string
   statusFilter: StatusRSVP[]
   weddingFilter: string[]
 }
@@ -72,7 +71,10 @@ export function useAllGuests(filters: AllGuestsFilters) {
         if (page.length < PAGE) break
       }
 
-      const term = filters.search.trim().toLowerCase()
+      // A busca por texto é client-side (instantânea, sem refetch) no
+      // GuestKanbanBoard — por isso `search` não entra nem nos filtros nem na
+      // queryKey. Só status/casamento (que mudam o recorte do servidor) fazem
+      // refetch. Ver ConvidadosBoard.
       const mapped: GuestWithWedding[] = rows
         .map((row) => ({
           id: row.id,
@@ -90,14 +92,6 @@ export function useAllGuests(filters: AllGuestsFilters) {
           created_by: row.created_by,
           card_titulo: row.cards?.titulo ?? '(sem casamento)',
         }))
-        .filter((g) => {
-          if (!term) return true
-          return (
-            g.nome.toLowerCase().includes(term) ||
-            (g.email ?? '').toLowerCase().includes(term) ||
-            (g.telefone ?? '').toLowerCase().includes(term)
-          )
-        })
 
       mapped.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }))
       return mapped

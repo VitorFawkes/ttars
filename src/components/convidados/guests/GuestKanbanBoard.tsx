@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -46,7 +46,7 @@ interface GuestKanbanBoardProps {
   search: string
 }
 
-export function GuestKanbanBoard({ guests, search }: GuestKanbanBoardProps) {
+function GuestKanbanBoardBase({ guests, search }: GuestKanbanBoardProps) {
   const updateStatus = useUpdateGuestStatus()
   const [activeGuest, setActiveGuest] = useState<Guest | null>(null)
 
@@ -119,13 +119,20 @@ export function GuestKanbanBoard({ guests, search }: GuestKanbanBoardProps) {
   )
 }
 
+// memo: evita re-render do board (e recriar milhares de elementos de card)
+// quando só o pai muda — ex.: o indicador de loading do ConvidadosBoard liga/
+// desliga. `guests` e `search` chegam estáveis, então a comparação rasa basta.
+export const GuestKanbanBoard = memo(GuestKanbanBoardBase)
+
 interface ColumnProps {
   status: StatusRSVP
   guests: Guest[]
   tone: { accent: string; chip: string }
 }
 
-function Column({ status, guests, tone }: ColumnProps) {
+// memo: durante o drag, o board re-renderiza (activeGuest muda). Sem memo cada
+// coluna recriaria seus milhares de cards a cada frame do arraste.
+const Column = memo(function Column({ status, guests, tone }: ColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
 
   return (
@@ -165,4 +172,4 @@ function Column({ status, guests, tone }: ColumnProps) {
       </div>
     </div>
   )
-}
+})

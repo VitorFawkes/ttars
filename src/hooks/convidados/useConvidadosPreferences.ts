@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import { useOrg } from '../../contexts/OrgContext'
 import { ETAPA_ORDER, STATUS_RSVP_LIST, type EtapaConvidados, type StatusRSVP } from './types'
 
@@ -87,66 +87,96 @@ function writePrefs(key: string | null, prefs: ConvidadosPreferences) {
   }
 }
 
+// Store compartilhado por org. As prefs eram um `useState` local em cada
+// instância do hook — FiltersBar, ConvidadosPage e CasamentosBoard tinham
+// CÓPIAS SEPARADAS. Digitar na busca (FiltersBar) atualizava só a cópia dele;
+// o board lia outra cópia e nunca filtrava. Um store externo único por org
+// mantém todos os consumidores em sincronia (mesmo padrão de useSeenCards).
+type Listener = () => void
+interface Store {
+  snapshot: ConvidadosPreferences
+  listeners: Set<Listener>
+}
+const stores = new Map<string, Store>()
+
+function getStore(key: string): Store {
+  let store = stores.get(key)
+  if (!store) {
+    store = { snapshot: readPrefs(key), listeners: new Set() }
+    stores.set(key, store)
+  }
+  return store
+}
+
+function commitPrefs(key: string, next: ConvidadosPreferences) {
+  const store = getStore(key)
+  store.snapshot = next
+  writePrefs(key, next)
+  store.listeners.forEach(l => l())
+}
+
 export function useConvidadosPreferences() {
   const { org } = useOrg()
   const orgId = org?.id ?? null
   const key = storageKey(orgId)
 
-  const [prefs, setPrefs] = useState<ConvidadosPreferences>(() => readPrefs(key))
-
-  useEffect(() => {
-    setPrefs(readPrefs(key))
+  const subscribe = useCallback((listener: Listener) => {
+    if (!key) return () => {}
+    const store = getStore(key)
+    store.listeners.add(listener)
+    return () => store.listeners.delete(listener)
   }, [key])
+
+  const getSnapshot = useCallback(
+    () => (key ? getStore(key).snapshot : DEFAULT_PREFS),
+    [key],
+  )
+
+  const prefs = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 
   const setPref = useCallback(<K extends keyof ConvidadosPreferences>(
     field: K,
     value: ConvidadosPreferences[K] | ((prev: ConvidadosPreferences[K]) => ConvidadosPreferences[K])
   ) => {
-    setPrefs(prev => {
-      const nextValue = typeof value === 'function'
-        ? (value as (p: ConvidadosPreferences[K]) => ConvidadosPreferences[K])(prev[field])
-        : value
-      const next = { ...prev, [field]: nextValue }
-      writePrefs(key, next)
-      return next
-    })
+    if (!key) return
+    const prev = getStore(key).snapshot
+    const nextValue = typeof value === 'function'
+      ? (value as (p: ConvidadosPreferences[K]) => ConvidadosPreferences[K])(prev[field])
+      : value
+    commitPrefs(key, { ...prev, [field]: nextValue })
   }, [key])
 
   const toggleEtapa = useCallback((etapa: EtapaConvidados) => {
-    setPrefs(prev => {
-      const has = prev.etapaFilter.includes(etapa)
-      const nextArr = has ? prev.etapaFilter.filter(e => e !== etapa) : [...prev.etapaFilter, etapa]
-      const next = { ...prev, etapaFilter: nextArr }
-      writePrefs(key, next)
-      return next
-    })
+    if (!key) return
+    const prev = getStore(key).snapshot
+    const has = prev.etapaFilter.includes(etapa)
+    const nextArr = has ? prev.etapaFilter.filter(e => e !== etapa) : [...prev.etapaFilter, etapa]
+    commitPrefs(key, { ...prev, etapaFilter: nextArr })
   }, [key])
 
   const toggleStatus = useCallback((status: StatusRSVP) => {
-    setPrefs(prev => {
-      const has = prev.statusFilter.includes(status)
-      const nextArr = has ? prev.statusFilter.filter(s => s !== status) : [...prev.statusFilter, status]
-      const next = { ...prev, statusFilter: nextArr }
-      writePrefs(key, next)
-      return next
-    })
+    if (!key) return
+    const prev = getStore(key).snapshot
+    const has = prev.statusFilter.includes(status)
+    const nextArr = has ? prev.statusFilter.filter(s => s !== status) : [...prev.statusFilter, status]
+    commitPrefs(key, { ...prev, statusFilter: nextArr })
   }, [key])
 
   const toggleWedding = useCallback((cardId: string) => {
-    setPrefs(prev => {
-      const has = prev.weddingFilter.includes(cardId)
-      const nextArr = has ? prev.weddingFilter.filter(c => c !== cardId) : [...prev.weddingFilter, cardId]
-      const next = { ...prev, weddingFilter: nextArr }
-      writePrefs(key, next)
-      return next
-    })
+    if (!key) return
+    const prev = getStore(key).snapshot
+    const has = prev.weddingFilter.includes(cardId)
+    const nextArr = has ? prev.weddingFilter.filter(c => c !== cardId) : [...prev.weddingFilter, cardId]
+    commitPrefs(key, { ...prev, weddingFilter: nextArr })
   }, [key])
 
+  // "Limpar" zera só os filtros da lista de convidados (busca/status/casamento).
+  // Preserva `modo` e os filtros da visão "Por casamento" — antes resetava tudo,
+  // mas o efeito colateral em `modo` ficava mascarado pela falta de sync.
   const clearAll = useCallback(() => {
-    setPrefs(() => {
-      writePrefs(key, DEFAULT_PREFS)
-      return DEFAULT_PREFS
-    })
+    if (!key) return
+    const prev = getStore(key).snapshot
+    commitPrefs(key, { ...prev, search: '', statusFilter: [], weddingFilter: [] })
   }, [key])
 
   const hasAnyFilter = useMemo(() => (
