@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { FilterBar, type TabProps, type AppliedFilters } from '../components/FilterBar'
 import { useWwLeadIdeal, type WwLeadIdealData, type WwLeadIdealItem, type WwLeadIdealCruzamentoCell, type WwLeadIdealPerfilUnif } from '@/hooks/analyticsWeddings/useWw2'
+import { useAnalyticsVariant } from '@/hooks/analyticsWeddings/AnalyticsVariantContext'
 import { SectionCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
 import { DrillDrawer, type DrillContext } from '../components/DrillDrawer'
 import { formatNumber } from '../lib/format'
@@ -297,6 +298,7 @@ function Header({ data, referencia, onReferencia, atualPeriod, atualStart, atual
   onHistPeriodo: (p: PeriodOption, s: string, e: string) => void
   mostrarFonte: boolean
 }) {
+  const isNative = useAnalyticsVariant() === 'native'
   const refWord = referencia === 'perdido' ? 'perdas' : 'vendas'
   const refDesc = referencia === 'perdido' ? 'Leads que se perderam no período (com motivo de perda)' : 'Fechamentos que ocorreram no período'
 
@@ -349,7 +351,9 @@ function Header({ data, referencia, onReferencia, atualPeriod, atualStart, atual
 
       {mostrarFonte && (
         <p className="mt-3 pt-3 border-t border-ww-sand/60 text-[11px] text-ww-n400">
-          Histórico vem do ActiveCampaign direto — mesma base do dashboard do site, com o perfil de entrada do form do casal (orçamento + convidados + destino).
+          {isNative
+            ? 'Histórico vem do funil próprio do ttars (cards Weddings), com o perfil de entrada do form do casal (orçamento + convidados + destino).'
+            : 'Histórico vem do ActiveCampaign direto — mesma base do dashboard do site, com o perfil de entrada do form do casal (orçamento + convidados + destino).'}
         </p>
       )}
     </div>
