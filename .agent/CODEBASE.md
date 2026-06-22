@@ -5,16 +5,7 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-<<<<<<< HEAD
 > **Last Updated:** 2026-06-22
-> **Trigger:** ALWAYS ON
-> **Stats:** 210 tabelas | 213 paginas | 370 hooks | 23 views | 861 components
-> **Stats:** 210 tabelas | 213 paginas | 370 hooks | 23 views | 861 components
-> **Stats:** 210 tabelas | 213 paginas | 370 hooks | 23 views | 861 components
-> **Last Updated:** 2026-06-22
-=======
-> **Last Updated:** 2026-06-22
->>>>>>> feat/planejamento-weddings
 > **Trigger:** ALWAYS ON
 > **Stats:** 210 tabelas | 213 paginas | 370 hooks | 23 views | 861 components
 > **Stats:** 210 tabelas | 213 paginas | 370 hooks | 23 views | 861 components
