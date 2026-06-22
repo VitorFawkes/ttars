@@ -154,6 +154,14 @@ function renderTriggerVars(
         }
         return '';
     };
+    // Fallback de destino: consultores escrevem o destino no título no padrão
+    // "Cliente / Destino / Data". Pega o trecho do meio (2ª parte). Normaliza
+    // espaços, inclusive non-breaking space ( ). Sem barra => vazio.
+    const destinoFromTitulo = (titulo?: string | null): string => {
+        if (!titulo) return '';
+        const parts = titulo.split('/').map((s) => s.replace(/ /g, ' ').trim()).filter(Boolean);
+        return parts.length >= 2 ? parts[1] : '';
+    };
     return text
         // Trigger (event payload)
         .replace(/\{\{\s*trigger\.invitee_name\s*\}\}/g, String(data.invitee_name ?? ''))
@@ -175,6 +183,11 @@ function renderTriggerVars(
         // (ex: {{card.destino}}). titulo é tratado à parte abaixo.
         .replace(/\{\{\s*card\.([a-zA-Z0-9_]+)\s*\}\}/g, (match, key: string) => {
             if (key === 'titulo') return card?.titulo || '';
+            // Destino vazio cai pro trecho do meio do título (ver destinoFromTitulo)
+            if (key === 'destinos' || key === 'destino') {
+                const v = key in cardFields ? fieldToText(cardFields[key]) : '';
+                return v || destinoFromTitulo(card?.titulo);
+            }
             if (key in cardFields) return fieldToText(cardFields[key]);
             return match; // mantém o placeholder se o campo não existe
         })

@@ -11,7 +11,7 @@ import { Qualidade } from './tabs/Qualidade'
 import { Perfil } from './tabs/Perfil'
 import { Marketing } from './tabs/Marketing'
 import { Perdas } from './tabs/Perdas'
-import { formatRange } from './lib/dates'
+import { formatRange, periodToDates } from './lib/dates'
 
 type Tab = 'visao' | 'funil-comparado' | 'entrada-realidade' | 'qualidade' | 'perfil' | 'marketing' | 'perdas'
 
@@ -41,7 +41,18 @@ function loadFiltersByTab(orgId?: string): Record<Tab, AppliedFilters> {
       const saved = JSON.parse(raw) as Partial<Record<Tab, AppliedFilters>>
       for (const t of TAB_IDS) {
         // merge com o default pra absorver campos novos de filtro adicionados depois
-        if (saved[t]) base[t] = { ...defaultFilters(), ...saved[t] }
+        if (saved[t]) {
+          const merged = { ...defaultFilters(), ...saved[t] }
+          // Período relativo (mtd/7d/30d/90d/12m/ano…) guarda datas absolutas que envelhecem:
+          // ao reabrir dias depois, "Este mês" continuaria preso na janela do dia em que foi salvo.
+          // Recalcula a janela contra "hoje". Só 'custom' preserva as datas explícitas salvas.
+          if (merged.period !== 'custom') {
+            const { dateStart, dateEnd } = periodToDates(merged.period)
+            merged.dateStart = dateStart
+            merged.dateEnd = dateEnd
+          }
+          base[t] = merged
+        }
       }
     }
   } catch { /* localStorage indisponível ou JSON inválido → defaults */ }
