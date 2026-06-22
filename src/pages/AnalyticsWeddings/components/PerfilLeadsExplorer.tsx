@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from 'recharts'
 import {
   useWwPerfilTemporal, useWwFunilRanking,
   type WwPerfilDim, type WwPerfilMarco, type WwPerfilGran, type WwPerfilCategoria, type WwPerfilTemporal,
@@ -377,7 +377,6 @@ function TempoChart({ temporal, dim, layout, measure, selecionado, onBarClick }:
           <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false}
             domain={measure === 'pct' ? [0, 100] : undefined} tickFormatter={measure === 'pct' ? (v) => `${v}%` : undefined} />
           <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} formatter={(v) => fmtTip(v as number)} cursor={{ fill: 'rgba(189,150,92,0.06)' }} />
-          <Legend wrapperStyle={{ fontSize: 11 }} />
           {stackKeys.map((k, i) => (
             <Bar key={k} dataKey={k} stackId={layout === 'stack' ? 'a' : undefined} fill={corBucket(k, i)} maxBarSize={layout === 'group' ? 18 : 44}
               cursor={clickable(k) ? 'pointer' : 'default'}
@@ -392,6 +391,14 @@ function TempoChart({ temporal, dim, layout, measure, selecionado, onBarClick }:
           ))}
         </BarChart>
       </ResponsiveContainer>
+      {/* legenda própria: segue a ordem do empilhamento (a do recharts ordena alfabético) */}
+      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 pt-2">
+        {stackKeys.map((k, i) => (
+          <span key={k} className="inline-flex items-center gap-1 text-[11px] text-slate-600">
+            <span className="w-2.5 h-2.5 rounded-[3px] shrink-0" style={{ background: corBucket(k, i) }} />{k}
+          </span>
+        ))}
+      </div>
       <p className="text-[11px] text-slate-400 pt-2 border-t border-slate-100 mt-1">
         {layout === 'stack' ? 'Cada barra = um período, fatiada' : 'Cada período = colunas lado a lado'} pelas {DIM_LABEL[dim].toLowerCase()}s
         {selecionado ? ' escolhidas' : ' mais comuns (as demais somam em "Outros")'}.
