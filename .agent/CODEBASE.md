@@ -7,9 +7,9 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-06-22
 > **Trigger:** ALWAYS ON
-> **Stats:** 210 tabelas | 213 paginas | 370 hooks | 23 views | 861 components
-> **Stats:** 210 tabelas | 213 paginas | 370 hooks | 23 views | 861 components
-> **Stats:** 210 tabelas | 213 paginas | 370 hooks | 23 views | 861 components
+> **Stats:** 210 tabelas | 213 paginas | 371 hooks | 23 views | 862 components
+> **Stats:** 210 tabelas | 213 paginas | 371 hooks | 23 views | 862 components
+> **Stats:** 210 tabelas | 213 paginas | 371 hooks | 23 views | 862 components
 
 ---
 
@@ -171,7 +171,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **370 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **371 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -429,6 +429,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useSaudeSummary()` | `useSaudeSummary.ts` |
 | `useSaudeTarefasVencidas()` | `useSaudeTarefasVencidas.ts` |
 | `useScheduledJobs()` | `useScheduledJobs.ts` |
+| `useSdrFunilPeriodo()` | `useSdrFunilPeriodo.ts` |
 | `useSdrLeadCohort()` | `useSdrLeadCohort.ts` |
 | `useSdrQualification()` | `useSdrQualification.ts` |
 | `useSdrRpcs()` | `useSdrRpcs.ts` |
