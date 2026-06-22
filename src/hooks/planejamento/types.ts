@@ -74,6 +74,13 @@ export const PLANEJ_FIELD = {
   proximaReuniao: 'ww_planej_proxima_reuniao',
   // Etapa 4 — Reserva do Evento (espaço/pacote) + documentação
   espaco: 'ww_planej_espaco',
+  tipoLocal: 'ww_planej_tipo_local',
+  pacoteNome: 'ww_planej_pacote_nome',
+  pacoteValor: 'ww_planej_pacote_valor',
+  pacoteInclui: 'ww_planej_pacote_inclui',
+  localRegras: 'ww_planej_local_regras',
+  itens: 'ww_planej_itens',
+  convidadosContrato: 'ww_planej_convidados_contrato',
   contratoAssinado: 'ww_planej_contrato_assinado',
   sinalPagoEm: 'ww_planej_sinal_pago_em',
   sinalValor: 'ww_planej_sinal_valor',
@@ -94,6 +101,30 @@ export const REGIAO_OPTIONS: string[] = [
 ]
 
 export const FORMATO_OPTIONS: string[] = ['Resort', 'Pousada', 'Espaço alugado', 'Outro']
+
+// Tipo de local do casamento — define o modelo de "Espaço & Pacote":
+// resort/hotel trabalha com PACOTE pré-montado; espaço próprio tem REGRAS próprias.
+export type TipoLocal = 'resort_hotel' | 'espaco'
+export const TIPO_LOCAL_LABEL: Record<TipoLocal, string> = {
+  resort_hotel: 'Resort / Hotel (pacote)',
+  espaco: 'Espaço próprio (regras)',
+}
+export const TIPO_LOCAL_LIST: TipoLocal[] = ['resort_hotel', 'espaco']
+
+/** Como um item do casamento entra (no pacote, negociado, fora, obrigatório do local). */
+export const ITEM_COMO_OPTIONS: string[] = [
+  'Incluso no pacote',
+  'Negociado',
+  'Contratar fora',
+  'Obrigatório do local',
+]
+
+/** Item do Espaço & Pacote (guardado como JSON em cards.produto_data[ww_planej_itens]). */
+export interface EspacoItem {
+  nome: string
+  como: string
+  valor: number | null
+}
 
 export type AcaoPromoStatus = 'nao' | 'agendada' | 'disparada' | 'encerrada'
 

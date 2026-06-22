@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
@@ -10,45 +10,33 @@ import {
   ExternalLink,
   Users,
   Loader2,
-  Store,
   ListChecks,
   Plus,
   Heart,
   Trash2,
   X,
-  ChevronDown,
   Pencil,
   Check,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import { brl, formatDataLonga, formatDataCurta, daysUntil, isPast } from '../../lib/planejamento/format'
-import { setorIcon } from '../../lib/planejamento/setorIcons'
+import { formatDataLonga, formatDataCurta, daysUntil, isPast } from '../../lib/planejamento/format'
 import { usePlanejamentoWeddings } from '../../hooks/planejamento/usePlanejamentoWeddings'
-import { useWeddingFornecedores } from '../../hooks/planejamento/useWeddingFornecedores'
 import { useWeddingChecklist } from '../../hooks/planejamento/useWeddingChecklist'
-import { useFornecedorBank } from '../../hooks/planejamento/useFornecedorBank'
 import { EtapaPanel } from '../../components/planejamento/EtapaPanel'
 import { RelatorioCasamento } from '../../components/planejamento/RelatorioCasamento'
 import { CasalSection } from '../../components/planejamento/CasalSection'
 import { WeddingEquipeSection } from '../../components/planejamento/WeddingEquipeSection'
+import {
+  EspacoPacoteSection,
+  AcaoPromoSection,
+  ConvidadosResumoSection,
+} from '../../components/planejamento/PlanejamentoSections'
 import { WeddingHotelCard } from '../../components/convidados/WeddingHotelCard'
 import {
   PLANEJAMENTO_LABEL,
-  FORNECEDOR_SETORES,
-  FORNECEDOR_STATUS_LABEL,
-  FORNECEDOR_STATUS_LIST,
   type EtapaPlanejamento,
-  type Fornecedor,
-  type FornecedorBankEntry,
-  type FornecedorStatus,
   type ChecklistItem,
 } from '../../hooks/planejamento/types'
-
-const FORNECEDOR_STATUS_CHIP: Record<FornecedorStatus, string> = {
-  a_contratar: 'bg-slate-100 text-slate-600 border-slate-200',
-  contratado: 'bg-sky-50 text-sky-700 border-sky-200',
-  pago: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-}
 
 const ETAPA_CHIP: Record<EtapaPlanejamento, string> = {
   boas_vindas: 'bg-slate-100 text-slate-600 border-slate-200',
@@ -59,12 +47,6 @@ const ETAPA_CHIP: Record<EtapaPlanejamento, string> = {
   aditivo: 'bg-emerald-50 text-emerald-700 border-emerald-200',
 }
 
-// Setores de fornecedor + ícone (labels vêm de FORNECEDOR_SETORES; ícone do
-// mapa compartilhado em lib/planejamento/setorIcons).
-const SETORES_COM_ICONE: { label: string; icon?: string }[] = FORNECEDOR_SETORES.map(
-  (label) => ({ label, icon: setorIcon(label) }),
-)
-
 export default function PlanejamentoDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -72,10 +54,7 @@ export default function PlanejamentoDetailPage() {
 
   const { data, isLoading, isError } = usePlanejamentoWeddings()
   const wedding = data.find(w => w.id === cardId) ?? null
-  const { fornecedores, add, remove, setStatus, update } = useWeddingFornecedores(cardId)
-  const { bank, add: bankAdd } = useFornecedorBank()
   const checklist = useWeddingChecklist(cardId)
-  const [fornModal, setFornModal] = useState<{ edit: Fornecedor | null } | null>(null)
   const [checklistModal, setChecklistModal] = useState<{ edit: ChecklistItem | null } | null>(null)
 
   const handleSubmitChecklist = (payload: Omit<ChecklistItem, 'id'>) => {
@@ -84,44 +63,6 @@ export default function PlanejamentoDetailPage() {
       checklist.update.mutate({ ...editing, ...payload }, { onSuccess: () => setChecklistModal(null) })
     } else {
       checklist.add.mutate(payload, { onSuccess: () => setChecklistModal(null) })
-    }
-  }
-
-  // Agrupa por setor uma vez (em vez de filtrar a lista por setor no map).
-  const fornecedoresPorSetor = useMemo(() => {
-    const map = new Map<string, Fornecedor[]>()
-    for (const f of fornecedores) {
-      const list = map.get(f.setor) ?? []
-      list.push(f)
-      map.set(f.setor, list)
-    }
-    return map
-  }, [fornecedores])
-
-  // Add (ao casamento + banco com o local do card, sem duplicar) ou edição.
-  const handleSubmitForn = (payload: Omit<Fornecedor, 'id'>) => {
-    const editing = fornModal?.edit
-    if (editing) {
-      update.mutate({ ...editing, ...payload }, { onSuccess: () => setFornModal(null) })
-      return
-    }
-    add.mutate(payload, { onSuccess: () => setFornModal(null) })
-    const loc = (wedding?.local ?? '').trim()
-    const jaExiste = bank.some(
-      (b) =>
-        b.nome.trim().toLowerCase() === payload.nome.trim().toLowerCase() &&
-        b.setor === payload.setor &&
-        (b.localizacao ?? '').trim().toLowerCase() === loc.toLowerCase(),
-    )
-    if (!jaExiste) {
-      bankAdd.mutate({
-        nome: payload.nome,
-        setor: payload.setor,
-        localizacao: loc,
-        contato: payload.contato ?? null,
-        valor: payload.valor ?? null,
-        observacoes: null,
-      })
     }
   }
 
@@ -148,7 +89,7 @@ export default function PlanejamentoDetailPage() {
 
   const dateLong = formatDataLonga(wedding.wedding_date)
   const days = daysUntil(wedding.wedding_date)
-  const { confirmado, total } = wedding.counts
+  const { total } = wedding.counts
 
   return (
     <div className="px-6 py-4 flex flex-col gap-4">
@@ -235,7 +176,7 @@ export default function PlanejamentoDetailPage() {
         </div>
       </div>
 
-      {/* Casal (clientes) + Equipe do casamento (interno: planejadora, closer, apoio) */}
+      {/* Casal (clientes) + Equipe do casamento (interno) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         <CasalSection cardId={wedding.id} />
         <WeddingEquipeSection cardId={wedding.id} />
@@ -244,133 +185,30 @@ export default function PlanejamentoDetailPage() {
       {/* Etapa atual: trava (o que falta) + avançar + campos da etapa */}
       <EtapaPanel wedding={wedding} />
 
-      {/* Informações do casamento — o que já existe (vem do funil / AC) */}
+      {/* Informações do casamento (vem do funil / comercial — só leitura) */}
       <section className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
         <h2 className="text-base font-semibold text-slate-900 mb-3">Informações do casamento</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <InfoItem label="Data" value={dateLong ?? '—'} icon={<Calendar className="w-3.5 h-3.5" />} />
           <InfoItem label="Local / Destino" value={wedding.local ?? '—'} icon={<MapPin className="w-3.5 h-3.5" />} />
-          <InfoItem
-            label="Convidados"
-            value={total > 0 ? `${confirmado} confirmados / ${total}` : '—'}
-            icon={<Users className="w-3.5 h-3.5" />}
-          />
-          <InfoItem
-            label="Etapa de planejamento"
-            value={PLANEJAMENTO_LABEL[wedding.planejamentoEtapa]}
-            icon={<ClipboardList className="w-3.5 h-3.5" />}
-          />
+          <InfoItem label="Lista de convidados" value={total > 0 ? `${total} nomes` : '—'} icon={<Users className="w-3.5 h-3.5" />} />
+          <InfoItem label="Etapa de planejamento" value={PLANEJAMENTO_LABEL[wedding.planejamentoEtapa]} icon={<ClipboardList className="w-3.5 h-3.5" />} />
         </div>
       </section>
 
-      {/* Fornecedores + Cronograma lado a lado */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-      {/* Fornecedores */}
-      <section className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-        <header className="flex items-center justify-between gap-2 mb-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Store className="w-5 h-5 text-slate-500" />
-            <h2 className="text-base font-semibold text-slate-900">Fornecedores</h2>
-          </div>
-          <button
-            type="button"
-            onClick={() => setFornModal({ edit: null })}
-            className="inline-flex items-center gap-1.5 h-8 px-2.5 text-xs font-medium text-indigo-600 border border-indigo-200 rounded-md hover:bg-indigo-50 transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" /> Adicionar fornecedor
-          </button>
-        </header>
-        <ul className="space-y-1.5">
-          {SETORES_COM_ICONE.map((cat) => {
-            const itens = fornecedoresPorSetor.get(cat.label) ?? []
-            return (
-              <li key={cat.label} className="border border-slate-100 rounded-lg overflow-hidden">
-                <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm bg-white">
-                  <span className="flex items-center gap-2.5 text-slate-700 font-medium">
-                    {cat.icon ? (
-                      <img src={cat.icon} alt="" aria-hidden className="w-6 h-6 object-contain shrink-0" />
-                    ) : (
-                      <span className="w-6 h-6 rounded-md bg-slate-100 border border-slate-200 inline-flex items-center justify-center shrink-0">
-                        <Store className="w-3.5 h-3.5 text-slate-400" />
-                      </span>
-                    )}
-                    {cat.label}
-                  </span>
-                  {itens.length > 0 ? (
-                    <span className="font-mono text-[11px] px-1.5 h-5 inline-flex items-center rounded-md font-semibold tabular-nums bg-slate-100 text-slate-600 border border-slate-200">
-                      {itens.length}
-                    </span>
-                  ) : (
-                    <span className="text-[11px] text-slate-400 italic">a definir</span>
-                  )}
-                </div>
-                {itens.length > 0 && (
-                  <ul className="divide-y divide-slate-100 border-t border-slate-100 bg-slate-50/40">
-                    {itens.map((f) => (
-                      <li key={f.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
-                        <div className="min-w-0">
-                          <p className="font-medium text-slate-800 truncate">{f.nome}</p>
-                          <p className="text-[11px] text-slate-500 truncate">
-                            {[f.contato, f.valor != null ? brl.format(f.valor) : null]
-                              .filter(Boolean)
-                              .join(' · ') || '—'}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <div
-                            className={cn(
-                              'relative inline-flex items-center rounded-full border text-[10px] font-semibold uppercase tracking-wide',
-                              FORNECEDOR_STATUS_CHIP[f.status],
-                            )}
-                            title="Mudar fase"
-                          >
-                            <select
-                              value={f.status}
-                              onChange={(e) =>
-                                setStatus.mutate({ id: f.id, status: e.target.value as FornecedorStatus })
-                              }
-                              className="appearance-none bg-transparent pl-2 pr-5 py-0.5 rounded-full cursor-pointer focus:outline-none uppercase"
-                              aria-label={`Fase de ${f.nome}`}
-                            >
-                              {FORNECEDOR_STATUS_LIST.map((s) => (
-                                <option key={s} value={s} className="bg-white text-slate-700 normal-case">
-                                  {FORNECEDOR_STATUS_LABEL[s]}
-                                </option>
-                              ))}
-                            </select>
-                            <ChevronDown className="w-3 h-3 absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none opacity-70" />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setFornModal({ edit: f })}
-                            className="p-1 rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-                            title="Editar fornecedor"
-                            aria-label={`Editar ${f.nome}`}
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => remove.mutate(f.id)}
-                            disabled={remove.isPending}
-                            className="p-1 rounded text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
-                            title="Remover fornecedor"
-                            aria-label={`Remover ${f.nome}`}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-      </section>
+      {/* Espaço & Pacote (o que se contrata no Planejamento) */}
+      <EspacoPacoteSection wedding={wedding} />
 
-      {/* Cronograma & Checklist */}
+      {/* Hospedagem (hotel — fonte única com Convidados) */}
+      <WeddingHotelCard cardId={cardId} local={wedding.local} />
+
+      {/* Ação promocional (definição) + Convidados (estimativa, sem confirmação) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        <AcaoPromoSection wedding={wedding} />
+        <ConvidadosResumoSection wedding={wedding} />
+      </div>
+
+      {/* Cronograma & Checklist do planejamento */}
       <ChecklistSection
         items={checklist.items}
         onAdd={() => setChecklistModal({ edit: null })}
@@ -379,24 +217,9 @@ export default function PlanejamentoDetailPage() {
         onRemove={(id) => checklist.remove.mutate(id)}
         removing={checklist.remove.isPending}
       />
-      </div>
-
-      {/* Hotel — mesma ficha de Convidados (fonte única, full-width) */}
-      <WeddingHotelCard cardId={cardId} local={wedding.local} />
 
       {/* Relatório do casamento — saúde, financeiro, convidados, prazos */}
       <RelatorioCasamento wedding={wedding} />
-
-      {fornModal && (
-        <AddFornecedorModal
-          initial={fornModal.edit}
-          setores={SETORES_COM_ICONE.map((c) => c.label)}
-          bankEntries={bank}
-          saving={add.isPending || update.isPending}
-          onClose={() => setFornModal(null)}
-          onSubmit={handleSubmitForn}
-        />
-      )}
 
       {checklistModal && (
         <AddChecklistItemModal
@@ -544,6 +367,9 @@ function ChecklistSection({
   )
 }
 
+const FIELD_CLS =
+  'w-full mt-1 px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500'
+
 function AddChecklistItemModal({
   initial,
   saving,
@@ -592,12 +418,11 @@ function AddChecklistItemModal({
         <div className="px-5 py-4 flex flex-col gap-3">
           <label className="text-xs font-medium text-slate-700 block">
             Item *
-            {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
             <input
               autoFocus
               value={titulo}
               onChange={(e) => setTitulo(e.target.value)}
-              placeholder="Ex.: Definir data, contratar buffet, enviar convites…"
+              placeholder="Ex.: Definir espaço, fechar contrato, montar programação…"
               className={FIELD_CLS}
             />
           </label>
@@ -612,166 +437,6 @@ function AddChecklistItemModal({
               onChange={(e) => setObservacoes(e.target.value)}
               rows={2}
               placeholder="Detalhes, contexto, links…"
-              className={FIELD_CLS}
-            />
-          </label>
-        </div>
-
-        <footer className="flex items-center justify-end gap-2 px-5 py-3 border-t border-slate-200 bg-slate-50">
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex items-center justify-center h-9 rounded-md px-3 text-sm font-medium border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!canSave || saving}
-            className="inline-flex items-center justify-center h-9 rounded-md px-3 text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {saving ? 'Salvando…' : isEdit ? 'Salvar' : 'Adicionar'}
-          </button>
-        </footer>
-      </div>
-    </div>,
-    document.body,
-  )
-}
-
-const FIELD_CLS =
-  'w-full mt-1 px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500'
-
-function AddFornecedorModal({
-  initial,
-  setores,
-  bankEntries,
-  saving,
-  onClose,
-  onSubmit,
-}: {
-  initial?: Fornecedor | null
-  setores: string[]
-  bankEntries: FornecedorBankEntry[]
-  saving: boolean
-  onClose: () => void
-  onSubmit: (payload: Omit<Fornecedor, 'id'>) => void
-}) {
-  const isEdit = !!initial
-  const [setor, setSetor] = useState(initial?.setor ?? setores[0] ?? '')
-  const [nome, setNome] = useState(initial?.nome ?? '')
-  const [contato, setContato] = useState(initial?.contato ?? '')
-  const [valor, setValor] = useState(initial?.valor != null ? String(initial.valor) : '')
-  const [bankPick, setBankPick] = useState('')
-
-  // No modo edição não oferecemos puxar do banco (já é um registro existente).
-  const bankOptions = isEdit ? [] : bankEntries.filter((b) => b.setor === setor)
-
-  const onSetor = (v: string) => {
-    setSetor(v)
-    setBankPick('')
-  }
-
-  const applyBank = (id: string) => {
-    setBankPick(id)
-    const b = bankEntries.find((x) => x.id === id)
-    if (b) {
-      setNome(b.nome)
-      setContato(b.contato ?? '')
-      setValor(b.valor != null ? String(b.valor) : '')
-    }
-  }
-
-  const canSave = nome.trim().length > 0 && !!setor
-
-  const handleSave = () => {
-    if (!canSave) return
-    const parsed = valor.trim() ? Number(valor.replace(/\./g, '').replace(',', '.')) : null
-    onSubmit({
-      setor,
-      nome: nome.trim(),
-      contato: contato.trim() || null,
-      valor: parsed != null && !Number.isNaN(parsed) ? parsed : null,
-      status: initial?.status ?? 'a_contratar',
-    })
-  }
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-      role="dialog"
-      aria-modal="true"
-    >
-      <div className="w-full max-w-md bg-white border border-slate-200 shadow-lg rounded-xl flex flex-col">
-        <header className="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-200">
-          <h2 className="text-base font-semibold text-slate-900">
-            {isEdit ? 'Editar fornecedor' : 'Adicionar fornecedor'}
-          </h2>
-          <button onClick={onClose} className="p-1 rounded hover:bg-slate-100 text-slate-500" aria-label="Fechar">
-            <X className="w-4 h-4" />
-          </button>
-        </header>
-
-        <div className="px-5 py-4 flex flex-col gap-3">
-          <label className="text-xs font-medium text-slate-700 block">
-            Setor
-            <select value={setor} onChange={(e) => onSetor(e.target.value)} className={FIELD_CLS}>
-              {setores.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {bankOptions.length > 0 && (
-            <label className="text-xs font-medium text-slate-700 block">
-              Do banco (opcional)
-              <select value={bankPick} onChange={(e) => applyBank(e.target.value)} className={FIELD_CLS}>
-                <option value="">— preencher manualmente —</option>
-                {bankOptions.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.nome}
-                    {b.localizacao ? ` — ${b.localizacao}` : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-
-          <label className="text-xs font-medium text-slate-700 block">
-            Nome / empresa *
-            {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
-            <input
-              autoFocus
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              placeholder="Ex.: Buffet Sabor & Arte"
-              className={FIELD_CLS}
-            />
-          </label>
-
-          <label className="text-xs font-medium text-slate-700 block">
-            Contato (opcional)
-            <input
-              value={contato}
-              onChange={(e) => setContato(e.target.value)}
-              placeholder="telefone, e-mail ou @"
-              className={FIELD_CLS}
-            />
-          </label>
-
-          <label className="text-xs font-medium text-slate-700 block">
-            Valor (opcional)
-            <input
-              value={valor}
-              onChange={(e) => setValor(e.target.value)}
-              inputMode="decimal"
-              placeholder="0,00"
               className={FIELD_CLS}
             />
           </label>

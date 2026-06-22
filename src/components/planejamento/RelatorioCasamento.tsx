@@ -1,4 +1,4 @@
-import { BarChart3, CalendarClock, DollarSign, Users, ListChecks } from 'lucide-react'
+import { BarChart3, CalendarClock, DollarSign, Users, ListChecks, Landmark } from 'lucide-react'
 import { brl, daysUntil } from '../../lib/planejamento/format'
 import type { WeddingPlanejamento } from '../../hooks/planejamento/usePlanejamentoWeddings'
 import { PLANEJ_FIELD, PLANEJAMENTO_LABEL } from '../../hooks/planejamento/types'
@@ -16,10 +16,9 @@ function num(pd: Record<string, unknown> | null, key: string): number | null {
 
 export function RelatorioCasamento({ wedding }: { wedding: WeddingPlanejamento }) {
   const days = daysUntil(wedding.wedding_date)
-  const { confirmado, total } = wedding.counts
+  const { total } = wedding.counts
 
-  const fornPago = wedding.fornecedores.reduce((s, f) => s + (f.status === 'pago' ? f.valor ?? 0 : 0), 0)
-  const fornTotal = wedding.fornecedores.reduce((s, f) => s + (f.valor ?? 0), 0)
+  const pacoteValor = num(wedding.produto_data, PLANEJ_FIELD.pacoteValor)
   const sinal = num(wedding.produto_data, PLANEJ_FIELD.sinalValor)
   const valorTotal = num(wedding.produto_data, PLANEJ_FIELD.valorTotal)
 
@@ -43,15 +42,15 @@ export function RelatorioCasamento({ wedding }: { wedding: WeddingPlanejamento }
         />
         <Stat
           icon={<Users className="w-4 h-4" />}
-          label="Convidados"
-          value={total > 0 ? `${confirmado} / ${total}` : '—'}
-          sub="confirmados / na lista"
+          label="Lista de convidados"
+          value={total > 0 ? `${total}` : '—'}
+          sub="nomes na lista"
         />
         <Stat
-          icon={<DollarSign className="w-4 h-4" />}
-          label="Fornecedores"
-          value={fornTotal > 0 ? brl.format(fornPago) : '—'}
-          sub={fornTotal > 0 ? `pagos de ${brl.format(fornTotal)}` : 'nenhum lançado'}
+          icon={<Landmark className="w-4 h-4" />}
+          label="Espaço & pacote"
+          value={pacoteValor != null ? brl.format(pacoteValor) : '—'}
+          sub="valor do pacote"
         />
         <Stat
           icon={<DollarSign className="w-4 h-4" />}
@@ -61,7 +60,6 @@ export function RelatorioCasamento({ wedding }: { wedding: WeddingPlanejamento }
         />
       </div>
 
-      {/* Andamento da trava + checklist */}
       <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Bar
           icon={<ListChecks className="w-4 h-4" />}
