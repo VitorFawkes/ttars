@@ -1317,3 +1317,6 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-17T19:30:58Z | supabase/migrations/20260617b_drill_current_stage_no_date_filter.sql | applied_to_prod
 2026-06-19T18:46:36Z | supabase/migrations/20260619r_ww_destino_form_entry.sql | applied_to_prod via Management API (token CLI)
 2026-06-19T18:46:36Z | supabase/migrations/20260619s_ww_motivo_perda_closer_field.sql | applied_to_prod via Management API (token CLI)
+2026-06-22T15:20:54Z | supabase/migrations/20260622a_ww2_loss_reasons_native_motivo_real.sql | applied_to_prod via Management API (token CLI)
+2026-06-22T15:20:54Z | supabase/migrations/20260622b_ww_marketing_native_medium_e_desconhecidos.sql | applied_to_prod via Management API (token CLI)
+2026-06-22T15:20:54Z | supabase/migrations/20260622c_ww_native_origem_utm.sql | applied_to_prod via Management API (token CLI)
