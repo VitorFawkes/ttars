@@ -128,7 +128,7 @@ function extractRelevantFiles(
     const purposeLower = hook.purpose.toLowerCase()
 
     if (normalizedTask.includes(hookLower) ||
-        normalizedTask.includes(hook.purpose.toLowerCase().split(' ')[0])) {
+        normalizedTask.includes(purposeLower.split(' ')[0])) {
       files.push(`src/hooks/${hook.file}`)
     }
   }
@@ -234,6 +234,44 @@ function extractRelatedTables(
 }
 
 /**
+ * Extrai as regras/gotchas mais relevantes da memória do projeto.
+ *
+ * É o que dá memória aos SUBAGENTES: eles chamam get_context e recebem as regras
+ * que, de outro modo, só o hook inject-topic-context.sh entregaria (e só ao
+ * agente principal). Matching por sobreposição de keywords com a tarefa.
+ */
+function extractRelevantMemory(
+  task: string,
+  keywords: string[],
+  projectData: ParsedProjectData
+): Array<{ file: string; name: string; description: string; excerpt: string }> {
+  const topics = projectData.memoryTopics ?? []
+  if (topics.length === 0) return []
+
+  const text = (task + ' ' + keywords.join(' ')).toLowerCase()
+
+  const scored = topics
+    .map(topic => {
+      const strong = new Set(topic.strongKeywords)
+      let score = 0
+      for (const kw of topic.keywords) {
+        // keyword do nome do arquivo (sinal forte) pesa 3x a da descrição
+        if (text.includes(kw)) score += strong.has(kw) ? 3 : 1
+      }
+      return { topic, score }
+    })
+    .filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+
+  return scored.slice(0, 4).map(x => ({
+    file: x.topic.file,
+    name: x.topic.name,
+    description: x.topic.description,
+    excerpt: x.topic.excerpt,
+  }))
+}
+
+/**
  * Gera template de declaração de contexto
  */
 function generateDeclareContextTemplate(
@@ -289,6 +327,7 @@ export async function getContext(
   const filesToRead = extractRelevantFiles(task, domain, projectData)
   const relatedHooks = extractRelatedHooks(task, domain, projectData)
   const relatedTables = extractRelatedTables(task, domain, projectData)
+  const relevantMemory = extractRelevantMemory(task, keywords, projectData)
 
   // 5. Gera o template de declaração de contexto
   const declareContextTemplate = generateDeclareContextTemplate(
@@ -328,12 +367,24 @@ export async function getContext(
       break
   }
 
+  // Prepend regras da memória — vale inclusive para subagentes (que não recebem
+  // MEMORY.md/topic files). Garante que gotchas críticos (isolamento de workspace,
+  // migrations, isolamento de metadados) cheguem antes de qualquer ação.
+  if (relevantMemory.length > 0) {
+    const memList = relevantMemory.map(m => `  • ${m.file} — ${m.description}`).join('\n')
+    protocolReminder =
+      `⚠️ REGRAS/GOTCHAS RELEVANTES DA MEMÓRIA DO PROJETO (leia ANTES de agir — valem INCLUSIVE para você se for subagente):\n${memList}\n` +
+      `Conteúdo completo em ~/.claude/projects/<este-projeto>/memory/<arquivo>. Em dúvida sobre isolamento de workspace, migrations ou produto, consulte esses arquivos.\n\n` +
+      protocolReminder
+  }
+
   return {
     agent,
     codebaseSections: { relevant: relevantSections },
     filesToRead,
     relatedHooks,
     relatedTables,
+    relevantMemory,
     protocolReminder,
     declareContextTemplate
   }

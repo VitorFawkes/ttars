@@ -1,5 +1,7 @@
 # WelcomeCRM - Instruções
 
+> 🧭 **Novo por aqui?** Comece por [`docs/START-HERE.md`](docs/START-HERE.md) — mapa dos 4 lugares de conhecimento e como achar contexto rápido. Visual da estrutura: `docs/estrutura-claude-code.html`.
+
 **Supabase Produção:** `szyrzxvlptqqheizyrxu` | **Org:** `zyxcqlnmbfkkwurykfuf` | **Region:** `us-east-2`
 **Supabase Staging:** `ivmebyvjarcvrkrbemam` (defasado — Supabase Branching substitui staging por PR)
 **Stack:** React + Vite + TailwindCSS + Supabase (PostgreSQL + Edge Functions) + TypeScript Strict
