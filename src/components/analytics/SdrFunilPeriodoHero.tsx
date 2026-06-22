@@ -1,4 +1,4 @@
-import { Inbox, MessageCircle, CalendarCheck, CheckCircle2, Trophy, XCircle } from 'lucide-react'
+import { Inbox, CalendarCheck, CheckCircle2, Trophy, XCircle } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import KpiCard from './KpiCard'
 import { useSdrFunilPeriodo } from '@/hooks/analytics/useSdrFunilPeriodo'
@@ -66,13 +66,8 @@ export default function SdrFunilPeriodoHero() {
       color: 'text-blue-600', bgColor: 'bg-blue-50',
     },
     {
-      metric: 'conectaram', title: 'Conectaram', value: d.conectaram,
-      subtitle: `${pctOf(d.conectaram, d.entraram)} dos que entraram`, icon: MessageCircle,
-      color: 'text-indigo-600', bgColor: 'bg-indigo-50',
-    },
-    {
       metric: 'agendaram', title: 'Agendaram reunião', value: d.agendaram_reuniao,
-      subtitle: `${pctOf(d.agendaram_reuniao, d.conectaram)} dos conectados`, icon: CalendarCheck,
+      subtitle: `${pctOf(d.agendaram_reuniao, d.entraram)} dos que entraram`, icon: CalendarCheck,
       color: 'text-purple-600', bgColor: 'bg-purple-50',
     },
     {
