@@ -5,16 +5,20 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-06-19
+<<<<<<< HEAD
+> **Last Updated:** 2026-06-22
 > **Trigger:** ALWAYS ON
-> **Stats:** 240 tabelas | 212 paginas | 368 hooks | 29 views | 856 components
-> **Stats:** 240 tabelas | 212 paginas | 368 hooks | 29 views | 856 components
-> **Stats:** 240 tabelas | 212 paginas | 368 hooks | 29 views | 856 components
-> **Last Updated:** 2026-06-18
+> **Stats:** 210 tabelas | 213 paginas | 370 hooks | 23 views | 861 components
+> **Stats:** 210 tabelas | 213 paginas | 370 hooks | 23 views | 861 components
+> **Stats:** 210 tabelas | 213 paginas | 370 hooks | 23 views | 861 components
+> **Last Updated:** 2026-06-22
+=======
+> **Last Updated:** 2026-06-22
+>>>>>>> feat/planejamento-weddings
 > **Trigger:** ALWAYS ON
-> **Stats:** 240 tabelas | 211 paginas | 368 hooks | 28 views | 856 components
-> **Stats:** 240 tabelas | 211 paginas | 368 hooks | 28 views | 856 components
-> **Stats:** 240 tabelas | 211 paginas | 368 hooks | 28 views | 856 components
+> **Stats:** 210 tabelas | 213 paginas | 370 hooks | 23 views | 861 components
+> **Stats:** 210 tabelas | 213 paginas | 370 hooks | 23 views | 861 components
+> **Stats:** 210 tabelas | 213 paginas | 370 hooks | 23 views | 861 components
 
 ---
 
@@ -176,7 +180,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **368 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **370 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -277,6 +281,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `displayedEtapaPlanejamento()` | `displayedEtapaPlanejamento.ts` |
 | `filterContracts()` | `filterContracts.ts` |
 | `forecastToDrillRows()` | `forecastToDrillRows.ts` |
+| `planejamentoGate()` | `planejamentoGate.ts` |
 | `types()` | `types.ts` |
 | `types()` | `types.ts` |
 | `types()` | `types.ts` |
@@ -409,6 +414,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `usePhaseCapabilities()` | `usePhaseCapabilities.ts` |
 | `usePhaseSort()` | `usePhaseSort.ts` |
 | `usePhaseVisibilityRules()` | `usePhaseVisibilityRules.ts` |
+| `usePlanejamentoCampos()` | `usePlanejamentoCampos.ts` |
 | `usePlanejamentoWeddings()` | `usePlanejamentoWeddings.ts` |
 | `usePlannerActivities()` | `usePlannerActivities.ts` |
 | `usePlannerForecastByDono()` | `usePlannerForecastByDono.ts` |
@@ -623,7 +629,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **212 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **213 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -818,6 +824,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `PlanejamentoDetailPage` | `src/pages/planejamento/PlanejamentoDetailPage.tsx` |
 | `PlanejamentoLayout` | `src/pages/planejamento/PlanejamentoLayout.tsx` |
 | `PlanejamentoPage` | `src/pages/planejamento/PlanejamentoPage.tsx` |
+| `PlanejamentoPortfolioPage` | `src/pages/planejamento/PlanejamentoPortfolioPage.tsx` |
 | `AuditPage` | `src/pages/platform/AuditPage.tsx` |
 | `DashboardPage` | `src/pages/platform/DashboardPage.tsx` |
 | `GlobalCatalogsPage` | `src/pages/platform/GlobalCatalogsPage.tsx` |

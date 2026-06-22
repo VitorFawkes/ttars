@@ -3,22 +3,43 @@ import { useQuery } from '@tanstack/react-query'
 import { useOrg } from '../../contexts/OrgContext'
 import { sbAny } from '../convidados/_supabaseUntyped'
 import { useWeddingsWithGuestCounts } from '../convidados/useWeddingsWithGuestCounts'
-import type { WeddingWithGuests } from '../convidados/types'
+import type { WeddingWithGuests, HotelStatus } from '../convidados/types'
 import { displayedEtapaPlanejamento } from './displayedEtapaPlanejamento'
-import { isEtapaPlanejamento, type EtapaPlanejamento } from './types'
+import { isEtapaPlanejamento, type EtapaPlanejamento, type FornecedorStatus } from './types'
+import { computeGate, type GateResult } from './planejamentoGate'
 
 const POS_VENDA_PHASE_SLUG = 'pos_venda'
+
+export interface PlanejamentoFornecedor {
+  setor: string
+  status: FornecedorStatus
+  valor: number | null
+}
+
+export interface PlanejamentoChecklistResumo {
+  total: number
+  feitos: number
+  comPrazo: number
+}
 
 export interface WeddingPlanejamento extends WeddingWithGuests {
   /** Coluna atual no board de Planejamento (override manual ou fallback). */
   planejamentoEtapa: EtapaPlanejamento
+  /** Resultado da trava da etapa atual (o que falta pra avançar). */
+  gate: GateResult
+  hotelStatus: HotelStatus | null
+  hotelTarifa: number | null
+  convitesCount: number
+  fornecedores: PlanejamentoFornecedor[]
+  checklist: PlanejamentoChecklistResumo
 }
 
 /**
- * Casamentos do board de Planejamento. Reusa exatamente a fonte da área
- * Convidados (mesmos cards WEDDING em pos_venda, com isolamento por org +
- * produto herdado de `useWeddings`), e resolve a coluna de cada casamento:
- *   override manual (wedding_planejamento_state) > fallback pela etapa pos_venda.
+ * Casamentos do board de Planejamento. Reusa a fonte da área Convidados (mesmos
+ * cards WEDDING em pos_venda, isolados por org + produto) e enriquece com:
+ *   - coluna atual: override manual (wedding_planejamento_state) > fallback etapa pos_venda
+ *   - dados das travas: hotel, convites, checklist e fornecedores (por card)
+ *   - a trava calculada da etapa atual.
  */
 export function usePlanejamentoWeddings() {
   const { org } = useOrg()
@@ -32,18 +53,8 @@ export function usePlanejamentoWeddings() {
     queryFn: async () => {
       if (!orgId) return {}
       const [phaseRes, pipelineRes] = await Promise.all([
-        sbAny
-          .from('pipeline_phases')
-          .select('id')
-          .eq('org_id', orgId)
-          .eq('slug', POS_VENDA_PHASE_SLUG)
-          .maybeSingle(),
-        sbAny
-          .from('pipelines')
-          .select('id')
-          .eq('org_id', orgId)
-          .eq('produto', 'WEDDING')
-          .maybeSingle(),
+        sbAny.from('pipeline_phases').select('id').eq('org_id', orgId).eq('slug', POS_VENDA_PHASE_SLUG).maybeSingle(),
+        sbAny.from('pipelines').select('id').eq('org_id', orgId).eq('produto', 'WEDDING').maybeSingle(),
       ])
       if (phaseRes.error) throw phaseRes.error
       if (pipelineRes.error) throw pipelineRes.error
@@ -66,8 +77,7 @@ export function usePlanejamentoWeddings() {
   })
 
   // card_id -> etapa salva (override manual). Degrada gracioso se a tabela
-  // ainda não existir (pré-migration) ou não houver permissão: sem overrides,
-  // tudo cai no fallback e o board continua renderizando.
+  // ainda não existir ou não houver permissão.
   const stateQuery = useQuery<Record<string, EtapaPlanejamento>>({
     queryKey: ['planejamento', 'state', orgId],
     enabled: !!orgId,
@@ -86,18 +96,91 @@ export function usePlanejamentoWeddings() {
     },
   })
 
+  // Dados das travas (hotel/convites/checklist/fornecedores), por card. Sempre
+  // filtrados por org_id. Degrada gracioso (sem dados → trava só com o que tem).
+  const gateDataQuery = useQuery({
+    queryKey: ['planejamento', 'gate-data', orgId],
+    enabled: !!orgId,
+    queryFn: async () => {
+      if (!orgId) {
+        return { hotel: {}, convites: {}, checklist: {}, fornecedores: {} } as GateData
+      }
+      const [hotelRes, convitesRes, checklistRes, fornRes] = await Promise.all([
+        sbAny.from('wedding_hotel').select('card_id, status, tarifa').eq('org_id', orgId),
+        sbAny.from('wedding_convites').select('card_id').eq('org_id', orgId),
+        sbAny.from('wedding_checklist').select('card_id, prazo, feito').eq('org_id', orgId),
+        sbAny.from('wedding_fornecedores').select('card_id, setor, status, valor').eq('org_id', orgId),
+      ])
+
+      const hotel: Record<string, { status: HotelStatus | null; tarifa: number | null }> = {}
+      for (const r of (hotelRes.data ?? []) as { card_id: string; status: HotelStatus | null; tarifa: number | null }[]) {
+        hotel[r.card_id] = { status: r.status ?? null, tarifa: r.tarifa ?? null }
+      }
+
+      const convites: Record<string, number> = {}
+      for (const r of (convitesRes.data ?? []) as { card_id: string }[]) {
+        convites[r.card_id] = (convites[r.card_id] ?? 0) + 1
+      }
+
+      const checklist: Record<string, PlanejamentoChecklistResumo> = {}
+      for (const r of (checklistRes.data ?? []) as { card_id: string; prazo: string | null; feito: boolean }[]) {
+        const c = checklist[r.card_id] ?? { total: 0, feitos: 0, comPrazo: 0 }
+        c.total += 1
+        if (r.feito) c.feitos += 1
+        if (r.prazo) c.comPrazo += 1
+        checklist[r.card_id] = c
+      }
+
+      const fornecedores: Record<string, PlanejamentoFornecedor[]> = {}
+      for (const r of (fornRes.data ?? []) as { card_id: string; setor: string; status: FornecedorStatus; valor: number | null }[]) {
+        const list = fornecedores[r.card_id] ?? []
+        list.push({ setor: r.setor, status: r.status, valor: r.valor ?? null })
+        fornecedores[r.card_id] = list
+      }
+
+      return { hotel, convites, checklist, fornecedores } as GateData
+    },
+  })
+
   const data = useMemo<WeddingPlanejamento[]>(() => {
     const weddings: WeddingWithGuests[] = base.data ?? []
     const stageMap = stagesQuery.data ?? {}
     const stateMap = stateQuery.data ?? {}
-    return weddings.map(w => ({
-      ...w,
-      planejamentoEtapa: displayedEtapaPlanejamento(
+    const gd: GateData = gateDataQuery.data ?? { hotel: {}, convites: {}, checklist: {}, fornecedores: {} }
+
+    return weddings.map(w => {
+      const planejamentoEtapa = displayedEtapaPlanejamento(
         stateMap[w.id],
         w.pipeline_stage_id ? stageMap[w.pipeline_stage_id] : null,
-      ),
-    }))
-  }, [base.data, stagesQuery.data, stateQuery.data])
+      )
+      const hotel = gd.hotel[w.id] ?? { status: null, tarifa: null }
+      const convitesCount = gd.convites[w.id] ?? 0
+      const checklist = gd.checklist[w.id] ?? { total: 0, feitos: 0, comPrazo: 0 }
+      const fornecedores = gd.fornecedores[w.id] ?? []
+
+      const gate = computeGate(planejamentoEtapa, {
+        produtoData: w.produto_data,
+        weddingDate: w.wedding_date,
+        guestTotal: w.counts.total,
+        guestConfirmado: w.counts.confirmado,
+        hotelStatus: hotel.status,
+        convitesCount,
+        checklistComPrazo: checklist.comPrazo,
+        fornecedores: fornecedores.map(f => ({ setor: f.setor, status: f.status })),
+      })
+
+      return {
+        ...w,
+        planejamentoEtapa,
+        gate,
+        hotelStatus: hotel.status,
+        hotelTarifa: hotel.tarifa,
+        convitesCount,
+        fornecedores,
+        checklist,
+      }
+    })
+  }, [base.data, stagesQuery.data, stateQuery.data, gateDataQuery.data])
 
   return {
     data,
@@ -105,4 +188,11 @@ export function usePlanejamentoWeddings() {
     isError: base.isError,
     error: base.error,
   }
+}
+
+interface GateData {
+  hotel: Record<string, { status: HotelStatus | null; tarifa: number | null }>
+  convites: Record<string, number>
+  checklist: Record<string, PlanejamentoChecklistResumo>
+  fornecedores: Record<string, PlanejamentoFornecedor[]>
 }

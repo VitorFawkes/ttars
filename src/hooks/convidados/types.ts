@@ -89,6 +89,9 @@ export interface Wedding {
   local: string | null
   /** URL do site do casamento extraído de cards.produto_data. */
   site_url: string | null
+  /** Campos personalizados crus do card (cards.produto_data) — usado pelo
+   *  Planejamento pra travas e campos de etapa. */
+  produto_data: Record<string, unknown> | null
   etapa: EtapaConvidados
 }
 

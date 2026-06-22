@@ -11,12 +11,14 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { ChevronLeft, ChevronRight, ClipboardList, Loader2, Search } from 'lucide-react'
+import { toast } from 'sonner'
 import { useHorizontalScroll } from '../../hooks/useHorizontalScroll'
 import { usePlanejamentoWeddings, type WeddingPlanejamento } from '../../hooks/planejamento/usePlanejamentoWeddings'
 import { useUpdatePlanejamentoEtapa } from '../../hooks/planejamento/useUpdatePlanejamentoEtapa'
 import {
   PLANEJAMENTO_LABEL,
   PLANEJAMENTO_ORDER,
+  etapaIndex,
   isEtapaPlanejamento,
   type EtapaPlanejamento,
 } from '../../hooks/planejamento/types'
@@ -88,6 +90,17 @@ export function PlanejamentoBoard() {
     const destino = e.over?.id
     if (!item || !isEtapaPlanejamento(destino)) return
     if (item.planejamentoEtapa === destino) return
+
+    // Trava: só deixa AVANÇAR se a etapa atual está cumprida. Voltar é livre.
+    const avancando = etapaIndex(destino) > etapaIndex(item.planejamentoEtapa)
+    if (avancando && !item.gate.allOk) {
+      const faltam = item.gate.criteria.filter((c) => !c.ok).map((c) => c.label)
+      toast.error(
+        `Faltam ${faltam.length} de ${item.gate.total} para avançar "${item.titulo}": ${faltam.join('; ')}`,
+        { duration: 6000 },
+      )
+      return
+    }
     update.mutate({ cardId: item.id, etapa: destino })
   }
 
