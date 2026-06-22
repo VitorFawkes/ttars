@@ -20,7 +20,7 @@ import './champagne.css'
 import { formatDataLonga, formatDataCurta, daysUntil, isPast } from '../../lib/planejamento/format'
 import { usePlanejamentoWeddings } from '../../hooks/planejamento/usePlanejamentoWeddings'
 import { useWeddingChecklist } from '../../hooks/planejamento/useWeddingChecklist'
-import { EtapaPanel } from '../../components/planejamento/EtapaPanel'
+import { EtapaPanel, CamposEtapaCard } from '../../components/planejamento/EtapaPanel'
 import { RelatorioCasamento } from '../../components/planejamento/RelatorioCasamento'
 import { CasalSection } from '../../components/planejamento/CasalSection'
 import { WeddingEquipeSection } from '../../components/planejamento/WeddingEquipeSection'
@@ -175,27 +175,30 @@ export default function PlanejamentoDetailPage() {
         <WeddingEquipeSection cardId={wedding.id} />
       </div>
 
-      {/* Espaço & Pacote (o que se contrata no Planejamento) */}
+      {/* Campos da etapa + Hospedagem (hotel) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        <CamposEtapaCard wedding={wedding} />
+        <WeddingHotelCard cardId={cardId} local={wedding.local} />
+      </div>
+
+      {/* Espaço & Pacote — o que se contrata no Planejamento */}
       <EspacoPacoteSection wedding={wedding} />
 
-      {/* Hospedagem (hotel) + Ação promocional (definição) */}
+      {/* Ação promocional (definição) + Convidados (estimativa, sem confirmação) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-        <WeddingHotelCard cardId={cardId} local={wedding.local} />
         <AcaoPromoSection wedding={wedding} />
+        <ConvidadosResumoSection wedding={wedding} />
       </div>
 
-      {/* Convidados (estimativa, sem confirmação) + Cronograma */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-        <ConvidadosResumoSection wedding={wedding} />
-        <ChecklistSection
-          items={checklist.items}
-          onAdd={() => setChecklistModal({ edit: null })}
-          onEdit={(item) => setChecklistModal({ edit: item })}
-          onToggle={(item) => checklist.toggle.mutate({ id: item.id, feito: !item.feito })}
-          onRemove={(id) => checklist.remove.mutate(id)}
-          removing={checklist.remove.isPending}
-        />
-      </div>
+      {/* Cronograma & checklist do planejamento */}
+      <ChecklistSection
+        items={checklist.items}
+        onAdd={() => setChecklistModal({ edit: null })}
+        onEdit={(item) => setChecklistModal({ edit: item })}
+        onToggle={(item) => checklist.toggle.mutate({ id: item.id, feito: !item.feito })}
+        onRemove={(id) => checklist.remove.mutate(id)}
+        removing={checklist.remove.isPending}
+      />
 
       {/* Relatório do casamento — saúde, financeiro, convidados, prazos */}
       <RelatorioCasamento wedding={wedding} />
