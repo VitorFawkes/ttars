@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Detalhes das mudanças — WelcomeCRM × Claude Code</title>
+<style>
+  :root{
+    --bg:#f8fafc; --surface:#ffffff; --ink:#0f172a; --ink2:#475569; --ink3:#94a3b8;
+    --line:#e2e8f0; --brand:#4f46e5; --brand-soft:#eef2ff;
+    --green:#16a34a; --green-soft:#f0fdf4; --green-line:#bbf7d0;
+    --amber:#d97706; --amber-soft:#fffbeb;
+    --red:#dc2626; --red-soft:#fef2f2; --red-line:#fecaca;
+    --ink-term:#e2e8f0; --bg-term:#0f172a;
+    --shadow:0 1px 2px rgba(15,23,42,.04),0 4px 16px rgba(15,23,42,.06);
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding:40px 22px 90px}
+  .eyebrow{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--brand)}
+  h1{font-size:32px;line-height:1.15;letter-spacing:-.02em;margin:.3em 0 .2em;font-weight:800}
+  .sub{font-size:16px;color:var(--ink2);max-width:680px}
+  .toc{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+  .toc a{font-size:13px;font-weight:600;text-decoration:none;color:var(--brand);background:var(--brand-soft);
+    border:1px solid #e0e7ff;border-radius:999px;padding:5px 13px}
+
+  /* change card */
+  .change{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:26px;
+    box-shadow:var(--shadow);margin-top:26px;scroll-margin-top:20px}
+  .chead{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+  .cnum{flex:none;width:38px;height:38px;border-radius:11px;background:var(--green-soft);color:var(--green);
+    border:1px solid var(--green-line);font-weight:800;display:flex;align-items:center;justify-content:center;font-size:17px}
+  .ctitle{font-size:20px;font-weight:780;letter-spacing:-.01em}
+  .ctag{margin-left:auto;font-size:11px;font-weight:700;color:var(--green);background:var(--green-soft);
+    border:1px solid var(--green-line);border-radius:999px;padding:4px 11px;white-space:nowrap}
+  .lead{color:var(--ink2);font-size:15px;margin:2px 0 18px}
+
+  h3.block{font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink3);
+    margin:22px 0 10px;display:flex;align-items:center;gap:8px}
+  p.exp{font-size:14.5px;color:var(--ink2);margin:0 0 4px}
+  p.exp b{color:var(--ink)}
+
+  /* priority steps */
+  .steps{display:flex;flex-direction:column;gap:8px;margin:6px 0}
+  .step{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:11px;padding:11px 14px;background:#fff}
+  .step .rank{flex:none;width:24px;height:24px;border-radius:7px;background:#f1f5f9;color:var(--ink2);
+    font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center}
+  .step.win{border-color:var(--green-line);background:var(--green-soft)}
+  .step.win .rank{background:var(--green);color:#fff}
+  .step .txt{font-size:14px}
+  .step .txt code{font-family:var(--mono);font-size:12.5px;background:#eef2ff;color:var(--brand);padding:1px 6px;border-radius:5px}
+  .step .winbadge{margin-left:auto;font-size:11px;font-weight:800;color:var(--green)}
+  .step .killbadge{margin-left:auto;font-size:11px;font-weight:700;color:var(--ink3)}
+
+  /* before / after code */
+  .ba2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:6px 0}
+  .codecol .clabel{font-size:12px;font-weight:700;padding:6px 12px;border-radius:9px 9px 0 0;display:flex;gap:7px;align-items:center}
+  .codecol.bad .clabel{background:var(--red-soft);color:var(--red);border:1px solid var(--red-line);border-bottom:0}
+  .codecol.good .clabel{background:var(--green-soft);color:var(--green);border:1px solid var(--green-line);border-bottom:0}
+  pre.code{margin:0;font-family:var(--mono);font-size:12.5px;line-height:1.6;padding:13px 14px;
+    border-radius:0 0 9px 9px;overflow-x:auto;white-space:pre;background:#fbfdff}
+  .codecol.bad pre.code{border:1px solid var(--red-line);border-top:0;color:#7f1d1d}
+  .codecol.good pre.code{border:1px solid var(--green-line);border-top:0;color:#14532d}
+
+  /* flow */
+  .flow{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap;margin:8px 0}
+  .fbox{flex:1;min-width:130px;border:1px solid var(--line);border-radius:12px;padding:12px 13px;background:#fff;display:flex;flex-direction:column;gap:3px}
+  .fbox .fk{font-size:11px;font-weight:700;color:var(--brand);text-transform:uppercase;letter-spacing:.03em}
+  .fbox .fv{font-size:13px;color:var(--ink2)}
+  .fbox.hi{background:var(--brand-soft);border-color:#c7d2fe}
+  .farrow{display:flex;align-items:center;color:var(--ink3);font-size:20px;font-weight:700}
+
+  /* evidence terminal */
+  .evidence{background:var(--bg-term);color:var(--ink-term);border-radius:12px;padding:14px 16px;margin:8px 0;
+    font-family:var(--mono);font-size:12.5px;line-height:1.7;overflow-x:auto}
+  .evidence .c{color:#7dd3fc}.evidence .g{color:#86efac}.evidence .y{color:#fde68a}.evidence .m{color:#64748b}
+  .evidence .label{display:block;color:#64748b;font-size:11px;margin-bottom:6px;font-family:-apple-system,sans-serif}
+
+  /* example table */
+  table.ex{width:100%;border-collapse:collapse;margin:6px 0;font-size:13.5px}
+  table.ex th,table.ex td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line)}
+  table.ex th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink3)}
+  table.ex td code{font-family:var(--mono);font-size:12px;background:var(--green-soft);color:var(--green);padding:1px 6px;border-radius:5px}
+  table.ex .arrow{color:var(--ink3)}
+
+  /* window viz (memory load) */
+  .winviz{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:6px 0;font-family:var(--mono);font-size:12px}
+  .winviz .row{padding:5px 14px;border-bottom:1px solid #f1f5f9;color:var(--ink2)}
+  .winviz .loaded{background:var(--green-soft)}
+  .winviz .cut{background:var(--red-soft);color:#991b1b}
+  .winviz .divider{background:#fff7ed;color:var(--amber);font-weight:700;text-align:center;font-family:-apple-system,sans-serif;font-size:12px}
+
+  .note{background:var(--brand-soft);border:1px solid #e0e7ff;border-radius:12px;padding:14px 16px;font-size:14px;color:var(--ink2);margin-top:14px}
+  .note b{color:var(--ink)}
+  footer{margin-top:50px;padding-top:20px;border-top:1px solid var(--line);color:var(--ink3);font-size:12.5px}
+  @media(max-width:720px){.ba2{grid-template-columns:1fr}.flow{flex-direction:column}.farrow{transform:rotate(90deg)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">WelcomeCRM · detalhes técnicos</div>
+    <h1>O que mudou, em detalhe — e como funciona</h1>
+    <p class="sub">Conserto por conserto: o que era, o que eu mudei, e o mecanismo por dentro (com
+    antes/depois e a prova real de cada teste). Visão geral em
+    <a href="estrutura-claude-code.html">estrutura-claude-code.html</a>.</p>
+    <div class="toc">
+      <a href="#c1">1 · Subagentes em Opus</a>
+      <a href="#c2">2 · Memória nos auxiliares</a>
+      <a href="#c3">3 · Índice carrega inteiro</a>
+      <a href="#c4">4 · Segurança</a>
+      <a href="#c5">5 · Mapa de entrada</a>
+    </div>
+  </header>
+
+  <!-- ============ 1 ============ -->
+  <section class="change" id="c1">
+    <div class="chead"><div class="cnum">1</div><div class="ctitle">Subagentes agora rodam em Opus 4.8</div><div class="ctag">✅ testado ao vivo</div></div>
+    <p class="lead">O conserto-mãe. Era o que mais afetava qualidade — e ninguém via.</p>
+
+    <h3 class="block">🔧 Como o Claude Code escolhe o modelo de um auxiliar</h3>
+    <p class="exp">Existe uma <b>ordem de prioridade fixa</b>. Quem está mais no topo vence:</p>
+    <div class="steps">
+      <div class="step win"><div class="rank">1</div><div class="txt">Configuração <code>CLAUDE_CODE_SUBAGENT_MODEL</code></div><div class="winbadge">← MANDA EM TUDO</div></div>
+      <div class="step"><div class="rank">2</div><div class="txt">O modelo passado em cada chamada (<code>model: "opus"</code>)</div><div class="killbadge">sobrescrito pelo nº 1</div></div>
+      <div class="step"><div class="rank">3</div><div class="txt">O modelo definido no próprio auxiliar</div><div class="killbadge">—</div></div>
+      <div class="step"><div class="rank">4</div><div class="txt">O modelo do agente principal</div><div class="killbadge">—</div></div>
+    </div>
+    <p class="exp" style="margin-top:8px">É por isso que a regra antiga do projeto ("sempre force Opus na mão") <b>nunca funcionou</b>: ela mexia no nº 2, mas o nº 1 estava em Haiku e vencia.</p>
+
+    <h3 class="block">📝 O que eu mudei (antes → depois)</h3>
+    <div class="ba2">
+      <div class="codecol bad"><div class="clabel">🔴 ANTES · só no global, em Haiku</div>
+<pre class="code">// ~/.claude/settings.json
+"env": {
+  "CLAUDE_CODE_SUBAGENT_MODEL":
+      "claude-haiku-4-5..."
+}
+// → TODO auxiliar = Haiku</pre></div>
+      <div class="codecol good"><div class="clabel">🟢 DEPOIS · no projeto, em Opus</div>
+<pre class="code">// WelcomeCRM/.claude/settings.json
+"env": {
+  "CLAUDE_CODE_SUBAGENT_MODEL":
+      "claude-opus-4-8"
+}
+// → TODO auxiliar = Opus 4.8</pre></div>
+    </div>
+    <p class="exp">A configuração do <b>projeto</b> vence a do global — então isso vale só no WelcomeCRM, sem afetar seus outros projetos.</p>
+
+    <h3 class="block">🔬 A prova (registro real do teste)</h3>
+    <p class="exp">Disparei um auxiliar de teste e li o modelo gravado no registro dele:</p>
+    <div class="evidence">
+      <span class="label">transcript do subagente de teste · campo "model"</span>
+      <span class="m">$ grep '"model"' subagents/agent-a732...jsonl</span><br>
+      <span class="g">"model":"claude-opus-4-8"</span>  <span class="m">← nasceu Opus ✅ (antes vinha "claude-haiku-4-5")</span>
+    </div>
+    <div class="note"><b>Como funciona no dia a dia:</b> você não muda nada no seu jeito de pedir. Toda vez que eu disparo um auxiliar pra investigar ou revisar, ele agora nasce Opus 4.8 sozinho. Custa um pouco mais lento/caro — que é o "Opus em tudo" que você queria.</div>
+  </section>
+
+  <!-- ============ 2 ============ -->
+  <section class="change" id="c2">
+    <div class="chead"><div class="cnum">2</div><div class="ctitle">A memória do projeto agora chega nos auxiliares</div><div class="ctag">✅ testado · 4 cenários</div></div>
+    <p class="lead">O conserto de maior valor estrutural. Antes, os auxiliares investigavam "cegos".</p>
+
+    <h3 class="block">🔧 O problema, visual</h3>
+    <p class="exp">O "buscador de contexto" (a ferramenta que orienta cada agente) lia o mapa do <b>código</b>, mas <b>não lia a pasta de memória</b> (as 102 anotações de erros e decisões). E os auxiliares de investigação nem recebem o manual. Resultado: repetiam erros que o projeto já tinha aprendido.</p>
+
+    <h3 class="block">⚙️ Como funciona agora (o fluxo, passo a passo)</h3>
+    <div class="flow">
+      <div class="fbox"><div class="fk">1 · Tarefa</div><div class="fv">"criar uma migration no banco"</div></div>
+      <div class="farrow">→</div>
+      <div class="fbox"><div class="fk">2 · Buscador</div><div class="fv">lê as palavras da tarefa</div></div>
+      <div class="farrow">→</div>
+      <div class="fbox hi"><div class="fk">3 · Casa nas 102 notas</div><div class="fv">palavra do <b>nome do arquivo</b> pesa 3× a da descrição</div></div>
+      <div class="farrow">→</div>
+      <div class="fbox"><div class="fk">4 · Entrega as regras</div><div class="fv">devolve as 3-4 notas certas (nome + resumo)</div></div>
+    </div>
+    <p class="exp">Como o auxiliar <b>pode chamar o buscador</b>, ele recebe essas regras sozinho — não preciso mais colar nada na mão. É o pulo do gato: a memória passou a ser "servida" por uma ferramenta que todos alcançam.</p>
+
+    <h3 class="block">🔬 A prova (o que cada tarefa traz de volta — testado)</h3>
+    <table class="ex">
+      <tr><th>Se a tarefa é sobre…</th><th></th><th>…o buscador entrega a regra certa</th></tr>
+      <tr><td>migration / subir pro banco</td><td class="arrow">→</td><td><code>feedback_migration_cleanup.md</code></td></tr>
+      <tr><td>listar usuários do workspace</td><td class="arrow">→</td><td><code>feedback_multi_tenant_org_members.md</code></td></tr>
+      <tr><td>campo no pipeline errado</td><td class="arrow">→</td><td><code>feedback_metadata_isolation.md</code></td></tr>
+      <tr><td>funil de analytics weddings</td><td class="arrow">→</td><td><code>feedback_analytics_weddings_apenas_active.md</code></td></tr>
+    </table>
+    <div class="note"><b>Por que isso importa:</b> são justamente as regras que mais viram bug. Agora qualquer auxiliar que eu disparar para mexer nessas áreas já chega sabendo — não repete o erro.</div>
+  </section>
+
+  <!-- ============ 3 ============ -->
+  <section class="change" id="c3">
+    <div class="chead"><div class="cnum">3</div><div class="ctitle">O índice de memória voltou a carregar inteiro</div><div class="ctag">✅ verificado</div></div>
+    <p class="lead">Parte das suas regras estava ficando invisível no começo de cada sessão.</p>
+
+    <h3 class="block">🔧 Como funciona o carregamento</h3>
+    <p class="exp">O Claude Code carrega <b>só as primeiras 200 linhas</b> do índice de memória quando começa. O que passa disso, <b>não carrega</b>. O índice estava com 229 linhas — então as últimas 29 (regras de fluxo, manutenção, ferramentas) sumiam.</p>
+
+    <div class="winviz">
+      <div class="row loaded">linha 1 … começo do índice</div>
+      <div class="row loaded">linhas 2–200 · regras carregadas ✅</div>
+      <div class="divider">— — — corte em 200 linhas (a "janela" que carrega) — — —</div>
+      <div class="row cut">linhas 201–229 · 🔴 ANTES: não carregavam (Workflow/Estilo, Manutenção, Ferramentas)</div>
+    </div>
+
+    <h3 class="block">📝 O que eu mudei</h3>
+    <p class="exp">Compactei a seção "Trabalho Ativo" (de bloco grande por projeto → 1 linha de status + ponteiro), <b>sem perder nenhum ponteiro do índice</b>. Resultado:</p>
+    <div class="ba2">
+      <div class="codecol bad"><div class="clabel">🔴 ANTES</div><pre class="code">229 linhas
+→ últimas 29 invisíveis
+  no início da sessão</pre></div>
+      <div class="codecol good"><div class="clabel">🟢 DEPOIS</div><pre class="code">193 linhas
+→ tudo cabe na janela de 200
+→ índice inteiro carrega ✅
+  (99 ponteiros preservados)</pre></div>
+    </div>
+  </section>
+
+  <!-- ============ 4 ============ -->
+  <section class="change" id="c4">
+    <div class="chead"><div class="cnum">4</div><div class="ctitle">Senhas de produção removidas do arquivo de configuração</div><div class="ctag">✅ feito</div></div>
+    <p class="lead">Higiene de segurança simples e importante.</p>
+    <h3 class="block">📝 O que era × o que ficou</h3>
+    <div class="ba2">
+      <div class="codecol bad"><div class="clabel">🔴 ANTES · 2 chaves em texto puro</div>
+<pre class="code">"allow": [
+  "Bash(APIKEY=\"eyJhbGci...\")",   ← chave
+  "Bash(SERVICE_KEY=\"eyJhbGci...\")", ← chave
+  ...
+]</pre></div>
+      <div class="codecol good"><div class="clabel">🟢 DEPOIS · removidas</div>
+<pre class="code">"allow": [
+  ...
+]
+// 0 ocorrências de service_role
+//   no arquivo de configuração</pre></div>
+    </div>
+    <p class="exp">Eram chaves de acesso ao banco de produção que ficavam expostas em texto. Tirei. Nenhum impacto no funcionamento.</p>
+  </section>
+
+  <!-- ============ 5 ============ -->
+  <section class="change" id="c5">
+    <div class="chead"><div class="cnum">5</div><div class="ctitle">Um "comece aqui" para qualquer agente novo</div><div class="ctag">✅ criado</div></div>
+    <p class="lead">Antes, o conhecimento estava espalhado em 4 lugares sem um mapa.</p>
+    <h3 class="block">⚙️ O que o START-HERE faz</h3>
+    <p class="exp">Um arquivo único (<code>docs/START-HERE.md</code>) que diz, em uma tela: os 4 lugares de conhecimento e <b>quando usar cada um</b>, como achar contexto rápido, as regras que mais viram bug, e o modelo dos agentes. O manual principal agora aponta pra ele logo no topo.</p>
+    <div class="flow">
+      <div class="fbox hi"><div class="fk">START-HERE</div><div class="fv">o mapa</div></div>
+      <div class="farrow">→</div>
+      <div class="fbox"><div class="fk">CLAUDE.md</div><div class="fv">as regras</div></div>
+      <div class="fbox"><div class="fk">memory/</div><div class="fv">lições de bugs</div></div>
+      <div class="fbox"><div class="fk">CODEBASE.md</div><div class="fv">mapa do código</div></div>
+      <div class="fbox"><div class="fk">docs/</div><div class="fv">referência</div></div>
+    </div>
+  </section>
+
+  <div class="note" style="margin-top:28px">
+    <b>Detalhe honesto:</b> o sistema travou num avisinho de qualidade que <b>não era da minha tarefa</b> — um atalho (<code>goToBloco</code>) marcado como "exportado" sem precisar, na sua tela de planejamento de casamento. Removi só essa marca (uma palavra), sem mudar o funcionamento, e deixei a mudancinha solta pra ir junto com a sua feature.
+  </div>
+
+  <div class="note">
+    <b>Para ligar tudo:</b> o conserto nº 1 (Opus) já está valendo. Os outros (memória no buscador + índice compacto) ligam quando você <b>fecha e reabre o Claude Code</b> uma vez.
+  </div>
+
+  <footer>
+    Verificado em 22/06/2026: 5 consertos aplicados, testados (modelo ao vivo, memória em 4 cenários,
+    índice por contagem) e salvos. Build do projeto verde. · Visão geral: estrutura-claude-code.html
+  </footer>
+
+</div>
+</body>
+</html>
