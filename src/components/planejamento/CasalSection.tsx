@@ -12,7 +12,7 @@ export function CasalSection({ cardId }: { cardId: string }) {
   const pessoa2 = travelers[0] ?? null
 
   return (
-    <section className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+    <section className="bg-white border border-[#EAE1D3] rounded-2xl p-5 shadow-[0_1px_2px_rgba(78,24,32,0.05)]">
       <header className="flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2">
           <Heart className="w-5 h-5 text-rose-400" />

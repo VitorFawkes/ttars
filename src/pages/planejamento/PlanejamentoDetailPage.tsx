@@ -34,18 +34,26 @@ import {
 import { WeddingHotelCard } from '../../components/convidados/WeddingHotelCard'
 import {
   PLANEJAMENTO_LABEL,
-  type EtapaPlanejamento,
+  PLANEJAMENTO_ORDER,
+  PLANEJ_FIELD,
   type ChecklistItem,
 } from '../../hooks/planejamento/types'
 
-const ETAPA_CHIP: Record<EtapaPlanejamento, string> = {
-  boas_vindas: 'bg-slate-100 text-slate-600 border-slate-200',
-  onboarding: 'bg-sky-50 text-sky-700 border-sky-200',
-  propostas: 'bg-violet-50 text-violet-700 border-violet-200',
-  definicao: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-  passagem: 'bg-amber-50 text-amber-700 border-amber-200',
-  aditivo: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+// Tema champanhe (design do Vitor no Claude Design)
+const CHAMP_PAGE = "min-h-full bg-[#EAE2D5] [font-family:'Nunito',system-ui,sans-serif]"
+
+function pdStr(pd: Record<string, unknown> | null, key: string): string {
+  if (!pd) return ''
+  const v = pd[key]
+  return v == null ? '' : String(v)
 }
+function pdNum(pd: Record<string, unknown> | null, key: string): number | null {
+  const s = pdStr(pd, key)
+  if (!s) return null
+  const n = Number(s.replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, ''))
+  return Number.isNaN(n) ? null : n
+}
+const brlK = (v: number) => v >= 1000 ? `R$ ${Math.round(v / 1000)}k` : `R$ ${v}`
 
 export default function PlanejamentoDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -90,89 +98,73 @@ export default function PlanejamentoDetailPage() {
   const dateLong = formatDataLonga(wedding.wedding_date)
   const days = daysUntil(wedding.wedding_date)
   const { total } = wedding.counts
+  const pd = wedding.produto_data
+  const tipoLabel = pdStr(pd, 'ww_tipo_casamento') || 'Destination Wedding'
+  const quartos = pdNum(pd, PLANEJ_FIELD.quartosBloquear)
+  const valorTotal = pdNum(pd, PLANEJ_FIELD.valorTotal)
+  const gate = wedding.gate
+  const gatePct = gate.total > 0 ? Math.round((gate.met / gate.total) * 100) : 0
+  const etapaIdx = PLANEJAMENTO_ORDER.indexOf(wedding.planejamentoEtapa) + 1
 
   return (
-    <div className="px-6 py-4 flex flex-col gap-4">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="flex items-start gap-3 min-w-0 flex-1">
-          <button
-            onClick={() => navigate('/planejamento')}
-            className="mt-1 p-1.5 rounded-md hover:bg-slate-100 text-slate-500 shrink-0"
-            aria-label="Voltar"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <ClipboardList className="w-6 h-6 text-indigo-500 shrink-0" />
-              <h1 className="text-2xl font-bold text-slate-900 break-words">{wedding.titulo}</h1>
-              <span
-                className={cn(
-                  'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border uppercase tracking-wide',
-                  ETAPA_CHIP[wedding.planejamentoEtapa],
-                )}
-                title={`Etapa de planejamento: ${PLANEJAMENTO_LABEL[wedding.planejamentoEtapa]}`}
-              >
-                {PLANEJAMENTO_LABEL[wedding.planejamentoEtapa]}
-              </span>
+    <div className={cn(CHAMP_PAGE, 'px-6 py-4 flex flex-col gap-4')}>
+      {/* Summary band (visual champanhe — design do Vitor) */}
+      <div className="rounded-2xl border border-[#E6DBC9] bg-white overflow-hidden shadow-[0_10px_30px_rgba(78,24,32,0.06)]">
+        <div className="flex items-center justify-between gap-4 flex-wrap px-6 py-5 bg-gradient-to-b from-[#FBF3E4] to-white">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#A88C57]">
+              <button onClick={() => navigate('/planejamento')} className="inline-flex items-center gap-1 hover:text-[#BD965C]">
+                <ArrowLeft className="w-3.5 h-3.5" /> Planejamento
+              </button>
+              <span className="text-[#D9CFC2]">/</span>
+              <span className="truncate">{tipoLabel}{wedding.local ? ` · ${wedding.local}` : ''}</span>
             </div>
-            <div className="flex items-center gap-3 mt-2 flex-wrap text-sm text-slate-600">
-              {dateLong && (
-                <span className="inline-flex items-center gap-1.5">
-                  <Calendar className="w-4 h-4 text-slate-400" />
-                  {dateLong}
-                </span>
-              )}
-              {wedding.local && (
-                <span className="inline-flex items-center gap-1.5">
-                  <MapPin className="w-4 h-4 text-slate-400" />
-                  {wedding.local}
-                </span>
-              )}
-              {days !== null && (
-                <span
-                  className={cn(
-                    'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border',
-                    days < 0
-                      ? 'bg-slate-100 text-slate-600 border-slate-200'
-                      : 'bg-sky-50 text-sky-700 border-sky-200',
-                  )}
-                >
-                  {days < 0 ? 'Passado' : days === 0 ? 'Hoje' : `Faltam ${days} ${days === 1 ? 'dia' : 'dias'}`}
-                </span>
-              )}
-            </div>
+            <h1 className="mt-2 text-[30px] leading-none font-light text-[#211F1D] break-words">{wedding.titulo}</h1>
             {wedding.site_url && (
-              <a
-                href={wedding.site_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:underline mt-1"
-              >
-                <Globe className="w-3.5 h-3.5" /> Site do Casamento
-                <ExternalLink className="w-3 h-3" />
+              <a href={wedding.site_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[12px] text-[#a37f47] hover:underline mt-2 [font-family:'Roboto']">
+                <Globe className="w-3.5 h-3.5" /> Site do casamento <ExternalLink className="w-3 h-3" />
               </a>
             )}
           </div>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {days !== null && (
+              <div className="flex items-center gap-3 rounded-xl border border-[#ECD9B5] bg-white px-4 py-2.5">
+                <Calendar className="w-5 h-5 text-[#BD965C]" />
+                <div>
+                  <div className="flex items-baseline gap-1.5"><span className="text-[22px] font-extrabold text-[#8A6A33] leading-none">{Math.abs(days)}</span><span className="text-[13px] font-semibold text-[#A88C57]">{days < 0 ? 'dias atrás' : 'dias'}</span></div>
+                  <div className="text-[12px] text-[#9A9082] mt-0.5 [font-family:'Roboto']">{dateLong ?? '—'}</div>
+                </div>
+              </div>
+            )}
+            <button
+              onClick={() => navigate(`/convidados/casamento/${wedding.id}`)}
+              className="inline-flex items-center gap-2 h-[38px] px-4 rounded-lg border border-[#E0D6C8] bg-white text-[#5C5751] text-[13px] font-semibold hover:bg-[#FCFAF6]"
+            >
+              <Heart className="w-4 h-4 text-rose-400" /> Convidados
+            </button>
+            <a
+              href={`/cards/${wedding.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 h-[38px] px-4 rounded-lg border border-[#BD965C] bg-[#BD965C] text-white text-[13px] font-semibold shadow-[0_1px_2px_rgba(140,100,40,0.25)]"
+            >
+              Acessar card <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => navigate(`/convidados/casamento/${wedding.id}`)}
-            className="inline-flex items-center justify-center gap-1.5 h-9 rounded-md px-3 text-sm font-medium border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
-            title="Ver convidados deste casamento"
-          >
-            <Heart className="w-4 h-4 text-rose-400" /> Convidados
-          </button>
-          <a
-            href={`/cards/${wedding.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Abrir card em nova aba"
-            className="inline-flex items-center justify-center gap-1.5 h-9 rounded-md px-3 text-sm font-medium border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
-          >
-            <ExternalLink className="w-4 h-4" /> Acessar card
-          </a>
+        {/* stat row */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-6 pb-5">
+          <div className="rounded-xl border border-[#ECDCBE] bg-[#FCF7EE] p-3.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#A88C57]">Etapa · {etapaIdx} de 6</span>
+              <span className="text-[11px] font-bold text-[#8A6A33]">{gate.met}/{gate.total} marcos</span>
+            </div>
+            <div className="text-[14.5px] font-semibold text-[#211F1D] mt-1.5 leading-tight">{PLANEJAMENTO_LABEL[wedding.planejamentoEtapa]}</div>
+            <div className="h-1.5 rounded-full bg-[#EFE3CC] overflow-hidden mt-2.5"><div className="h-full bg-[#BD965C] rounded-full" style={{ width: `${gatePct}%` }} /></div>
+          </div>
+          <StatMini label="Lista preenchida" value={`${total}`} sub="nomes na lista" />
+          <StatMini label="Quartos" value={quartos != null ? String(quartos) : '—'} sub="a bloquear" />
+          <StatMini label="Total" value={valorTotal != null ? brlK(valorTotal) : '—'} sub="valor do casamento" />
         </div>
       </div>
 
@@ -240,6 +232,16 @@ function InfoItem({ label, value, icon }: { label: string; value: string; icon: 
         {icon} {label}
       </p>
       <p className="font-medium text-slate-900 mt-0.5 break-words">{value}</p>
+    </div>
+  )
+}
+
+function StatMini({ label, value, sub }: { label: string; value: string; sub: string }) {
+  return (
+    <div className="rounded-xl border border-[#EAE1D3] bg-[#FBF8F3] p-3.5">
+      <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#A89A86]">{label}</div>
+      <div className="text-[19px] font-bold text-[#211F1D] mt-2 [font-family:'Roboto'] tabular-nums">{value}</div>
+      <div className="text-[11px] text-[#B5ABA0] mt-0.5 [font-family:'Roboto']">{sub}</div>
     </div>
   )
 }

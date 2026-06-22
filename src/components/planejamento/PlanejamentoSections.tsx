@@ -15,7 +15,7 @@ import {
 
 const FIELD = 'w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500'
 const LBL = 'text-[11px] uppercase tracking-wide text-slate-500 font-medium'
-const CARD = 'bg-white border border-slate-200 rounded-xl p-4 shadow-sm'
+const CARD = 'bg-white border border-[#EAE1D3] rounded-2xl p-5 shadow-[0_1px_2px_rgba(78,24,32,0.05)]'
 
 function readStr(pd: Record<string, unknown> | null, key: string): string {
   if (!pd) return ''
@@ -70,7 +70,7 @@ export function EspacoPacoteSection({ wedding }: { wedding: WeddingPlanejamento 
   return (
     <section className={CARD}>
       <header className="flex items-center gap-2 mb-3">
-        <Landmark className="w-5 h-5 text-slate-500" />
+        <Landmark className="w-5 h-5 text-[#BD965C]" />
         <h2 className="text-base font-semibold text-slate-900">Espaço & Pacote do casamento</h2>
       </header>
 
@@ -141,7 +141,7 @@ export function AcaoPromoSection({ wedding }: { wedding: WeddingPlanejamento }) 
   return (
     <section className={CARD}>
       <header className="flex items-center gap-2 mb-3">
-        <Megaphone className="w-5 h-5 text-slate-500" />
+        <Megaphone className="w-5 h-5 text-[#BD965C]" />
         <h2 className="text-base font-semibold text-slate-900">Ação promocional (definição)</h2>
       </header>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -167,7 +167,7 @@ export function ConvidadosResumoSection({ wedding }: { wedding: WeddingPlanejame
     <section className={CARD}>
       <header className="flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2">
-          <Users className="w-5 h-5 text-slate-500" />
+          <Users className="w-5 h-5 text-[#BD965C]" />
           <h2 className="text-base font-semibold text-slate-900">Convidados (lista & estimativa)</h2>
         </div>
         <Link to={`/convidados/casamento/${wedding.id}`} className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:underline">
