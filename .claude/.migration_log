@@ -1320,3 +1320,10 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-22T15:20:54Z | supabase/migrations/20260622a_ww2_loss_reasons_native_motivo_real.sql | applied_to_prod via Management API (token CLI)
 2026-06-22T15:20:54Z | supabase/migrations/20260622b_ww_marketing_native_medium_e_desconhecidos.sql | applied_to_prod via Management API (token CLI)
 2026-06-22T15:20:54Z | supabase/migrations/20260622c_ww_native_origem_utm.sql | applied_to_prod via Management API (token CLI)
+2026-06-22T17:15:51Z | supabase/migrations/20260622d_ww_native_view_restore_filtros.sql | applied_to_prod
+2026-06-22T17:19:06Z | supabase/migrations/20260622e_ww_perfil_temporal_native.sql | applied_to_prod
+2026-06-22T17:27:19Z | supabase/migrations/20260622f_ww_native_destino_realidade.sql | applied_to_prod
+2026-06-22T17:33:07Z | supabase/migrations/rollback/20260622_rollback.sql | rollback_artifact
+2026-06-22T17:33:07Z | supabase/migrations/rollback/20260622_pre_fix_snapshot.json | rollback_artifact
+2026-06-22T17:44:39Z | supabase/migrations/20260622g_ww_native_norm_origem_dropdown.sql | applied_to_prod
+2026-06-22T17:55:19Z | supabase/migrations/20260622h_ww_agenda_native_reagendou.sql | applied_to_prod

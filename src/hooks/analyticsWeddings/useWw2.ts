@@ -1305,12 +1305,13 @@ export function useWwPerfilTemporal(params: {
   buckets?: string[]
 }) {
   const orgId = useOrgId()
+  const variant = useAnalyticsVariant()
   const arr = (v?: string[]) => (v && v.length ? v : null)
   return useQuery({
-    queryKey: ['ww', 'perfil-temporal', orgId, params.dateStart, params.dateEnd, params.dateMode, params.dim, params.marco, params.granularidade,
+    queryKey: ['ww', 'perfil-temporal', variant, orgId, params.dateStart, params.dateEnd, params.dateMode, params.dim, params.marco, params.granularidade,
       params.origins ?? null, params.tipos ?? null, params.consultorIds ?? null, params.faixas ?? null, params.convidados ?? null, params.destinos ?? null,
       params.canalSdr ?? null, params.canalCloser ?? null, params.statusLead ?? null, params.maxBuckets ?? 8, params.buckets ?? null],
-    queryFn: () => callRpc<WwPerfilTemporal>('ww_perfil_temporal', {
+    queryFn: () => callRpc<WwPerfilTemporal>(rpcName('ww_perfil_temporal', variant), {
       p_date_start: params.dateStart,
       p_date_end: params.dateEnd,
       p_org_id: orgId,
