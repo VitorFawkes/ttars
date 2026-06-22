@@ -1,11 +1,12 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Kanban,
   Users,
   Settings,
   FileText,
-  ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
   User,
   BarChart3,
   LogOut,
@@ -110,10 +111,15 @@ export default function Sidebar() {
   const { session, signOut, profile } = useAuth();
   const { org } = useOrg();
   const isPlatformAdmin = usePlatformAdmin();
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [isMouseInside, setIsMouseInside] = useState(false);
-  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
-  const collapseTimerRef = useRef<number | null>(null);
+  // Recolhido por default; expande/recolhe por CLIQUE (não por hover).
+  // Persiste a preferência do usuário entre sessões.
+  const [isExpanded, setIsExpanded] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("welcomecrm-sidebar-expanded") === "true";
+    } catch {
+      return false;
+    }
+  });
   // Set de URLs de logo que falharam ao carregar — derivado por URL, não precisa reset
   const [failedLogoUrls, setFailedLogoUrls] = useState<Set<string>>(new Set());
   const logoFailed = org?.logo_url ? failedLogoUrls.has(org.logo_url) : false;
@@ -128,37 +134,17 @@ export default function Sidebar() {
     }
   }, [location.pathname]);
 
-  useEffect(() => {
-    return () => {
-      if (collapseTimerRef.current)
-        window.clearTimeout(collapseTimerRef.current);
-    };
-  }, []);
-
-  // Decide expansão de forma derivada: aberto se mouse dentro OU popover aberto.
-  // Quando ambos ficam falsos, agenda colapso com 150ms de debounce.
-  useEffect(() => {
-    const shouldBeOpen = isMouseInside || isPopoverOpen;
-    if (shouldBeOpen) {
-      if (collapseTimerRef.current) {
-        window.clearTimeout(collapseTimerRef.current);
-        collapseTimerRef.current = null;
+  const toggleExpanded = () => {
+    setIsExpanded((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("welcomecrm-sidebar-expanded", String(next));
+      } catch {
+        // localStorage indisponível (modo privado) — estado vive só na sessão
       }
-      // Hover intencional: expande na hora quando o mouse entra/popover abre;
-      // o colapso é adiado 150ms abaixo (debounce). Comportamento estabelecido.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setIsExpanded(true);
-      return;
-    }
-    if (collapseTimerRef.current) window.clearTimeout(collapseTimerRef.current);
-    collapseTimerRef.current = window.setTimeout(() => {
-      setIsExpanded(false);
-      collapseTimerRef.current = null;
-    }, 150);
-  }, [isMouseInside, isPopoverOpen]);
-
-  const handleMouseEnter = () => setIsMouseInside(true);
-  const handleMouseLeave = () => setIsMouseInside(false);
+      return next;
+    });
+  };
 
   const filteredNavigation = useMemo(() => {
     const p = profile as {
@@ -195,14 +181,12 @@ export default function Sidebar() {
   return (
     <aside
       className={cn(
-        "group flex h-screen flex-col shadow-lg transition-[width] duration-200 ease-out will-change-[width]",
+        "group flex h-screen flex-col shadow-lg transition-[width] duration-300 ease-out-strong will-change-[width]",
         isWeddings
           ? "bg-ww-cream text-ww-n700 border-r border-ww-sand"
           : "bg-primary-dark text-white",
         isExpanded ? "w-64" : "w-16",
       )}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
     >
       {/* Header — logo da org se existir, senão fallback WelcomeCRM */}
       <div
@@ -262,9 +246,38 @@ export default function Sidebar() {
       >
         <OrgSwitcher
           isCollapsed={!isExpanded}
-          onOpenChange={setIsPopoverOpen}
           tone={isWeddings ? "light" : "dark"}
         />
+      </div>
+
+      {/* Recolher / expandir o menu — no topo, alinhado aos itens do menu */}
+      <div className="px-2 mb-1">
+        <button
+          type="button"
+          onClick={toggleExpanded}
+          title={!isExpanded ? "Expandir menu" : undefined}
+          aria-label={isExpanded ? "Recolher menu" : "Expandir menu"}
+          className={cn(
+            "flex w-full items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-[background-color,color,transform] duration-150 ease-out-strong active:scale-[0.97]",
+            isWeddings
+              ? "text-ww-n600 hover:bg-ww-gold-soft hover:text-ww-n700"
+              : "text-primary-light hover:bg-primary hover:text-white",
+          )}
+        >
+          {isExpanded ? (
+            <PanelLeftClose className="h-5 w-5 flex-shrink-0" />
+          ) : (
+            <PanelLeftOpen className="h-5 w-5 flex-shrink-0" />
+          )}
+          <span
+            className={cn(
+              "ml-3 whitespace-nowrap transition-opacity duration-200 ease-out",
+              isExpanded ? "opacity-100" : "opacity-0 w-0",
+            )}
+          >
+            Recolher menu
+          </span>
+        </button>
       </div>
 
       <nav className="flex-1 space-y-1 px-2 py-4 overflow-y-auto overflow-x-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
@@ -413,17 +426,6 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Expand indicator when collapsed */}
-      {!isExpanded && (
-        <div
-          className={cn(
-            "absolute top-1/2 right-0 transform -translate-y-1/2 translate-x-1/2 rounded-full p-1 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity",
-            isWeddings ? "bg-ww-gold" : "bg-primary",
-          )}
-        >
-          <ChevronRight className="h-3 w-3 text-white" />
-        </div>
-      )}
     </aside>
   );
 }

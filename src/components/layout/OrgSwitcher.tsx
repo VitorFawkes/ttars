@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, ChevronsUpDown, Building2, Loader2 } from 'lucide-react'
+import { Check, ChevronsUpDown, Plane, Gem, Building2, Loader2, type LucideIcon } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import {
     DropdownMenu,
@@ -18,45 +18,38 @@ interface OrgSwitcherProps {
     tone?: 'dark' | 'light'
 }
 
-const ORG_ICON_BY_SLUG: Record<string, string> = {
-    'welcome-trips': '/svg/vacation.svg',
-    'welcome-weddings': '/svg/wedding-rings.svg',
+// Símbolo + cor de marca de cada produto. Linha limpa (lucide), consistente com o menu.
+const ORG_META: Record<string, { icon: LucideIcon; color: string }> = {
+    'welcome-trips': { icon: Plane, color: 'text-indigo-500' },
+    'welcome-weddings': { icon: Gem, color: 'text-ww-gold' },
 }
+
+// Produtos visíveis no seletor — só estes dois por enquanto, nesta ordem.
+const PRODUCT_SLUGS = ['welcome-weddings', 'welcome-trips']
 
 function OrgBadge({
     slug,
-    color,
     size,
-    onDark = false,
+    className,
 }: {
     slug?: string
-    color?: string
     size: 'sm' | 'md'
-    onDark?: boolean
+    /** Sobrescreve a cor; se omitido, usa a cor de marca do produto */
+    className?: string
 }) {
-    const icon = slug ? ORG_ICON_BY_SLUG[slug] : undefined
-    const box = size === 'md' ? 'h-7 w-7' : 'h-5 w-5'
-    if (icon) {
+    const meta = slug ? ORG_META[slug] : undefined
+    const box = size === 'md' ? 'h-5 w-5' : 'h-4 w-4'
+    if (meta) {
+        const Icon = meta.icon
         return (
-            <img
-                src={icon}
-                alt=""
+            <Icon
                 aria-hidden
-                className={cn(
-                    'object-contain flex-shrink-0',
-                    box,
-                    onDark && 'brightness-0 invert'
-                )}
+                strokeWidth={1.75}
+                className={cn(box, 'flex-shrink-0', className ?? meta.color)}
             />
         )
     }
-    const dot = size === 'md' ? 'h-5 w-5' : 'h-3 w-3'
-    return (
-        <div
-            className={cn('rounded-full flex-shrink-0', dot)}
-            style={{ backgroundColor: color ?? '#6366f1' }}
-        />
-    )
+    return <Building2 aria-hidden className={cn(box, 'flex-shrink-0', className ?? 'text-slate-400')} />
 }
 
 export function OrgSwitcher({ isCollapsed = false, onOpenChange, tone = 'dark' }: OrgSwitcherProps) {
@@ -68,16 +61,20 @@ export function OrgSwitcher({ isCollapsed = false, onOpenChange, tone = 'dark' }
     const surfaceClass = onDark
         ? 'bg-white/10 text-white border-white/10'
         : 'bg-white text-ww-n700 border-ww-gold/30 shadow-sm'
+    // No gatilho (sobre o sidebar) o símbolo segue o tom; no dropdown usa a cor de marca.
+    const badgeTone = onDark ? 'text-white' : 'text-ww-gold'
 
     const handleOpenChange = (next: boolean) => {
         setOpen(next)
         onOpenChange?.(next)
     }
 
-    // Welcome Group agora é tenant como qualquer outra — sem filtro especial.
+    // Só Weddings e Trips, em ordem definida.
     const childOrgs = orgs
+        .filter((o) => PRODUCT_SLUGS.includes(o.org_slug))
+        .sort((a, b) => PRODUCT_SLUGS.indexOf(a.org_slug) - PRODUCT_SLUGS.indexOf(b.org_slug))
 
-    // If user has only 1 org, show name without dropdown
+    // Se o usuário só tem 1 produto, mostra o nome sem dropdown.
     if (childOrgs.length <= 1) {
         const single = childOrgs[0]
         if (!single) return null
@@ -86,20 +83,16 @@ export function OrgSwitcher({ isCollapsed = false, onOpenChange, tone = 'dark' }
             <div
                 title={isCollapsed ? single.org_name : undefined}
                 className={cn(
-                    "flex items-center rounded-lg text-sm font-medium border h-10",
+                    'flex items-center rounded-lg text-sm font-medium border h-10',
                     surfaceClass,
-                    isCollapsed ? "w-10 justify-center" : "w-full px-3"
+                    isCollapsed ? 'w-10 justify-center' : 'w-full px-3',
                 )}
             >
                 {isCollapsed ? (
-                    ORG_ICON_BY_SLUG[single.org_slug] ? (
-                        <OrgBadge slug={single.org_slug} color={single.branding?.primary_color} size="md" onDark={onDark} />
-                    ) : (
-                        <Building2 className={cn("h-5 w-5", onDark ? "text-white/70" : "text-ww-gold")} />
-                    )
+                    <OrgBadge slug={single.org_slug} size="md" className={badgeTone} />
                 ) : (
                     <div className="flex items-center gap-2 whitespace-nowrap overflow-hidden">
-                        <OrgBadge slug={single.org_slug} color={single.branding?.primary_color} size="sm" onDark={onDark} />
+                        <OrgBadge slug={single.org_slug} size="sm" className={badgeTone} />
                         <span className="truncate">{single.org_name}</span>
                     </div>
                 )}
@@ -119,19 +112,19 @@ export function OrgSwitcher({ isCollapsed = false, onOpenChange, tone = 'dark' }
                     title={isCollapsed ? currentOrg?.org_name : undefined}
                     disabled={switchOrg.isPending}
                     className={cn(
-                        "flex items-center rounded-lg text-sm font-medium transition-colors border h-10",
+                        'flex items-center rounded-lg text-sm font-medium transition-colors border h-10',
                         surfaceClass,
-                        onDark ? "hover:bg-white/20" : "hover:bg-ww-gold-soft",
-                        isCollapsed ? "w-10 justify-center" : "w-full justify-between px-3",
-                        switchOrg.isPending && "cursor-wait"
+                        onDark ? 'hover:bg-white/20' : 'hover:bg-ww-gold-soft',
+                        isCollapsed ? 'w-10 justify-center' : 'w-full justify-between px-3',
+                        switchOrg.isPending && 'cursor-wait',
                     )}
                 >
                     {isCollapsed ? (
-                        <OrgBadge slug={currentOrg?.org_slug} color={currentOrg?.branding?.primary_color} size="md" onDark={onDark} />
+                        <OrgBadge slug={currentOrg?.org_slug} size="md" className={badgeTone} />
                     ) : (
                         <>
                             <div className="flex items-center gap-2 whitespace-nowrap overflow-hidden">
-                                <OrgBadge slug={currentOrg?.org_slug} color={currentOrg?.branding?.primary_color} size="sm" onDark={onDark} />
+                                <OrgBadge slug={currentOrg?.org_slug} size="sm" className={badgeTone} />
                                 <span className="truncate">{currentOrg?.org_name}</span>
                             </div>
                             {switchOrg.isPending ? (
@@ -143,25 +136,32 @@ export function OrgSwitcher({ isCollapsed = false, onOpenChange, tone = 'dark' }
                     )}
                 </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[200px] p-0">
-                {childOrgs.map((o) => (
-                    <DropdownMenuItem
-                        key={o.org_id}
-                        onSelect={() => {
-                            if (o.org_id !== org?.id) {
-                                switchOrg.mutate({ orgId: o.org_id })
-                            }
-                            handleOpenChange(false)
-                        }}
-                        className="flex items-center gap-2 px-3 py-2.5 cursor-pointer"
-                    >
-                        <OrgBadge slug={o.org_slug} color={o.branding?.primary_color} size="sm" />
-                        <span className="flex-1">{o.org_name}</span>
-                        {o.org_id === org?.id && (
-                            <Check className="h-4 w-4 text-primary" />
-                        )}
-                    </DropdownMenuItem>
-                ))}
+            <DropdownMenuContent align="start" sideOffset={6} className="w-56 p-1.5 rounded-xl">
+                <div className="px-2 pt-0.5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Produto
+                </div>
+                {childOrgs.map((o) => {
+                    const active = o.org_id === org?.id
+                    return (
+                        <DropdownMenuItem
+                            key={o.org_id}
+                            onSelect={() => {
+                                if (o.org_id !== org?.id) {
+                                    switchOrg.mutate({ orgId: o.org_id })
+                                }
+                                handleOpenChange(false)
+                            }}
+                            className={cn(
+                                'flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer',
+                                active && 'bg-slate-50',
+                            )}
+                        >
+                            <OrgBadge slug={o.org_slug} size="sm" />
+                            <span className="flex-1 text-sm font-medium text-slate-700">{o.org_name}</span>
+                            {active && <Check className="h-4 w-4 text-slate-400" />}
+                        </DropdownMenuItem>
+                    )
+                })}
             </DropdownMenuContent>
         </DropdownMenu>
     )
