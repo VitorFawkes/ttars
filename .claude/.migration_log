@@ -1325,3 +1325,4 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-22T17:27:19Z | supabase/migrations/20260622f_ww_native_destino_realidade.sql | applied_to_prod
 2026-06-22T17:33:07Z | supabase/migrations/rollback/20260622_rollback.sql | rollback_artifact
 2026-06-22T17:33:07Z | supabase/migrations/rollback/20260622_pre_fix_snapshot.json | rollback_artifact
+2026-06-22T17:44:39Z | supabase/migrations/20260622g_ww_native_norm_origem_dropdown.sql | applied_to_prod

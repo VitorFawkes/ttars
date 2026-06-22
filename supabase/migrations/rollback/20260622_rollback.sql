@@ -1193,8 +1193,9 @@ BEGIN
     );
 END $function$;
 
--- Funcao nova da Fase 2 (se ja criada): remover no rollback
+-- Funcoes novas (Fase 2 / parity): remover no rollback
 DROP FUNCTION IF EXISTS public.ww_perfil_temporal_native(timestamptz,timestamptz,uuid,text,text,text,text,text[],text[],uuid[],text[],text[],text[],text[],text[],text,integer,text[]);
+DROP FUNCTION IF EXISTS public._ww_native_norm_origem(text);
 
 COMMIT;
 NOTIFY pgrst, 'reload schema';
