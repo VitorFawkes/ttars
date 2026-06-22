@@ -89,7 +89,7 @@ export function EtapaPanel({ wedding }: { wedding: WeddingPlanejamento }) {
 
   return (
     <section className="bg-white border border-[#EAE1D3] rounded-2xl shadow-[0_1px_2px_rgba(78,24,32,0.05)] overflow-hidden">
-      <div className="px-4 py-3 border-b border-slate-100 bg-gradient-to-r from-amber-50/60 to-white">
+      <div className="px-4 py-3 border-b border-slate-100 bg-gradient-to-r from-[#FBF3E4] to-white">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <p className="text-[11px] uppercase tracking-wide text-slate-400 font-medium">Etapa atual</p>

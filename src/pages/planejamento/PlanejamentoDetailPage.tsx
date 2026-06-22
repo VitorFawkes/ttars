@@ -3,12 +3,9 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
-  ClipboardList,
   Calendar,
-  MapPin,
   Globe,
   ExternalLink,
-  Users,
   Loader2,
   ListChecks,
   Plus,
@@ -19,6 +16,7 @@ import {
   Check,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import './champagne.css'
 import { formatDataLonga, formatDataCurta, daysUntil, isPast } from '../../lib/planejamento/format'
 import { usePlanejamentoWeddings } from '../../hooks/planejamento/usePlanejamentoWeddings'
 import { useWeddingChecklist } from '../../hooks/planejamento/useWeddingChecklist'
@@ -39,8 +37,8 @@ import {
   type ChecklistItem,
 } from '../../hooks/planejamento/types'
 
-// Tema champanhe (design do Vitor no Claude Design)
-const CHAMP_PAGE = "min-h-full bg-[#EAE2D5] [font-family:'Nunito',system-ui,sans-serif]"
+// Tema champanhe (design do Vitor no Claude Design) — paleta em champagne.css
+const CHAMP_PAGE = "planej-champ min-h-screen bg-[#EAE2D5] px-6 py-5"
 
 function pdStr(pd: Record<string, unknown> | null, key: string): string {
   if (!pd) return ''
@@ -168,47 +166,36 @@ export default function PlanejamentoDetailPage() {
         </div>
       </div>
 
+      {/* Etapa atual (marcos): trava + avançar + campos da etapa */}
+      <EtapaPanel wedding={wedding} />
+
       {/* Casal (clientes) + Equipe do casamento (interno) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         <CasalSection cardId={wedding.id} />
         <WeddingEquipeSection cardId={wedding.id} />
       </div>
 
-      {/* Etapa atual: trava (o que falta) + avançar + campos da etapa */}
-      <EtapaPanel wedding={wedding} />
-
-      {/* Informações do casamento (vem do funil / comercial — só leitura) */}
-      <section className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-        <h2 className="text-base font-semibold text-slate-900 mb-3">Informações do casamento</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <InfoItem label="Data" value={dateLong ?? '—'} icon={<Calendar className="w-3.5 h-3.5" />} />
-          <InfoItem label="Local / Destino" value={wedding.local ?? '—'} icon={<MapPin className="w-3.5 h-3.5" />} />
-          <InfoItem label="Lista de convidados" value={total > 0 ? `${total} nomes` : '—'} icon={<Users className="w-3.5 h-3.5" />} />
-          <InfoItem label="Etapa de planejamento" value={PLANEJAMENTO_LABEL[wedding.planejamentoEtapa]} icon={<ClipboardList className="w-3.5 h-3.5" />} />
-        </div>
-      </section>
-
       {/* Espaço & Pacote (o que se contrata no Planejamento) */}
       <EspacoPacoteSection wedding={wedding} />
 
-      {/* Hospedagem (hotel — fonte única com Convidados) */}
-      <WeddingHotelCard cardId={cardId} local={wedding.local} />
-
-      {/* Ação promocional (definição) + Convidados (estimativa, sem confirmação) */}
+      {/* Hospedagem (hotel) + Ação promocional (definição) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        <WeddingHotelCard cardId={cardId} local={wedding.local} />
         <AcaoPromoSection wedding={wedding} />
-        <ConvidadosResumoSection wedding={wedding} />
       </div>
 
-      {/* Cronograma & Checklist do planejamento */}
-      <ChecklistSection
-        items={checklist.items}
-        onAdd={() => setChecklistModal({ edit: null })}
-        onEdit={(item) => setChecklistModal({ edit: item })}
-        onToggle={(item) => checklist.toggle.mutate({ id: item.id, feito: !item.feito })}
-        onRemove={(id) => checklist.remove.mutate(id)}
-        removing={checklist.remove.isPending}
-      />
+      {/* Convidados (estimativa, sem confirmação) + Cronograma */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        <ConvidadosResumoSection wedding={wedding} />
+        <ChecklistSection
+          items={checklist.items}
+          onAdd={() => setChecklistModal({ edit: null })}
+          onEdit={(item) => setChecklistModal({ edit: item })}
+          onToggle={(item) => checklist.toggle.mutate({ id: item.id, feito: !item.feito })}
+          onRemove={(id) => checklist.remove.mutate(id)}
+          removing={checklist.remove.isPending}
+        />
+      </div>
 
       {/* Relatório do casamento — saúde, financeiro, convidados, prazos */}
       <RelatorioCasamento wedding={wedding} />
@@ -221,17 +208,6 @@ export default function PlanejamentoDetailPage() {
           onSubmit={handleSubmitChecklist}
         />
       )}
-    </div>
-  )
-}
-
-function InfoItem({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
-  return (
-    <div className="min-w-0">
-      <p className="text-[11px] uppercase tracking-wide text-slate-500 inline-flex items-center gap-1">
-        {icon} {label}
-      </p>
-      <p className="font-medium text-slate-900 mt-0.5 break-words">{value}</p>
     </div>
   )
 }
