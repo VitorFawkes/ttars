@@ -5,7 +5,7 @@ import { sbAny } from '../convidados/_supabaseUntyped'
 import { useWeddingsWithGuestCounts } from '../convidados/useWeddingsWithGuestCounts'
 import type { WeddingWithGuests, HotelStatus } from '../convidados/types'
 import { displayedEtapaPlanejamento } from './displayedEtapaPlanejamento'
-import { isEtapaPlanejamento, type EtapaPlanejamento, type FornecedorStatus } from './types'
+import { isEtapaPlanejamento, PLANEJ_FIELD, type EtapaPlanejamento, type FornecedorStatus } from './types'
 import { computeGate, type GateResult } from './planejamentoGate'
 
 const POS_VENDA_PHASE_SLUG = 'pos_venda'
@@ -20,6 +20,10 @@ export interface PlanejamentoChecklistResumo {
   total: number
   feitos: number
   comPrazo: number
+  /** Itens com prazo vencido e ainda não feitos. */
+  atrasados: number
+  /** Itens não feitos (pendentes), independente de prazo. */
+  pendentes: number
 }
 
 export interface WeddingPlanejamento extends WeddingWithGuests {
@@ -29,6 +33,8 @@ export interface WeddingPlanejamento extends WeddingWithGuests {
   gate: GateResult
   hotelStatus: HotelStatus | null
   hotelTarifa: number | null
+  /** Quartos do bloco no hotel — fonte única de "quartos a bloquear". */
+  hotelQuartos: number | null
   convitesCount: number
   fornecedores: PlanejamentoFornecedor[]
   checklist: PlanejamentoChecklistResumo
@@ -106,15 +112,15 @@ export function usePlanejamentoWeddings() {
         return { hotel: {}, convites: {}, checklist: {}, fornecedores: {} } as GateData
       }
       const [hotelRes, convitesRes, checklistRes, fornRes] = await Promise.all([
-        sbAny.from('wedding_hotel').select('card_id, status, tarifa').eq('org_id', orgId),
+        sbAny.from('wedding_hotel').select('card_id, status, tarifa, total_quartos').eq('org_id', orgId),
         sbAny.from('wedding_convites').select('card_id').eq('org_id', orgId),
         sbAny.from('wedding_checklist').select('card_id, prazo, feito').eq('org_id', orgId),
         sbAny.from('wedding_fornecedores').select('card_id, setor, status, valor').eq('org_id', orgId),
       ])
 
-      const hotel: Record<string, { status: HotelStatus | null; tarifa: number | null }> = {}
-      for (const r of (hotelRes.data ?? []) as { card_id: string; status: HotelStatus | null; tarifa: number | null }[]) {
-        hotel[r.card_id] = { status: r.status ?? null, tarifa: r.tarifa ?? null }
+      const hotel: Record<string, { status: HotelStatus | null; tarifa: number | null; quartos: number | null }> = {}
+      for (const r of (hotelRes.data ?? []) as { card_id: string; status: HotelStatus | null; tarifa: number | null; total_quartos: number | null }[]) {
+        hotel[r.card_id] = { status: r.status ?? null, tarifa: r.tarifa ?? null, quartos: r.total_quartos ?? null }
       }
 
       const convites: Record<string, number> = {}
@@ -122,11 +128,16 @@ export function usePlanejamentoWeddings() {
         convites[r.card_id] = (convites[r.card_id] ?? 0) + 1
       }
 
+      const hoje = new Date().toISOString().slice(0, 10)
       const checklist: Record<string, PlanejamentoChecklistResumo> = {}
       for (const r of (checklistRes.data ?? []) as { card_id: string; prazo: string | null; feito: boolean }[]) {
-        const c = checklist[r.card_id] ?? { total: 0, feitos: 0, comPrazo: 0 }
+        const c = checklist[r.card_id] ?? { total: 0, feitos: 0, comPrazo: 0, atrasados: 0, pendentes: 0 }
         c.total += 1
         if (r.feito) c.feitos += 1
+        else {
+          c.pendentes += 1
+          if (r.prazo && r.prazo < hoje) c.atrasados += 1
+        }
         if (r.prazo) c.comPrazo += 1
         checklist[r.card_id] = c
       }
@@ -153,10 +164,13 @@ export function usePlanejamentoWeddings() {
         stateMap[w.id],
         w.pipeline_stage_id ? stageMap[w.pipeline_stage_id] : null,
       )
-      const hotel = gd.hotel[w.id] ?? { status: null, tarifa: null }
+      const hotel = gd.hotel[w.id] ?? { status: null, tarifa: null, quartos: null }
       const convitesCount = gd.convites[w.id] ?? 0
-      const checklist = gd.checklist[w.id] ?? { total: 0, feitos: 0, comPrazo: 0 }
+      const checklist = gd.checklist[w.id] ?? { total: 0, feitos: 0, comPrazo: 0, atrasados: 0, pendentes: 0 }
       const fornecedores = gd.fornecedores[w.id] ?? []
+      const marcosFeitos = Array.isArray(w.produto_data?.[PLANEJ_FIELD.marcosFeitos])
+        ? (w.produto_data![PLANEJ_FIELD.marcosFeitos] as unknown[]).filter((x): x is string => typeof x === 'string')
+        : []
 
       const gate = computeGate(planejamentoEtapa, {
         produtoData: w.produto_data,
@@ -164,9 +178,11 @@ export function usePlanejamentoWeddings() {
         guestTotal: w.counts.total,
         guestConfirmado: w.counts.confirmado,
         hotelStatus: hotel.status,
+        hotelQuartos: hotel.quartos,
         convitesCount,
         checklistComPrazo: checklist.comPrazo,
         fornecedores: fornecedores.map(f => ({ setor: f.setor, status: f.status })),
+        marcosFeitos,
       })
 
       return {
@@ -175,6 +191,7 @@ export function usePlanejamentoWeddings() {
         gate,
         hotelStatus: hotel.status,
         hotelTarifa: hotel.tarifa,
+        hotelQuartos: hotel.quartos,
         convitesCount,
         fornecedores,
         checklist,
@@ -191,7 +208,7 @@ export function usePlanejamentoWeddings() {
 }
 
 interface GateData {
-  hotel: Record<string, { status: HotelStatus | null; tarifa: number | null }>
+  hotel: Record<string, { status: HotelStatus | null; tarifa: number | null; quartos: number | null }>
   convites: Record<string, number>
   checklist: Record<string, PlanejamentoChecklistResumo>
   fornecedores: Record<string, PlanejamentoFornecedor[]>

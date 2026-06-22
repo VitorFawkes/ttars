@@ -1,4 +1,4 @@
-import { BarChart3, CalendarClock, DollarSign, Users, ListChecks } from 'lucide-react'
+import { BarChart3, CalendarClock, DollarSign, BedDouble, ListChecks, Landmark } from 'lucide-react'
 import { brl, daysUntil } from '../../lib/planejamento/format'
 import type { WeddingPlanejamento } from '../../hooks/planejamento/usePlanejamentoWeddings'
 import { PLANEJ_FIELD, PLANEJAMENTO_LABEL } from '../../hooks/planejamento/types'
@@ -16,21 +16,23 @@ function num(pd: Record<string, unknown> | null, key: string): number | null {
 
 export function RelatorioCasamento({ wedding }: { wedding: WeddingPlanejamento }) {
   const days = daysUntil(wedding.wedding_date)
-  const { confirmado, total } = wedding.counts
 
-  const fornPago = wedding.fornecedores.reduce((s, f) => s + (f.status === 'pago' ? f.valor ?? 0 : 0), 0)
-  const fornTotal = wedding.fornecedores.reduce((s, f) => s + (f.valor ?? 0), 0)
+  const pacoteValor = num(wedding.produto_data, PLANEJ_FIELD.pacoteValor)
   const sinal = num(wedding.produto_data, PLANEJ_FIELD.sinalValor)
   const valorTotal = num(wedding.produto_data, PLANEJ_FIELD.valorTotal)
+  const evento = valorTotal ?? pacoteValor
+  const hosp = wedding.hotelTarifa != null && wedding.hotelQuartos != null
+    ? wedding.hotelTarifa * wedding.hotelQuartos
+    : null
 
   const checklistPct = wedding.checklist.total > 0
     ? Math.round((wedding.checklist.feitos / wedding.checklist.total) * 100)
     : 0
 
   return (
-    <section className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+    <section className="bg-white border border-[#EAE1D3] rounded-2xl p-5 shadow-[0_1px_2px_rgba(78,24,32,0.05)]">
       <header className="flex items-center gap-2 mb-3">
-        <BarChart3 className="w-5 h-5 text-slate-500" />
+        <BarChart3 className="w-5 h-5 text-[#BD965C]" />
         <h2 className="text-base font-semibold text-slate-900">Relatório do casamento</h2>
       </header>
 
@@ -42,26 +44,25 @@ export function RelatorioCasamento({ wedding }: { wedding: WeddingPlanejamento }
           sub={days == null ? 'sem data' : days < 0 ? 'casamento passou' : days === 0 ? 'é hoje!' : `faltam ${days} dias`}
         />
         <Stat
-          icon={<Users className="w-4 h-4" />}
-          label="Convidados"
-          value={total > 0 ? `${confirmado} / ${total}` : '—'}
-          sub="confirmados / na lista"
+          icon={<Landmark className="w-4 h-4" />}
+          label="Casamento (evento)"
+          value={evento != null ? brl.format(evento) : '—'}
+          sub={valorTotal != null ? 'valor total' : pacoteValor != null ? 'valor do pacote' : 'a definir'}
+        />
+        <Stat
+          icon={<BedDouble className="w-4 h-4" />}
+          label="Hospedagem"
+          value={hosp != null ? `${brl.format(hosp)}/noite` : '—'}
+          sub="tarifa × quartos do bloco"
         />
         <Stat
           icon={<DollarSign className="w-4 h-4" />}
-          label="Fornecedores"
-          value={fornTotal > 0 ? brl.format(fornPago) : '—'}
-          sub={fornTotal > 0 ? `pagos de ${brl.format(fornTotal)}` : 'nenhum lançado'}
-        />
-        <Stat
-          icon={<DollarSign className="w-4 h-4" />}
-          label="Sinal / contrato"
+          label="Sinal recebido"
           value={sinal != null ? brl.format(sinal) : '—'}
-          sub={valorTotal != null ? `total ${brl.format(valorTotal)}` : 'sinal recebido'}
+          sub="do contrato do casamento"
         />
       </div>
 
-      {/* Andamento da trava + checklist */}
       <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Bar
           icon={<ListChecks className="w-4 h-4" />}

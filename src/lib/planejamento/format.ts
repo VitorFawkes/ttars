@@ -45,3 +45,12 @@ export function isPast(iso: string | null | undefined): boolean {
   today.setHours(0, 0, 0, 0)
   return d < today
 }
+
+/** Soma `days` a uma data ISO e devolve "YYYY-MM-DD" (sem fuso). null se inválida. */
+export function addDaysIso(iso: string | null | undefined, days: number): string | null {
+  const d = parseLocalDate(iso)
+  if (!d) return null
+  d.setDate(d.getDate() + days)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}

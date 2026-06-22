@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Users, X, Briefcase, Star, Lock } from 'lucide-react'
+import { Users, X, Briefcase, Star, Lock, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '../../lib/supabase'
 import { cn } from '../../lib/utils'
@@ -15,24 +15,25 @@ interface CardOwnersRow {
 
 type EquipeRole = 'assistente_pos' | 'apoio'
 
-const ROLE_META: Record<EquipeRole, { label: string; chip: string; phaseSlug?: string }> = {
-  assistente_pos: { label: 'Assistente', chip: 'bg-sky-50 text-sky-700 border-sky-200', phaseSlug: 'pos_venda' },
-  apoio: { label: 'Apoio', chip: 'bg-slate-50 text-slate-600 border-slate-200' },
+const ROLE_META: Record<EquipeRole, { label: string; avatar: string; phaseSlug?: string }> = {
+  assistente_pos: { label: 'Assistente', avatar: '#874B52', phaseSlug: 'pos_venda' },
+  apoio: { label: 'Apoio', avatar: '#A8A99E' },
 }
-
 const MEMBER_LABEL = (role: string) => ROLE_META[role as EquipeRole]?.label ?? role
+const MEMBER_AVATAR = (role: string) => ROLE_META[role as EquipeRole]?.avatar ?? '#A8A99E'
+
+const CARD = 'bg-white border border-[#EAE1D3] rounded-2xl p-5 shadow-[0_1px_2px_rgba(78,24,32,0.05)]'
+const LBL = "text-[10px] font-bold uppercase tracking-[0.1em] text-[#A89A86] [font-family:'Nunito',sans-serif]"
 
 /**
- * Bloco "Equipe do casamento" — pessoas INTERNAS (≠ casal/clientes).
- * - Planejadora (responsável) = cards.pos_owner_id, atribuída via OwnerSelector
- *   (lista por org_members, fase pos_venda). Distinta do Closer.
- * - Closer (quem fechou) = cards.vendas_owner_id — só leitura, contexto.
- * - Assistente / Apoio = card_team_members (vários), via useCardTeam.
- * Reusa a inteligência do Trips; isolamento por org_id (OwnerSelector recebe
- * orgId do card).
+ * Equipe do casamento — pessoas INTERNAS (≠ casal/clientes).
+ * Planejadora = pos_owner_id (OwnerSelector, org_members, fase pos_venda).
+ * Closer = vendas_owner_id (só leitura). Assistente/Apoio = card_team_members
+ * (vários, em chips). Reusa a inteligência do Trips; isolado por org_id.
  */
 export function WeddingEquipeSection({ cardId }: { cardId: string }) {
   const queryClient = useQueryClient()
+  const [adding, setAdding] = useState(false)
   const [addRole, setAddRole] = useState<EquipeRole>('assistente_pos')
 
   const { data: owners } = useQuery({
@@ -64,74 +65,73 @@ export function WeddingEquipeSection({ cardId }: { cardId: string }) {
     onError: (e: Error) => toast.error(`Não consegui salvar: ${e.message}`),
   })
 
-  const closer = owners?.vendas_owner_id
-    ? fullTeam.find((t) => t.profileId === owners.vendas_owner_id)
-    : null
+  const closer = owners?.vendas_owner_id ? fullTeam.find((t) => t.profileId === owners.vendas_owner_id) : null
 
   return (
-    <section className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-      <header className="flex items-center gap-2 mb-3">
-        <Users className="w-5 h-5 text-slate-500" />
+    <section className={CARD}>
+      <header className="flex items-center gap-2 mb-4">
+        <Users className="w-5 h-5 text-[#BD965C]" />
         <h2 className="text-base font-semibold text-slate-900">Equipe do casamento</h2>
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {/* Planejadora */}
-        <div className="rounded-lg border border-slate-100 p-3">
-          <p className="text-[10px] uppercase tracking-wide text-slate-400 font-medium mb-1">Planejadora (responsável)</p>
+      {/* Planejadora (responsável) */}
+      <div className="rounded-xl border border-[#ECDCBE] bg-[#FCF7EE] p-3">
+        <p className={LBL}>Planejadora · responsável</p>
+        <div className="mt-1.5">
           <OwnerSelector
             value={owners?.pos_owner_id ?? null}
             orgId={owners?.org_id ?? undefined}
             phaseSlug="pos_venda"
+            compact
             showNoSdrOption
             placeholder="Atribuir planejadora"
             onChange={(id) => setPlanejadora.mutate(id)}
           />
         </div>
-
-        {/* Closer — contexto, só leitura */}
-        <div className="rounded-lg border border-slate-100 bg-slate-50/40 p-3">
-          <p className="text-[10px] uppercase tracking-wide text-slate-400 font-medium inline-flex items-center gap-1">
-            <Lock className="w-3 h-3" /> Fechado por (Closer)
-          </p>
-          <p className="text-sm font-medium text-slate-700 mt-1.5 truncate">
-            {closer?.nome ?? '—'}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Quem vendeu — só contexto</p>
-        </div>
       </div>
 
-      {/* Assistentes / Apoio */}
-      <div className="mt-3">
-        <p className="text-[10px] uppercase tracking-wide text-slate-400 font-medium mb-2">Assistentes &amp; apoio</p>
-        {members.length > 0 && (
-          <ul className="space-y-1.5 mb-2">
-            {members.map((m) => (
-              <li key={m.id} className="flex items-center justify-between gap-2 py-1.5 px-2 rounded-lg hover:bg-slate-50 group">
-                <span className="flex items-center gap-2 min-w-0">
-                  <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-bold shrink-0">
-                    {(m.profile?.nome || m.profile?.email || '?')[0].toUpperCase()}
-                  </span>
-                  <span className="text-sm text-slate-800 truncate">{m.profile?.nome || m.profile?.email || '—'}</span>
-                  <span className={cn('text-[10px] px-1.5 py-0.5 rounded border font-medium', ROLE_META[m.role as EquipeRole]?.chip ?? ROLE_META.apoio.chip)}>
-                    {MEMBER_LABEL(m.role)}
-                  </span>
-                </span>
-                <button
-                  onClick={() => removeMember.mutate(m.id)}
-                  className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-rose-50 rounded text-slate-400 hover:text-rose-500 transition-all"
-                  title="Remover da equipe"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+      {/* Closer — só contexto */}
+      <div className="mt-2.5 rounded-xl border border-[#EAE1D3] bg-[#FBF8F3] p-3 flex items-center gap-2">
+        <Lock className="w-3.5 h-3.5 text-[#A89A86]" />
+        <span className={LBL}>Fechado por · Closer</span>
+        <span className="ml-auto text-[13px] font-semibold text-[#5C5751] truncate [font-family:'Roboto',sans-serif]">{closer?.nome ?? '—'}</span>
+      </div>
 
-        {/* Adicionar pessoa */}
-        <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center pt-1">
-          <div className="inline-flex rounded-md border border-slate-200 overflow-hidden shrink-0">
+      {/* Assistentes & apoio */}
+      <p className={cn(LBL, 'mt-4 mb-2.5')}>Assistentes &amp; apoio</p>
+      <div className="flex flex-wrap gap-2 items-center">
+        {members.map((m) => (
+          <span key={m.id} className="group inline-flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-full border border-[#E0D6C8] bg-white text-[12.5px] font-semibold text-[#5C5751]">
+            <span className="w-6 h-6 rounded-full text-white text-[10px] font-bold grid place-items-center shrink-0" style={{ background: MEMBER_AVATAR(m.role) }}>
+              {(m.profile?.nome || m.profile?.email || '?')[0].toUpperCase()}
+            </span>
+            <span className="truncate max-w-[160px]">{m.profile?.nome || m.profile?.email || '—'}</span>
+            <span className="text-[#A89A86]">· {MEMBER_LABEL(m.role)}</span>
+            <button
+              onClick={() => removeMember.mutate(m.id)}
+              className="ml-0.5 p-0.5 rounded-full text-[#C9BEAD] hover:text-rose-500 hover:bg-rose-50"
+              title="Remover"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </span>
+        ))}
+
+        {!adding && (
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="inline-flex items-center gap-1.5 h-[34px] px-3.5 rounded-full border border-dashed border-[#D9CFC2] text-[#8A8278] text-[12.5px] font-semibold hover:bg-[#FBF8F3]"
+          >
+            <Plus className="w-3.5 h-3.5" /> Adicionar pessoa
+          </button>
+        )}
+      </div>
+
+      {/* Inline add (revela só ao clicar) */}
+      {adding && (
+        <div className="mt-3 rounded-xl border border-[#EAE1D3] bg-[#FBF8F3] p-3 flex flex-col sm:flex-row gap-2.5 sm:items-center">
+          <div className="inline-flex rounded-lg border border-[#E0D6C8] overflow-hidden shrink-0 bg-white">
             <RoleTab active={addRole === 'assistente_pos'} onClick={() => setAddRole('assistente_pos')} icon={<Briefcase className="w-3.5 h-3.5" />} label="Assistente" />
             <RoleTab active={addRole === 'apoio'} onClick={() => setAddRole('apoio')} icon={<Star className="w-3.5 h-3.5" />} label="Apoio" />
           </div>
@@ -140,15 +140,22 @@ export function WeddingEquipeSection({ cardId }: { cardId: string }) {
               value={null}
               orgId={owners?.org_id ?? undefined}
               phaseSlug={ROLE_META[addRole].phaseSlug}
+              compact
               showNoSdrOption
-              placeholder={`+ Adicionar ${ROLE_META[addRole].label.toLowerCase()}`}
+              placeholder={`Escolher ${ROLE_META[addRole].label.toLowerCase()}…`}
               onChange={(id) => {
-                if (id) addMember.mutate({ profileId: id, role: addRole })
+                if (id) {
+                  addMember.mutate({ profileId: id, role: addRole })
+                  setAdding(false)
+                }
               }}
             />
           </div>
+          <button type="button" onClick={() => setAdding(false)} className="text-[12px] font-semibold text-[#8A8278] hover:text-[#5C5751] px-2 shrink-0">
+            Cancelar
+          </button>
         </div>
-      </div>
+      )}
     </section>
   )
 }
@@ -159,8 +166,8 @@ function RoleTab({ active, onClick, icon, label }: { active: boolean; onClick: (
       type="button"
       onClick={onClick}
       className={cn(
-        'inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium transition-colors',
-        active ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50',
+        'inline-flex items-center gap-1.5 px-3 py-2 text-[12px] font-semibold transition-colors',
+        active ? 'bg-[#BD965C] text-white' : 'bg-white text-[#8A8278] hover:bg-[#FBF8F3]',
       )}
     >
       {icon} {label}
