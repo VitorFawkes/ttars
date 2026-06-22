@@ -381,7 +381,7 @@ function TempoChart({ temporal, dim, layout, measure, selecionado, onBarClick }:
                 if (pl?.periodo) onBarClick(k, pl.periodo, String(pl.label ?? ''))
               }) : undefined}
               radius={layout === 'stack' && i === stackKeys.length - 1 ? [3, 3, 0, 0] : layout === 'group' ? [2, 2, 0, 0] : undefined}>
-              <LabelList content={segLabel} />
+              <LabelList dataKey={k} content={segLabel} />
               {measure === 'qtd' && layout === 'stack' && i === stackKeys.length - 1 && <LabelList content={totalLabel} />}
             </Bar>
           ))}
