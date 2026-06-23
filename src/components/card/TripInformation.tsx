@@ -5,6 +5,7 @@ import { SectionCollapseToggle } from './DynamicSectionWidget'
 import { supabase } from '../../lib/supabase'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from '../../lib/utils'
+import { mergeProdutoOverBriefing } from '../../lib/cardData'
 import { useStageRequirements } from '../../hooks/useStageRequirements'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
 import { usePipelinePhases } from '../../hooks/usePipelinePhases'
@@ -258,8 +259,12 @@ export default function TripInformation({ card, isExpanded: _isExpanded, onToggl
     const secondaryFields = useMemo(() => visibleFields.filter(f => f.isSecondary), [visibleFields])
     const [showSecondary, setShowSecondary] = useState(false)
 
-    // Determine which data to display/edit based on ViewMode
-    const activeData: TripsProdutoData = viewMode === SystemPhase.SDR ? briefingData : productData
+    // Determine which data to display/edit based on ViewMode.
+    // Fora do SDR, mostra produto_data por cima do briefing_inicial (fallback) pra que
+    // a Travel Planner veja o que o SDR preencheu, já editável. Ver src/lib/cardData.ts.
+    const activeData: TripsProdutoData = viewMode === SystemPhase.SDR
+        ? briefingData
+        : mergeProdutoOverBriefing<TripsProdutoData>(productData, briefingData)
 
     // --- Mutation ---
     const updateCardMutation = useMutation({
