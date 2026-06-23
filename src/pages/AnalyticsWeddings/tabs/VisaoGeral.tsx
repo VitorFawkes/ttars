@@ -376,7 +376,7 @@ function AgendaGrafico({ porDia }: { porDia: WwAgendaPorDia[] }) {
 // Fonte: ww_agendamentos_por_dia (updatedTimestamp dos campos 6/18 do Active). Respeita o
 // PERÍODO + filtros da aba. Por dia por padrão; vira semana em recortes longos.
 function AgendamentosPorDia({ filters }: { filters: AppliedFilters }) {
-  const { data, isLoading } = useWwAgendamentosPorDia({
+  const { data, isLoading, dataUpdatedAt } = useWwAgendamentosPorDia({
     origins: filters.origins, tipos: filters.tipos, faixas: filters.faixas,
     destinos: filters.destinos, convidados: filters.convidados, consultorIds: filters.consultorIds,
     dateStart: filters.dateStart, dateEnd: filters.dateEnd,
@@ -494,7 +494,10 @@ function AgendamentosPorDia({ filters }: { filters: AppliedFilters }) {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-          <p className="text-[11px] text-ww-n400 mt-1 text-center">Clique num dia pra ver os casais marcados (SDR e Closer) e abrir cada um no Active.</p>
+          <p className="text-[11px] text-ww-n400 mt-1 text-center">
+            Clique num dia pra ver os casais marcados (SDR e Closer) e abrir cada um no Active.
+            {dataUpdatedAt ? <span className="text-ww-n300"> · atualizado às {new Date(dataUpdatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: TZ })}</span> : null}
+          </p>
 
           {sel && selItens.length > 0 && (
             <div ref={painelRef} className="mt-3 rounded-xl border border-ww-sand ring-1 ring-ww-gold-soft bg-white overflow-hidden scroll-mt-4">
