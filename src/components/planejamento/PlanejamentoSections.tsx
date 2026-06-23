@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Megaphone, Users, ExternalLink, CalendarDays, StickyNote, Check } from 'lucide-react'
+import { Megaphone, Users, ExternalLink, StickyNote, Check } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { cn } from '../../lib/utils'
 import { usePlanejamentoCampos } from '../../hooks/planejamento/usePlanejamentoCampos'
@@ -55,33 +55,25 @@ function BoolField({ label, checked, onToggle }: { label: string; checked: boole
   )
 }
 
-// ── Acompanhamento & reuniões (logística da planejadora) ────────────────────
-export function AcompanhamentoSection({ wedding }: { wedding: WeddingPlanejamento }) {
+// ── Notas da planejadora (texto livre — contexto do casamento) ──────────────
+// (Reuniões agora são TAREFAS na espinha; aqui fica só a nota livre.)
+export function NotasSection({ wedding }: { wedding: WeddingPlanejamento }) {
   const { save } = usePlanejamentoCampos()
   const pd = wedding.produto_data
   const set = (key: string, value: unknown) => save.mutate({ cardId: wedding.id, values: { [key]: value } })
-  const reuniaoFeita = readStr(pd, PLANEJ_FIELD.reuniao1Feita) === 'true'
-
   return (
     <section className={cn(CARD, 'h-full')}>
       <header className="flex items-center gap-2 mb-3">
-        <CalendarDays className="w-5 h-5 text-[#BD965C]" />
-        <h2 className="text-base font-semibold text-slate-900">Acompanhamento &amp; reuniões</h2>
+        <StickyNote className="w-5 h-5 text-[#BD965C]" />
+        <h2 className="text-base font-semibold text-slate-900">Notas da planejadora</h2>
       </header>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <TextField label="Data da 1ª reunião" type="date" value={readStr(pd, PLANEJ_FIELD.reuniao1)} onSave={(v) => set(PLANEJ_FIELD.reuniao1, v)} />
-        <TextField label="Próxima reunião" type="date" value={readStr(pd, PLANEJ_FIELD.proximaReuniao)} onSave={(v) => set(PLANEJ_FIELD.proximaReuniao, v)} />
-        <TextField label="Data/hora do casamento" type="datetime-local" value={readStr(pd, PLANEJ_FIELD.dataHoraCasamento)} onSave={(v) => set(PLANEJ_FIELD.dataHoraCasamento, v)} />
-        <TextField label="Tema / estilo" value={readStr(pd, PLANEJ_FIELD.tema)} placeholder="Primeira ideia de tema" onSave={(v) => set(PLANEJ_FIELD.tema, v)} />
-      </div>
-
-      <BoolField label="1ª reunião realizada" checked={reuniaoFeita} onToggle={(v) => set(PLANEJ_FIELD.reuniao1Feita, v ? true : '')} />
-
-      <label className="block mt-1">
-        <span className={cn(LBL, 'inline-flex items-center gap-1.5')}><StickyNote className="w-3.5 h-3.5" /> Notas da planejadora</span>
-        <textarea defaultValue={readStr(pd, PLANEJ_FIELD.notas)} rows={3} placeholder="Contexto, combinados, pendências do casal…" onBlur={(e) => set(PLANEJ_FIELD.notas, e.target.value.trim())} className={cn(FIELD, 'mt-1')} />
-      </label>
+      <textarea
+        defaultValue={readStr(pd, PLANEJ_FIELD.notas)}
+        rows={4}
+        placeholder="Contexto, combinados, preferências e pendências do casal…"
+        onBlur={(e) => set(PLANEJ_FIELD.notas, e.target.value.trim())}
+        className={cn(FIELD, 'w-full')}
+      />
     </section>
   )
 }

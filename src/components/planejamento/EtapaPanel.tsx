@@ -9,6 +9,8 @@ import {
   PLANEJAMENTO_LABEL,
   PLANEJAMENTO_OBJETIVO,
   PLANEJ_FIELD,
+  BLOCO,
+  spineMarcoId,
   nextEtapa,
 } from '../../hooks/planejamento/types'
 
@@ -109,7 +111,14 @@ export function EtapaPanel({ wedding }: { wedding: WeddingPlanejamento }) {
           <MarcoTile
             key={c.key}
             c={c}
-            onJump={() => c.anchor && goToBloco(c.anchor)}
+            onJump={() => {
+              if (c.anchor === BLOCO.spine) {
+                const mid = spineMarcoId(`${etapa}:${c.key}`)
+                goToBloco(document.getElementById(mid) ? mid : BLOCO.spine)
+              } else if (c.anchor) {
+                goToBloco(c.anchor)
+              }
+            }}
             onManual={(done) => setManual(c.key, done)}
           />
         ))}
@@ -150,6 +159,7 @@ function MarcoTile({
       <div className={cn('mt-3 pt-2.5 border-t flex items-center justify-between gap-2', c.ok ? 'border-[#E0EAD9]' : 'border-[#EFE0B3]')}>
         <span className={cn('text-[10.5px] font-bold uppercase tracking-[0.06em]', c.ok ? 'text-[#6F8568]' : 'text-[#A88C57]')}>
           {c.auto ? 'Cumprido' : manual ? 'Feito na mão' : 'Pendente'}
+          {c.taskCount > 0 && <span className="font-medium normal-case"> · {c.tasksDone}/{c.taskCount} tarefas</span>}
         </span>
         <div className="flex items-center gap-1.5 shrink-0">
           {!c.ok && c.anchor && (

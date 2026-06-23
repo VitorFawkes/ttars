@@ -24,17 +24,30 @@ export interface GateContext {
   fornecedores: { setor: string; status: FornecedorStatus }[]
   /** Marcos concluídos manualmente (Opção B) — array de "etapa:key". */
   marcosFeitos: string[]
+  /** Tarefas do card (wedding_checklist) com seu marco e estado — pro roll-up. */
+  tasks: GateTask[]
+}
+
+/** Tarefa enxuta usada pelo roll-up do gate. */
+export interface GateTask {
+  marco: string | null
+  feito: boolean
 }
 
 export interface GateCriterion {
   key: string
   label: string
-  /** Estado final: cumprido automaticamente (dado preenchido) OU na mão. */
+  /** Estado final: auto (dado preenchido) OU na mão OU pelas tarefas. */
   ok: boolean
   /** Cumprido automaticamente pelo dado preenchido (sem intervenção manual). */
   auto: boolean
   /** Bloco onde o marco se resolve (atalho). null = sem campo editável na tela. */
   anchor: BlocoAnchor | null
+  /** Roll-up de tarefas linkadas a este marco. */
+  taskCount: number
+  tasksDone: number
+  /** true quando há tarefas linkadas e TODAS estão feitas. */
+  byTasks: boolean
 }
 
 export interface GateResult {
@@ -84,52 +97,62 @@ export function computeGate(etapa: EtapaPlanejamento, ctx: GateContext): GateRes
     case 'boas_vindas':
       raw = [
         { key: 'tipo', label: 'Tipo do casamento definido (DW ou Elopement)', auto: isSet(pd, 'ww_tipo_casamento'), anchor: null },
-        { key: 'data', label: 'Data prevista do casamento informada', auto: !!ctx.weddingDate || isSet(pd, 'ww_data_casamento'), anchor: BLOCO.acompanhamento },
         { key: 'orcamento', label: 'Orçamento informado', auto: isSet(pd, 'ww_investimento_refinado') || isSet(pd, 'ww_mkt_orcamento_form'), anchor: BLOCO.local },
-        { key: 'reuniao1', label: '1ª reunião marcada', auto: isSet(pd, PLANEJ_FIELD.reuniao1), anchor: BLOCO.acompanhamento },
       ]
       break
     case 'onboarding':
       raw = [
-        { key: 'reuniao_feita', label: '1ª reunião realizada', auto: isTrue(pd, PLANEJ_FIELD.reuniao1Feita), anchor: BLOCO.acompanhamento },
-        { key: 'lista', label: 'Lista de convidados iniciada', auto: ctx.guestTotal >= 1, anchor: BLOCO.convidados },
+        { key: 'reuniao1', label: 'Primeira Reunião', auto: false, anchor: BLOCO.spine },
+        { key: 'lista_iniciada', label: 'Lista de convidados iniciada', auto: ctx.guestTotal >= 1, anchor: BLOCO.convidados },
         { key: 'estimado', label: 'Nº de convidados estimado', auto: isSet(pd, PLANEJ_FIELD.convidadosEstimado) || isSet(pd, 'ww_num_convidados'), anchor: BLOCO.convidados },
       ]
       break
     case 'propostas':
       raw = [
-        { key: 'regiao', label: 'Região decidida', auto: isSet(pd, PLANEJ_FIELD.regiao), anchor: BLOCO.local },
-        { key: 'formato', label: 'Formato decidido (resort / pousada / espaço)', auto: isSet(pd, PLANEJ_FIELD.formato), anchor: BLOCO.local },
-        { key: 'proxima', label: 'Próxima reunião agendada', auto: isSet(pd, PLANEJ_FIELD.proximaReuniao), anchor: BLOCO.acompanhamento },
+        { key: 'definicao', label: 'Destino, Local & Data definidos', auto: isSet(pd, PLANEJ_FIELD.regiao) && isSet(pd, PLANEJ_FIELD.formato), anchor: BLOCO.spine },
       ]
       break
     case 'definicao': // Reserva do Evento & Documentação
       raw = [
-        { key: 'espaco', label: 'Espaço / pacote do casamento definido', auto: isSet(pd, PLANEJ_FIELD.espaco), anchor: BLOCO.local },
-        { key: 'contrato', label: 'Contrato do casamento assinado', auto: isTrue(pd, PLANEJ_FIELD.contratoAssinado), anchor: BLOCO.local },
-        { key: 'sinal', label: 'Sinal recebido', auto: isSet(pd, PLANEJ_FIELD.sinalPagoEm), anchor: BLOCO.local },
+        { key: 'reserva', label: 'Reserva da Cerimônia', auto: isSet(pd, PLANEJ_FIELD.espaco), anchor: BLOCO.spine },
+        { key: 'documentacao', label: 'Documentação', auto: isTrue(pd, PLANEJ_FIELD.contratoAssinado), anchor: BLOCO.spine },
+        { key: 'pagamento', label: 'Pagamento (sinal)', auto: isSet(pd, PLANEJ_FIELD.sinalPagoEm), anchor: BLOCO.spine },
       ]
       break
     case 'passagem': // Bloqueio de Hospedagem & Ação Promocional
       raw = [
         { key: 'hotel', label: 'Hotel contratado / bloco reservado', auto: hotelBloqueado, anchor: BLOCO.local },
-        { key: 'quartos', label: 'Nº de quartos a bloquear definido', auto: temQuartos, anchor: BLOCO.local },
+        { key: 'bloqueio', label: 'Bloqueio de Apartamentos', auto: temQuartos, anchor: BLOCO.spine },
         { key: 'promo', label: 'Ação promocional definida (tarifa + janela)', auto: isSet(pd, PLANEJ_FIELD.promoTarifa) && isSet(pd, PLANEJ_FIELD.promoFim), anchor: BLOCO.promo },
       ]
       break
     case 'aditivo': // Programação Final + lista preenchida
       raw = [
-        { key: 'programacao', label: 'Programação / cronograma montado (5+ marcos com prazo)', auto: ctx.checklistComPrazo >= 5, anchor: BLOCO.cronograma },
-        { key: 'lista_preenchida', label: 'Lista de convidados preenchida', auto: isTrue(pd, PLANEJ_FIELD.listaPreenchida) || ctx.guestTotal >= 1, anchor: BLOCO.convidados },
+        { key: 'programacao', label: 'Programação / cronograma montado (5+ tarefas com prazo)', auto: ctx.checklistComPrazo >= 5, anchor: BLOCO.spine },
+        { key: 'lista', label: 'Lista de convidados preenchida', auto: isTrue(pd, PLANEJ_FIELD.listaPreenchida) || ctx.guestTotal >= 1, anchor: BLOCO.spine },
       ]
       break
   }
 
-  // Aplica a conclusão manual (Opção B): um marco também conta como cumprido se
-  // a planejadora marcou na mão. ok = automático OU manual.
+  // Roll-up: um marco também é cumprido se TODAS as tarefas linkadas a ele
+  // estão feitas. ok = automático (dado) OU na mão (Opção B) OU pelas tarefas.
   const criteria: GateCriterion[] = raw.map(c => {
-    const manual = ctx.marcosFeitos.includes(`${etapa}:${c.key}`)
-    return { key: c.key, label: c.label, auto: c.auto, anchor: c.anchor, ok: c.auto || manual }
+    const mk = `${etapa}:${c.key}`
+    const linked = ctx.tasks.filter(t => t.marco === mk)
+    const taskCount = linked.length
+    const tasksDone = linked.filter(t => t.feito).length
+    const byTasks = taskCount > 0 && tasksDone === taskCount
+    const manual = ctx.marcosFeitos.includes(mk)
+    return {
+      key: c.key,
+      label: c.label,
+      auto: c.auto,
+      anchor: c.anchor,
+      ok: c.auto || manual || byTasks,
+      taskCount,
+      tasksDone,
+      byTasks,
+    }
   })
 
   const met = criteria.filter(c => c.ok).length

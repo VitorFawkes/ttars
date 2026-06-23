@@ -5,11 +5,11 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-06-22
+> **Last Updated:** 2026-06-23
 > **Trigger:** ALWAYS ON
-> **Stats:** 240 tabelas | 212 paginas | 370 hooks | 30 views | 862 components
-> **Stats:** 240 tabelas | 212 paginas | 370 hooks | 30 views | 862 components
-> **Stats:** 240 tabelas | 212 paginas | 370 hooks | 30 views | 862 components
+> **Stats:** 240 tabelas | 212 paginas | 371 hooks | 30 views | 863 components
+> **Stats:** 240 tabelas | 212 paginas | 371 hooks | 30 views | 863 components
+> **Stats:** 240 tabelas | 212 paginas | 371 hooks | 30 views | 863 components
 
 ---
 
@@ -171,7 +171,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **370 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **371 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -273,6 +273,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `filterContracts()` | `filterContracts.ts` |
 | `forecastToDrillRows()` | `forecastToDrillRows.ts` |
 | `planejamentoGate()` | `planejamentoGate.ts` |
+| `taskTypes()` | `taskTypes.ts` |
 | `types()` | `types.ts` |
 | `types()` | `types.ts` |
 | `types()` | `types.ts` |

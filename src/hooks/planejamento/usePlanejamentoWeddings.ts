@@ -6,7 +6,7 @@ import { useWeddingsWithGuestCounts } from '../convidados/useWeddingsWithGuestCo
 import type { WeddingWithGuests, HotelStatus } from '../convidados/types'
 import { displayedEtapaPlanejamento } from './displayedEtapaPlanejamento'
 import { isEtapaPlanejamento, PLANEJ_FIELD, type EtapaPlanejamento, type FornecedorStatus } from './types'
-import { computeGate, type GateResult } from './planejamentoGate'
+import { computeGate, type GateResult, type GateTask } from './planejamentoGate'
 
 const POS_VENDA_PHASE_SLUG = 'pos_venda'
 
@@ -109,12 +109,12 @@ export function usePlanejamentoWeddings() {
     enabled: !!orgId,
     queryFn: async () => {
       if (!orgId) {
-        return { hotel: {}, convites: {}, checklist: {}, fornecedores: {} } as GateData
+        return { hotel: {}, convites: {}, checklist: {}, fornecedores: {}, tasks: {} } as GateData
       }
       const [hotelRes, convitesRes, checklistRes, fornRes] = await Promise.all([
         sbAny.from('wedding_hotel').select('card_id, status, tarifa, total_quartos').eq('org_id', orgId),
         sbAny.from('wedding_convites').select('card_id').eq('org_id', orgId),
-        sbAny.from('wedding_checklist').select('card_id, prazo, feito').eq('org_id', orgId),
+        sbAny.from('wedding_checklist').select('card_id, prazo, feito, marco').eq('org_id', orgId),
         sbAny.from('wedding_fornecedores').select('card_id, setor, status, valor').eq('org_id', orgId),
       ])
 
@@ -130,7 +130,8 @@ export function usePlanejamentoWeddings() {
 
       const hoje = new Date().toISOString().slice(0, 10)
       const checklist: Record<string, PlanejamentoChecklistResumo> = {}
-      for (const r of (checklistRes.data ?? []) as { card_id: string; prazo: string | null; feito: boolean }[]) {
+      const tasks: Record<string, GateTask[]> = {}
+      for (const r of (checklistRes.data ?? []) as { card_id: string; prazo: string | null; feito: boolean; marco: string | null }[]) {
         const c = checklist[r.card_id] ?? { total: 0, feitos: 0, comPrazo: 0, atrasados: 0, pendentes: 0 }
         c.total += 1
         if (r.feito) c.feitos += 1
@@ -140,6 +141,7 @@ export function usePlanejamentoWeddings() {
         }
         if (r.prazo) c.comPrazo += 1
         checklist[r.card_id] = c
+        ;(tasks[r.card_id] ??= []).push({ marco: r.marco ?? null, feito: r.feito })
       }
 
       const fornecedores: Record<string, PlanejamentoFornecedor[]> = {}
@@ -149,7 +151,7 @@ export function usePlanejamentoWeddings() {
         fornecedores[r.card_id] = list
       }
 
-      return { hotel, convites, checklist, fornecedores } as GateData
+      return { hotel, convites, checklist, fornecedores, tasks } as GateData
     },
   })
 
@@ -157,7 +159,7 @@ export function usePlanejamentoWeddings() {
     const weddings: WeddingWithGuests[] = base.data ?? []
     const stageMap = stagesQuery.data ?? {}
     const stateMap = stateQuery.data ?? {}
-    const gd: GateData = gateDataQuery.data ?? { hotel: {}, convites: {}, checklist: {}, fornecedores: {} }
+    const gd: GateData = gateDataQuery.data ?? { hotel: {}, convites: {}, checklist: {}, fornecedores: {}, tasks: {} }
 
     return weddings.map(w => {
       const planejamentoEtapa = displayedEtapaPlanejamento(
@@ -183,6 +185,7 @@ export function usePlanejamentoWeddings() {
         checklistComPrazo: checklist.comPrazo,
         fornecedores: fornecedores.map(f => ({ setor: f.setor, status: f.status })),
         marcosFeitos,
+        tasks: gd.tasks[w.id] ?? [],
       })
 
       return {
@@ -212,4 +215,5 @@ interface GateData {
   convites: Record<string, number>
   checklist: Record<string, PlanejamentoChecklistResumo>
   fornecedores: Record<string, PlanejamentoFornecedor[]>
+  tasks: Record<string, GateTask[]>
 }
