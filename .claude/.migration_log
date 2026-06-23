@@ -1305,3 +1305,7 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-17T13:53:17Z | supabase/migrations/20260617d_calendly_weddings_triggers_seed.sql | applied_to_prod via Management API (token CLI)
 2026-06-17T19:30:58Z | supabase/migrations/20260617b_drill_current_stage_no_date_filter.sql | applied_to_prod
 2026-06-23T15:58:06Z | supabase/migrations/20260623a_wedding_checklist_tasks_spine.sql | pending — staging defasado (sem wedding_checklist); promover com 'pode subir'
+2026-06-23T16:04:39Z | supabase/migrations/20260623a_wedding_checklist_tasks_spine.sql | applied_to_prod
+2026-06-23T20:50:26Z | supabase/migrations/20260623b_wedding_funnel_6_etapas.sql | pending — reshape funil pras 6 etapas; aplicar com frontend no 'pode subir' (alto impacto, funil vivo)
+2026-06-23T21:07:10Z | supabase/migrations/20260623d_ww_funil_returning_lead_newest_deal.sql | pending — staging defasado (ww_funil_casal sem colunas recentes); validado contra prod read-only + lógica; promover com 'pode subir'
+2026-06-23T21:07:54Z | supabase/migrations/20260623b_wedding_funnel_6_etapas.sql | applied_to_prod

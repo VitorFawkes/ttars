@@ -4,8 +4,8 @@ import { useOrg } from '../../contexts/OrgContext'
 import { sbAny } from '../convidados/_supabaseUntyped'
 import { useWeddingsWithGuestCounts } from '../convidados/useWeddingsWithGuestCounts'
 import type { WeddingWithGuests, HotelStatus } from '../convidados/types'
-import { displayedEtapaPlanejamento } from './displayedEtapaPlanejamento'
-import { isEtapaPlanejamento, PLANEJ_FIELD, type EtapaPlanejamento, type FornecedorStatus } from './types'
+import { colunaFromStageNome } from './displayedEtapaPlanejamento'
+import { PLANEJ_FIELD, type EtapaPlanejamento, type FornecedorStatus } from './types'
 import { computeGate, type GateResult, type GateTask } from './planejamentoGate'
 
 const POS_VENDA_PHASE_SLUG = 'pos_venda'
@@ -27,7 +27,7 @@ export interface PlanejamentoChecklistResumo {
 }
 
 export interface WeddingPlanejamento extends WeddingWithGuests {
-  /** Coluna atual no board de Planejamento (override manual ou fallback). */
+  /** Coluna atual no board — derivada da etapa real do funil (pipeline_stage_id). */
   planejamentoEtapa: EtapaPlanejamento
   /** Resultado da trava da etapa atual (o que falta pra avançar). */
   gate: GateResult
@@ -43,9 +43,12 @@ export interface WeddingPlanejamento extends WeddingWithGuests {
 /**
  * Casamentos do board de Planejamento. Reusa a fonte da área Convidados (mesmos
  * cards WEDDING em pos_venda, isolados por org + produto) e enriquece com:
- *   - coluna atual: override manual (wedding_planejamento_state) > fallback etapa pos_venda
+ *   - coluna atual: derivada DIRETO da etapa real do funil (cards.pipeline_stage_id),
+ *     a mesma régua do Kanban/CardDetail. Sem estado paralelo.
  *   - dados das travas: hotel, convites, checklist e fornecedores (por card)
  *   - a trava calculada da etapa atual.
+ * Casamentos cuja etapa não é uma das 6 de Planejamento (ex.: "Produção (em
+ * construção)") ficam FORA do quadro.
  */
 export function usePlanejamentoWeddings() {
   const { org } = useOrg()
@@ -78,26 +81,6 @@ export function usePlanejamentoWeddings() {
 
       const map: Record<string, string> = {}
       for (const s of (data ?? []) as { id: string; nome: string }[]) map[s.id] = s.nome
-      return map
-    },
-  })
-
-  // card_id -> etapa salva (override manual). Degrada gracioso se a tabela
-  // ainda não existir ou não houver permissão.
-  const stateQuery = useQuery<Record<string, EtapaPlanejamento>>({
-    queryKey: ['planejamento', 'state', orgId],
-    enabled: !!orgId,
-    queryFn: async () => {
-      if (!orgId) return {}
-      const { data, error } = await sbAny
-        .from('wedding_planejamento_state')
-        .select('card_id, etapa')
-        .eq('org_id', orgId)
-      if (error) return {}
-      const map: Record<string, EtapaPlanejamento> = {}
-      for (const r of (data ?? []) as { card_id: string; etapa: string }[]) {
-        if (isEtapaPlanejamento(r.etapa)) map[r.card_id] = r.etapa
-      }
       return map
     },
   })
@@ -158,14 +141,15 @@ export function usePlanejamentoWeddings() {
   const data = useMemo<WeddingPlanejamento[]>(() => {
     const weddings: WeddingWithGuests[] = base.data ?? []
     const stageMap = stagesQuery.data ?? {}
-    const stateMap = stateQuery.data ?? {}
     const gd: GateData = gateDataQuery.data ?? { hotel: {}, convites: {}, checklist: {}, fornecedores: {}, tasks: {} }
 
-    return weddings.map(w => {
-      const planejamentoEtapa = displayedEtapaPlanejamento(
-        stateMap[w.id],
+    const out: WeddingPlanejamento[] = []
+    for (const w of weddings) {
+      const planejamentoEtapa = colunaFromStageNome(
         w.pipeline_stage_id ? stageMap[w.pipeline_stage_id] : null,
       )
+      // Fora das 6 etapas de Planejamento (ex.: Produção em construção) → não entra no quadro.
+      if (!planejamentoEtapa) continue
       const hotel = gd.hotel[w.id] ?? { status: null, tarifa: null, quartos: null }
       const convitesCount = gd.convites[w.id] ?? 0
       const checklist = gd.checklist[w.id] ?? { total: 0, feitos: 0, comPrazo: 0, atrasados: 0, pendentes: 0 }
@@ -188,7 +172,7 @@ export function usePlanejamentoWeddings() {
         tasks: gd.tasks[w.id] ?? [],
       })
 
-      return {
+      out.push({
         ...w,
         planejamentoEtapa,
         gate,
@@ -198,9 +182,10 @@ export function usePlanejamentoWeddings() {
         convitesCount,
         fornecedores,
         checklist,
-      }
-    })
-  }, [base.data, stagesQuery.data, stateQuery.data, gateDataQuery.data])
+      })
+    }
+    return out
+  }, [base.data, stagesQuery.data, gateDataQuery.data])
 
   return {
     data,
