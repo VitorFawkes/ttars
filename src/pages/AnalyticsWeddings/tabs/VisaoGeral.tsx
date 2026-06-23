@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList } from 'recharts'
 import { useWw2Overview, useWwAgenda, useWwAgendamentosPorDia, type Ww2Conversao, type DrillMarco, type WwAgendaItem, type WwAgendaPorDia, type WwAgendaDesfechos, type WwAgendaDesfechoItem } from '@/hooks/analyticsWeddings/useWw2'
@@ -387,7 +387,11 @@ function AgendamentosPorDia({ filters }: { filters: AppliedFilters }) {
   const end = d1 ? new Date(`${d1}T12:00:00`) : null
   const spanDias = start && end ? Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1 : 0
   const [escala, setEscala] = useState<'dia' | 'semana' | 'mes'>(spanDias > 120 ? 'mes' : spanDias > 45 ? 'semana' : 'dia')
-  const [sel, setSel] = useState<{ titulo: string; reuniao: 'sdr' | 'closer'; dias: string[] } | null>(null)
+  const [sel, setSel] = useState<{ titulo: string; dias: string[] } | null>(null)
+  const painelRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (sel) painelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [sel])
 
   if (isLoading) return <LoadingSkeleton rows={3} />
   if (!start || !end) return <EmptyState message="Defina um período no filtro." />
@@ -436,15 +440,21 @@ function AgendamentosPorDia({ filters }: { filters: AppliedFilters }) {
   }
   const totalSdr = data?.total_sdr ?? 0
   const totalCloser = data?.total_closer ?? 0
-  // Drill: clicar numa coluna seleciona (papel + dias) e a lista de casais é derivada dos itens.
+  // Drill: clicar numa coluna abre o dia/bucket inteiro (SDR + Closer); o chip distingue o papel.
   const itensTodos = data?.itens ?? []
   const diasSel = sel ? new Set(sel.dias) : null
-  const selItens = sel && diasSel ? itensTodos.filter(i => i.reuniao === sel.reuniao && diasSel.has(i.dia)) : []
-  const abrir = (reuniao: 'sdr' | 'closer', row?: Row) => {
+  const selItens = sel && diasSel ? itensTodos.filter(i => diasSel.has(i.dia)) : []
+  const selSdr = selItens.filter(i => i.reuniao === 'sdr').length
+  const selCloser = selItens.length - selSdr
+  // recharts v3 removeu o CategoricalChartState: o clique confiável vem do BarChart
+  // (state.activeIndex), não de cada Bar — assim clicar em qualquer ponto da coluna funciona.
+  const abrir = (state: unknown) => {
+    const i = (state as { activeIndex?: number } | null)?.activeIndex
+    if (i == null || i < 0) return
+    const row = rows[i]
     if (!row) return
     const ds = new Set(row.dias)
-    const has = itensTodos.some(i => i.reuniao === reuniao && ds.has(i.dia))
-    setSel(has ? { titulo: `${reuniao === 'sdr' ? 'SDR · 1ª reunião' : 'Closer · fechamento'} — ${row.label}`, reuniao, dias: row.dias } : null)
+    setSel(itensTodos.some(it => ds.has(it.dia)) ? { titulo: row.label, dias: row.dias } : null)
   }
   const ddmm = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: TZ })
 
@@ -467,7 +477,7 @@ function AgendamentosPorDia({ filters }: { filters: AppliedFilters }) {
       ) : (
         <>
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={rows} margin={{ top: 18, right: 12, left: 0, bottom: escala === 'dia' ? 20 : 4 }}>
+            <BarChart data={rows} onClick={abrir} className="cursor-pointer" margin={{ top: 18, right: 12, left: 0, bottom: escala === 'dia' ? 20 : 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
               <XAxis dataKey="label" stroke="#64748b" fontSize={10} tickLine={false}
                 interval={escala === 'dia' && rows.length > 20 ? Math.floor(rows.length / 15) : 0}
@@ -475,23 +485,24 @@ function AgendamentosPorDia({ filters }: { filters: AppliedFilters }) {
               <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
               <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar dataKey="SDR" stackId="a" name="SDR" fill={COR_SDR} maxBarSize={36} cursor="pointer"
-                onClick={(d) => abrir('sdr', (d as { payload?: Row })?.payload)}>
+              <Bar dataKey="SDR" stackId="a" name="SDR" fill={COR_SDR} maxBarSize={36} cursor="pointer">
                 <LabelList dataKey="SDR" content={labelSegmento} />
               </Bar>
-              <Bar dataKey="Closer" stackId="a" name="Closer" fill={COR_CLOSER} radius={[3, 3, 0, 0]} maxBarSize={36} cursor="pointer"
-                onClick={(d) => abrir('closer', (d as { payload?: Row })?.payload)}>
+              <Bar dataKey="Closer" stackId="a" name="Closer" fill={COR_CLOSER} radius={[3, 3, 0, 0]} maxBarSize={36} cursor="pointer">
                 <LabelList dataKey="Closer" content={labelSegmento} />
                 <LabelList content={labelTotalTopo(rows)} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-          <p className="text-[11px] text-ww-n400 mt-1 text-center">Clique numa barra (SDR ou Closer) pra ver os casais e abrir no Active.</p>
+          <p className="text-[11px] text-ww-n400 mt-1 text-center">Clique num dia pra ver os casais marcados (SDR e Closer) e abrir cada um no Active.</p>
 
           {sel && selItens.length > 0 && (
-            <div className="mt-3 rounded-xl border border-ww-sand bg-white overflow-hidden">
+            <div ref={painelRef} className="mt-3 rounded-xl border border-ww-sand ring-1 ring-ww-gold-soft bg-white overflow-hidden scroll-mt-4">
               <div className="flex items-center justify-between px-3 py-2 bg-ww-cream/40 border-b border-ww-sand">
-                <span className="text-xs font-semibold text-slate-700">{sel.titulo} · {selItens.length} {selItens.length === 1 ? 'casal' : 'casais'}</span>
+                <span className="text-xs font-semibold text-slate-700">
+                  Marcadas em {sel.titulo} · {selItens.length} {selItens.length === 1 ? 'casal' : 'casais'}
+                  <span className="ml-1 font-normal text-ww-n500">({selSdr} SDR · {selCloser} Closer)</span>
+                </span>
                 <button onClick={() => setSel(null)} className="text-[11px] text-ww-n500 hover:text-ww-n700">fechar</button>
               </div>
               <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
@@ -504,7 +515,7 @@ function AgendamentosPorDia({ filters }: { filters: AppliedFilters }) {
                         ? <Link to={`/cards/${it.card_id}`} className="flex-1 min-w-0 truncate text-sm text-slate-800 hover:text-ww-gold-ink hover:underline" title={it.casal ?? ''}>{nome}</Link>
                         : <span className="flex-1 min-w-0 truncate text-sm text-slate-800" title={it.casal ?? ''}>{nome}</span>}
                       <span className="hidden sm:inline shrink-0 text-[11px] text-ww-n500 tabular-nums">marcou {ddmm(it.marcou_em)} · reunião {ddmm(it.reuniao_em)}</span>
-                      <OpenInACButton dealId={it.ac_deal_id} contactName={it.casal} />
+                      <OpenInACButton dealId={it.ac_deal_id} externalId={it.contact_id} contactName={it.casal} variant="pill" />
                     </div>
                   )
                 })}
