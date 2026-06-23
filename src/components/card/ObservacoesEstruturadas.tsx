@@ -7,7 +7,7 @@ import type { Database } from '../../database.types'
 import { cn } from '../../lib/utils'
 import { usePipelinePhases } from '../../hooks/usePipelinePhases'
 import { usePipelineStages } from '../../hooks/usePipelineStages'
-import { useCurrentProductMeta } from '../../hooks/useCurrentProductMeta'
+import { useProductPipelineId } from '../../hooks/useCurrentProductMeta'
 import { useFieldConfig } from '../../hooks/useFieldConfig'
 import { SystemPhase } from '../../types/pipeline'
 import UniversalFieldRenderer from '../fields/UniversalFieldRenderer'
@@ -31,7 +31,8 @@ const EMPTY_OBJECT = {}
 
 export default function ObservacoesEstruturadas({ card, isExpanded: _isExpanded, onToggleCollapse }: ObservacoesEstruturadasProps) {
     const queryClient = useQueryClient()
-    const { pipelineId } = useCurrentProductMeta()
+    // pipeline do PRÓPRIO card (não do contexto), pra derivar fase/config no pipeline certo
+    const pipelineId = useProductPipelineId(card.produto)
     const { data: phases } = usePipelinePhases(pipelineId)
     const { data: stages } = usePipelineStages(pipelineId)
 
@@ -49,13 +50,17 @@ export default function ObservacoesEstruturadas({ card, isExpanded: _isExpanded,
         return phase?.slug || SystemPhase.SDR
     }, [card.pipeline_stage_id, phases, stages])
 
-    // Determine active data source based on current phase
+    // Determine active data source based on current phase.
+    // Fora do SDR, o que o SDR preencheu (briefing_inicial.observacoes) entra como base e a
+    // fase atual sobrepõe por cima — assim a Travel Planner vê o briefing já preenchido e
+    // editável em vez de campos vazios após o handoff. Nada é apagado; o save segue por fase.
     const activeData = useMemo(() => {
+        const sdrObs = briefingData.observacoes || {}
         switch (currentPhase) {
-            case SystemPhase.SDR: return briefingData.observacoes || {}
-            case SystemPhase.PLANNER: return productData.observacoes_criticas || {}
-            case SystemPhase.POS_VENDA: return productData.observacoes_pos_venda || {}
-            default: return productData[currentPhase] || {}
+            case SystemPhase.SDR: return sdrObs
+            case SystemPhase.PLANNER: return { ...sdrObs, ...(productData.observacoes_criticas || {}) }
+            case SystemPhase.POS_VENDA: return { ...sdrObs, ...(productData.observacoes_criticas || {}), ...(productData.observacoes_pos_venda || {}) }
+            default: return { ...sdrObs, ...(productData[currentPhase] || {}) }
         }
     }, [currentPhase, briefingData, productData])
 

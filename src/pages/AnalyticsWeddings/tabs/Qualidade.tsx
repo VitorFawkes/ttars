@@ -1,9 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { FilterBar, type TabProps, type AppliedFilters } from '../components/FilterBar'
 import { useWwQualidadeLead, type WwQualidadeLead, type WwQualidadeCategoria, type WwQualidadeCanal, type WwPerfilCompareDimensao } from '@/hooks/analyticsWeddings/useWw2'
-import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
-import { usePipelineStages } from '@/hooks/usePipelineStages'
+import { useAnalyticsVariant, type AnalyticsVariant } from '@/hooks/analyticsWeddings/AnalyticsVariantContext'
 import { SectionCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
 import { ClickableRow } from '../components/ClickableRow'
 import { DrillDrawer, type DrillContext } from '../components/DrillDrawer'
@@ -16,9 +15,6 @@ import { formatCurrency, formatMes, formatNumber } from '../lib/format'
 const FAIXA_ORDER = ['Até R$50 mil', 'R$50-80 mil', 'R$50-100 mil', 'R$80-100 mil', 'R$100-200 mil', 'R$200-500 mil', '+R$500 mil']
 const CONV_ORDER = ['Apenas o casal', 'Até 20', 'Ate 20', '20-50', '50-80', '50-100', '80-100', '+100']
 
-// Stage default em throughput: "Reunião Agendada" (primeira etapa do funil Closer)
-const DEFAULT_EVENT_STAGE_ID = 'ade09bc3-fa3d-49b8-97f0-2f780d0ebbb1'
-
 type Dim = 'faixa' | 'destino' | 'convidados' | 'origem' | 'tipo'
 
 export function Qualidade({ filters, onFiltersChange }: TabProps) {
@@ -29,65 +25,46 @@ export function Qualidade({ filters, onFiltersChange }: TabProps) {
       {/* Sem alternância criação/entrada: qualidade do lead é uma taxa de conversão — sempre
           sobre o lead que entrou (safra). "O que aconteceu no período" dividia fechamentos do
           período por entradas do período (cohortes diferentes → taxa sem sentido). Fica só safra. */}
-      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'status', 'tipo', 'origem', 'canal_sdr', 'canal_closer']} />
+      {/* Filtro de status removido desta aba: filtrar por perdido/aberto zera os fechamentos por
+          construção → conversão 0% em tudo (são mutuamente exclusivos de "ganho"). */}
+      <FilterBar value={filters} onChange={onFiltersChange} show={['period', 'tipo', 'origem', 'canal_sdr', 'canal_closer']} />
       <QualidadeContent filters={filters} />
     </div>
   )
 }
 
 function QualidadeContent({ filters }: { filters: AppliedFilters }) {
-  const { pipelineId } = useCurrentProductMeta()
-  const { data: stages } = usePipelineStages(pipelineId ?? undefined)
-  const [eventStageId, setEventStageId] = useState<string>(DEFAULT_EVENT_STAGE_ID)
+  const variant = useAnalyticsVariant()
   const [minAmostra, setMinAmostra] = useState<number>(3)
   const [perfilDim, setPerfilDim] = useState<Dim>('faixa')
   const [drill, setDrill] = useState<DrillContext | null>(null)
-  const isThroughput = filters.dateMode === 'throughput'
 
-  const stagesSelecionaveis = useMemo(() => {
-    if (!stages) return []
-    return stages.filter(s => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const phaseSlug = (s as any).pipeline_phases?.slug
-      if (phaseSlug === 'resolucao' || phaseSlug === 'sdr') return false
-      return true
-    })
-  }, [stages])
-
-  const { data, isLoading, error } = useWwQualidadeLead(filters, eventStageId, minAmostra)
-  // Auditoria 2026-06-11: drill carrega os filtros ativos da aba junto com o clique
-  // (dateMode incluso — em throughput o drill conta o marco pela data do próprio evento)
+  const { data, isLoading, error } = useWwQualidadeLead(filters, null, minAmostra)
+  // Drill carrega os filtros ativos da aba junto com o clique.
   const baseCtx = {
     dateStart: filters.dateStart, dateEnd: filters.dateEnd, dateMode: filters.dateMode,
     origins: filters.origins, tipos: filters.tipos,
     canalSdr: filters.canalSdr, canalCloser: filters.canalCloser, statusLead: filters.statusLead,
   }
 
-  if (isThroughput && !eventStageId) {
-    return (
-      <div className="space-y-5">
-        <StageSelector isThroughput={isThroughput} stages={stagesSelecionaveis} value={eventStageId} onChange={setEventStageId} />
-        <EmptyState message="Escolha uma etapa de gatilho acima" />
-      </div>
-    )
-  }
   if (isLoading) return <LoadingSkeleton rows={10} />
   if (error) return <ErrorBanner error={error as Error} />
   if (!data || data.error) return <EmptyState message={data?.error ?? 'Sem dados'} />
 
-  const stageNome = stagesSelecionaveis.find(s => s.id === eventStageId)?.nome ?? 'etapa'
   const perfilCompare = data.comparacao_entrada_vs_fechamento ?? []
   const perfilAtual: WwPerfilCompareDimensao | undefined = perfilCompare.find(d => d.dimensao === perfilDim)
+  // Ticket no Analytics 2 (native) vem de valor_final, hoje vazio nos ganhos → a coluna some.
+  // Sinalizamos a indisponibilidade em vez de esconder sem explicação.
+  const temAlgumTicket = [data.por_faixa, data.por_destino, data.por_convidados]
+    .some(arr => (arr ?? []).some(c => (c.ticket_amostra ?? 0) > 0 && (c.ticket_medio ?? 0) > 0))
+  const ticketIndisponivel = variant === 'native' && !temAlgumTicket
 
   return (
     <div className="space-y-5">
-      {/* StageSelector (escolher etapa de gatilho) era só do modo "data de evento", removido desta
-          aba — qualidade é sempre por safra. Mantido no early-return acima caso o modo volte. */}
       <Controls minAmostra={minAmostra} onMinAmostra={setMinAmostra} data={data} />
       <UniversoHeader
         data={data}
-        isThroughput={isThroughput}
-        stageNome={stageNome}
+        ticketIndisponivel={ticketIndisponivel}
         onEntraram={() => setDrill({ ...baseCtx, marco: 'marcou_sdr', title: 'Leads que entraram no funil de reuniões' })}
         onFecharam={() => setDrill({ ...baseCtx, marco: 'ganho', title: 'Casais que fecharam' })}
       />
@@ -138,31 +115,28 @@ function QualidadeContent({ filters }: { filters: AppliedFilters }) {
 
       <FunilPorCategoria
         title="💰 Por faixa de investimento declarada"
-        subtitle={isThroughput
-          ? `Dos leads que chegaram em ${stageNome} no período, quantos fecharam, agrupados pela faixa que declararam no site.`
-          : `Dos leads que entraram no período, quantos fecharam, agrupados pela faixa declarada no site.`}
+        subtitle="Dos leads que agendaram reunião no período, quantos fecharam, agrupados pela faixa declarada no site."
         items={data.por_faixa}
         unidade="faixa"
+        variant={variant}
         outros={data.outros_amostra_pequena?.faixa}
         onRowClick={(cat) => setDrill({ ...baseCtx, faixa: cat, title: `Casais: faixa "${cat}"` })}
       />
       <FunilPorCategoria
         title="🏝️  Por destino declarado"
-        subtitle={isThroughput
-          ? `Dos leads que chegaram em ${stageNome} no período, quantos fecharam por destino declarado.`
-          : `Dos leads que entraram no período, quantos fecharam por destino declarado.`}
+        subtitle="Dos leads que agendaram reunião no período, quantos fecharam por destino declarado."
         items={data.por_destino}
         unidade="destino"
+        variant={variant}
         outros={data.outros_amostra_pequena?.destino}
         onRowClick={(cat) => setDrill({ ...baseCtx, destino: cat, title: `Casais: destino "${cat}"` })}
       />
       <FunilPorCategoria
         title="👥 Por número de convidados declarado"
-        subtitle={isThroughput
-          ? `Dos leads que chegaram em ${stageNome} no período, quantos fecharam por tamanho de celebração.`
-          : `Dos leads que entraram no período, quantos fecharam por tamanho de celebração.`}
+        subtitle="Dos leads que agendaram reunião no período, quantos fecharam por tamanho de celebração."
         items={data.por_convidados}
         unidade="convidados"
+        variant={variant}
         outros={data.outros_amostra_pequena?.convidados}
         onRowClick={(cat) => setDrill({ ...baseCtx, convidados: cat, title: `Casais: ${cat} convidados` })}
       />
@@ -288,44 +262,8 @@ function Controls({ minAmostra, onMinAmostra, data }: { minAmostra: number; onMi
   )
 }
 
-function StageSelector({ isThroughput, stages, value, onChange }: {
-  isThroughput: boolean
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  stages: any[]
-  value: string
-  onChange: (v: string) => void
-}) {
-  if (!isThroughput) {
-    return (
-      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-600">
-        Modo <strong>Data de criação</strong>: universo são leads pelo dia em que foram criados.
-        Pra ver "leads que chegaram em uma etapa específica no período", troque pra <strong>Data de evento</strong> na barra de filtros.
-      </div>
-    )
-  }
-  return (
-    <div className="bg-ww-gold-soft border border-ww-gold/40 rounded-xl p-3 flex items-center gap-3 flex-wrap">
-      <label className="text-xs font-medium text-ww-gold-ink whitespace-nowrap">
-        🎯 Universo = leads que entraram em:
-      </label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="px-3 py-1.5 text-xs font-medium bg-white border border-ww-sand-dk rounded-lg focus:outline-none focus:ring-2 focus:ring-ww-gold text-ww-n700"
-      >
-        {stages.map(s => (
-          <option key={s.id} value={s.id}>{s.nome}</option>
-        ))}
-      </select>
-      <span className="text-[11px] text-ww-gold-ink/80">
-        dentro do período selecionado (independente de quando o lead foi criado).
-      </span>
-    </div>
-  )
-}
-
-function UniversoHeader({ data, isThroughput, stageNome, onEntraram, onFecharam }: {
-  data: WwQualidadeLead; isThroughput: boolean; stageNome: string
+function UniversoHeader({ data, ticketIndisponivel, onEntraram, onFecharam }: {
+  data: WwQualidadeLead; ticketIndisponivel?: boolean
   onEntraram?: () => void; onFecharam?: () => void
 }) {
   const numBtn = 'underline decoration-dotted decoration-slate-300 underline-offset-2 hover:decoration-solid hover:decoration-current cursor-pointer'
@@ -335,38 +273,33 @@ function UniversoHeader({ data, isThroughput, stageNome, onEntraram, onFecharam 
         <div className="max-w-3xl">
           <h2 className="text-base font-semibold text-slate-900">🎯 Qualidade do lead</h2>
           <p className="text-sm text-slate-600 mt-1">
-            {isThroughput ? (
-              <>
-                <strong className={onEntraram ? numBtn : ''} onClick={onEntraram} title="Ver os casais">{formatNumber(data.total_entraram)} leads</strong> chegaram em <strong>{stageNome}</strong> no período,
-                <strong className={`text-emerald-700 ${onFecharam ? numBtn : ''}`} onClick={onFecharam} title="Ver os casais"> {formatNumber(data.total_fecharam)} já fecharam</strong> contrato
-                <span className="text-slate-500"> · taxa de conversão {stageNome} → venda: </span>
-                <strong className="text-ww-gold-ink">{data.taxa_conversao_geral_pct ?? 0}%</strong>
-              </>
-            ) : (
-              <>
-                <strong className={onEntraram ? numBtn : ''} onClick={onEntraram} title="Ver os casais">{formatNumber(data.total_entraram)} leads</strong> entraram no período,
-                <strong className={`text-emerald-700 ${onFecharam ? numBtn : ''}`} onClick={onFecharam} title="Ver os casais"> {formatNumber(data.total_fecharam)} fecharam</strong>
-                <span className="text-slate-500"> · taxa de conversão geral </span>
-                <strong className="text-ww-gold-ink">{data.taxa_conversao_geral_pct ?? 0}%</strong>
-              </>
-            )}
+            <strong className={onEntraram ? numBtn : ''} onClick={onEntraram} title="Ver os casais">{formatNumber(data.total_entraram)} leads</strong> que agendaram reunião no período,
+            <strong className={`text-emerald-700 ${onFecharam ? numBtn : ''}`} onClick={onFecharam} title="Ver os casais"> {formatNumber(data.total_fecharam)} fecharam</strong>
+            <span className="text-slate-500"> · taxa de conversão </span>
+            <strong className="text-ww-gold-ink">{data.taxa_conversao_geral_pct ?? 0}%</strong>
           </p>
           <p className="text-xs text-slate-500 mt-1">
             Cobertura do formulário do site: <strong>{data.cobertura.com_faixa}</strong> com faixa,
             {' '}<strong>{data.cobertura.com_destino}</strong> com destino,
             {' '}<strong>{data.cobertura.com_convidados}</strong> com nº convidados.
           </p>
+          {ticketIndisponivel && (
+            <p className="text-xs text-amber-700 mt-1">
+              💡 O ticket médio não aparece aqui: o valor de contrato não é preenchido no ttars. Veja o Analytics 1 para o orçamento médio declarado.
+            </p>
+          )}
         </div>
         <div className="text-xs bg-white border border-ww-sand rounded-lg px-3 py-1.5 text-ww-gold-ink whitespace-nowrap">
-          📅 {isThroughput ? <>Data de evento (entrada em <strong>{stageNome}</strong>)</> : <strong>Data de criação do lead</strong>}
+          📅 <strong>Data de criação do lead</strong>
         </div>
       </div>
     </div>
   )
 }
 
-function FunilPorCategoria({ title, subtitle, items, unidade, outros, onRowClick }: {
+function FunilPorCategoria({ title, subtitle, items, unidade, variant, outros, onRowClick }: {
   title: string; subtitle: string; items: WwQualidadeCategoria[]; unidade: 'faixa' | 'destino' | 'convidados'
+  variant: AnalyticsVariant
   outros?: { entraram: number | null; fecharam: number | null; categorias_agrupadas: string[] | null }
   onRowClick?: (categoria: string) => void
 }) {
@@ -380,16 +313,24 @@ function FunilPorCategoria({ title, subtitle, items, unidade, outros, onRowClick
 
   // Dimensões ordinais saem na ordem canônica (não confiar na ordem do banco);
   // categoria fora da lista vai pro fim em vez de bagunçar. Destino: por volume.
+  // "Não informado" (balde dos leads sem a dimensão declarada) sempre por último.
+  const NAO_INFO = 'Não informado'
   const ordem = unidade === 'faixa' ? FAIXA_ORDER : unidade === 'convidados' ? CONV_ORDER : null
   const sorted = ordem
     ? [...items].sort((a, b) => {
+        if (a.categoria === NAO_INFO) return 1
+        if (b.categoria === NAO_INFO) return -1
         const ia = ordem.indexOf(a.categoria); const ib = ordem.indexOf(b.categoria)
         if (ia === -1 && ib === -1) return b.entraram - a.entraram
         if (ia === -1) return 1
         if (ib === -1) return -1
         return ia - ib
       })
-    : [...items].sort((a, b) => b.entraram - a.entraram)
+    : [...items].sort((a, b) => {
+        if (a.categoria === NAO_INFO) return 1
+        if (b.categoria === NAO_INFO) return -1
+        return b.entraram - a.entraram
+      })
   const maxEntraram = Math.max(1, ...sorted.map(s => s.entraram))
   const maxTaxa = Math.max(0.1, ...sorted.map(s => s.taxa_pct ?? 0))
   const temTicket = sorted.some(s => (s.ticket_amostra ?? 0) > 0 && (s.ticket_medio ?? 0) > 0)
@@ -406,7 +347,7 @@ function FunilPorCategoria({ title, subtitle, items, unidade, outros, onRowClick
               <th className="px-3 py-2 text-left font-medium" style={{ minWidth: 200 }}>Entraram no período</th>
               <th className="px-3 py-2 text-right font-medium">Fecharam contrato</th>
               <th className="px-3 py-2 text-left font-medium" style={{ minWidth: 150 }}>Taxa de conversão</th>
-              {temTicket && <th className="px-3 py-2 text-right font-medium" title="Valor médio real dos contratos fechados nessa categoria (só vendas com valor preenchido)">Ticket médio real</th>}
+              {temTicket && <th className="px-3 py-2 text-right font-medium" title={variant === 'native' ? 'Valor médio de contrato dos fechados nessa categoria (ttars)' : 'Orçamento médio que o casal declarou no Active (entre os fechados) — não é o valor do contrato'}>{variant === 'native' ? 'Ticket médio (contrato)' : 'Orçamento médio declarado'}</th>}
             </tr>
           </thead>
           <tbody>
