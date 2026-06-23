@@ -111,6 +111,10 @@ Se a task criou hooks/pages/componentes novos:
 npm run sync:fix  # atualizar CODEBASE.md
 ```
 
+**Prova de runtime (OBRIGATÓRIO se a mudança toca RPC/query, config/prompt, analytics, ou UI que lê dados):**
+Rode a skill `/provar` ANTES do review — build verde não prova comportamento. Confirme o VALOR real
+(curl no RPC/REST), o isolamento cross-org e o console limpo na tela. Ver `.claude/skills/provar/SKILL.md`.
+
 ### Etapa 3 — Code Review
 
 Lançar agente code-reviewer:

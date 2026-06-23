@@ -32,8 +32,14 @@ npm run build
 ### 3. Migrations (se aplicável)
 - [ ] Migration aplicada no STAGING (`bash .claude/hooks/apply-to-staging.sh`)
 - [ ] Smoke test passou
-- [ ] Testou contra banco real via curl (não apenas "parece correto")
 - [ ] Migration antiga deletada se foi supersedida
+
+### 3b. Prova de runtime (skill `/provar`) — OBRIGATÓRIO se NÃO é só `.sql`
+Build verde NÃO é prova. Se a mudança toca RPC/query, config/prompt, analytics, ou UI que lê dados, rode `/provar`:
+- [ ] Confirmou o VALOR real (curl no RPC/REST), não apenas "parece correto"
+- [ ] Isolamento cross-org checado (se tabela por-org)
+- [ ] Analytics: número do agregado == tamanho da lista do drill (se aplicável)
+- [ ] Tela abre sem erro no console via Playwright (se mudança de UI)
 
 ### 4. Inventário
 - [ ] Se criou hook/page/componente novo: rodar `npm run sync:fix`
