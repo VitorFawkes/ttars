@@ -102,7 +102,9 @@ export function computeGate(etapa: EtapaPlanejamento, ctx: GateContext): GateRes
       break
     case 'onboarding':
       raw = [
-        { key: 'reuniao1', label: 'Primeira Reunião', auto: false, anchor: BLOCO.spine },
+        // Primeira Reunião = a data que o Calendly JÁ gravou no card (Closer ou SDR).
+        // Funil nativo manda; não é mais preenchimento manual. Ver feedback_weddings_planejamento_lente_nativa.
+        { key: 'reuniao1', label: 'Primeira Reunião', auto: isSet(pd, 'ww_closer_data_reuniao') || isSet(pd, 'ww_sdr_data_reuniao'), anchor: BLOCO.spine },
         { key: 'lista_iniciada', label: 'Lista de convidados iniciada', auto: ctx.guestTotal >= 1, anchor: BLOCO.convidados },
         { key: 'estimado', label: 'Nº de convidados estimado', auto: isSet(pd, PLANEJ_FIELD.convidadosEstimado) || isSet(pd, 'ww_num_convidados'), anchor: BLOCO.convidados },
       ]

@@ -92,11 +92,12 @@ export default function PlanejamentoDetailPage() {
   const bloqueio = wedding.hotelQuartos
 
   // Tarefas (medição do planejamento) + prazo dos 45 dias.
-  // O início do prazo vem da data da tarefa "Primeira Reunião" (marco
-  // onboarding:reuniao1); se ainda não tem data, cai pro sinal.
+  // O início do prazo vem da DATA REAL da reunião que o Calendly gravou no card
+  // (Closer ou SDR); se não houver, cai pra tarefa "Primeira Reunião" e depois o sinal.
   const { feitos, atrasados, pendentes } = wedding.checklist
   const primeiraReuniao = checklist.items.find((t) => t.marco === 'onboarding:reuniao1')
-  const planStart = (primeiraReuniao?.prazo ?? '') || pdStr(pd, PLANEJ_FIELD.sinalPagoEm)
+  const reuniaoCalendly = (pdStr(pd, 'ww_closer_data_reuniao') || pdStr(pd, 'ww_sdr_data_reuniao')).slice(0, 10)
+  const planStart = reuniaoCalendly || (primeiraReuniao?.prazo ?? '') || pdStr(pd, PLANEJ_FIELD.sinalPagoEm)
   const planDeadline = planStart ? addDaysIso(planStart, 45) : null
   const planDias = daysUntil(planDeadline)
   const slaText =
