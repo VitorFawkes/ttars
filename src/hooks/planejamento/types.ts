@@ -94,7 +94,57 @@ export const PLANEJ_FIELD = {
   listaPreenchida: 'ww_planej_lista_preenchida',
   dataHoraCasamento: 'ww_planej_data_hora_casamento',
   notas: 'ww_planej_notas',
+  // "Casamento e hospedagem no mesmo lugar" (resort) — clareza venue × hotel
+  mesmoLocal: 'ww_planej_mesmo_local',
+  // Marcos concluídos manualmente (Opção B) — array de "etapa:key"
+  marcosFeitos: 'ww_planej_marcos_feitos',
 } as const
+
+/** Âncoras (id no DOM) dos blocos permanentes da tela do casamento. Os marcos
+ *  viram atalhos que rolam até o bloco onde o dado é preenchido. */
+export const BLOCO = {
+  casal: 'bloco-casal',
+  equipe: 'bloco-equipe',
+  local: 'bloco-local',
+  promo: 'bloco-promo',
+  convidados: 'bloco-convidados',
+  spine: 'bloco-spine',
+} as const
+
+// ── Marcos × Tarefas (hierarquia Etapa → Marco → Tarefa) ─────────────────────
+// Marco = "coisa importante que deve acontecer". Tarefa = passo que ajuda a
+// atingir o marco; rola pra cima (todas feitas → marco cumprido). A chave do
+// marco é "etapa:key" (casa com o critério do gate). MARCOS_POR_ETAPA lista, em
+// ordem, os marcos que recebem tarefas (a espinha agrupa por eles).
+
+export const MARCO_LABEL: Record<string, string> = {
+  'onboarding:reuniao1': 'Primeira Reunião',
+  'propostas:definicao': 'Destino, Local & Data',
+  'definicao:reserva': 'Reserva da Cerimônia',
+  'definicao:documentacao': 'Documentação',
+  'definicao:pagamento': 'Pagamento',
+  'passagem:bloqueio': 'Bloqueio de Apartamentos',
+  'aditivo:lista': 'Lista de Convidados',
+}
+
+export const MARCOS_POR_ETAPA: Record<EtapaPlanejamento, string[]> = {
+  boas_vindas: [],
+  onboarding: ['onboarding:reuniao1'],
+  propostas: ['propostas:definicao'],
+  definicao: ['definicao:reserva', 'definicao:documentacao', 'definicao:pagamento'],
+  passagem: ['passagem:bloqueio'],
+  aditivo: ['aditivo:lista'],
+}
+
+/** Tipo da tarefa (espelha a coluna wedding_checklist.tipo). Reunião é uma
+ *  tarefa com tipo 'reuniao'. */
+export type WeddingTaskTipo =
+  | 'reuniao' | 'tarefa' | 'pagamento' | 'documento' | 'reserva' | 'bloqueio' | 'lista'
+
+export const WEDDING_TASK_TIPO_DEFAULT: WeddingTaskTipo = 'tarefa'
+
+/** id no DOM do grupo de um marco dentro da espinha (pra atalho rolar até ele). */
+export const spineMarcoId = (marcoKey: string) => `spine-${marcoKey.replace(/:/g, '-')}`
 
 export const REGIAO_OPTIONS: string[] = [
   'Nordeste', 'Sudeste', 'Sul', 'Centro-Oeste', 'Norte', 'Caribe', 'Europa', 'Outro',
@@ -174,14 +224,18 @@ export const FORNECEDOR_SETORES: string[] = [
   'Transporte & Logística',
 ]
 
-/** Item do cronograma & checklist de um casamento. Itens com `prazo` formam o
- *  cronograma; `feito` é o checklist. */
+/** Item do cronograma & checklist de um casamento (= uma TAREFA). Itens com
+ *  `prazo` formam o cronograma; `feito` é o checklist. `marco` liga a tarefa a
+ *  um marco (rola pra cima); `tipo` dá ícone/cor; `ordem` ordena dentro do marco. */
 export interface ChecklistItem {
   id: string
   titulo: string
   prazo: string | null
   feito: boolean
   observacoes?: string | null
+  tipo: WeddingTaskTipo
+  marco: string | null
+  ordem: number
 }
 
 /** Entrada do banco de fornecedores (catálogo per-workspace, reutilizável

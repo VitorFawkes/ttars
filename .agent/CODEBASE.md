@@ -5,11 +5,11 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-06-22
+> **Last Updated:** 2026-06-23
 > **Trigger:** ALWAYS ON
-> **Stats:** 210 tabelas | 213 paginas | 371 hooks | 23 views | 862 components
-> **Stats:** 210 tabelas | 213 paginas | 371 hooks | 23 views | 862 components
-> **Stats:** 210 tabelas | 213 paginas | 371 hooks | 23 views | 862 components
+> **Stats:** 240 tabelas | 212 paginas | 371 hooks | 30 views | 863 components
+> **Stats:** 240 tabelas | 212 paginas | 371 hooks | 30 views | 863 components
+> **Stats:** 240 tabelas | 212 paginas | 371 hooks | 30 views | 863 components
 
 ---
 
@@ -273,6 +273,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `filterContracts()` | `filterContracts.ts` |
 | `forecastToDrillRows()` | `forecastToDrillRows.ts` |
 | `planejamentoGate()` | `planejamentoGate.ts` |
+| `taskTypes()` | `taskTypes.ts` |
 | `types()` | `types.ts` |
 | `types()` | `types.ts` |
 | `types()` | `types.ts` |
@@ -429,7 +430,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useSaudeSummary()` | `useSaudeSummary.ts` |
 | `useSaudeTarefasVencidas()` | `useSaudeTarefasVencidas.ts` |
 | `useScheduledJobs()` | `useScheduledJobs.ts` |
-| `useSdrFunilPeriodo()` | `useSdrFunilPeriodo.ts` |
 | `useSdrLeadCohort()` | `useSdrLeadCohort.ts` |
 | `useSdrQualification()` | `useSdrQualification.ts` |
 | `useSdrRpcs()` | `useSdrRpcs.ts` |
@@ -502,7 +502,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useCardsDisponiveis()` | `useCardsDisponiveis.ts` |
 | `useCardsTravados()` | `useCardsTravados.ts` |
 | `useContactAvailableCards()` | `useContactAvailableCards.ts` |
-| `useCreateCardsSetting()` | `useCreateCardsSetting.ts` |
 | `useDeleteCard()` | `useDeleteCard.ts` |
 | `useDuplicateCard()` | `useDuplicateCard.ts` |
 | `useDuplicateCardDetection()` | `useDuplicateCardDetection.ts` |
@@ -514,6 +513,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useKanbanTarefas()` | `useKanbanTarefas.ts` |
 | `useKanbanViagens()` | `useKanbanViagens.ts` |
 | `useLeadsFilters()` | `useLeadsFilters.ts` |
+| `useLeadsterCreateCards()` | `useLeadsterCreateCards.ts` |
 | `useMyAssistCardIds()` | `useMyAssistCardIds.ts` |
 | `usePipelineCards()` | `usePipelineCards.ts` |
 | `usePipelineCurrent()` | `usePipelineCurrent.ts` |
@@ -621,7 +621,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **213 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **212 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -634,7 +634,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `Perfil` | `src/pages/AnalyticsWeddings/tabs/Perfil.tsx` |
 | `Qualidade` | `src/pages/AnalyticsWeddings/tabs/Qualidade.tsx` |
 | `VisaoGeral` | `src/pages/AnalyticsWeddings/tabs/VisaoGeral.tsx` |
-| `Analytics2Page` | `src/pages/AnalyticsWeddings2/Analytics2Page.tsx` |
 | `CalendarPage` | `src/pages/CalendarPage.tsx` |
 | `CardByConversation` | `src/pages/CardByConversation.tsx` |
 | `CardDetail` | `src/pages/CardDetail.tsx` |

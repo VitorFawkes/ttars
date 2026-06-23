@@ -1303,31 +1303,5 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-17T13:00:56Z | supabase/migrations/20260617c_ww_closer_data_reuniao_field.sql | applied_to_prod via Management API (token CLI)
 2026-06-17T13:00:56Z | supabase/migrations/20260617e_calendly_contato_no_phone.sql | applied_to_prod via Management API (token CLI)
 2026-06-17T13:53:17Z | supabase/migrations/20260617d_calendly_weddings_triggers_seed.sql | applied_to_prod via Management API (token CLI)
-2026-06-17T20:02:18Z | supabase/migrations/20260617h_site_contato_exempt.sql | applied_to_prod
-2026-06-18T14:05:02Z | supabase/migrations/20260618a_ww_campos_sdr_closer.sql | applied_to_prod via Management API (token CLI)
-2026-06-18T14:53:55Z | supabase/migrations/20260618b_ww_funil_sdr_closer_etapas.sql | applied_to_prod via Management API (token CLI)
-2026-06-18T17:02:15Z | supabase/migrations/20260618c_ww_ac_field_map_reconcile.sql | applied_to_prod via Management API (token CLI)
-2026-06-18T17:17:26Z | supabase/migrations/20260618d_ww_campos_followups.sql | applied_to_prod via Management API (token CLI)
-2026-06-19T12:01:54Z | supabase/migrations/20260619a_ww_analytics_native_rpcs.sql | applied_to_prod via Management API (token CLI)
-2026-06-19T12:35:44Z | supabase/migrations/20260619b_ww_funil_casal_native_relink.sql | applied_to_prod via Management API (token CLI)
-2026-06-19T12:45:21Z | supabase/migrations/20260619c_ww_backfill_analytics_fields.sql | applied_to_prod via Management API (token CLI)
-2026-06-19T12:54:29Z | supabase/migrations/20260619d_ww_funil_casal_native_exclude_test.sql | applied_to_prod via Management API (token CLI)
-2026-06-19T13:01:38Z | supabase/migrations/20260619e_ww_sync_analytics_fields_cron.sql | applied_to_prod via Management API (token CLI)
-2026-06-19T13:10:29Z | supabase/migrations/20260619f_ww_drill_native_rpcs.sql | applied_to_prod via Management API (token CLI)
 2026-06-17T19:30:58Z | supabase/migrations/20260617b_drill_current_stage_no_date_filter.sql | applied_to_prod
-2026-06-19T18:46:36Z | supabase/migrations/20260619r_ww_destino_form_entry.sql | applied_to_prod via Management API (token CLI)
-2026-06-19T18:46:36Z | supabase/migrations/20260619s_ww_motivo_perda_closer_field.sql | applied_to_prod via Management API (token CLI)
-2026-06-22T15:20:54Z | supabase/migrations/20260622a_ww2_loss_reasons_native_motivo_real.sql | applied_to_prod via Management API (token CLI)
-2026-06-22T15:20:54Z | supabase/migrations/20260622b_ww_marketing_native_medium_e_desconhecidos.sql | applied_to_prod via Management API (token CLI)
-2026-06-22T15:20:54Z | supabase/migrations/20260622c_ww_native_origem_utm.sql | applied_to_prod via Management API (token CLI)
-2026-06-22T17:15:51Z | supabase/migrations/20260622d_ww_native_view_restore_filtros.sql | applied_to_prod
-2026-06-22T17:19:06Z | supabase/migrations/20260622e_ww_perfil_temporal_native.sql | applied_to_prod
-2026-06-22T17:27:19Z | supabase/migrations/20260622f_ww_native_destino_realidade.sql | applied_to_prod
-2026-06-22T17:33:07Z | supabase/migrations/rollback/20260622_rollback.sql | rollback_artifact
-2026-06-22T17:33:07Z | supabase/migrations/rollback/20260622_pre_fix_snapshot.json | rollback_artifact
-2026-06-22T17:44:39Z | supabase/migrations/20260622g_ww_native_norm_origem_dropdown.sql | applied_to_prod
-2026-06-22T17:55:19Z | supabase/migrations/20260622h_ww_agenda_native_reagendou.sql | applied_to_prod
-2026-06-22T18:53:06Z | supabase/migrations/20260622i_ww_valor_fechado_fonte_campo.sql | applied_to_prod via Management API (token CLI) — PR #159
-2026-06-23T12:21:59Z | supabase/migrations/20260623a_ac_weddings_enable_create.sql | applied_to_prod
-2026-06-23T12:28:54Z | supabase/migrations/20260623b_ac_weddings_create_fallback_only.sql | applied_to_prod
-2026-06-23T13:59:26Z | supabase/migrations/20260623c_sdr_qual_link_no_cross_org_contato.sql | applied_to_prod
+2026-06-23T15:58:06Z | supabase/migrations/20260623a_wedding_checklist_tasks_spine.sql | pending — staging defasado (sem wedding_checklist); promover com 'pode subir'

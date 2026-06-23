@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { createPortal } from 'react-dom'
+import type { ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -7,34 +6,29 @@ import {
   Globe,
   ExternalLink,
   Loader2,
-  ListChecks,
-  Plus,
   Heart,
-  Trash2,
-  X,
-  Pencil,
-  Check,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import './champagne.css'
-import { formatDataLonga, formatDataCurta, daysUntil, isPast } from '../../lib/planejamento/format'
+import { formatDataLonga, daysUntil, addDaysIso } from '../../lib/planejamento/format'
 import { usePlanejamentoWeddings } from '../../hooks/planejamento/usePlanejamentoWeddings'
 import { useWeddingChecklist } from '../../hooks/planejamento/useWeddingChecklist'
-import { EtapaPanel, CamposEtapaCard } from '../../components/planejamento/EtapaPanel'
+import { EtapaPanel } from '../../components/planejamento/EtapaPanel'
 import { RelatorioCasamento } from '../../components/planejamento/RelatorioCasamento'
 import { CasalSection } from '../../components/planejamento/CasalSection'
 import { WeddingEquipeSection } from '../../components/planejamento/WeddingEquipeSection'
+import { LocalHospedagemSection } from '../../components/planejamento/LocalHospedagemSection'
+import { CronogramaSpine } from '../../components/planejamento/CronogramaSpine'
 import {
-  EspacoPacoteSection,
   AcaoPromoSection,
   ConvidadosResumoSection,
+  NotasSection,
 } from '../../components/planejamento/PlanejamentoSections'
-import { WeddingHotelCard } from '../../components/convidados/WeddingHotelCard'
 import {
   PLANEJAMENTO_LABEL,
   PLANEJAMENTO_ORDER,
   PLANEJ_FIELD,
-  type ChecklistItem,
+  BLOCO,
 } from '../../hooks/planejamento/types'
 
 // Tema champanhe (design do Vitor no Claude Design) — paleta em champagne.css
@@ -61,16 +55,6 @@ export default function PlanejamentoDetailPage() {
   const { data, isLoading, isError } = usePlanejamentoWeddings()
   const wedding = data.find(w => w.id === cardId) ?? null
   const checklist = useWeddingChecklist(cardId)
-  const [checklistModal, setChecklistModal] = useState<{ edit: ChecklistItem | null } | null>(null)
-
-  const handleSubmitChecklist = (payload: Omit<ChecklistItem, 'id'>) => {
-    const editing = checklistModal?.edit
-    if (editing) {
-      checklist.update.mutate({ ...editing, ...payload }, { onSuccess: () => setChecklistModal(null) })
-    } else {
-      checklist.add.mutate(payload, { onSuccess: () => setChecklistModal(null) })
-    }
-  }
 
   if (isLoading) {
     return (
@@ -95,14 +79,39 @@ export default function PlanejamentoDetailPage() {
 
   const dateLong = formatDataLonga(wedding.wedding_date)
   const days = daysUntil(wedding.wedding_date)
-  const { total } = wedding.counts
   const pd = wedding.produto_data
   const tipoLabel = pdStr(pd, 'ww_tipo_casamento') || 'Destination Wedding'
-  const quartos = pdNum(pd, PLANEJ_FIELD.quartosBloquear)
-  const valorTotal = pdNum(pd, PLANEJ_FIELD.valorTotal)
   const gate = wedding.gate
   const gatePct = gate.total > 0 ? Math.round((gate.met / gate.total) * 100) : 0
   const etapaIdx = PLANEJAMENTO_ORDER.indexOf(wedding.planejamentoEtapa) + 1
+
+  // 4 números de convidados (blueprint): contrato · lista · bloqueio · confirmados
+  const contrato = pdNum(pd, PLANEJ_FIELD.convidadosContrato)
+  const listaTotal = wedding.counts.total
+  const confirmados = wedding.counts.confirmado
+  const bloqueio = wedding.hotelQuartos
+
+  // Tarefas (medição do planejamento) + prazo dos 45 dias.
+  // O início do prazo vem da data da tarefa "Primeira Reunião" (marco
+  // onboarding:reuniao1); se ainda não tem data, cai pro sinal.
+  const { feitos, atrasados, pendentes } = wedding.checklist
+  const primeiraReuniao = checklist.items.find((t) => t.marco === 'onboarding:reuniao1')
+  const planStart = (primeiraReuniao?.prazo ?? '') || pdStr(pd, PLANEJ_FIELD.sinalPagoEm)
+  const planDeadline = planStart ? addDaysIso(planStart, 45) : null
+  const planDias = daysUntil(planDeadline)
+  const slaText =
+    planDeadline == null ? 'defina a 1ª reunião'
+    : planDias == null ? '—'
+    : planDias > 0 ? `faltam ${planDias}d dos 45`
+    : planDias === 0 ? 'prazo é hoje'
+    : `${Math.abs(planDias)}d atrasado`
+
+  // Financeiro por setor
+  const valorTotal = pdNum(pd, PLANEJ_FIELD.valorTotal)
+  const pacoteValor = pdNum(pd, PLANEJ_FIELD.pacoteValor)
+  const evento = valorTotal ?? pacoteValor
+  const hosp = wedding.hotelTarifa != null && wedding.hotelQuartos != null ? wedding.hotelTarifa * wedding.hotelQuartos : null
+  const sinal = pdNum(pd, PLANEJ_FIELD.sinalValor)
 
   return (
     <div className={cn(CHAMP_PAGE, 'px-6 py-4 flex flex-col gap-4')}>
@@ -129,7 +138,7 @@ export default function PlanejamentoDetailPage() {
               <div className="flex items-center gap-3 rounded-xl border border-[#ECD9B5] bg-white px-4 py-2.5">
                 <Calendar className="w-5 h-5 text-[#BD965C]" />
                 <div>
-                  <div className="flex items-baseline gap-1.5"><span className="text-[22px] font-extrabold text-[#8A6A33] leading-none">{Math.abs(days)}</span><span className="text-[13px] font-semibold text-[#A88C57]">{days < 0 ? 'dias atrás' : 'dias'}</span></div>
+                  <div className="flex items-baseline gap-1.5"><span className="text-[22px] font-extrabold text-[#8A6A33] leading-none">{Math.abs(days)}</span><span className="text-[13px] font-semibold text-[#A88C57]">{days < 0 ? 'dias atrás' : 'dias p/ o casamento'}</span></div>
                   <div className="text-[12px] text-[#9A9082] mt-0.5 [font-family:'Roboto']">{dateLong ?? '—'}</div>
                 </div>
               </div>
@@ -150,298 +159,102 @@ export default function PlanejamentoDetailPage() {
             </a>
           </div>
         </div>
-        {/* stat row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-6 pb-5">
-          <div className="rounded-xl border border-[#ECDCBE] bg-[#FCF7EE] p-3.5">
+
+        {/* stat row — foto rápida alinhada ao blueprint */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 px-6 pb-5 items-stretch">
+          {/* Etapa + marcos */}
+          <HeaderCard tone="gold">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#A88C57]">Etapa · {etapaIdx} de 6</span>
               <span className="text-[11px] font-bold text-[#8A6A33]">{gate.met}/{gate.total} marcos</span>
             </div>
-            <div className="text-[14.5px] font-semibold text-[#211F1D] mt-1.5 leading-tight">{PLANEJAMENTO_LABEL[wedding.planejamentoEtapa]}</div>
+            <div className="text-[14px] font-semibold text-[#211F1D] mt-1.5 leading-tight flex-1">{PLANEJAMENTO_LABEL[wedding.planejamentoEtapa]}</div>
             <div className="h-1.5 rounded-full bg-[#EFE3CC] overflow-hidden mt-2.5"><div className="h-full bg-[#BD965C] rounded-full" style={{ width: `${gatePct}%` }} /></div>
-          </div>
-          <StatMini label="Lista preenchida" value={`${total}`} sub="nomes na lista" />
-          <StatMini label="Quartos" value={quartos != null ? String(quartos) : '—'} sub="a bloquear" />
-          <StatMini label="Total" value={valorTotal != null ? brlK(valorTotal) : '—'} sub="valor do casamento" />
+          </HeaderCard>
+
+          {/* 4 números de convidados */}
+          <HeaderCard>
+            <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#A89A86]">Convidados</span>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2 mt-2 flex-1">
+              <MiniNum label="Contrato" value={contrato != null ? String(contrato) : '—'} />
+              <MiniNum label="Lista" value={String(listaTotal)} />
+              <MiniNum label="Bloqueio" value={bloqueio != null ? String(bloqueio) : '—'} />
+              <MiniNum label="Confirmados" value={String(confirmados)} />
+            </div>
+          </HeaderCard>
+
+          {/* Tarefas (meta 45 dias) */}
+          <HeaderCard>
+            <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#A89A86]">Tarefas · meta 45 dias</span>
+            <div className="grid grid-cols-3 gap-2 mt-2 flex-1">
+              <MiniNum label="Feitas" value={String(feitos)} />
+              <MiniNum label="Atrasadas" value={String(atrasados)} tone={atrasados > 0 ? 'rose' : undefined} />
+              <MiniNum label="Pendentes" value={String(pendentes)} />
+            </div>
+            <div className="text-[11px] text-[#9A9082] mt-2 [font-family:'Roboto']">{slaText}</div>
+          </HeaderCard>
+
+          {/* Financeiro por setor */}
+          <HeaderCard>
+            <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#A89A86]">Financeiro</span>
+            <div className="text-[19px] font-bold text-[#211F1D] mt-1.5 [font-family:'Roboto'] tabular-nums flex-1">{evento != null ? brlK(evento) : '—'}<span className="text-[11px] font-medium text-[#B5ABA0] ml-1">casamento</span></div>
+            <div className="text-[11px] text-[#9A9082] mt-1 [font-family:'Roboto'] leading-relaxed">
+              Hospedagem {hosp != null ? `~${brlK(hosp)}/noite` : '—'}<br />
+              Sinal {sinal != null ? brlK(sinal) : '—'}
+            </div>
+          </HeaderCard>
         </div>
       </div>
 
-      {/* Etapa atual (marcos): trava + avançar + campos da etapa */}
+      {/* Marcos da etapa — atalhos pros blocos + concluir na mão */}
       <EtapaPanel wedding={wedding} />
 
       {/* Casal (clientes) + Equipe do casamento (interno) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-        <CasalSection cardId={wedding.id} />
-        <WeddingEquipeSection cardId={wedding.id} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+        <div id={BLOCO.casal} className="scroll-mt-6"><CasalSection cardId={wedding.id} /></div>
+        <div id={BLOCO.equipe} className="scroll-mt-6"><WeddingEquipeSection cardId={wedding.id} /></div>
       </div>
 
-      {/* Campos da etapa + Hospedagem (hotel) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-        <CamposEtapaCard wedding={wedding} />
-        <WeddingHotelCard cardId={cardId} local={wedding.local} />
+      {/* Local & Hospedagem (venue + reserva/contrato + hotel — fonte única) */}
+      <div id={BLOCO.local} className="scroll-mt-6"><LocalHospedagemSection wedding={wedding} /></div>
+
+      {/* Ação promocional (definição) + Convidados (lista & estimativa) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+        <div id={BLOCO.promo} className="scroll-mt-6"><AcaoPromoSection wedding={wedding} /></div>
+        <div id={BLOCO.convidados} className="scroll-mt-6"><ConvidadosResumoSection wedding={wedding} /></div>
       </div>
 
-      {/* Espaço & Pacote — o que se contrata no Planejamento */}
-      <EspacoPacoteSection wedding={wedding} />
-
-      {/* Ação promocional (definição) + Convidados (estimativa, sem confirmação) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-        <AcaoPromoSection wedding={wedding} />
-        <ConvidadosResumoSection wedding={wedding} />
+      {/* Cronograma & Tarefas — a espinha (Etapa → Marco → Tarefa) */}
+      <div id={BLOCO.spine} className="scroll-mt-6">
+        <CronogramaSpine checklist={checklist} currentEtapa={wedding.planejamentoEtapa} />
       </div>
 
-      {/* Cronograma & checklist do planejamento */}
-      <ChecklistSection
-        items={checklist.items}
-        onAdd={() => setChecklistModal({ edit: null })}
-        onEdit={(item) => setChecklistModal({ edit: item })}
-        onToggle={(item) => checklist.toggle.mutate({ id: item.id, feito: !item.feito })}
-        onRemove={(id) => checklist.remove.mutate(id)}
-        removing={checklist.remove.isPending}
-      />
+      {/* Notas da planejadora (texto livre) */}
+      <NotasSection wedding={wedding} />
 
       {/* Relatório do casamento — saúde, financeiro, convidados, prazos */}
       <RelatorioCasamento wedding={wedding} />
-
-      {checklistModal && (
-        <AddChecklistItemModal
-          initial={checklistModal.edit}
-          saving={checklist.add.isPending || checklist.update.isPending}
-          onClose={() => setChecklistModal(null)}
-          onSubmit={handleSubmitChecklist}
-        />
-      )}
     </div>
   )
 }
 
-function StatMini({ label, value, sub }: { label: string; value: string; sub: string }) {
+function HeaderCard({ children, tone }: { children: ReactNode; tone?: 'gold' }) {
   return (
-    <div className="rounded-xl border border-[#EAE1D3] bg-[#FBF8F3] p-3.5">
-      <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#A89A86]">{label}</div>
-      <div className="text-[19px] font-bold text-[#211F1D] mt-2 [font-family:'Roboto'] tabular-nums">{value}</div>
-      <div className="text-[11px] text-[#B5ABA0] mt-0.5 [font-family:'Roboto']">{sub}</div>
+    <div className={cn(
+      'rounded-xl border p-3.5 flex flex-col',
+      tone === 'gold' ? 'border-[#ECDCBE] bg-[#FCF7EE]' : 'border-[#EAE1D3] bg-[#FBF8F3]',
+    )}>
+      {children}
     </div>
   )
 }
 
-// ── Cronograma & Checklist ──────────────────────────────────────────────────
-
-function PrazoChip({ prazo, feito }: { prazo: string; feito: boolean }) {
-  const label = formatDataCurta(prazo)
-  if (!label) return null
-  if (feito) {
-    return <span className="text-[11px] text-slate-400 inline-flex items-center gap-1"><Calendar className="w-3 h-3" />{label}</span>
-  }
-  const past = isPast(prazo)
-  const d = daysUntil(prazo)
-  const tone = past ? 'text-rose-600' : d === 0 ? 'text-amber-600' : 'text-slate-500'
-  const sufixo = past ? ' · atrasado' : d === 0 ? ' · hoje' : d != null && d <= 7 ? ` · faltam ${d}d` : ''
+function MiniNum({ label, value, tone }: { label: string; value: string; tone?: 'rose' }) {
   return (
-    <span className={cn('text-[11px] inline-flex items-center gap-1', tone)}>
-      <Calendar className="w-3 h-3" />
-      {label}
-      {sufixo}
-    </span>
+    <div className="min-w-0">
+      <div className={cn('text-[18px] font-bold [font-family:\'Roboto\'] tabular-nums leading-none', tone === 'rose' ? 'text-rose-600' : 'text-[#211F1D]')}>{value}</div>
+      <div className="text-[10px] text-[#B5ABA0] mt-0.5 uppercase tracking-[0.05em] truncate">{label}</div>
+    </div>
   )
 }
 
-function ChecklistSection({
-  items,
-  onAdd,
-  onEdit,
-  onToggle,
-  onRemove,
-  removing,
-}: {
-  items: ChecklistItem[]
-  onAdd: () => void
-  onEdit: (item: ChecklistItem) => void
-  onToggle: (item: ChecklistItem) => void
-  onRemove: (id: string) => void
-  removing: boolean
-}) {
-  const total = items.length
-  const feitos = items.filter((i) => i.feito).length
-
-  return (
-    <section className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-      <header className="flex items-center justify-between gap-2 mb-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <ListChecks className="w-5 h-5 text-slate-500" />
-          <h2 className="text-base font-semibold text-slate-900">Cronograma & Checklist</h2>
-          {total > 0 && (
-            <span className="text-[11px] text-slate-500 tabular-nums">
-              {feitos} de {total} concluídos
-            </span>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={onAdd}
-          className="inline-flex items-center gap-1.5 h-8 px-2.5 text-xs font-medium text-indigo-600 border border-indigo-200 rounded-md hover:bg-indigo-50 transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" /> Adicionar item
-        </button>
-      </header>
-
-      {total === 0 ? (
-        <p className="text-sm text-slate-400 italic py-2">Nenhum item ainda — adicione marcos e tarefas do planejamento.</p>
-      ) : (
-        <ul className="divide-y divide-slate-100 border border-slate-100 rounded-lg overflow-hidden">
-          {items.map((item) => (
-            <li key={item.id} className="flex items-center gap-3 px-3 py-2.5">
-              <button
-                type="button"
-                onClick={() => onToggle(item)}
-                className={cn(
-                  'w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors',
-                  item.feito
-                    ? 'bg-emerald-500 border-emerald-500 text-white'
-                    : 'border-slate-300 hover:border-slate-400',
-                )}
-                aria-label={item.feito ? 'Marcar como pendente' : 'Marcar como feito'}
-              >
-                {item.feito && <Check className="w-3.5 h-3.5" />}
-              </button>
-              <div className="min-w-0 flex-1">
-                <p className={cn('text-sm break-words', item.feito ? 'text-slate-400 line-through' : 'text-slate-800')}>
-                  {item.titulo}
-                </p>
-                {item.prazo && (
-                  <div className="mt-0.5">
-                    <PrazoChip prazo={item.prazo} feito={item.feito} />
-                  </div>
-                )}
-                {item.observacoes && (
-                  <p className="text-[11px] text-slate-500 mt-0.5 break-words whitespace-pre-wrap">
-                    {item.observacoes}
-                  </p>
-                )}
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => onEdit(item)}
-                  className="p-1 rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-                  title="Editar item"
-                  aria-label={`Editar ${item.titulo}`}
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onRemove(item.id)}
-                  disabled={removing}
-                  className="p-1 rounded text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
-                  title="Remover item"
-                  aria-label={`Remover ${item.titulo}`}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  )
-}
-
-const FIELD_CLS =
-  'w-full mt-1 px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500'
-
-function AddChecklistItemModal({
-  initial,
-  saving,
-  onClose,
-  onSubmit,
-}: {
-  initial?: ChecklistItem | null
-  saving: boolean
-  onClose: () => void
-  onSubmit: (payload: Omit<ChecklistItem, 'id'>) => void
-}) {
-  const isEdit = !!initial
-  const [titulo, setTitulo] = useState(initial?.titulo ?? '')
-  const [prazo, setPrazo] = useState(initial?.prazo ?? '')
-  const [observacoes, setObservacoes] = useState(initial?.observacoes ?? '')
-
-  const canSave = titulo.trim().length > 0
-
-  const handleSave = () => {
-    if (!canSave) return
-    onSubmit({
-      titulo: titulo.trim(),
-      prazo: prazo.trim() || null,
-      feito: initial?.feito ?? false,
-      observacoes: observacoes.trim() || null,
-    })
-  }
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-      role="dialog"
-      aria-modal="true"
-    >
-      <div className="w-full max-w-md bg-white border border-slate-200 shadow-lg rounded-xl flex flex-col">
-        <header className="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-200">
-          <h2 className="text-base font-semibold text-slate-900">{isEdit ? 'Editar item' : 'Adicionar item'}</h2>
-          <button onClick={onClose} className="p-1 rounded hover:bg-slate-100 text-slate-500" aria-label="Fechar">
-            <X className="w-4 h-4" />
-          </button>
-        </header>
-
-        <div className="px-5 py-4 flex flex-col gap-3">
-          <label className="text-xs font-medium text-slate-700 block">
-            Item *
-            <input
-              autoFocus
-              value={titulo}
-              onChange={(e) => setTitulo(e.target.value)}
-              placeholder="Ex.: Definir espaço, fechar contrato, montar programação…"
-              className={FIELD_CLS}
-            />
-          </label>
-          <label className="text-xs font-medium text-slate-700 block">
-            Prazo (opcional)
-            <input type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} className={FIELD_CLS} />
-          </label>
-          <label className="text-xs font-medium text-slate-700 block">
-            Observação (opcional)
-            <textarea
-              value={observacoes}
-              onChange={(e) => setObservacoes(e.target.value)}
-              rows={2}
-              placeholder="Detalhes, contexto, links…"
-              className={FIELD_CLS}
-            />
-          </label>
-        </div>
-
-        <footer className="flex items-center justify-end gap-2 px-5 py-3 border-t border-slate-200 bg-slate-50">
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex items-center justify-center h-9 rounded-md px-3 text-sm font-medium border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!canSave || saving}
-            className="inline-flex items-center justify-center h-9 rounded-md px-3 text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {saving ? 'Salvando…' : isEdit ? 'Salvar' : 'Adicionar'}
-          </button>
-        </footer>
-      </div>
-    </div>,
-    document.body,
-  )
-}

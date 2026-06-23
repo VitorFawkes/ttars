@@ -10,6 +10,7 @@ import type { ParsedProjectData } from '../types.js'
 import { parseCodebase } from './parse-codebase.js'
 import { parseAgents } from './parse-agents.js'
 import { parseRules } from './parse-rules.js'
+import { parseMemory } from './parse-memory.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DATA_FILE = join(__dirname, '..', 'data', 'project-data.json')
@@ -64,16 +65,18 @@ export async function loadProjectData(): Promise<ParsedProjectData> {
   console.error('Parseando arquivos do projeto...')
   const projectRoot = findProjectRoot()
 
-  const [codebase, agents, rules] = await Promise.all([
+  const [codebase, agents, rules, memoryTopics] = await Promise.all([
     parseCodebase(projectRoot),
     parseAgents(projectRoot),
-    parseRules(projectRoot)
+    parseRules(projectRoot),
+    parseMemory(projectRoot)
   ])
 
   const projectData: ParsedProjectData = {
     agents,
     codebase,
     rules,
+    memoryTopics,
     lastParsed: new Date().toISOString()
   }
 

@@ -20,9 +20,10 @@ export function useWeddingChecklist(cardId: string | null | undefined) {
       if (!orgId || !cardId) return []
       const { data, error } = await sbAny
         .from('wedding_checklist')
-        .select('id, titulo, prazo, feito, observacoes')
+        .select('id, titulo, prazo, feito, observacoes, tipo, marco, ordem')
         .eq('org_id', orgId)
         .eq('card_id', cardId)
+        .order('ordem', { ascending: true })
         .order('feito', { ascending: true })
         .order('prazo', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: true })
@@ -31,7 +32,9 @@ export function useWeddingChecklist(cardId: string | null | undefined) {
     },
   })
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['planejamento', 'checklist'] })
+  // Invalida o planejamento inteiro: além da lista, recalcula o gate (roll-up
+  // marco ← tarefas vive em ['planejamento','gate-data']).
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['planejamento'] })
 
   const add = useMutation<void, Error, Omit<ChecklistItem, 'id'>>({
     mutationFn: async (input) => {
@@ -85,12 +88,21 @@ export function useWeddingChecklist(cardId: string | null | undefined) {
     onError: (err) => toast.error(`Não consegui atualizar: ${err.message}`),
   })
 
+  const items = query.data ?? []
+
+  /** Próxima `ordem` pra uma tarefa nova (no fim da lista, ou do marco). */
+  const nextOrdem = (marco?: string | null): number => {
+    const scope = marco === undefined ? items : items.filter((i) => i.marco === marco)
+    return scope.reduce((max, i) => Math.max(max, i.ordem ?? 0), -1) + 1
+  }
+
   return {
-    items: query.data ?? [],
+    items,
     isLoading: query.isLoading,
     add,
     remove,
     update,
     toggle,
+    nextOrdem,
   }
 }

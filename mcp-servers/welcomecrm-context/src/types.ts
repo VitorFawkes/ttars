@@ -69,6 +69,16 @@ export interface DocumentedComponent {
   impact: string
 }
 
+// Nota de memória do projeto (feedback_*, project_*, topic file)
+export interface MemoryTopic {
+  file: string              // basename, ex: feedback_workspace_isolation_always.md
+  name: string              // do frontmatter
+  description: string        // do frontmatter
+  keywords: string[]        // todas as keywords (nome do arquivo + name + description)
+  strongKeywords: string[]  // só do nome do arquivo + name (sinal mais forte)
+  excerpt: string           // início do corpo (até ~400 chars)
+}
+
 // Resultado de get_context
 export interface ContextResult {
   agent: AgentInfo
@@ -82,6 +92,14 @@ export interface ContextResult {
   filesToRead: string[]
   relatedHooks: DocumentedHook[]
   relatedTables: DocumentedTable[]
+  // Regras/gotchas relevantes da memória do projeto. CRÍTICO para subagentes,
+  // que não recebem MEMORY.md/topic files automaticamente.
+  relevantMemory: Array<{
+    file: string
+    name: string
+    description: string
+    excerpt: string
+  }>
   protocolReminder: string
   declareContextTemplate: string
 }
@@ -148,5 +166,6 @@ export interface ParsedProjectData {
     priority: string
     content: string
   }>
+  memoryTopics: MemoryTopic[]
   lastParsed: string
 }

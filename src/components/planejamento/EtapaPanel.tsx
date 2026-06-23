@@ -1,32 +1,56 @@
-import { useState } from 'react'
-import { Flag, ArrowRight, Check, Lock, PartyPopper, FilePenLine } from 'lucide-react'
+import { Flag, ArrowRight, Check, Lock, PartyPopper, ChevronRight } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { toast } from 'sonner'
 import { useUpdatePlanejamentoEtapa } from '../../hooks/planejamento/useUpdatePlanejamentoEtapa'
 import { usePlanejamentoCampos } from '../../hooks/planejamento/usePlanejamentoCampos'
 import type { WeddingPlanejamento } from '../../hooks/planejamento/usePlanejamentoWeddings'
+import type { GateCriterion } from '../../hooks/planejamento/planejamentoGate'
 import {
   PLANEJAMENTO_LABEL,
   PLANEJAMENTO_OBJETIVO,
   PLANEJ_FIELD,
-  REGIAO_OPTIONS,
-  FORMATO_OPTIONS,
+  BLOCO,
+  spineMarcoId,
   nextEtapa,
-  type EtapaPlanejamento,
 } from '../../hooks/planejamento/types'
 
 const CARD = 'bg-white border border-[#EAE1D3] rounded-2xl shadow-[0_1px_2px_rgba(78,24,32,0.05)]'
 
+/** Rola até um bloco da tela e dá um "flash" pra guiar o olho (atalho do marco). */
+function goToBloco(id: string) {
+  const el = document.getElementById(id)
+  if (!el) return
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  el.classList.add('bloco-flash')
+  window.setTimeout(() => el.classList.remove('bloco-flash'), 1400)
+}
+
+function readMarcosFeitos(pd: Record<string, unknown> | null): string[] {
+  const v = pd?.[PLANEJ_FIELD.marcosFeitos]
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+}
+
 // ════════════════════════════════════════════════════════════════════════════
-// MARCOS — o card de "avançar de etapa" (blocos lado a lado, como no design)
+// MARCOS — o portão pra avançar. Cada marco é um atalho pro bloco onde se
+// resolve + pode ser concluído na mão (Opção B). Nada de campos duplicados aqui.
 // ════════════════════════════════════════════════════════════════════════════
 
 export function EtapaPanel({ wedding }: { wedding: WeddingPlanejamento }) {
   const update = useUpdatePlanejamentoEtapa()
+  const { save } = usePlanejamentoCampos()
   const etapa = wedding.planejamentoEtapa
   const gate = wedding.gate
   const next = nextEtapa(etapa)
   const pct = gate.total > 0 ? Math.round((gate.met / gate.total) * 100) : 0
+  const marcosFeitos = readMarcosFeitos(wedding.produto_data)
+
+  const setManual = (key: string, done: boolean) => {
+    const mk = `${etapa}:${key}`
+    const next = done
+      ? Array.from(new Set([...marcosFeitos, mk]))
+      : marcosFeitos.filter((x) => x !== mk)
+    save.mutate({ cardId: wedding.id, values: { [PLANEJ_FIELD.marcosFeitos]: next } })
+  }
 
   const handleAdvance = () => {
     if (!next || !gate.allOk) {
@@ -36,7 +60,7 @@ export function EtapaPanel({ wedding }: { wedding: WeddingPlanejamento }) {
     update.mutate({ cardId: wedding.id, etapa: next })
   }
 
-  const liberado = gate.allOk && (next != null)
+  const liberado = gate.allOk && next != null
 
   return (
     <section className={cn(CARD, 'p-5 sm:p-6')}>
@@ -81,184 +105,88 @@ export function EtapaPanel({ wedding }: { wedding: WeddingPlanejamento }) {
 
       <p className="text-[12.5px] text-[#9A9082] mt-3 [font-family:'Roboto',sans-serif]">{PLANEJAMENTO_OBJETIVO[etapa]}</p>
 
-      {/* Marcos em blocos lado a lado */}
+      {/* Marcos em blocos lado a lado — cada um é um atalho + concluível na mão */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
         {gate.criteria.map((c) => (
-          <div
+          <MarcoTile
             key={c.key}
-            className={cn(
-              'rounded-xl border p-3.5',
-              c.ok ? 'border-[#DCE7D6] bg-[#F4F8F1]' : 'border-[#E7D7A0] bg-[#FBF6E8]',
-            )}
-          >
-            <div className="flex items-start gap-2.5">
-              {c.ok ? (
-                <span className="w-[22px] h-[22px] rounded-full bg-[#4F7A4A] text-white grid place-items-center shrink-0">
-                  <Check className="w-[13px] h-[13px]" />
-                </span>
-              ) : (
-                <span className="w-[22px] h-[22px] rounded-full border-[1.5px] border-[#D6BE83] bg-white shrink-0" />
-              )}
-              <span className={cn('text-[13.5px] font-semibold leading-snug [font-family:\'Roboto\',sans-serif]', c.ok ? 'text-[#3F6238]' : 'text-[#8A6D1A]')}>
-                {c.label}
-              </span>
-            </div>
-            <div className={cn('mt-3 pt-2.5 border-t text-[11px] font-bold uppercase tracking-[0.06em]', c.ok ? 'border-[#E0EAD9] text-[#6F8568]' : 'border-[#EFE0B3] text-[#A88C57]')}>
-              {c.ok ? 'Cumprido' : 'Pendente'}
-            </div>
-          </div>
+            c={c}
+            onJump={() => {
+              if (c.anchor === BLOCO.spine) {
+                const mid = spineMarcoId(`${etapa}:${c.key}`)
+                goToBloco(document.getElementById(mid) ? mid : BLOCO.spine)
+              } else if (c.anchor) {
+                goToBloco(c.anchor)
+              }
+            }}
+            onManual={(done) => setManual(c.key, done)}
+          />
         ))}
       </div>
+
+      <p className="text-[11px] text-[#B0A595] mt-3 [font-family:'Roboto',sans-serif]">
+        Cada marco leva ao bloco onde é preenchido. Algo já resolvido por fora? Marque “feito” na mão.
+      </p>
     </section>
   )
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// CAMPOS DESTA ETAPA — card separado (no grid)
-// ════════════════════════════════════════════════════════════════════════════
-
-type CampoDef =
-  | { key: string; label: string; type: 'text' | 'date' | 'number' | 'datetime-local' | 'bool' }
-  | { key: string; label: string; type: 'readonly'; from: string }
-  | { key: string; label: string; type: 'select'; options: { value: string; label: string }[] }
-
-const strOpts = (xs: string[]) => xs.map((x) => ({ value: x, label: x }))
-
-const CAMPOS_POR_ETAPA: Record<EtapaPlanejamento, CampoDef[]> = {
-  boas_vindas: [
-    { key: 'ww_tipo_casamento', label: 'Tipo do casamento', type: 'readonly', from: 'ww_tipo_casamento' },
-    { key: PLANEJ_FIELD.reuniao1, label: 'Data da 1ª reunião', type: 'date' },
-    { key: PLANEJ_FIELD.notas, label: 'Notas da planejadora', type: 'text' },
-  ],
-  onboarding: [
-    { key: PLANEJ_FIELD.reuniao1Feita, label: '1ª reunião realizada', type: 'bool' },
-    { key: PLANEJ_FIELD.convidadosEstimado, label: 'Nº de convidados estimado', type: 'number' },
-    { key: PLANEJ_FIELD.tema, label: 'Tema / estilo (primeira ideia)', type: 'text' },
-  ],
-  propostas: [
-    { key: PLANEJ_FIELD.regiao, label: 'Região', type: 'select', options: strOpts(REGIAO_OPTIONS) },
-    { key: PLANEJ_FIELD.formato, label: 'Formato do local', type: 'select', options: strOpts(FORMATO_OPTIONS) },
-    { key: PLANEJ_FIELD.proximaReuniao, label: 'Próxima reunião', type: 'date' },
-  ],
-  definicao: [
-    { key: PLANEJ_FIELD.espaco, label: 'Espaço / pacote do casamento', type: 'text' },
-    { key: PLANEJ_FIELD.contratoAssinado, label: 'Contrato do casamento assinado', type: 'bool' },
-    { key: PLANEJ_FIELD.sinalPagoEm, label: 'Sinal pago em', type: 'date' },
-    { key: PLANEJ_FIELD.sinalValor, label: 'Valor do sinal (R$)', type: 'number' },
-    { key: PLANEJ_FIELD.valorTotal, label: 'Valor total do casamento (R$)', type: 'number' },
-  ],
-  passagem: [
-    { key: PLANEJ_FIELD.quartosBloquear, label: 'Nº de quartos a bloquear', type: 'number' },
-    { key: PLANEJ_FIELD.promoTarifa, label: 'Tarifa promocional (R$/noite)', type: 'number' },
-    { key: PLANEJ_FIELD.promoInicio, label: 'Início da promo', type: 'date' },
-    { key: PLANEJ_FIELD.promoFim, label: 'Fim da promo', type: 'date' },
-  ],
-  aditivo: [
-    { key: PLANEJ_FIELD.listaPreenchida, label: 'Lista de convidados preenchida', type: 'bool' },
-    { key: PLANEJ_FIELD.dataHoraCasamento, label: 'Data/hora do casamento', type: 'datetime-local' },
-    { key: PLANEJ_FIELD.notas, label: 'Notas finais', type: 'text' },
-  ],
-}
-
-function readVal(pd: Record<string, unknown> | null, key: string): string {
-  if (!pd) return ''
-  const v = pd[key]
-  if (v == null) return ''
-  if (typeof v === 'boolean') return v ? 'true' : ''
-  return String(v)
-}
-
-export function CamposEtapaCard({ wedding }: { wedding: WeddingPlanejamento }) {
-  const { save } = usePlanejamentoCampos()
-  const campos = CAMPOS_POR_ETAPA[wedding.planejamentoEtapa]
-  const saveField = (key: string, value: unknown) => save.mutate({ cardId: wedding.id, values: { [key]: value } })
-
-  return (
-    <section className={cn(CARD, 'p-5')}>
-      <header className="flex items-center gap-2 mb-4">
-        <FilePenLine className="w-5 h-5 text-[#BD965C]" />
-        <h2 className="text-base font-semibold text-slate-900">Campos desta etapa</h2>
-      </header>
-      {campos.length === 0 ? (
-        <p className="text-sm text-slate-400 italic">Nada a preencher nesta etapa.</p>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          {campos.map((c) => (
-            <CampoField key={c.key} def={c} value={readVal(wedding.produto_data, c.key)} onSave={saveField} />
-          ))}
-        </div>
-      )}
-    </section>
-  )
-}
-
-const FIELD_CLS =
-  'w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500'
-const LBL_CLS = 'text-[10.5px] uppercase tracking-[0.08em] font-bold text-slate-500'
-
-function CampoField({
-  def, value, onSave,
+function MarcoTile({
+  c,
+  onJump,
+  onManual,
 }: {
-  def: CampoDef
-  value: string
-  onSave: (key: string, value: unknown) => void
+  c: GateCriterion
+  onJump: () => void
+  onManual: (done: boolean) => void
 }) {
-  const [local, setLocal] = useState(value)
-
-  if (def.type === 'readonly') {
-    return (
-      <div className="min-w-0">
-        <label className={LBL_CLS}>{def.label}</label>
-        <p className="mt-1 px-3 py-2 text-sm text-slate-600 bg-slate-50 border border-slate-100 rounded-lg truncate">{value || '—'}</p>
-      </div>
-    )
-  }
-
-  if (def.type === 'bool') {
-    const checked = value === 'true'
-    return (
-      <label className="flex items-center gap-2.5 cursor-pointer select-none sm:col-span-2 py-1">
-        <button
-          type="button"
-          onClick={() => onSave(def.key, checked ? '' : true)}
-          className={cn(
-            'w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors',
-            checked ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300 hover:border-slate-400',
-          )}
-          aria-pressed={checked}
-        >
-          {checked && <Check className="w-3.5 h-3.5" />}
-        </button>
-        <span className="text-sm text-slate-700">{def.label}</span>
-      </label>
-    )
-  }
-
-  if (def.type === 'select') {
-    return (
-      <label className="block">
-        <span className={LBL_CLS}>{def.label}</span>
-        <select value={value} onChange={(e) => onSave(def.key, e.target.value)} className={FIELD_CLS}>
-          <option value="">— selecionar —</option>
-          {def.options.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
-      </label>
-    )
-  }
-
+  const manual = c.ok && !c.auto
   return (
-    <label className="block">
-      <span className={LBL_CLS}>{def.label}</span>
-      <input
-        type={def.type === 'text' ? 'text' : def.type}
-        inputMode={def.type === 'number' ? 'decimal' : undefined}
-        value={local}
-        onChange={(e) => setLocal(e.target.value)}
-        onBlur={() => { if (local !== value) onSave(def.key, local.trim()) }}
-        className={FIELD_CLS}
-      />
-    </label>
+    <div className={cn('rounded-xl border p-3.5 flex flex-col', c.ok ? 'border-[#DCE7D6] bg-[#F4F8F1]' : 'border-[#E7D7A0] bg-[#FBF6E8]')}>
+      <div className="flex items-start gap-2.5">
+        {c.ok ? (
+          <span className="w-[22px] h-[22px] rounded-full bg-[#4F7A4A] text-white grid place-items-center shrink-0">
+            <Check className="w-[13px] h-[13px]" />
+          </span>
+        ) : (
+          <span className="w-[22px] h-[22px] rounded-full border-[1.5px] border-[#D6BE83] bg-white shrink-0" />
+        )}
+        <span className={cn("text-[13.5px] font-semibold leading-snug [font-family:'Roboto',sans-serif]", c.ok ? 'text-[#3F6238]' : 'text-[#8A6D1A]')}>
+          {c.label}
+        </span>
+      </div>
+
+      <div className={cn('mt-3 pt-2.5 border-t flex items-center justify-between gap-2', c.ok ? 'border-[#E0EAD9]' : 'border-[#EFE0B3]')}>
+        <span className={cn('text-[10.5px] font-bold uppercase tracking-[0.06em]', c.ok ? 'text-[#6F8568]' : 'text-[#A88C57]')}>
+          {c.auto ? 'Cumprido' : manual ? 'Feito na mão' : 'Pendente'}
+          {c.taskCount > 0 && <span className="font-medium normal-case"> · {c.tasksDone}/{c.taskCount} tarefas</span>}
+        </span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {!c.ok && c.anchor && (
+            <button
+              type="button"
+              onClick={onJump}
+              className="inline-flex items-center gap-0.5 text-[11.5px] font-semibold text-[#8A6A33] hover:text-[#6f531f]"
+            >
+              Preencher <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {!c.auto &&
+            (manual ? (
+              <button type="button" onClick={() => onManual(false)} className="text-[11px] font-medium text-[#9A9082] hover:text-[#6F675E]">
+                Desfazer
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onManual(true)}
+                className="text-[11px] font-semibold text-[#4F7A4A] hover:text-[#3F6238] border border-[#CFE0C8] rounded-md px-1.5 py-0.5"
+              >
+                Marcar feito
+              </button>
+            ))}
+        </div>
+      </div>
+    </div>
   )
 }

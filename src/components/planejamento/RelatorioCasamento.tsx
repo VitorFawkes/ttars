@@ -1,4 +1,4 @@
-import { BarChart3, CalendarClock, DollarSign, Users, ListChecks, Landmark } from 'lucide-react'
+import { BarChart3, CalendarClock, DollarSign, BedDouble, ListChecks, Landmark } from 'lucide-react'
 import { brl, daysUntil } from '../../lib/planejamento/format'
 import type { WeddingPlanejamento } from '../../hooks/planejamento/usePlanejamentoWeddings'
 import { PLANEJ_FIELD, PLANEJAMENTO_LABEL } from '../../hooks/planejamento/types'
@@ -16,11 +16,14 @@ function num(pd: Record<string, unknown> | null, key: string): number | null {
 
 export function RelatorioCasamento({ wedding }: { wedding: WeddingPlanejamento }) {
   const days = daysUntil(wedding.wedding_date)
-  const { total } = wedding.counts
 
   const pacoteValor = num(wedding.produto_data, PLANEJ_FIELD.pacoteValor)
   const sinal = num(wedding.produto_data, PLANEJ_FIELD.sinalValor)
   const valorTotal = num(wedding.produto_data, PLANEJ_FIELD.valorTotal)
+  const evento = valorTotal ?? pacoteValor
+  const hosp = wedding.hotelTarifa != null && wedding.hotelQuartos != null
+    ? wedding.hotelTarifa * wedding.hotelQuartos
+    : null
 
   const checklistPct = wedding.checklist.total > 0
     ? Math.round((wedding.checklist.feitos / wedding.checklist.total) * 100)
@@ -41,22 +44,22 @@ export function RelatorioCasamento({ wedding }: { wedding: WeddingPlanejamento }
           sub={days == null ? 'sem data' : days < 0 ? 'casamento passou' : days === 0 ? 'é hoje!' : `faltam ${days} dias`}
         />
         <Stat
-          icon={<Users className="w-4 h-4" />}
-          label="Lista de convidados"
-          value={total > 0 ? `${total}` : '—'}
-          sub="nomes na lista"
+          icon={<Landmark className="w-4 h-4" />}
+          label="Casamento (evento)"
+          value={evento != null ? brl.format(evento) : '—'}
+          sub={valorTotal != null ? 'valor total' : pacoteValor != null ? 'valor do pacote' : 'a definir'}
         />
         <Stat
-          icon={<Landmark className="w-4 h-4" />}
-          label="Espaço & pacote"
-          value={pacoteValor != null ? brl.format(pacoteValor) : '—'}
-          sub="valor do pacote"
+          icon={<BedDouble className="w-4 h-4" />}
+          label="Hospedagem"
+          value={hosp != null ? `${brl.format(hosp)}/noite` : '—'}
+          sub="tarifa × quartos do bloco"
         />
         <Stat
           icon={<DollarSign className="w-4 h-4" />}
-          label="Sinal / contrato"
+          label="Sinal recebido"
           value={sinal != null ? brl.format(sinal) : '—'}
-          sub={valorTotal != null ? `total ${brl.format(valorTotal)}` : 'sinal recebido'}
+          sub="do contrato do casamento"
         />
       </div>
 
