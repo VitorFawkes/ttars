@@ -90,7 +90,11 @@ export async function linkNoivo2(
       nome: pparts[0],
       sobrenome: pparts.length > 1 ? pparts.slice(1).join(" ") : null,
       tipo_pessoa: "adulto",
-      origem,
+      // Noivo 2 é um contato "só nome" (sem sobrenome/telefone): usa origem ISENTA do
+      // check_contato_required_fields (20260611e). Antes, origem='active_campaign'/'site'
+      // (não isentas) barrava a criação quando o nome vinha sem sobrenome. A fonte real
+      // fica nas tags. ('integracao' já é isenta na lista do trigger.)
+      origem: "integracao",
       tags: [origem],
     })
     .select("id").single();
