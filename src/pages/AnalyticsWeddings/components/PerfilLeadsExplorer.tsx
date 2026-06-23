@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from 'recharts'
 import {
   useWwPerfilTemporal, useWwFunilRanking,
   type WwPerfilDim, type WwPerfilMarco, type WwPerfilGran, type WwPerfilCategoria, type WwPerfilTemporal,
@@ -42,6 +42,8 @@ const STAGE_LABEL = (m: WwPerfilMarco) => STAGE_OPTS.find(s => s.id === m)!.labe
 const ORDER: Partial<Record<Dim, string[]>> = {
   faixa: ['Até R$50 mil', 'R$50-100 mil', 'R$100-200 mil', 'R$200-500 mil', '+R$500 mil'],
   convidados: ['Apenas o casal', 'Até 20', '20-50', '50-100', '50-80', '80-100', '+100'],
+  // ordem fixa dos destinos (pedido do Vitor); os demais seguem por volume, "Outros"/sem info no fim
+  destino: ['Caribe', 'Nordeste', 'Itália', 'Mendoza'],
 }
 const isNI = (b: string) => /n[ãa]o\s*informad/i.test(b) || b === 'Desconhecida'
 
@@ -54,7 +56,9 @@ function ordenarBuckets(dim: Dim, buckets: string[], peso: (b: string) => number
   const arr = [...buckets]
   if (order) arr.sort((a, b) => ((order.indexOf(a) + 1) || 999) - ((order.indexOf(b) + 1) || 999))
   else arr.sort((a, b) => peso(b) - peso(a))
-  arr.sort((a, b) => Number(isNI(a)) - Number(isNI(b)))
+  // sempre por último: "Não informado" e depois o agregado "Outros"
+  const trail = (b: string) => (b === 'Outros' ? 2 : isNI(b) ? 1 : 0)
+  arr.sort((a, b) => trail(a) - trail(b))
   return arr
 }
 
@@ -332,7 +336,8 @@ function TempoChart({ temporal, dim, layout, measure, selecionado, onBarClick }:
   onBarClick: (bucket: string, periodo: string, label: string) => void
 }) {
   const hasOutros = !selecionado && temporal.series.some(s => s.bucket === 'Outros')
-  const stackKeys = [...temporal.buckets_top.filter(b => b !== 'Outros'), ...(hasOutros ? ['Outros'] : [])]
+  const totalsByBucket = new Map(temporal.buckets_all.map(b => [b.bucket, b.total]))
+  const stackKeys = ordenarBuckets(dim, [...temporal.buckets_top.filter(b => b !== 'Outros'), ...(hasOutros ? ['Outros'] : [])], b => totalsByBucket.get(b) ?? 0)
 
   const ordem: { periodo: string; label: string }[] = []
   const vistos = new Set<string>()
@@ -372,7 +377,6 @@ function TempoChart({ temporal, dim, layout, measure, selecionado, onBarClick }:
           <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false}
             domain={measure === 'pct' ? [0, 100] : undefined} tickFormatter={measure === 'pct' ? (v) => `${v}%` : undefined} />
           <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }} formatter={(v) => fmtTip(v as number)} cursor={{ fill: 'rgba(189,150,92,0.06)' }} />
-          <Legend wrapperStyle={{ fontSize: 11 }} />
           {stackKeys.map((k, i) => (
             <Bar key={k} dataKey={k} stackId={layout === 'stack' ? 'a' : undefined} fill={corBucket(k, i)} maxBarSize={layout === 'group' ? 18 : 44}
               cursor={clickable(k) ? 'pointer' : 'default'}
@@ -387,6 +391,14 @@ function TempoChart({ temporal, dim, layout, measure, selecionado, onBarClick }:
           ))}
         </BarChart>
       </ResponsiveContainer>
+      {/* legenda própria: segue a ordem do empilhamento (a do recharts ordena alfabético) */}
+      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 pt-2">
+        {stackKeys.map((k, i) => (
+          <span key={k} className="inline-flex items-center gap-1 text-[11px] text-slate-600">
+            <span className="w-2.5 h-2.5 rounded-[3px] shrink-0" style={{ background: corBucket(k, i) }} />{k}
+          </span>
+        ))}
+      </div>
       <p className="text-[11px] text-slate-400 pt-2 border-t border-slate-100 mt-1">
         {layout === 'stack' ? 'Cada barra = um período, fatiada' : 'Cada período = colunas lado a lado'} pelas {DIM_LABEL[dim].toLowerCase()}s
         {selecionado ? ' escolhidas' : ' mais comuns (as demais somam em "Outros")'}.

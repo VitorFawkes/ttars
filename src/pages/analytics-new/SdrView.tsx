@@ -1,12 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Inbox, MessageCircle, CalendarCheck, Trophy, Loader2, ArrowRightLeft, Timer } from 'lucide-react'
-import KpiCard from '@/components/analytics/KpiCard'
+import { Loader2, ArrowRightLeft, Timer } from 'lucide-react'
+import SdrFunilPeriodoHero from '@/components/analytics/SdrFunilPeriodoHero'
 import { useLossReasons } from '@/hooks/analytics/useFunnelConversion'
 import { useFunnelStagesLens, type FunnelLens } from '@/hooks/analytics/useFunnelStagesLens'
 import { useTeamLeaderboard } from '@/hooks/analytics/useTeamLeaderboard'
 import { useAnalyticsFilters } from '@/hooks/analytics/useAnalyticsFilters'
-import { useResumoOverview, useResumoOverviewPrevious } from '@/hooks/analytics/useResumoOverview'
 import { useDrillDownStore } from '@/hooks/analytics/useAnalyticsDrillDown'
 import { useFilterProfilesWithRole } from '@/hooks/analytics/useFilterOptions'
 import { supabase } from '@/lib/supabase'
@@ -103,14 +102,6 @@ function speedBucketColor(bucket: string): string {
   return 'bg-rose-400'
 }
 
-// Etapas reconhecidas como marcos do funil SDR. Usado para cards de KPI.
-const SDR_MILESTONES: Array<{ key: string; label: string; match: (n: string) => boolean }> = [
-  { key: 'novo', label: 'Novos leads', match: n => /novo\s*lead|entrada|primeiro/i.test(n) },
-  { key: 'conectado', label: 'Conectados', match: n => /conectad/i.test(n) },
-  { key: 'reuniao', label: 'Reunião agendada', match: n => /reuni[aã]o|meeting|agendad/i.test(n) },
-  { key: 'qualificado', label: 'Qualificados', match: n => /apresenta[cç][aã]o|qualif/i.test(n) },
-]
-
 const ORIGEM_LABELS: Record<string, string> = {
   manual: 'Planner direto',
   whatsapp: 'WhatsApp (Julia)',
@@ -145,8 +136,6 @@ export default function SdrView() {
   const funnel = useFunnelStagesLens(funnelLens)
   const lossReasons = useLossReasons()
   const leaderboard = useTeamLeaderboard()
-  const resumo = useResumoOverview()
-  const resumoPrev = useResumoOverviewPrevious()
   const followThrough = useSdrFollowThroughLocal()
   const speed = useSdrSpeedToLeadLocal()
   const profilesByRole = useFilterProfilesWithRole()
@@ -169,21 +158,10 @@ export default function SdrView() {
   const topStage = sdrStages[0]
   const topCount = topStage?.count ?? 0
 
-  // Marcos do funil mapeados pelas etapas reais
-  const milestoneStages = useMemo(() => {
-    return SDR_MILESTONES.map(m => {
-      const stage = sdrStages.find(s => m.match(s.stage_nome))
-      return { ...m, stage }
-    })
-  }, [sdrStages])
-
   // Leaderboard só com profiles que TÊM role='sdr'
   const sdrLeaderboard = useMemo(() => {
     return (leaderboard.data ?? []).filter(row => sdrIds.has(row.user_id))
   }, [leaderboard.data, sdrIds])
-
-  // Quando há filtro de pessoa global ativo, exibe info
-  const prevLeads = resumoPrev.data?.empresa.kpis.leads_entrada
 
   // Speed-to-lead: mediana, % até 1h (higiene) e distribuição em buckets
   const speedStats = useMemo(() => {
@@ -245,56 +223,9 @@ export default function SdrView() {
         </div>
       )}
 
-      {/* Lente do funil (Leva D): Agora (foto) / Por safra / Por atividade */}
-      <FunnelLensToggle value={funnelLens} onChange={setFunnelLens} />
-
-      {/* KPIs hero — funil em números, clicáveis */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
-          title="Novos leads no período"
-          value={milestoneStages[0].stage?.count ?? resumo.data?.empresa.kpis.leads_entrada ?? 0}
-          icon={Inbox}
-          color="text-blue-600"
-          bgColor="bg-blue-50"
-          isLoading={funnel.isLoading}
-          delta={prevLeads !== undefined ? {
-            current: milestoneStages[0].stage?.count ?? 0,
-            previous: prevLeads,
-          } : undefined}
-          onClick={milestoneStages[0].stage ? () => openCardsInStage(milestoneStages[0].stage!.stage_id, milestoneStages[0].stage!.stage_nome) : undefined}
-          clickHint={milestoneStages[0].stage ? 'Ver leads →' : undefined}
-        />
-        <KpiCard
-          title="Conectados"
-          value={milestoneStages[1].stage?.count ?? 0}
-          icon={MessageCircle}
-          color="text-indigo-600"
-          bgColor="bg-indigo-50"
-          isLoading={funnel.isLoading}
-          onClick={milestoneStages[1].stage ? () => openCardsInStage(milestoneStages[1].stage!.stage_id, milestoneStages[1].stage!.stage_nome) : undefined}
-          clickHint={milestoneStages[1].stage ? 'Ver leads →' : undefined}
-        />
-        <KpiCard
-          title="Reuniões agendadas"
-          value={milestoneStages[2].stage?.count ?? 0}
-          icon={CalendarCheck}
-          color="text-purple-600"
-          bgColor="bg-purple-50"
-          isLoading={funnel.isLoading}
-          onClick={milestoneStages[2].stage ? () => openCardsInStage(milestoneStages[2].stage!.stage_id, milestoneStages[2].stage!.stage_nome) : undefined}
-          clickHint={milestoneStages[2].stage ? 'Ver leads →' : undefined}
-        />
-        <KpiCard
-          title="Qualificados (passados pro Planner)"
-          value={milestoneStages[3].stage?.count ?? 0}
-          icon={Trophy}
-          color="text-emerald-600"
-          bgColor="bg-emerald-50"
-          isLoading={funnel.isLoading}
-          onClick={milestoneStages[3].stage ? () => openCardsInStage(milestoneStages[3].stage!.stage_id, milestoneStages[3].stage!.stage_nome) : undefined}
-          clickHint={milestoneStages[3].stage ? 'Ver leads →' : undefined}
-        />
-      </div>
+      {/* Funil de pré-venda POR PERÍODO — responde as 4 perguntas da gestora
+          (agendou / realizou / qualificou / desqualificou), clicáveis. */}
+      <SdrFunilPeriodoHero />
 
       {/* Tempo de 1ª resposta — SLA de atendimento (speed-to-lead) */}
       <WidgetCard
@@ -351,10 +282,11 @@ export default function SdrView() {
       {/* Evolução / jornada dos leads — coorte, conversão por origem, tempo até fechar */}
       <SdrEvolutionSection />
 
-      {/* Funil SDR — barras clicáveis */}
+      {/* Funil SDR detalhado — barras por etapa, com lente Agora/Safra/Atividade */}
+      <FunnelLensToggle value={funnelLens} onChange={setFunnelLens} />
       <WidgetCard
         title="Funil de qualificação SDR"
-        subtitle="Quantos cards estão em cada etapa e a % em relação ao primeiro passo. Clique numa barra pra ver os cards."
+        subtitle="Quantos cards em cada etapa, conforme a lente escolhida (foto do agora, por safra ou por atividade). Clique numa barra pra ver os cards."
       >
         {funnel.isLoading ? (
           <div className="h-40 flex items-center justify-center text-slate-400">

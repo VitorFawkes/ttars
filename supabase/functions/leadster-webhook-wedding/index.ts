@@ -1,4 +1,9 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import {
+  createWeddingLead,
+  isCreateEnabled,
+  type WeddingLead,
+} from "../_shared/wedding-lead.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -65,15 +70,6 @@ async function verifyJwtHs256(
   }
 }
 
-// ---- Constantes WEDDING (espelha leadster-webhook de Trips, com os ids de Weddings) ----
-const WEDDING_PIPELINE_ID = "f4611f84-ce9c-48ad-814b-dcd6081f15db"; // Pipeline Welcome Wedding
-const WEDDING_CARD_ORG_ID = "b0000000-0000-0000-0000-000000000002"; // workspace Welcome Weddings (cards)
-const WEDDING_ENTRY_STAGE_ID = "6acb35af-d1a2-48e7-bc48-133907ae9554"; // etapa "Novo Lead" (fase SDR)
-const SHARED_CONTACT_ORG_ID = "a0000000-0000-0000-0000-000000000001"; // conta Welcome Group (contatos compartilhados)
-
-// deno-lint-ignore no-explicit-any
-type SupaClient = any;
-
 const str = (v: unknown): string | null => {
   if (v == null) return null;
   const s = String(v).trim();
@@ -91,214 +87,41 @@ const pick = (p: Record<string, unknown>, ...keys: string[]): string | null => {
   return null;
 };
 
-// Interruptor (vai ser exposto na tela de Configurações → Leadster do workspace Weddings).
-// Lê integration_settings(key='leadster_create_cards') da org Welcome Weddings.
-// Ausente/erro/'false' = modo ensaio (não cria nada). 'true' = cria de verdade.
-async function isCreateEnabled(supabase: SupaClient): Promise<boolean> {
-  const { data } = await supabase
-    .from("integration_settings")
-    .select("value")
-    .eq("key", "leadster_create_cards")
-    .eq("org_id", WEDDING_CARD_ORG_ID)
-    .is("produto", null)
-    .maybeSingle();
-  return (str(data?.value) ?? "false").toLowerCase() === "true";
-}
+// O form do Leadster manda faixas de orçamento por extenso; o campo
+// ww_orcamento_faixa tem opções fixas (Até R$50k, R$50-80k, ...).
+const ORCAMENTO_FORM_PARA_FAIXA: Record<string, string> = {
+  "Até R$50 mil": "Até R$50k",
+  "Entre R$50 e R$80 mil": "R$50-80k",
+  "Entre R$80 e R$100 mil": "R$80-100k",
+  "Entre R$100 e R$200 mil": "R$100-200k",
+  "Entre R$200 e R$500 mil": "Acima R$200k",
+  "Mais de R$500 mil": "Acima R$200k",
+};
 
-/**
- * Processa um lead de Weddings do Leadster: dedup de contato e card, e (só quando
- * `createEnabled`) criação de verdade. Sem `createEnabled` é puro SELECT
- * (modo ensaio) — nenhuma linha é criada.
- *
- * Reusa o mesmo critério de dedup que public-api (Echo) e integration-process:
- *   contato por email → por telefone (find_contact_by_whatsapp);
- *   card por pessoa_principal_id + produto WEDDING + status aberto.
- *
- * NOTA (modo inspeção): o mapeamento dos campos do formulário de Weddings
- * (noivos, data do casamento, destino, nº de convidados, orçamento) para
- * cards.produto_data ainda NÃO é feito aqui — depende de ver o 1º payload real.
- * Por ora tudo do payload (exceto core + jwt) cai em marketing_data, igual Trips.
- */
-async function processLeadsterLead(
-  supabase: SupaClient,
-  p: Record<string, unknown>,
-  createEnabled: boolean,
-): Promise<{ plan: string; createdCardId: string | null }> {
-  const nome = pick(p, "Nome", "nome", "name");
-  const email = pick(p, "Email", "email");
-  const telefone = pick(p, "Telefone", "telefone", "phone");
+// Normaliza o payload do Leadster (rótulos legíveis) para o WeddingLead comum.
+function normalizeLeadsterPayload(p: Record<string, unknown>): WeddingLead {
+  const qInvestimento = pick(p, "Investimento 2");
+  const orcamentoFaixa = qInvestimento ? (ORCAMENTO_FORM_PARA_FAIXA[qInvestimento] ?? null) : null;
 
-  if (!email && !telefone) {
-    return { plan: "ignorado: payload sem Email e sem Telefone (impossível dedup/criar)", createdCardId: null };
-  }
-
-  // --- 1. Dedup de contato (email → telefone) ---
-  let contactId: string | null = null;
-  let matchedBy: string | null = null;
-
-  if (email) {
-    const { data } = await supabase
-      .from("contatos").select("id").eq("email", email).limit(1).maybeSingle();
-    if (data?.id) { contactId = data.id; matchedBy = "email"; }
-  }
-  if (!contactId && telefone) {
-    const { data: foundId } = await supabase
-      .rpc("find_contact_by_whatsapp", { p_phone: telefone, p_convo_id: "" });
-    if (foundId) { contactId = foundId as string; matchedBy = "telefone"; }
-  }
-
-  // --- 2. Dedup de card (só faz sentido se já existe contato) ---
-  let existingCardId: string | null = null;
-  if (contactId) {
-    const { data: cards } = await supabase
-      .from("cards")
-      .select("id")
-      .eq("pessoa_principal_id", contactId)
-      .eq("produto", "WEDDING")
-      .not("status_comercial", "in", '("ganho","perdido")')
-      .is("deleted_at", null)
-      .limit(1);
-    existingCardId = cards?.[0]?.id ?? null;
-  }
-
-  // --- 3. Etapa de entrada do pipeline WEDDING ("Novo Lead") ---
-  const stageId = WEDDING_ENTRY_STAGE_ID;
-
-  // --- Plano legível (vale tanto pro ensaio quanto pro log de produção) ---
-  const contatoPlan = contactId
-    ? `contato existente ${contactId} (via ${matchedBy})`
-    : "criaria contato novo (org Welcome Group)";
-  const cardPlan = existingCardId
-    ? `card WEDDING aberto já existe ${existingCardId} → DEDUP, não criaria`
-    : "criaria card WEDDING novo";
-  const planBase = `${contatoPlan}; ${cardPlan}`;
-
-  // --- Modo ensaio: para por aqui, nada é criado ---
-  if (!createEnabled) {
-    return { plan: `ENSAIO (leadster_create_cards off): ${planBase}`, createdCardId: null };
-  }
-
-  // --- 4. Criação real ---
-  // 4a. Card já existe → dedup, não cria nada.
-  if (existingCardId) {
-    return { plan: `DEDUP: card WEDDING aberto já existe ${existingCardId}`, createdCardId: existingCardId };
-  }
-
-  // 4b. Criar contato se necessário.
-  if (!contactId) {
-    const parts = (nome ?? "Lead Leadster").split(/\s+/);
-    const { data: novo, error: cErr } = await supabase
-      .from("contatos")
-      .insert({
-        org_id: SHARED_CONTACT_ORG_ID,
-        nome: parts[0],
-        sobrenome: parts.length > 1 ? parts.slice(1).join(" ") : null,
-        email,
-        telefone,
-        tipo_pessoa: "adulto",
-        origem: "leadster",
-        tags: ["leadster"],
-      })
-      .select("id").single();
-    if (cErr) return { plan: `ERRO ao criar contato: ${cErr.message}`, createdCardId: null };
-    contactId = novo.id;
-  }
-
-  // 4c. marketing_data = tudo do payload exceto core + jwt.
+  // marketing_data = tudo do payload exceto core + jwt.
   const marketing: Record<string, unknown> = {};
+  const coreKeys = ["Nome", "nome", "name", "Email", "email", "Telefone", "telefone", "phone", "jwt"];
   for (const [k, v] of Object.entries(p)) {
-    if (["Nome", "nome", "name", "Email", "email", "Telefone", "telefone", "phone", "jwt"].includes(k)) continue;
+    if (coreKeys.includes(k)) continue;
     marketing[k] = v;
   }
 
-  // 4c2. produto_data = campos estruturados da seção Qualificação.
-  // Os valores crus continuam em marketing_data (auditoria). Orçamento é o
-  // único que precisa normalizar: o form manda faixas por extenso e o campo
-  // ww_orcamento_faixa tem opções fixas (Até R$50k, R$50-80k, ...).
-  const ORCAMENTO_FORM_PARA_FAIXA: Record<string, string> = {
-    "Até R$50 mil": "Até R$50k",
-    "Entre R$50 e R$80 mil": "R$50-80k",
-    "Entre R$80 e R$100 mil": "R$80-100k",
-    "Entre R$100 e R$200 mil": "R$100-200k",
-    "Entre R$200 e R$500 mil": "Acima R$200k",
-    "Mais de R$500 mil": "Acima R$200k",
+  return {
+    nome: pick(p, "Nome", "nome", "name"),
+    email: pick(p, "Email", "email"),
+    telefone: pick(p, "Telefone", "telefone", "phone"),
+    destino: pick(p, "Onde Casar", "Destino"),
+    convidados: pick(p, "Convidados 2"),
+    orcamentoFaixa,
+    cidade: pick(p, "Cidade"),
+    nomeNoivos: pick(p, "Nome dos noivos", "nome_dos_noivos"),
+    marketing,
   };
-  const produtoData: Record<string, unknown> = {};
-  const qDestino = pick(p, "Onde Casar", "Destino");
-  const qConvidados = pick(p, "Convidados 2");
-  const qInvestimento = pick(p, "Investimento 2");
-  const qCidade = pick(p, "Cidade");
-  if (qDestino) produtoData.ww_destino = qDestino;
-  if (qConvidados) produtoData.ww_num_convidados = qConvidados;
-  if (qInvestimento && ORCAMENTO_FORM_PARA_FAIXA[qInvestimento]) {
-    produtoData.ww_orcamento_faixa = ORCAMENTO_FORM_PARA_FAIXA[qInvestimento];
-  }
-  if (qCidade) produtoData.ww_sdr_cidade = qCidade;
-
-  // Título no padrão do funil WW (igual aos cards vindos do Active):
-  //   "Elopement | Nome" quando o form responde "Apenas o casal";
-  //   "DW | Nome" (Destination Wedding) para os demais.
-  const isElopement = (qConvidados ?? "").trim().toLowerCase() === "apenas o casal";
-  produtoData.ww_tipo_casamento = isElopement ? "Elopement" : "Destination Wedding";
-  const titulo = `${isElopement ? "Elopement" : "DW"} | ${nome ?? "Lead Leadster"}`;
-
-  // 4d. Criar card WEDDING.
-  const { data: card, error: cardErr } = await supabase
-    .from("cards")
-    .insert({
-      titulo,
-      pessoa_principal_id: contactId,
-      org_id: WEDDING_CARD_ORG_ID,
-      pipeline_id: WEDDING_PIPELINE_ID,
-      pipeline_stage_id: stageId,
-      produto: "WEDDING",
-      origem: "leadster",
-      status_comercial: "aberto",
-      moeda: "BRL",
-      marketing_data: marketing,
-      produto_data: produtoData,
-    })
-    .select("id").single();
-  if (cardErr) return { plan: `ERRO ao criar card: ${cardErr.message}`, createdCardId: null };
-
-  // NOTA: o contato principal NÃO entra em cards_contatos — vive em
-  // cards.pessoa_principal_id, e um trigger do banco bloqueia a duplicação
-  // ("already the Main Contact"). cards_contatos guarda só os adicionais.
-
-  // 4e. Criar o(a) Noivo(a) 2 como segundo contato do card (acompanhante),
-  // a partir da pergunta "Nome dos noivos" do formulário. Só o nome — a SDR
-  // completa e-mail/telefone depois (origem 'leadster' é isenta do check de
-  // campos obrigatórios). Sem dedup: sem email/telefone não há como casar
-  // com contato existente, e este caminho só roda na criação do card.
-  let parceiroPlan = "";
-  const nomeNoivos = pick(p, "Nome dos noivos", "nome_dos_noivos");
-  if (nomeNoivos && nomeNoivos.toLowerCase() !== (nome ?? "").toLowerCase()) {
-    const pparts = nomeNoivos.split(/\s+/);
-    const { data: parceiro, error: pErr } = await supabase
-      .from("contatos")
-      .insert({
-        org_id: SHARED_CONTACT_ORG_ID,
-        nome: pparts[0],
-        sobrenome: pparts.length > 1 ? pparts.slice(1).join(" ") : null,
-        tipo_pessoa: "adulto",
-        origem: "leadster",
-        tags: ["leadster"],
-      })
-      .select("id").single();
-    if (pErr) {
-      parceiroPlan = `; ERRO ao criar Noivo(a) 2: ${pErr.message}`;
-    } else {
-      await supabase.from("cards_contatos").insert({
-        card_id: card.id,
-        contato_id: parceiro.id,
-        tipo_viajante: "acompanhante",
-        ordem: 1,
-      });
-      parceiroPlan = `; Noivo(a) 2 criado como acompanhante (contato ${parceiro.id})`;
-    }
-  }
-
-  return { plan: `CRIADO card WEDDING ${card.id} (contato ${contactId})${parceiroPlan}`, createdCardId: card.id };
 }
 
 Deno.serve(async (req) => {
@@ -393,9 +216,14 @@ Deno.serve(async (req) => {
     // Default (off) = modo ensaio: só calcula e loga o que faria, sem criar nada.
     // Garantia anti-duplicação: ligar este flag e desligar a entrada pelo ActiveCampaign
     // de Weddings devem ser feitos juntos.
-    const createEnabled = await isCreateEnabled(supabase);
+    const createEnabled = await isCreateEnabled(supabase, "leadster_create_cards");
     try {
-      const { plan, createdCardId } = await processLeadsterLead(supabase, p, createEnabled);
+      const lead = normalizeLeadsterPayload(p);
+      const { plan, createdCardId } = await createWeddingLead(supabase, lead, {
+        createEnabled,
+        origem: "leadster",
+        fallbackName: "Lead Leadster",
+      });
       console.log(`[leadster-webhook-wedding] ${plan}`);
       if (evt?.id) {
         await supabase

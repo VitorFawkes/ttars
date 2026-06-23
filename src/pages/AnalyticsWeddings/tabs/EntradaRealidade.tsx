@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { FilterBar, type TabProps, type AppliedFilters } from '../components/FilterBar'
 import { useWwDriftVenda, useWwDriftCombos, type WwDriftVenda, type WwDriftCombos } from '@/hooks/analyticsWeddings/useWw2'
+import { useAnalyticsVariant } from '@/hooks/analyticsWeddings/AnalyticsVariantContext'
 import { SectionCard, EmptyState, LoadingSkeleton, ErrorBanner } from '../components/ui'
 import { DrillDrawer, type DrillContext } from '../components/DrillDrawer'
 import { OpenInACButton } from '../components/OpenInACButton'
@@ -125,18 +126,26 @@ function EntradaRealidadeContent({ filters }: { filters: AppliedFilters }) {
 // ─── Banner explicando nova fonte (AC direto vs CRM defasado) ──────────────
 function FonteV2Banner({ data }: { data: WwDriftVenda }) {
   // Se backend retornou fonte_v2, mostra banner explicativo
+  const variant = useAnalyticsVariant()
   const fonteV2 = (data as unknown as { fonte_v2?: string })?.fonte_v2
   if (!fonteV2) return null
+  const isNative = variant === 'native'
   return (
     <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-emerald-900">
       <div className="flex items-start gap-3">
         <span className="text-emerald-600 text-lg">✨</span>
         <div className="flex-1">
-          <p className="font-medium">Fonte: ActiveCampaign direto (sincroniza sozinho ao longo do dia)</p>
+          <p className="font-medium">
+            {isNative
+              ? 'Fonte: dados do próprio CRM (ttars)'
+              : 'Fonte: ActiveCampaign direto (sincroniza sozinho ao longo do dia)'}
+          </p>
           <p className="text-emerald-700 text-xs mt-1">
             Universo de <strong>{formatNumber(data.total_fechados)} casamentos fechados</strong> no recorte,
             com o <strong>orçamento real</strong> e a <strong>previsão de convidados</strong> que a closer registrou.
-            O CRM pode estar defasado pra ganhos antigos; a análise aqui usa o Active como fonte de verdade.
+            {isNative
+              ? ' A realidade vem dos campos do card no CRM (pode ter cobertura menor que o Active).'
+              : ' O CRM pode estar defasado pra ganhos antigos; a análise aqui usa o Active como fonte de verdade.'}
           </p>
         </div>
       </div>

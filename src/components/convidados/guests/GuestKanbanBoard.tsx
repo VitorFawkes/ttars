@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -10,6 +10,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { cn } from '../../../lib/utils'
 import { useUpdateGuestStatus } from '../../../hooks/convidados/useUpdateGuestStatus'
 import { STATUS_RSVP_LABEL, type Guest, type StatusRSVP } from '../../../hooks/convidados/types'
@@ -46,7 +47,7 @@ interface GuestKanbanBoardProps {
   search: string
 }
 
-export function GuestKanbanBoard({ guests, search }: GuestKanbanBoardProps) {
+function GuestKanbanBoardBase({ guests, search }: GuestKanbanBoardProps) {
   const updateStatus = useUpdateGuestStatus()
   const [activeGuest, setActiveGuest] = useState<Guest | null>(null)
 
@@ -119,14 +120,47 @@ export function GuestKanbanBoard({ guests, search }: GuestKanbanBoardProps) {
   )
 }
 
+// memo: evita re-render do board (e recriar milhares de elementos de card)
+// quando só o pai muda — ex.: o indicador de loading do ConvidadosBoard liga/
+// desliga. `guests` e `search` chegam estáveis, então a comparação rasa basta.
+export const GuestKanbanBoard = memo(GuestKanbanBoardBase)
+
 interface ColumnProps {
   status: StatusRSVP
   guests: Guest[]
   tone: { accent: string; chip: string }
 }
 
-function Column({ status, guests, tone }: ColumnProps) {
+// memo: durante o drag, o board re-renderiza (activeGuest muda). Sem memo cada
+// coluna recriaria seus milhares de cards a cada frame do arraste.
+const Column = memo(function Column({ status, guests, tone }: ColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+
+  // A área de drop é, ao mesmo tempo, o alvo do dnd-kit e o container de scroll
+  // do virtualizador — então combinamos os dois refs no mesmo nó.
+  const setRefs = useCallback(
+    (node: HTMLDivElement | null) => {
+      scrollRef.current = node
+      setNodeRef(node)
+    },
+    [setNodeRef],
+  )
+
+  // Virtualização: só os cards visíveis (+ overscan) são montados. Cada card é
+  // um draggable do dnd-kit; montar milhares de uma vez travava a aba. O drop
+  // continua sendo na COLUNA inteira (useDroppable acima), não por card, então
+  // arrastar/soltar segue funcionando mesmo com cards fora da viewport.
+  // Altura medida de verdade (measureElement) porque o card varia conforme tem
+  // telefone/e-mail/casamento; getItemKey amarra a medição à identidade do
+  // convidado pra não embaralhar alturas ao filtrar.
+  const virtualizer = useVirtualizer({
+    count: guests.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 96,
+    overscan: 8,
+    getItemKey: index => guests[index].id,
+  })
 
   return (
     <div className="flex flex-col flex-1 min-w-[280px] min-h-0">
@@ -148,21 +182,42 @@ function Column({ status, guests, tone }: ColumnProps) {
             </span>
           </div>
         </div>
-        {/* Drop area scrollável */}
+        {/* Drop area scrollável + virtualizada */}
         <div
-          ref={setNodeRef}
+          ref={setRefs}
           className={cn(
-            'flex-1 min-h-0 px-2 py-2 space-y-2 bg-slate-50/40 overflow-y-auto transition-colors',
+            'flex-1 min-h-0 px-2 py-2 bg-slate-50/40 overflow-y-auto transition-colors',
             isOver && 'bg-indigo-50/60 ring-2 ring-indigo-400 ring-inset',
           )}
         >
           {guests.length === 0 ? (
             <p className="text-[11px] text-slate-400 italic text-center py-6">Sem convidados aqui.</p>
           ) : (
-            guests.map(guest => <GuestKanbanCard key={guest.id} guest={guest} />)
+            <div style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
+              {virtualizer.getVirtualItems().map(vi => {
+                const guest = guests[vi.index]
+                return (
+                  <div
+                    key={guest.id}
+                    data-index={vi.index}
+                    ref={virtualizer.measureElement}
+                    className="pb-2"
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      transform: `translateY(${vi.start}px)`,
+                    }}
+                  >
+                    <GuestKanbanCard guest={guest} />
+                  </div>
+                )
+              })}
+            </div>
           )}
         </div>
       </div>
     </div>
   )
-}
+})

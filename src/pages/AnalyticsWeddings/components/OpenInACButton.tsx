@@ -1,4 +1,5 @@
 import { useACBaseUrl, buildACContactUrl, buildACDealUrl } from '@/hooks/useACBaseUrl'
+import { useAnalyticsVariant } from '@/hooks/analyticsWeddings/AnalyticsVariantContext'
 
 type Props = {
   /** ID do deal do casal no Active (preferido — abre a card de venda) */
@@ -15,7 +16,10 @@ type Props = {
  * cai pra contato. Se nada disponível, fica desabilitado com tooltip.
  */
 export function OpenInACButton({ dealId, externalId, contactName, size = 'sm', variant = 'icon' }: Props) {
+  // Analytics 2 (ttars): dashboard nativo não exibe atalhos pro Active.
+  const analyticsVariant = useAnalyticsVariant()
   const { data: baseUrl } = useACBaseUrl()
+  if (analyticsVariant === 'native') return null
   const dealUrl = buildACDealUrl(baseUrl, dealId)
   const contactUrl = buildACContactUrl(baseUrl, externalId)
   const url = dealUrl || contactUrl

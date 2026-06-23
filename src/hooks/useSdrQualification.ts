@@ -25,6 +25,8 @@ export type SdrScoreResult = {
         rule_id: string
         rule_type: string
         source?: string
+        /** Grupo exclusivo da regra (ex: 'destino', 'valor_convidado'); null se avulsa. */
+        exclusion_group?: string | null
     }>
 }
 

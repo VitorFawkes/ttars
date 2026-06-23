@@ -10,7 +10,7 @@ const ZERO_COUNTS: RsvpCounts = { nao_vai: 0, sem_reacao: 0, intencao: 0, confir
 
 export function useWeddingsWithGuestCounts() {
   const weddingsQuery = useWeddings()
-  const guestsQuery = useAllGuests({ search: '', statusFilter: [], weddingFilter: [] })
+  const guestsQuery = useAllGuests({ statusFilter: [], weddingFilter: [] })
   const { data: flows = [] } = useFluxoTemplates()
   const { data: assignmentStore = {} } = useAllWeddingFluxos()
 

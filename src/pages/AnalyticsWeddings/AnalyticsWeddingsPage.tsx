@@ -2,6 +2,7 @@ import { useState, useEffect, createElement } from 'react'
 import { LayoutDashboard, GitCompare, Shuffle, Target, TrendingUp, Megaphone, TrendingDown, type LucideIcon } from 'lucide-react'
 import { useOrg } from '@/contexts/OrgContext'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
+import { useAnalyticsVariant } from '@/hooks/analyticsWeddings/AnalyticsVariantContext'
 import { countActiveFilters, defaultFilters, type AppliedFilters, type TabProps } from './components/FilterBar'
 import { VisaoGeral } from './tabs/VisaoGeral'
 import { FunilComparado } from './tabs/FunilComparado'
@@ -10,7 +11,7 @@ import { Qualidade } from './tabs/Qualidade'
 import { Perfil } from './tabs/Perfil'
 import { Marketing } from './tabs/Marketing'
 import { Perdas } from './tabs/Perdas'
-import { formatRange } from './lib/dates'
+import { formatRange, periodToDates } from './lib/dates'
 
 type Tab = 'visao' | 'funil-comparado' | 'entrada-realidade' | 'qualidade' | 'perfil' | 'marketing' | 'perdas'
 
@@ -40,7 +41,18 @@ function loadFiltersByTab(orgId?: string): Record<Tab, AppliedFilters> {
       const saved = JSON.parse(raw) as Partial<Record<Tab, AppliedFilters>>
       for (const t of TAB_IDS) {
         // merge com o default pra absorver campos novos de filtro adicionados depois
-        if (saved[t]) base[t] = { ...defaultFilters(), ...saved[t] }
+        if (saved[t]) {
+          const merged = { ...defaultFilters(), ...saved[t] }
+          // Período relativo (mtd/7d/30d/90d/12m/ano…) guarda datas absolutas que envelhecem:
+          // ao reabrir dias depois, "Este mês" continuaria preso na janela do dia em que foi salvo.
+          // Recalcula a janela contra "hoje". Só 'custom' preserva as datas explícitas salvas.
+          if (merged.period !== 'custom') {
+            const { dateStart, dateEnd } = periodToDates(merged.period)
+            merged.dateStart = dateStart
+            merged.dateEnd = dateEnd
+          }
+          base[t] = merged
+        }
       }
     }
   } catch { /* localStorage indisponível ou JSON inválido → defaults */ }
@@ -105,12 +117,21 @@ export default function AnalyticsWeddingsPage() {
 }
 
 function Header({ activeFilters }: { activeFilters?: AppliedFilters }) {
+  const variant = useAnalyticsVariant()
+  const isNative = variant === 'native'
   return (
     <div className="flex items-end justify-between">
       <div>
-        <h1 className="font-ww-serif text-2xl font-semibold text-ww-n700 tracking-tight">Welcome Weddings · Indicadores</h1>
+        <h1 className="font-ww-serif text-2xl font-semibold text-ww-n700 tracking-tight">
+          Welcome Weddings · Indicadores
+          {isNative && (
+            <span className="ml-2 align-middle text-[11px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-800 rounded px-1.5 py-0.5">WIP</span>
+          )}
+        </h1>
         <p className="text-sm text-ww-n500 mt-0.5">
-          Análise de vendas e marketing com base em ActiveCampaign
+          {isNative
+            ? 'Análise de vendas e marketing com base nos dados do ttars (funil próprio)'
+            : 'Análise de vendas e marketing com base em ActiveCampaign'}
           {activeFilters && (
             <span className="ml-2 text-ww-n400">· {formatRange(activeFilters.dateStart, activeFilters.dateEnd)}</span>
           )}
