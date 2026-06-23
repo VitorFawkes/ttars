@@ -308,7 +308,7 @@ export default function Sidebar() {
 
           return (
             <Link
-              key={item.name}
+              key={item.href}
               to={item.href}
               title={!isExpanded ? item.name : undefined}
               className={cn(
