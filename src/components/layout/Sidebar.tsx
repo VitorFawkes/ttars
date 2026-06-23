@@ -92,7 +92,8 @@ const navigation: {
     roles: ["pos_venda"],
     hideForOrgs: ["welcome-weddings"],
   },
-  { name: "Analytics", href: "/analytics", icon: BarChart3 },
+  { name: "Analytics", href: "/analytics", icon: BarChart3, hideForOrgs: ["welcome-weddings"] },
+  { name: "Analytics", href: "/analytics-weddings", icon: BarChart3, orgsOnly: ["welcome-weddings"] },
   { name: "NPS", href: "/nps", icon: Smile },
   {
     name: "SDR Sofia",
