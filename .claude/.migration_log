@@ -1329,3 +1329,4 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-22T17:55:19Z | supabase/migrations/20260622h_ww_agenda_native_reagendou.sql | applied_to_prod
 2026-06-22T18:53:06Z | supabase/migrations/20260622i_ww_valor_fechado_fonte_campo.sql | applied_to_prod via Management API (token CLI) — PR #159
 2026-06-23T12:21:59Z | supabase/migrations/20260623a_ac_weddings_enable_create.sql | applied_to_prod
+2026-06-23T12:28:54Z | supabase/migrations/20260623b_ac_weddings_create_fallback_only.sql | applied_to_prod

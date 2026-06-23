@@ -1762,24 +1762,22 @@ Deno.serve(async (req) => {
                         // do CRM (ex.: leads de Weddings entram pelo webhook do Leadster).
                         // Sem esta guarda, um deal_update sem card correspondente cairia
                         // na criação e o Active voltaria a criar cards por fora.
-                        if (matchedTrigger?.action_type === 'update_only') {
+                        // ttars PRIMEIRO, Active como FALLBACK: a criação normal vem do Leadster/site
+                        // no momento do lead (deal_add). O Active só cria quando, num deal_update
+                        // posterior, AINDA não existe card pra esse casal (ex.: lead de Facebook que
+                        // não passa pelo webhook do ttars). Por isso os triggers de "Criação" (deal_add)
+                        // ficam DESLIGADOS — a criação via Active acontece só aqui (update_only sem card).
+                        // Atrás do kill-switch ac_create_cards e nunca em deal perdido. Dedup já garantida
+                        // acima (external_id + pessoa_principal_id → vincula card do ttars em vez de duplicar).
+                        const isWeddingCreate = topology?.produto === 'WEDDING';
+                        const acWeddingFallback = isWeddingCreate && !isLostDeal
+                            && (await isCreateEnabled(supabase, 'ac_create_cards'));
+
+                        if (matchedTrigger?.action_type === 'update_only' && !acWeddingFallback) {
                             stats.ignored_by_trigger++;
                             log += ` [UPDATE_ONLY_NO_CARD: deal ${dealId} sem card correspondente — criação é do CRM, evento ignorado]`;
                             await updateEventStatus(event.id, 'ignored', log, matchedTrigger.id);
                             results.push({ id: event.id, status: 'ignored', reason: 'update_only trigger: no matching card, creation skipped' });
-                            continue;
-                        }
-
-                        // WEDDING: a criação via Active é o "pega-tudo" pros leads que NÃO entram
-                        // pelo webhook do ttars (ex.: Facebook Lead Ads). Fica atrás do kill-switch
-                        // ac_create_cards (desligado = ignora → deploy seguro) e nunca cria card de
-                        // deal perdido. Dedup já garantida acima (external_id + pessoa_principal_id).
-                        const isWeddingCreate = topology?.produto === 'WEDDING';
-                        if (isWeddingCreate && (isLostDeal || !(await isCreateEnabled(supabase, 'ac_create_cards')))) {
-                            stats.ignored_by_trigger++;
-                            log += ` [AC_CREATE_SKIP: deal ${dealId} WEDDING sem card — ${isLostDeal ? 'deal perdido' : 'ac_create_cards desligado'} — ignorado]`;
-                            await updateEventStatus(event.id, 'ignored', log, matchedTrigger?.id || null);
-                            results.push({ id: event.id, status: 'ignored', reason: isLostDeal ? 'wedding lost deal, no create' : 'ac_create_cards disabled' });
                             continue;
                         }
 
