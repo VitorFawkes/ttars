@@ -119,13 +119,6 @@ const navigation: {
     orgsOnly: ["welcome-weddings"],
     wip: true,
   },
-  {
-    name: "Analytics 2",
-    href: "/analytics-weddings-2",
-    icon: BarChart3,
-    orgsOnly: ["welcome-weddings"],
-    wip: true,
-  },
   { name: "Configurações", href: "/settings", icon: Settings },
 ];
 
