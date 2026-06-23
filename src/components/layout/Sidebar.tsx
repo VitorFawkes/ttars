@@ -38,15 +38,31 @@ const navigation: {
   href: string;
   icon: LucideIcon;
   orgsOnly?: string[];
+  hideForOrgs?: string[];
   adminOnly?: boolean;
   phases?: string[];
   roles?: string[];
   wip?: boolean;
 }[] = [
   { name: "Funil", href: "/pipeline", icon: Kanban },
-  { name: "Gestão de Leads", href: "/leads", icon: Database },
-  { name: "Propostas", href: "/proposals", icon: FileText },
-  { name: "Catálogo", href: "/catalogo", icon: LibraryBig },
+  {
+    name: "Gestão de Leads",
+    href: "/leads",
+    icon: Database,
+    hideForOrgs: ["welcome-weddings"],
+  },
+  {
+    name: "Propostas",
+    href: "/proposals",
+    icon: FileText,
+    hideForOrgs: ["welcome-weddings"],
+  },
+  {
+    name: "Catálogo",
+    href: "/catalogo",
+    icon: LibraryBig,
+    hideForOrgs: ["welcome-weddings"],
+  },
   {
     name: "Viagens",
     href: "/viagens",
@@ -67,8 +83,15 @@ const navigation: {
     name: "Concierge",
     href: "/concierge",
     icon: BellConciergeIcon as unknown as LucideIcon,
+    hideForOrgs: ["welcome-weddings"],
   },
-  { name: "Presentes", href: "/presentes", icon: Gift, roles: ["pos_venda"] },
+  {
+    name: "Presentes",
+    href: "/presentes",
+    icon: Gift,
+    roles: ["pos_venda"],
+    hideForOrgs: ["welcome-weddings"],
+  },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
   { name: "NPS", href: "/nps", icon: Smile },
   {
@@ -169,6 +192,8 @@ export default function Sidebar() {
         if (!isAdminOrGestor && !hasRoleAccess) return false;
       }
       if (item.orgsOnly && org?.slug && !item.orgsOnly.includes(org.slug))
+        return false;
+      if (item.hideForOrgs && org?.slug && item.hideForOrgs.includes(org.slug))
         return false;
       return true;
     });
