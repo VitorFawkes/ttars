@@ -1,5 +1,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js"
+// Regras novas de WEDDING (mesmo núcleo do Leadster/site): título de casal + Noivo 2.
+import { isCreateEnabled, joinNoivos, linkNoivo2 } from "../_shared/wedding-lead.ts"
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -1760,7 +1762,18 @@ Deno.serve(async (req) => {
                         // do CRM (ex.: leads de Weddings entram pelo webhook do Leadster).
                         // Sem esta guarda, um deal_update sem card correspondente cairia
                         // na criação e o Active voltaria a criar cards por fora.
-                        if (matchedTrigger?.action_type === 'update_only') {
+                        // ttars PRIMEIRO, Active como FALLBACK: a criação normal vem do Leadster/site
+                        // no momento do lead (deal_add). O Active só cria quando, num deal_update
+                        // posterior, AINDA não existe card pra esse casal (ex.: lead de Facebook que
+                        // não passa pelo webhook do ttars). Por isso os triggers de "Criação" (deal_add)
+                        // ficam DESLIGADOS — a criação via Active acontece só aqui (update_only sem card).
+                        // Atrás do kill-switch ac_create_cards e nunca em deal perdido. Dedup já garantida
+                        // acima (external_id + pessoa_principal_id → vincula card do ttars em vez de duplicar).
+                        const isWeddingCreate = topology?.produto === 'WEDDING';
+                        const acWeddingFallback = isWeddingCreate && !isLostDeal
+                            && (await isCreateEnabled(supabase, 'ac_create_cards'));
+
+                        if (matchedTrigger?.action_type === 'update_only' && !acWeddingFallback) {
                             stats.ignored_by_trigger++;
                             log += ` [UPDATE_ONLY_NO_CARD: deal ${dealId} sem card correspondente — criação é do CRM, evento ignorado]`;
                             await updateEventStatus(event.id, 'ignored', log, matchedTrigger.id);
@@ -1847,12 +1860,38 @@ Deno.serve(async (req) => {
                         }
                         cardPayload.org_id = pipelineRow.org_id;
 
-                        const { error: iErr } = await supabase
+                        // Regras novas de WEDDING (mesmo padrão do Leadster/site): título de casal
+                        // "DW|Elopement | Noivo1 & Noivo2" + tipo_casamento. Noivo 2 vem do campo do
+                        // Active "WW Nome dos noivos" (contact[fields][81] → produto_data.ww_nome_noivos).
+                        let wwNoivo1: string | null = null;
+                        let wwNoivo2: string | null = null;
+                        if (isWeddingCreate) {
+                            const pd = (cardPayload.produto_data ?? {}) as Record<string, unknown>;
+                            wwNoivo1 = (contactNome && contactNome !== 'Sem Nome')
+                                ? contactNome
+                                : ((title.split('|').pop() ?? '').trim() || null);
+                            const noivo2Raw = String(pd.ww_nome_noivos ?? '').trim();
+                            const conv = String(pd.ww_mkt_convidados_form ?? pd.ww_convidados_refinado ?? pd.ww_num_convidados ?? '').trim().toLowerCase();
+                            const isElopement = conv === 'apenas o casal' || String(acPipelineId) === '12';
+                            const noivo2First = noivo2Raw ? noivo2Raw.split(/\s+/)[0] : null;
+                            cardPayload.titulo = `${isElopement ? 'Elopement' : 'DW'} | ${joinNoivos(wwNoivo1, noivo2First, title)}`;
+                            cardPayload.produto_data = { ...pd, ww_tipo_casamento: isElopement ? 'Elopement' : 'Destination Wedding' };
+                            wwNoivo2 = noivo2Raw || null;
+                        }
+
+                        const { data: createdCard, error: iErr } = await supabase
                             .from('cards')
-                            .insert(cardPayload);
+                            .insert(cardPayload)
+                            .select('id')
+                            .single();
 
                         if (iErr) throw new Error(`Card Create Error: ${iErr.message}`);
                         log = `Created Card (Pipeline: ${topology.pipelineName})`;
+
+                        // Noivo(a) 2 como acompanhante (mesmo helper do Leadster/site).
+                        if (isWeddingCreate && createdCard?.id) {
+                            log += await linkNoivo2(supabase, createdCard.id, wwNoivo2, wwNoivo1, 'active_campaign');
+                        }
                     }
 
                     await updateEventStatus(event.id, 'processed', log, matchedTrigger?.id || null);

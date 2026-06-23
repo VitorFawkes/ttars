@@ -59,12 +59,49 @@ export async function isCreateEnabled(
 }
 
 /** Junta os dois nomes no corpo do título ("Ana & João"). Só Noivo 1 → só ele. */
-function joinNoivos(n1: string | null, n2: string | null, fallback: string): string {
+export function joinNoivos(n1: string | null, n2: string | null, fallback: string): string {
   const a = (n1 ?? "").trim();
   const b = (n2 ?? "").trim();
   if (!b || b.toLowerCase() === a.toLowerCase()) return a || fallback; // Noivo 2 ausente/igual
   if (!a) return b; // só Noivo 2 (raro)
   return `${a} & ${b}`;
+}
+
+/**
+ * Cria o(a) Noivo(a) 2 como segundo contato do card (acompanhante), só com o nome
+ * (a SDR completa e-mail/telefone depois). Sem dedup: sem email/telefone não há como
+ * casar. No-op quando o nome do Noivo 2 é vazio ou igual ao principal. Retorna um
+ * trecho legível pro log/plano. Reusado pelo núcleo (Leadster/site) e pelo Active.
+ */
+export async function linkNoivo2(
+  supabase: SupaClient,
+  cardId: string,
+  nomeNoivos: string | null,
+  nomePrincipal: string | null,
+  origem: string,
+): Promise<string> {
+  const n2 = (nomeNoivos ?? "").trim();
+  if (!n2 || n2.toLowerCase() === (nomePrincipal ?? "").trim().toLowerCase()) return "";
+  const pparts = n2.split(/\s+/);
+  const { data: parceiro, error: pErr } = await supabase
+    .from("contatos")
+    .insert({
+      org_id: SHARED_CONTACT_ORG_ID,
+      nome: pparts[0],
+      sobrenome: pparts.length > 1 ? pparts.slice(1).join(" ") : null,
+      tipo_pessoa: "adulto",
+      origem,
+      tags: [origem],
+    })
+    .select("id").single();
+  if (pErr) return `; ERRO ao criar Noivo(a) 2: ${pErr.message}`;
+  await supabase.from("cards_contatos").insert({
+    card_id: cardId,
+    contato_id: parceiro.id,
+    tipo_viajante: "acompanhante",
+    ordem: 1,
+  });
+  return `; Noivo(a) 2 criado como acompanhante (contato ${parceiro.id})`;
 }
 
 /**
@@ -209,35 +246,7 @@ export async function createWeddingLead(
   // ("already the Main Contact"). cards_contatos guarda só os adicionais.
 
   // 4e. Criar o(a) Noivo(a) 2 como segundo contato do card (acompanhante).
-  // Só o nome — a SDR completa e-mail/telefone depois (origem isenta do check
-  // de campos obrigatórios). Sem dedup: sem email/telefone não há como casar.
-  let parceiroPlan = "";
-  const nomeNoivos = lead.nomeNoivos;
-  if (nomeNoivos && nomeNoivos.toLowerCase() !== (nome ?? "").toLowerCase()) {
-    const pparts = nomeNoivos.split(/\s+/);
-    const { data: parceiro, error: pErr } = await supabase
-      .from("contatos")
-      .insert({
-        org_id: SHARED_CONTACT_ORG_ID,
-        nome: pparts[0],
-        sobrenome: pparts.length > 1 ? pparts.slice(1).join(" ") : null,
-        tipo_pessoa: "adulto",
-        origem,
-        tags: [origem],
-      })
-      .select("id").single();
-    if (pErr) {
-      parceiroPlan = `; ERRO ao criar Noivo(a) 2: ${pErr.message}`;
-    } else {
-      await supabase.from("cards_contatos").insert({
-        card_id: card.id,
-        contato_id: parceiro.id,
-        tipo_viajante: "acompanhante",
-        ordem: 1,
-      });
-      parceiroPlan = `; Noivo(a) 2 criado como acompanhante (contato ${parceiro.id})`;
-    }
-  }
+  const parceiroPlan = await linkNoivo2(supabase, card.id, lead.nomeNoivos, nome, origem);
 
   return { plan: `CRIADO card WEDDING ${card.id} (contato ${contactId})${parceiroPlan}`, createdCardId: card.id };
 }
