@@ -1528,5 +1528,9 @@ export function useWwAgendamentosPorDia(
     }),
     enabled: !!orgId && !!dateStart && !!dateEnd,
     staleTime: 60_000,
+    // Auto-atualiza: o Active sincroniza de tempos em tempos, então uma reunião marcada
+    // agora pode demorar a aparecer. Rebusca ao voltar pra aba e a cada 5 min com ela aberta.
+    refetchOnWindowFocus: true,
+    refetchInterval: 5 * 60_000,
   })
 }
