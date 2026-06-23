@@ -695,18 +695,19 @@ export type WwQualidadeLead = {
 export function useWwQualidadeLead(filters: Ww2Filters, eventStageId?: string | null, minAmostra: number = 3) {
   const orgId = useOrgId()
   const variant = useAnalyticsVariant()
-  // cohort: leads criados no período.
-  // throughput: leads que tiveram stage_changed para eventStageId no período (obrigatório).
-  const isThroughput = filters.dateMode === 'throughput'
+  // Qualidade do lead é SEMPRE por safra (cohort): leads criados no período.
+  // O modo throughput foi descontinuado (colapsava para 100% e ignorava a etapa);
+  // eventStageId é aceito por compat de assinatura, mas não é mais usado.
+  void eventStageId
   return useQuery({
-    queryKey: ['ww', 'qualidade-lead', variant, orgId, filters.dateStart, filters.dateEnd, filters.dateMode, eventStageId ?? null, filters.origins, filters.tipos, filters.canalSdr ?? null, filters.canalCloser ?? null, filters.statusLead ?? null, minAmostra],
+    queryKey: ['ww', 'qualidade-lead', variant, orgId, filters.dateStart, filters.dateEnd, filters.origins, filters.tipos, filters.canalSdr ?? null, filters.canalCloser ?? null, filters.statusLead ?? null, minAmostra],
     queryFn: () => callRpc<WwQualidadeLead>(rpcName('ww_qualidade_lead', variant), {
       p_date_start: filters.dateStart,
       p_date_end: filters.dateEnd,
       p_org_id: orgId,
       p_origins: filters.origins?.length ? filters.origins : null,
-      p_date_mode: filters.dateMode,
-      p_event_stage_id: isThroughput ? eventStageId : null,
+      p_date_mode: 'cohort',
+      p_event_stage_id: null,
       p_tipos: filters.tipos?.length ? filters.tipos : null,
       p_min_amostra: minAmostra,
       p_sdr_canal: filters.canalSdr?.length ? filters.canalSdr : null,
@@ -714,7 +715,7 @@ export function useWwQualidadeLead(filters: Ww2Filters, eventStageId?: string | 
       ...(filters.canalCloser?.length ? { p_closer_canal: filters.canalCloser } : {}),
       ...statusParam(filters),
     }),
-    enabled: !!orgId && (!isThroughput || !!eventStageId),
+    enabled: !!orgId,
     staleTime: 60_000,
   })
 }
