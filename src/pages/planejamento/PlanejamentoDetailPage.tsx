@@ -263,6 +263,7 @@ export default function PlanejamentoDetailPage() {
         pendentes={wedding.travaPendentes}
         cobrancasVencidas={wedding.cobrancasVencidas}
         etapaLabel={PLANEJAMENTO_LABEL[wedding.planejamentoEtapa]}
+        paradoDesde={wedding.paradoDesde}
       />
 
       {/* Marcos da etapa — atalhos pros blocos + concluir na mão */}
@@ -306,19 +307,31 @@ export default function PlanejamentoDetailPage() {
   )
 }
 
-// Trava visível no topo (D-P3): a(s) tarefa(s) 🔒 que seguram a etapa atual.
-// Some quando nada trava. Clique rola até a espinha de tarefas.
+// Trava visível no topo (D-P3): a(s) tarefa(s) 🔒 que seguram a etapa atual, com
+// o dossiê "parado desde X · cobramos Y · resposta até Z". Some quando nada trava.
+function diaMes(iso: string): string {
+  const d = iso.slice(0, 10)
+  return `${d.slice(8, 10)}/${d.slice(5, 7)}`
+}
+function diasDesde(iso: string): number {
+  const ms = Date.now() - new Date(iso).getTime()
+  return Math.max(0, Math.floor(ms / 86400000))
+}
+
 function TravaBanner({
   pendentes,
   cobrancasVencidas,
   etapaLabel,
+  paradoDesde,
 }: {
-  pendentes: { titulo: string; prazo: string | null }[]
+  pendentes: { titulo: string; prazo: string | null; ultimaCobranca: string | null; esperandoTerceiro: boolean }[]
   cobrancasVencidas: number
   etapaLabel: string
+  paradoDesde: string | null
 }) {
   if (pendentes.length === 0 && cobrancasVencidas === 0) return null
 
+  const hoje = new Date().toISOString().slice(0, 10)
   const irParaTarefas = () => {
     const el = document.getElementById(BLOCO.spine)
     if (!el) return
@@ -338,22 +351,41 @@ function TravaBanner({
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-[14px] font-bold text-[#7A581A]">Esta etapa está travada</h3>
               <span className="text-[11px] text-[#A88C57]">· {etapaLabel}</span>
+              {paradoDesde && (
+                <span className="text-[11px] text-[#A88C57]">· parada há <b className="text-[#8A6A33]">{diasDesde(paradoDesde)} dia{diasDesde(paradoDesde) === 1 ? '' : 's'}</b> (desde {diaMes(paradoDesde)})</span>
+              )}
             </div>
             <p className="text-[12.5px] text-[#8A6A33] mt-0.5 [font-family:'Roboto']">
               Conclua {pendentes.length === 1 ? 'a tarefa abaixo' : `as ${pendentes.length} tarefas abaixo`} para avançar de etapa:
             </p>
-            <ul className="mt-2 flex flex-col gap-1.5">
-              {pendentes.map((t, i) => (
-                <li key={i} className="flex items-center gap-2 text-[13px] text-[#3A3633]">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#BD965C] shrink-0" />
-                  <span className="font-medium">{t.titulo}</span>
-                  {t.prazo && (
-                    <span className={cn('text-[11px] tabular-nums', t.prazo < new Date().toISOString().slice(0, 10) ? 'text-rose-600' : 'text-[#A88C57]')}>
-                      · prazo {t.prazo.slice(8, 10)}/{t.prazo.slice(5, 7)}
-                    </span>
-                  )}
-                </li>
-              ))}
+            <ul className="mt-2 flex flex-col gap-2">
+              {pendentes.map((t, i) => {
+                const vencido = !!t.prazo && t.prazo < hoje
+                return (
+                  <li key={i} className="flex items-start gap-2 text-[13px] text-[#3A3633]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#BD965C] shrink-0 mt-1.5" />
+                    <div className="min-w-0">
+                      <span className="font-medium">{t.titulo}</span>
+                      {t.esperandoTerceiro && <span className="text-[11px] text-[#A88C57]"> · esperando o casal/fornecedor</span>}
+                      <div className="flex items-center gap-2 flex-wrap text-[11px] mt-0.5">
+                        {t.prazo ? (
+                          <span className={cn('tabular-nums', vencido ? 'text-rose-600 font-semibold' : 'text-[#A88C57]')}>
+                            {vencido ? 'venceu' : 'resposta até'} {diaMes(t.prazo)}
+                          </span>
+                        ) : (
+                          <span className="text-[#B0A595]">sem prazo</span>
+                        )}
+                        <span className="text-[#CFC2AE]">·</span>
+                        {t.ultimaCobranca ? (
+                          <span className="text-[#9A7B2E]">cobramos {diaMes(t.ultimaCobranca)}</span>
+                        ) : (
+                          <span className="text-[#B0A595]">ainda não cobramos</span>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                )
+              })}
             </ul>
           </div>
           <button

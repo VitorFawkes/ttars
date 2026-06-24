@@ -83,6 +83,10 @@ export interface Wedding {
   id: string
   titulo: string
   pipeline_stage_id: string | null
+  /** Quando o card entrou na etapa atual (cards.stage_entered_at) — "parado desde".
+   *  Opcional: só a fonte paginada do board (useWeddings) preenche; a tela de 1
+   *  casamento (useWedding) não precisa. */
+  stage_entered_at?: string | null
   created_at: string
   wedding_date: string | null
   /** Local do casamento extraído de cards.produto_data. */

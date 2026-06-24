@@ -30,6 +30,10 @@ export interface PlanejamentoChecklistResumo {
 export interface TravaPendente {
   titulo: string
   prazo: string | null
+  /** Data da última cobrança automática (recobrança) desta tarefa, se houve. */
+  ultimaCobranca: string | null
+  /** Depende do casal/fornecedor (gera_cobranca) → "esperando o casal". */
+  esperandoTerceiro: boolean
 }
 
 export interface WeddingPlanejamento extends WeddingWithGuests {
@@ -48,6 +52,8 @@ export interface WeddingPlanejamento extends WeddingWithGuests {
   travaPendentes: TravaPendente[]
   /** Tarefas 🔁 já vencidas e não feitas (qualquer etapa) — viram cobrança. */
   cobrancasVencidas: number
+  /** Quando o casamento entrou na ETAPA atual (cards.stage_entered_at) — "parado desde". null = sem registro. */
+  paradoDesde: string | null
 }
 
 /**
@@ -104,11 +110,14 @@ export function usePlanejamentoWeddings() {
       if (!orgId) {
         return { hotel: {}, convites: {}, checklist: {}, fornecedores: {}, tasks: {} } as GateData
       }
-      const [hotelRes, convitesRes, checklistRes, fornRes] = await Promise.all([
+      const [hotelRes, convitesRes, checklistRes, fornRes, cobrancaRes] = await Promise.all([
         sbAny.from('wedding_hotel').select('card_id, status, tarifa, total_quartos').eq('org_id', orgId),
         sbAny.from('wedding_convites').select('card_id').eq('org_id', orgId),
-        sbAny.from('wedding_checklist').select('card_id, titulo, prazo, feito, marco, stage_id, trava, gera_cobranca').eq('org_id', orgId),
+        sbAny.from('wedding_checklist').select('id, card_id, titulo, prazo, feito, marco, stage_id, trava, gera_cobranca').eq('org_id', orgId),
         sbAny.from('wedding_fornecedores').select('card_id, setor, status, valor').eq('org_id', orgId),
+        // "cobramos dia Y": recobranças automáticas já criadas (tarefa nativa).
+        // ("parado desde" vem do card paginado em useWeddings: w.stage_entered_at.)
+        sbAny.from('tarefas').select('metadata, created_at').eq('org_id', orgId).filter('metadata->>kind', 'eq', 'ww_cobranca').is('deleted_at', null),
       ])
 
       const hotel: Record<string, { status: HotelStatus | null; tarifa: number | null; quartos: number | null }> = {}
@@ -121,11 +130,20 @@ export function usePlanejamentoWeddings() {
         convites[r.card_id] = (convites[r.card_id] ?? 0) + 1
       }
 
+      // Mapa: por tarefa de checklist, a data da última recobrança automática.
+      const ultimaCobranca: Record<string, string> = {}
+      for (const r of (cobrancaRes.data ?? []) as { metadata: Record<string, unknown> | null; created_at: string }[]) {
+        const wcId = r.metadata?.wedding_checklist_id
+        if (typeof wcId === 'string' && (!ultimaCobranca[wcId] || r.created_at > ultimaCobranca[wcId])) {
+          ultimaCobranca[wcId] = r.created_at
+        }
+      }
+
       const hoje = new Date().toISOString().slice(0, 10)
       const checklist: Record<string, PlanejamentoChecklistResumo> = {}
       const tasks: Record<string, GateTask[]> = {}
-      // Tarefas 🔒 não-feitas, com sua etapa (pra filtrar pela etapa atual no builder).
-      const travaTasks: Record<string, { titulo: string; stageId: string | null; prazo: string | null }[]> = {}
+      // Tarefas 🔒 não-feitas, com sua etapa + id (pra dossiê: prazo + última cobrança).
+      const travaTasks: Record<string, { id: string; titulo: string; stageId: string | null; prazo: string | null; geraCobranca: boolean }[]> = {}
       const cobrancasVencidas: Record<string, number> = {}
       for (const r of (checklistRes.data ?? []) as ChecklistGateRow[]) {
         const c = checklist[r.card_id] ?? { total: 0, feitos: 0, comPrazo: 0, atrasados: 0, pendentes: 0 }
@@ -134,7 +152,7 @@ export function usePlanejamentoWeddings() {
         else {
           c.pendentes += 1
           if (r.prazo && r.prazo < hoje) c.atrasados += 1
-          if (r.trava) (travaTasks[r.card_id] ??= []).push({ titulo: r.titulo, stageId: r.stage_id ?? null, prazo: r.prazo })
+          if (r.trava) (travaTasks[r.card_id] ??= []).push({ id: r.id, titulo: r.titulo, stageId: r.stage_id ?? null, prazo: r.prazo, geraCobranca: !!r.gera_cobranca })
           if (r.gera_cobranca && r.prazo && r.prazo < hoje) cobrancasVencidas[r.card_id] = (cobrancasVencidas[r.card_id] ?? 0) + 1
         }
         if (r.prazo) c.comPrazo += 1
@@ -149,14 +167,14 @@ export function usePlanejamentoWeddings() {
         fornecedores[r.card_id] = list
       }
 
-      return { hotel, convites, checklist, fornecedores, tasks, travaTasks, cobrancasVencidas } as GateData
+      return { hotel, convites, checklist, fornecedores, tasks, travaTasks, cobrancasVencidas, ultimaCobranca } as GateData
     },
   })
 
   const data = useMemo<WeddingPlanejamento[]>(() => {
     const weddings: WeddingWithGuests[] = base.data ?? []
     const stageMap = stagesQuery.data ?? {}
-    const gd: GateData = gateDataQuery.data ?? { hotel: {}, convites: {}, checklist: {}, fornecedores: {}, tasks: {}, travaTasks: {}, cobrancasVencidas: {} }
+    const gd: GateData = gateDataQuery.data ?? { hotel: {}, convites: {}, checklist: {}, fornecedores: {}, tasks: {}, travaTasks: {}, cobrancasVencidas: {}, ultimaCobranca: {} }
 
     const out: WeddingPlanejamento[] = []
     for (const w of weddings) {
@@ -172,8 +190,10 @@ export function usePlanejamentoWeddings() {
       // Trava da Fase 4: tarefas 🔒 não-feitas DESTA etapa (stage atual) seguram o avanço.
       const travaPendentes = (gd.travaTasks[w.id] ?? [])
         .filter(t => t.stageId === w.pipeline_stage_id)
-        .map(t => ({ titulo: t.titulo, prazo: t.prazo }))
+        .map(t => ({ titulo: t.titulo, prazo: t.prazo, ultimaCobranca: gd.ultimaCobranca[t.id] ?? null, esperandoTerceiro: t.geraCobranca }))
       const cobrancasVencidas = gd.cobrancasVencidas[w.id] ?? 0
+      // "parado nesta etapa desde": vem do card paginado (useWeddings), sem query extra.
+      const paradoDesde = w.stage_entered_at ?? null
       const marcosFeitos = Array.isArray(w.produto_data?.[PLANEJ_FIELD.marcosFeitos])
         ? (w.produto_data![PLANEJ_FIELD.marcosFeitos] as unknown[]).filter((x): x is string => typeof x === 'string')
         : []
@@ -204,6 +224,7 @@ export function usePlanejamentoWeddings() {
         checklist,
         travaPendentes,
         cobrancasVencidas,
+        paradoDesde,
       })
     }
     return out
@@ -218,6 +239,7 @@ export function usePlanejamentoWeddings() {
 }
 
 interface ChecklistGateRow {
+  id: string
   card_id: string
   titulo: string
   prazo: string | null
@@ -234,6 +256,8 @@ interface GateData {
   checklist: Record<string, PlanejamentoChecklistResumo>
   fornecedores: Record<string, PlanejamentoFornecedor[]>
   tasks: Record<string, GateTask[]>
-  travaTasks: Record<string, { titulo: string; stageId: string | null; prazo: string | null }[]>
+  travaTasks: Record<string, { id: string; titulo: string; stageId: string | null; prazo: string | null; geraCobranca: boolean }[]>
   cobrancasVencidas: Record<string, number>
+  /** checklist task id → data da última recobrança automática. */
+  ultimaCobranca: Record<string, string>
 }

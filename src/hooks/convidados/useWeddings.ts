@@ -9,6 +9,7 @@ interface CardRow {
   id: string
   titulo: string
   pipeline_stage_id: string | null
+  stage_entered_at: string | null
   created_at: string
   data_viagem_inicio: string | null
   produto_data: Record<string, unknown> | null
@@ -79,7 +80,7 @@ export function useWeddings() {
       for (let start = 0; ; start += PAGE) {
         const { data, error } = await sbAny
           .from('cards')
-          .select('id, titulo, pipeline_stage_id, created_at, data_viagem_inicio, produto_data, wedding_convidados_state(etapa)')
+          .select('id, titulo, pipeline_stage_id, stage_entered_at, created_at, data_viagem_inicio, produto_data, wedding_convidados_state(etapa)')
           .eq('produto', 'WEDDING')
           .eq('org_id', orgId)
           .in('pipeline_stage_id', stageIds)
@@ -99,6 +100,7 @@ export function useWeddings() {
         id: row.id,
         titulo: row.titulo,
         pipeline_stage_id: row.pipeline_stage_id,
+        stage_entered_at: row.stage_entered_at,
         created_at: row.created_at,
         wedding_date: row.data_viagem_inicio,
         local: readString(row.produto_data, 'ww_local', 'local_casamento', 'local', 'venue', 'ww_destino'),
