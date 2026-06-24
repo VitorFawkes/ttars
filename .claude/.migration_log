@@ -1340,3 +1340,4 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-23T21:12:49Z | supabase/migrations/20260623d_ww_funil_returning_lead_newest_deal.sql | applied_to_prod
 2026-06-24T12:39:35Z | supabase/migrations/20260623f_wedding_stage_default_tasks.sql | applied_to_prod
 2026-06-24T12:39:59Z | supabase/migrations/20260623g_seed_checklist_from_defaults.sql | applied_to_prod
+2026-06-24T13:14:38Z | supabase/migrations/20260624a_backfill_wedding_checklist_existing.sql | applied_to_prod
