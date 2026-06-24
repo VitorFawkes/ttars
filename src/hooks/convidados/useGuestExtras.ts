@@ -50,17 +50,29 @@ export function useGuestExtras(cardId: string | null) {
     enabled: !!orgId,
     queryFn: async () => {
       if (!orgId) return []
-      let q = sbAny
-        .from('v_wedding_guest_extras')
-        .select(
-          'guest_id, card_id, org_id, nome, sobrenome, telefone, email, casamento_nome, extras_status, itens, observacoes, extras_id',
-        )
-        .eq('org_id', orgId)
-      if (cardId) q = q.eq('card_id', cardId)
+      // Sem card_id, a view roda org-wide: a org Weddings já tem 1600+ convidados
+      // confirmados, acima do cap de 1000 do PostgREST. Sem paginação, o board de
+      // Extras mostrava só ~1000 e perdia o resto em silêncio. Pagina por .range()
+      // com ordem estável (guest_id), mesmo padrão de useWeddings/usePlanejamentoWeddings.
+      const PAGE = 1000
+      const rows: ExtrasRow[] = []
+      for (let start = 0; ; start += PAGE) {
+        let q = sbAny
+          .from('v_wedding_guest_extras')
+          .select(
+            'guest_id, card_id, org_id, nome, sobrenome, telefone, email, casamento_nome, extras_status, itens, observacoes, extras_id',
+          )
+          .eq('org_id', orgId)
+        if (cardId) q = q.eq('card_id', cardId)
 
-      const { data, error } = await q
-      if (error) throw error
-      const rows = (data ?? []) as ExtrasRow[]
+        const { data, error } = await q
+          .order('guest_id', { ascending: true })
+          .range(start, start + PAGE - 1)
+        if (error) throw error
+        const page = (data ?? []) as ExtrasRow[]
+        rows.push(...page)
+        if (page.length < PAGE) break
+      }
       return rows
         .map<GuestExtra>((row) => ({
           guest_id: row.guest_id,

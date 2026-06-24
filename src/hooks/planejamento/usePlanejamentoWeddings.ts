@@ -110,10 +110,33 @@ export function usePlanejamentoWeddings() {
       if (!orgId) {
         return { hotel: {}, convites: {}, checklist: {}, fornecedores: {}, tasks: {} } as GateData
       }
-      const [hotelRes, convitesRes, checklistRes, fornRes, cobrancaRes] = await Promise.all([
+      // wedding_checklist passa de 1000 linhas por org (115+ casamentos × 22
+      // tarefas = 2500+). O PostgREST corta em 1000 SEM aviso → casamentos
+      // além do corte ficavam sem tarefas, sem trava e com contadores zerados
+      // no board. Pagina por .range() (mesmo padrão de useWeddings). As outras
+      // listas (hotel/convites/fornecedores/cobranças) estão bem abaixo de 1000.
+      const fetchChecklist = async (): Promise<ChecklistGateRow[]> => {
+        const PAGE = 1000
+        const rows: ChecklistGateRow[] = []
+        for (let start = 0; ; start += PAGE) {
+          const { data, error } = await sbAny
+            .from('wedding_checklist')
+            .select('id, card_id, titulo, prazo, feito, marco, stage_id, trava, gera_cobranca')
+            .eq('org_id', orgId)
+            .order('id', { ascending: true })
+            .range(start, start + PAGE - 1)
+          if (error) throw error
+          const page = (data ?? []) as ChecklistGateRow[]
+          rows.push(...page)
+          if (page.length < PAGE) break
+        }
+        return rows
+      }
+
+      const [hotelRes, convitesRes, checklistRows, fornRes, cobrancaRes] = await Promise.all([
         sbAny.from('wedding_hotel').select('card_id, status, tarifa, total_quartos').eq('org_id', orgId),
         sbAny.from('wedding_convites').select('card_id').eq('org_id', orgId),
-        sbAny.from('wedding_checklist').select('id, card_id, titulo, prazo, feito, marco, stage_id, trava, gera_cobranca').eq('org_id', orgId),
+        fetchChecklist(),
         sbAny.from('wedding_fornecedores').select('card_id, setor, status, valor').eq('org_id', orgId),
         // "cobramos dia Y": recobranças automáticas já criadas (tarefa nativa).
         // ("parado desde" vem do card paginado em useWeddings: w.stage_entered_at.)
@@ -145,7 +168,7 @@ export function usePlanejamentoWeddings() {
       // Tarefas 🔒 não-feitas, com sua etapa + id (pra dossiê: prazo + última cobrança).
       const travaTasks: Record<string, { id: string; titulo: string; stageId: string | null; prazo: string | null; geraCobranca: boolean }[]> = {}
       const cobrancasVencidas: Record<string, number> = {}
-      for (const r of (checklistRes.data ?? []) as ChecklistGateRow[]) {
+      for (const r of checklistRows) {
         const c = checklist[r.card_id] ?? { total: 0, feitos: 0, comPrazo: 0, atrasados: 0, pendentes: 0 }
         c.total += 1
         if (r.feito) c.feitos += 1

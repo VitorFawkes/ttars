@@ -63,34 +63,46 @@ export function useMyDayTasks({ productFilter, responsavelIds }: UseMyDayTasksOp
             const rangeStart = subDays(startOfDay(now), 30)
             const rangeEnd = endOfDay(addDays(now, 7))
 
-            let q = supabase
-                .from('tarefas')
-                .select(`
-                    id, titulo, tipo, data_vencimento, concluida, status, card_id, responsavel_id, metadata,
-                    card:cards!tarefas_card_id_fkey(id, titulo, produto, pessoa_principal_id,
-                        contato:contatos!cards_pessoa_principal_id_fkey(nome, sobrenome)
-                    )
-                `)
-                .eq('concluida', false)
-                .is('deleted_at', null)
-                .gte('data_vencimento', rangeStart.toISOString())
-                .lte('data_vencimento', rangeEnd.toISOString())
-                .order('data_vencimento', { ascending: true })
+            // tarefas é tabela de alto crescimento (as cobranças automáticas 🔁 do
+            // Planejamento geram tarefas) e a janela [-30d,+7d] cobre TODOS os produtos
+            // do workspace ANTES do filtro de produto (aplicado no cliente abaixo). Sem
+            // paginar, um workspace movimentado passa de 1000 na janela e o PostgREST
+            // corta em silêncio — some tarefa do "Meu Dia". Pagina por .range() com
+            // ordem estável (data_vencimento + id de desempate).
+            const PAGE = 1000
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            let result: any[] = []
+            for (let start = 0; ; start += PAGE) {
+                let q = supabase
+                    .from('tarefas')
+                    .select(`
+                        id, titulo, tipo, data_vencimento, concluida, status, card_id, responsavel_id, metadata,
+                        card:cards!tarefas_card_id_fkey(id, titulo, produto, pessoa_principal_id,
+                            contato:contatos!cards_pessoa_principal_id_fkey(nome, sobrenome)
+                        )
+                    `)
+                    .eq('concluida', false)
+                    .is('deleted_at', null)
+                    .gte('data_vencimento', rangeStart.toISOString())
+                    .lte('data_vencimento', rangeEnd.toISOString())
+                    .order('data_vencimento', { ascending: true })
+                    .order('id', { ascending: true })
 
-            // Apply responsavel filter
-            if (responsavelIds !== undefined) {
-                if (responsavelIds.length === 1) {
-                    q = q.eq('responsavel_id', responsavelIds[0])
-                } else {
-                    q = q.in('responsavel_id', responsavelIds)
+                // Apply responsavel filter
+                if (responsavelIds !== undefined) {
+                    if (responsavelIds.length === 1) {
+                        q = q.eq('responsavel_id', responsavelIds[0])
+                    } else {
+                        q = q.in('responsavel_id', responsavelIds)
+                    }
                 }
+
+                const { data, error } = await q.range(start, start + PAGE - 1)
+                if (error) throw error
+                const page = data || []
+                result.push(...page)
+                if (page.length < PAGE) break
             }
-
-            const { data, error } = await q
-
-            if (error) throw error
-
-            let result = data || []
 
             // Filter by product
             if (productFilter) {
@@ -121,20 +133,34 @@ export function useMyDayTasks({ productFilter, responsavelIds }: UseMyDayTasksOp
             if (productFilter === 'WEDDING') {
                 const startDate = format(rangeStart, 'yyyy-MM-dd')
                 const endDate = format(rangeEnd, 'yyyy-MM-dd')
-                const { data: wc, error: wcErr } = await sbAny
-                    .from('wedding_checklist')
-                    .select(`
-                        id, titulo, tipo, prazo, feito, card_id,
-                        card:cards!wedding_checklist_card_id_fkey(id, titulo, produto, pos_owner_id, dono_atual_id,
-                            contato:contatos!cards_pessoa_principal_id_fkey(nome, sobrenome))
-                    `)
-                    .eq('feito', false)
-                    .not('prazo', 'is', null)
-                    .gte('prazo', startDate)
-                    .lte('prazo', endDate)
-                if (wcErr) throw wcErr
+                // wedding_checklist tem 2500+ linhas na org Weddings. Hoje a janela
+                // (prazo NOT NULL) casa poucas porque os casamentos antigos estão com
+                // prazo NULL — mas no dia em que o backfill de prazos rodar, a janela
+                // enche e o cap de 1000 cortaria em silêncio. Pagina por .range().
+                const PAGE_WC = 1000
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const wc: any[] = []
+                for (let start = 0; ; start += PAGE_WC) {
+                    const { data: wcPage, error: wcErr } = await sbAny
+                        .from('wedding_checklist')
+                        .select(`
+                            id, titulo, tipo, prazo, feito, card_id,
+                            card:cards!wedding_checklist_card_id_fkey(id, titulo, produto, pos_owner_id, dono_atual_id,
+                                contato:contatos!cards_pessoa_principal_id_fkey(nome, sobrenome))
+                        `)
+                        .eq('feito', false)
+                        .not('prazo', 'is', null)
+                        .gte('prazo', startDate)
+                        .lte('prazo', endDate)
+                        .order('id', { ascending: true })
+                        .range(start, start + PAGE_WC - 1)
+                    if (wcErr) throw wcErr
+                    const page = wcPage ?? []
+                    wc.push(...page)
+                    if (page.length < PAGE_WC) break
+                }
 
-                weddingTasks = (wc ?? [])
+                weddingTasks = wc
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     .map((r: any) => {
                         const owner: string | null = r.card?.pos_owner_id || r.card?.dono_atual_id || null
