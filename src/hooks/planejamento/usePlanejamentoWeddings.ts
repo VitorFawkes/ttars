@@ -29,6 +29,8 @@ export interface PlanejamentoChecklistResumo {
 /** Tarefa-trava pendente da ETAPA ATUAL — segura o avanço (Fase 4). */
 export interface TravaPendente {
   titulo: string
+  /** Tipo da tarefa (documento/lista/bloqueio/reserva/pagamento) — define o ícone. */
+  tipo: string | null
   prazo: string | null
   /** Data da última cobrança automática (recobrança) desta tarefa, se houve. */
   ultimaCobranca: string | null
@@ -121,7 +123,7 @@ export function usePlanejamentoWeddings() {
         for (let start = 0; ; start += PAGE) {
           const { data, error } = await sbAny
             .from('wedding_checklist')
-            .select('id, card_id, titulo, prazo, feito, marco, stage_id, trava, gera_cobranca')
+            .select('id, card_id, titulo, tipo, prazo, feito, marco, stage_id, trava, gera_cobranca')
             .eq('org_id', orgId)
             .order('id', { ascending: true })
             .range(start, start + PAGE - 1)
@@ -166,7 +168,7 @@ export function usePlanejamentoWeddings() {
       const checklist: Record<string, PlanejamentoChecklistResumo> = {}
       const tasks: Record<string, GateTask[]> = {}
       // Tarefas 🔒 não-feitas, com sua etapa + id (pra dossiê: prazo + última cobrança).
-      const travaTasks: Record<string, { id: string; titulo: string; stageId: string | null; prazo: string | null; geraCobranca: boolean }[]> = {}
+      const travaTasks: Record<string, { id: string; titulo: string; tipo: string | null; stageId: string | null; prazo: string | null; geraCobranca: boolean }[]> = {}
       const cobrancasVencidas: Record<string, number> = {}
       for (const r of checklistRows) {
         const c = checklist[r.card_id] ?? { total: 0, feitos: 0, comPrazo: 0, atrasados: 0, pendentes: 0 }
@@ -175,7 +177,7 @@ export function usePlanejamentoWeddings() {
         else {
           c.pendentes += 1
           if (r.prazo && r.prazo < hoje) c.atrasados += 1
-          if (r.trava) (travaTasks[r.card_id] ??= []).push({ id: r.id, titulo: r.titulo, stageId: r.stage_id ?? null, prazo: r.prazo, geraCobranca: !!r.gera_cobranca })
+          if (r.trava) (travaTasks[r.card_id] ??= []).push({ id: r.id, titulo: r.titulo, tipo: r.tipo ?? null, stageId: r.stage_id ?? null, prazo: r.prazo, geraCobranca: !!r.gera_cobranca })
           if (r.gera_cobranca && r.prazo && r.prazo < hoje) cobrancasVencidas[r.card_id] = (cobrancasVencidas[r.card_id] ?? 0) + 1
         }
         if (r.prazo) c.comPrazo += 1
@@ -213,7 +215,7 @@ export function usePlanejamentoWeddings() {
       // Trava da Fase 4: tarefas 🔒 não-feitas DESTA etapa (stage atual) seguram o avanço.
       const travaPendentes = (gd.travaTasks[w.id] ?? [])
         .filter(t => t.stageId === w.pipeline_stage_id)
-        .map(t => ({ titulo: t.titulo, prazo: t.prazo, ultimaCobranca: gd.ultimaCobranca[t.id] ?? null, esperandoTerceiro: t.geraCobranca }))
+        .map(t => ({ titulo: t.titulo, tipo: t.tipo, prazo: t.prazo, ultimaCobranca: gd.ultimaCobranca[t.id] ?? null, esperandoTerceiro: t.geraCobranca }))
       const cobrancasVencidas = gd.cobrancasVencidas[w.id] ?? 0
       // "parado nesta etapa desde": vem do card paginado (useWeddings), sem query extra.
       const paradoDesde = w.stage_entered_at ?? null
@@ -265,6 +267,7 @@ interface ChecklistGateRow {
   id: string
   card_id: string
   titulo: string
+  tipo: string | null
   prazo: string | null
   feito: boolean
   marco: string | null
@@ -279,7 +282,7 @@ interface GateData {
   checklist: Record<string, PlanejamentoChecklistResumo>
   fornecedores: Record<string, PlanejamentoFornecedor[]>
   tasks: Record<string, GateTask[]>
-  travaTasks: Record<string, { id: string; titulo: string; stageId: string | null; prazo: string | null; geraCobranca: boolean }[]>
+  travaTasks: Record<string, { id: string; titulo: string; tipo: string | null; stageId: string | null; prazo: string | null; geraCobranca: boolean }[]>
   cobrancasVencidas: Record<string, number>
   /** checklist task id → data da última recobrança automática. */
   ultimaCobranca: Record<string, string>

@@ -3,19 +3,26 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
+  ArrowRight,
   Calendar,
+  CalendarCheck,
   Globe,
   ExternalLink,
   Loader2,
   Heart,
+  Hourglass,
   Pencil,
   Check,
   X,
   Lock,
+  Clock,
+  AlarmClock,
+  ChevronRight,
   Bell,
   Paperclip,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { getTaskTypeConfig } from '../../components/tasks/taskTypeConfig'
 import './champagne.css'
 import { formatDataLonga, daysUntil, addDaysIso } from '../../lib/planejamento/format'
 import { usePlanejamentoWeddings } from '../../hooks/planejamento/usePlanejamentoWeddings'
@@ -318,13 +325,71 @@ function diasDesde(iso: string): number {
   return Math.max(0, Math.floor(ms / 86400000))
 }
 
+// Cor do trilho de severidade + da pílula "parada há N dias", escalando com o
+// tempo: calmo (<7d), atenção (7–21d), cutucada (>21d, tom rosewood da marca).
+function paradoTier(dias: number): { rail: string; pill: string } {
+  if (dias > 21) return { rail: 'from-[#C99A53] via-[#B97F46] to-[#9B4E46]', pill: 'bg-[#F6E5DF] ring-[#E7CABF] text-[#9B4E46]' }
+  if (dias >= 7) return { rail: 'from-[#D9BE8C] to-[#C99A53]', pill: 'bg-[#F8EBD2] ring-[#EAD3A8] text-[#8A6A1A]' }
+  return { rail: 'from-[#E3D2AE] to-[#D9BE8C]', pill: 'bg-[#F1ECE3] ring-[#E3D8C6] text-[#8A8278]' }
+}
+
+type TravaItem = { titulo: string; tipo: string | null; prazo: string | null; ultimaCobranca: string | null; esperandoTerceiro: boolean }
+
+// Cada tarefa-trava vira um cartão acionável: ícone do tipo + título + chips de
+// estado (só os que têm sinal real — sem "sem prazo/ainda não cobramos" mortos).
+function TravaTaskCard({ t, hoje, onJump }: { t: TravaItem; hoje: string; onJump: () => void }) {
+  const Icon = getTaskTypeConfig(t.tipo ?? 'tarefa').icon
+  const vencido = !!t.prazo && t.prazo < hoje
+  return (
+    <button
+      type="button"
+      onClick={onJump}
+      className={cn(
+        'group text-left w-full rounded-2xl border p-3.5 flex items-start gap-3 transition-colors',
+        vencido ? 'border-[#F0DCD7] bg-[#FDF6F4] hover:bg-white' : 'border-[#EDE4D6] bg-[#FCFAF6] hover:border-[#E1D2BC] hover:bg-white',
+      )}
+    >
+      <span className={cn('w-9 h-9 rounded-xl bg-white ring-1 grid place-items-center shrink-0', vencido ? 'ring-[#EFCFC6]' : 'ring-[#EAD9BE]')}>
+        <Icon className={cn('w-[18px] h-[18px]', vencido ? 'text-[#B0473C]' : 'text-[#B97F46]')} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[13.5px] font-semibold text-[#2B2824] leading-snug">{t.titulo}</p>
+        <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+          {t.esperandoTerceiro && (
+            <span className="inline-flex items-center gap-1.5 h-6 pl-1.5 pr-2.5 rounded-full bg-[#FBEFD9] text-[#8A6A1A] text-[11px] font-medium">
+              <Hourglass className="w-3 h-3" /> esperando o casal/fornecedor
+            </span>
+          )}
+          {t.prazo && (
+            vencido ? (
+              <span className="inline-flex items-center gap-1 h-6 pl-1.5 pr-2 rounded-full bg-[#F8E0DB] text-[#B0473C] text-[11px] font-semibold">
+                <AlarmClock className="w-3 h-3" /> venceu {diaMes(t.prazo)}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 h-6 pl-1.5 pr-2 rounded-full bg-[#EEF3EA] text-[#4F7A4A] text-[11px] font-medium">
+                <CalendarCheck className="w-3 h-3" /> responde até {diaMes(t.prazo)}
+              </span>
+            )
+          )}
+          {t.ultimaCobranca && (
+            <span className="inline-flex items-center gap-1 h-6 px-2 rounded-full bg-[#F7EFD9] text-[#9A7B2E] text-[11px] font-medium">
+              <Bell className="w-3 h-3" /> cobramos {diaMes(t.ultimaCobranca)}
+            </span>
+          )}
+        </div>
+      </div>
+      <ChevronRight className="w-4 h-4 text-[#C9BCA8] mt-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+    </button>
+  )
+}
+
 function TravaBanner({
   pendentes,
   cobrancasVencidas,
   etapaLabel,
   paradoDesde,
 }: {
-  pendentes: { titulo: string; prazo: string | null; ultimaCobranca: string | null; esperandoTerceiro: boolean }[]
+  pendentes: TravaItem[]
   cobrancasVencidas: number
   etapaLabel: string
   paradoDesde: string | null
@@ -332,6 +397,8 @@ function TravaBanner({
   if (pendentes.length === 0 && cobrancasVencidas === 0) return null
 
   const hoje = new Date().toISOString().slice(0, 10)
+  const dias = paradoDesde ? diasDesde(paradoDesde) : 0
+  const tier = paradoTier(dias)
   const irParaTarefas = () => {
     const el = document.getElementById(BLOCO.spine)
     if (!el) return
@@ -341,69 +408,54 @@ function TravaBanner({
   }
 
   return (
-    <section className="rounded-2xl border border-[#E7C9A0] bg-gradient-to-b from-[#FBF1E0] to-white shadow-[0_1px_2px_rgba(140,100,40,0.08)] p-4 sm:p-5">
-      {pendentes.length > 0 && (
-        <div className="flex items-start gap-3">
-          <span className="w-9 h-9 rounded-xl bg-[#F4E2C4] border border-[#E7C9A0] grid place-items-center shrink-0">
-            <Lock className="w-[18px] h-[18px] text-[#A2741F]" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-[14px] font-bold text-[#7A581A]">Esta etapa está travada</h3>
-              <span className="text-[11px] text-[#A88C57]">· {etapaLabel}</span>
-              {paradoDesde && (
-                <span className="text-[11px] text-[#A88C57]">· parada há <b className="text-[#8A6A33]">{diasDesde(paradoDesde)} dia{diasDesde(paradoDesde) === 1 ? '' : 's'}</b> (desde {diaMes(paradoDesde)})</span>
-              )}
+    <section className="relative overflow-hidden rounded-[20px] bg-white border border-[#ECE3D5] shadow-[0_10px_34px_rgba(78,24,32,0.07)]">
+      <div className={cn('absolute left-0 top-0 bottom-0 w-[5px] bg-gradient-to-b', tier.rail)} />
+      <div className="p-5 sm:p-6 pl-7">
+        {pendentes.length > 0 && (
+          <>
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div className="flex items-start gap-3.5 min-w-0">
+                <span className="w-11 h-11 rounded-2xl bg-[#FBEFD9] ring-1 ring-[#EAD3A8] grid place-items-center shrink-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+                  <Lock className="w-5 h-5 text-[#A2741F]" />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-[16px] font-extrabold tracking-tight text-[#211F1D] leading-tight">Esta etapa está travada</h3>
+                  <p className="text-[12.5px] text-[#8A8278] mt-1 [font-family:'Roboto']">
+                    {etapaLabel} · <span className="text-[#6F675E] font-semibold">{pendentes.length === 1 ? '1 marco segura' : `${pendentes.length} marcos seguram`} o avanço</span>
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {paradoDesde && (
+                  <span className={cn('inline-flex items-center gap-1.5 h-8 pl-2.5 pr-3 rounded-full ring-1', tier.pill)} title={`Parada nesta etapa desde ${diaMes(paradoDesde)}`}>
+                    <Clock className="w-[14px] h-[14px]" />
+                    <span className="text-[12.5px] font-bold tabular-nums">parada há {dias} dia{dias === 1 ? '' : 's'}</span>
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={irParaTarefas}
+                  className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full bg-[#BD965C] text-white text-[12.5px] font-semibold shadow-[0_1px_2px_rgba(140,100,40,0.25)] hover:bg-[#a37f47] transition-colors"
+                >
+                  Ver tarefas <ArrowRight className="w-[14px] h-[14px]" />
+                </button>
+              </div>
             </div>
-            <p className="text-[12.5px] text-[#8A6A33] mt-0.5 [font-family:'Roboto']">
-              Conclua {pendentes.length === 1 ? 'a tarefa abaixo' : `as ${pendentes.length} tarefas abaixo`} para avançar de etapa:
-            </p>
-            <ul className="mt-2 flex flex-col gap-2">
-              {pendentes.map((t, i) => {
-                const vencido = !!t.prazo && t.prazo < hoje
-                return (
-                  <li key={i} className="flex items-start gap-2 text-[13px] text-[#3A3633]">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#BD965C] shrink-0 mt-1.5" />
-                    <div className="min-w-0">
-                      <span className="font-medium">{t.titulo}</span>
-                      {t.esperandoTerceiro && <span className="text-[11px] text-[#A88C57]"> · esperando o casal/fornecedor</span>}
-                      <div className="flex items-center gap-2 flex-wrap text-[11px] mt-0.5">
-                        {t.prazo ? (
-                          <span className={cn('tabular-nums', vencido ? 'text-rose-600 font-semibold' : 'text-[#A88C57]')}>
-                            {vencido ? 'venceu' : 'resposta até'} {diaMes(t.prazo)}
-                          </span>
-                        ) : (
-                          <span className="text-[#B0A595]">sem prazo</span>
-                        )}
-                        <span className="text-[#CFC2AE]">·</span>
-                        {t.ultimaCobranca ? (
-                          <span className="text-[#9A7B2E]">cobramos {diaMes(t.ultimaCobranca)}</span>
-                        ) : (
-                          <span className="text-[#B0A595]">ainda não cobramos</span>
-                        )}
-                      </div>
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
-          <button
-            type="button"
-            onClick={irParaTarefas}
-            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-[#E0D6C8] bg-white text-[#8A6A33] text-[12.5px] font-semibold hover:bg-[#FCFAF6] shrink-0"
-          >
-            Ver tarefas
-          </button>
-        </div>
-      )}
+            <div className={cn('mt-4 grid gap-3', pendentes.length === 1 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2')}>
+              {pendentes.map((t, i) => (
+                <TravaTaskCard key={i} t={t} hoje={hoje} onJump={irParaTarefas} />
+              ))}
+            </div>
+          </>
+        )}
 
-      {cobrancasVencidas > 0 && (
-        <div className={cn('flex items-center gap-2 text-[12px] text-[#9A7B2E]', pendentes.length > 0 && 'mt-3 pt-3 border-t border-[#EFE0B3]')}>
-          <Bell className="w-3.5 h-3.5 text-[#BD965C]" />
-          {cobrancasVencidas} {cobrancasVencidas === 1 ? 'tarefa vencida vira cobrança automática' : 'tarefas vencidas viram cobrança automática'} — a recobrança aparece em “Minhas tarefas”.
-        </div>
-      )}
+        {cobrancasVencidas > 0 && (
+          <div className={cn('flex items-center gap-2 text-[12px] text-[#9A7B2E]', pendentes.length > 0 && 'mt-4 pt-3 border-t border-[#F0E6CE]')}>
+            <Bell className="w-3.5 h-3.5 text-[#BD965C]" />
+            {cobrancasVencidas} {cobrancasVencidas === 1 ? 'tarefa vencida vira cobrança automática' : 'tarefas vencidas viram cobrança automática'} — a recobrança aparece em “Minhas tarefas”.
+          </div>
+        )}
+      </div>
     </section>
   )
 }
