@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
-import { X, Save, Eye, EyeOff, GripVertical, Users } from 'lucide-react';
+import { X, Save, Eye, EyeOff, GripVertical, Users, ListChecks } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import type { Database } from '../../../database.types';
 import StageEntryTaskTemplatesEditor from './StageEntryTaskTemplatesEditor';
+import WeddingStageDefaultTasksEditor from './WeddingStageDefaultTasksEditor';
+import WeddingPlanningPrazoPanel from './WeddingPlanningPrazoPanel';
 import {
     DndContext,
     closestCenter,
@@ -132,6 +134,31 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
         },
         enabled: isOpen && !!phase?.id && phaseConfig.handoff_compartilhado,
     });
+
+    // WEDDING — tarefas-padrão editáveis + prazo do planejamento. Gate por PRODUTO
+    // (não por handoff_compartilhado, que dispararia inherit_handoff/auto-materialize
+    // e quebraria o handoff da planejadora). Só na fase pos_venda do pipeline WEDDING.
+    const { data: weddingStageRows } = useQuery({
+        queryKey: ['wedding-default-tasks-ctx', phase?.id],
+        queryFn: async () => {
+            if (!phase?.id) return [];
+            const { data, error } = await supabase
+                .from('pipeline_stages')
+                .select('id, nome, ordem, ativo, pipeline_id, pipelines!inner(produto)')
+                .eq('phase_id', phase.id)
+                .eq('ativo', true)
+                .order('ordem');
+            if (error) throw error;
+            return data ?? [];
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pipeline_phases Row tem slug
+        enabled: isOpen && !!phase?.id && (phase as any).slug === 'pos_venda',
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- join produto
+    const weddingStages = (weddingStageRows ?? []).filter((s: any) => s.pipelines?.produto === 'WEDDING');
+    const isWeddingPosVenda = weddingStages.length > 0;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const weddingPipelineId = isWeddingPosVenda ? ((weddingStages[0] as any).pipeline_id as string) : null;
 
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -432,6 +459,37 @@ export default function PhaseSettingsDrawer({ isOpen, onClose, phase }: PhaseSet
                             </div>
                         )}
                     </div>
+
+                    {/* WEDDING — Planejamento: tarefas-padrão editáveis + prazo padrão */}
+                    {isWeddingPosVenda && weddingPipelineId && (
+                        <div className="mb-6">
+                            <h3 className="text-sm font-semibold text-gray-800 mb-1 flex items-center gap-2">
+                                <ListChecks className="w-4 h-4 text-indigo-500" />
+                                Planejamento — tarefas-padrão & prazo
+                            </h3>
+                            <p className="text-xs text-gray-500 mb-3">
+                                As tarefas-padrão de cada etapa e o prazo do planejamento. Editar aqui muda o que
+                                casamentos NOVOS recebem ao entrar em cada etapa.
+                            </p>
+
+                            <div className="mb-3">
+                                <WeddingPlanningPrazoPanel pipelineId={weddingPipelineId} />
+                            </div>
+
+                            <div className="space-y-2">
+                                {weddingStages.map(stage => (
+                                    <details key={stage.id} className="bg-white rounded border border-slate-200">
+                                        <summary className="px-3 py-2 text-sm font-medium text-slate-800 cursor-pointer hover:bg-slate-50 rounded">
+                                            {stage.nome}
+                                        </summary>
+                                        <div className="p-3 border-t border-slate-100">
+                                            <WeddingStageDefaultTasksEditor stageId={stage.id} />
+                                        </div>
+                                    </details>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     <div className="border-t border-gray-200 pt-5 mb-4">
                         <p className="text-sm text-gray-500">

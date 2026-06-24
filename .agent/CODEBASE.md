@@ -5,11 +5,11 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-06-23
+> **Last Updated:** 2026-06-24
 > **Trigger:** ALWAYS ON
-> **Stats:** 240 tabelas | 213 paginas | 372 hooks | 30 views | 864 components
-> **Stats:** 240 tabelas | 213 paginas | 372 hooks | 30 views | 864 components
-> **Stats:** 240 tabelas | 213 paginas | 372 hooks | 30 views | 864 components
+> **Stats:** 240 tabelas | 213 paginas | 373 hooks | 30 views | 866 components
+> **Stats:** 240 tabelas | 213 paginas | 373 hooks | 30 views | 866 components
+> **Stats:** 240 tabelas | 213 paginas | 373 hooks | 30 views | 866 components
 
 ---
 
@@ -171,7 +171,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **372 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **373 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -470,6 +470,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useWeddingFornecedores()` | `useWeddingFornecedores.ts` |
 | `useWeddingHotel()` | `useWeddingHotel.ts` |
 | `useWeddingLotes()` | `useWeddingLotes.ts` |
+| `useWeddingPlanningPrazo()` | `useWeddingPlanningPrazo.ts` |
 | `useWeddings()` | `useWeddings.ts` |
 | `useWeddingsWithGuestCounts()` | `useWeddingsWithGuestCounts.ts` |
 | `useWorkspaceMembers()` | `useWorkspaceMembers.ts` |

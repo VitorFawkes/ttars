@@ -128,6 +128,13 @@ test_query "avip_sync_log (últimos)" \
 test_query "wedding_guests source column (20260526m)" \
   "wedding_guests?select=id,source,avip_guest_id,avip_synced_at&limit=1"
 
+# ── Planejamento: prazo configurável + tarefas-padrão editáveis (20260623e/f/g) ──
+test_query "wedding_planning_settings (prazo padrão por pipeline)" \
+  "wedding_planning_settings?select=pipeline_id,org_id,prazo_dias&limit=1"
+
+test_query "wedding_stage_default_tasks (tarefas-padrão editáveis)" \
+  "wedding_stage_default_tasks?select=id,stage_id,org_id,titulo,tipo,dias_prazo,trava,gera_cobranca,abre_doc,marco,ordem,ativo&limit=1"
+
 # ── Lista de Convidados (20260527m+j+k+l) ──
 test_query "wedding_casais (lista convidados)" \
   "wedding_casais?select=id,codigo,nome_casal,whatsapp_digits,card_id&limit=1"

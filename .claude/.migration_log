@@ -1337,3 +1337,6 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-23T20:50:26Z | supabase/migrations/20260623b_wedding_funnel_6_etapas.sql | pending — reshape funil pras 6 etapas; aplicar com frontend no 'pode subir' (alto impacto, funil vivo)
 2026-06-23T21:07:10Z | supabase/migrations/20260623d_ww_funil_returning_lead_newest_deal.sql | pending — staging defasado (ww_funil_casal sem colunas recentes); validado contra prod read-only + lógica; promover com 'pode subir'
 2026-06-23T21:07:54Z | supabase/migrations/20260623b_wedding_funnel_6_etapas.sql | applied_to_prod
+2026-06-23T21:12:49Z | supabase/migrations/20260623d_ww_funil_returning_lead_newest_deal.sql | applied_to_prod
+2026-06-24T12:39:35Z | supabase/migrations/20260623f_wedding_stage_default_tasks.sql | applied_to_prod
+2026-06-24T12:39:59Z | supabase/migrations/20260623g_seed_checklist_from_defaults.sql | applied_to_prod

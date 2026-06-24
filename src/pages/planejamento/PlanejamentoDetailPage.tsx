@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -7,12 +7,17 @@ import {
   ExternalLink,
   Loader2,
   Heart,
+  Pencil,
+  Check,
+  X,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import './champagne.css'
 import { formatDataLonga, daysUntil, addDaysIso } from '../../lib/planejamento/format'
 import { usePlanejamentoWeddings } from '../../hooks/planejamento/usePlanejamentoWeddings'
 import { useWeddingChecklist } from '../../hooks/planejamento/useWeddingChecklist'
+import { useWeddingPlanningPrazo } from '../../hooks/planejamento/useWeddingPlanningPrazo'
+import { usePlanejamentoCampos } from '../../hooks/planejamento/usePlanejamentoCampos'
 import { EtapaPanel } from '../../components/planejamento/EtapaPanel'
 import { RelatorioCasamento } from '../../components/planejamento/RelatorioCasamento'
 import { CasalSection } from '../../components/planejamento/CasalSection'
@@ -55,6 +60,9 @@ export default function PlanejamentoDetailPage() {
   const { data, isLoading, isError } = usePlanejamentoWeddings()
   const wedding = data.find(w => w.id === cardId) ?? null
   const checklist = useWeddingChecklist(cardId)
+  const { defaultDias } = useWeddingPlanningPrazo()
+  const campos = usePlanejamentoCampos()
+  const [editandoPrazo, setEditandoPrazo] = useState(false)
 
   if (isLoading) {
     return (
@@ -91,21 +99,30 @@ export default function PlanejamentoDetailPage() {
   const confirmados = wedding.counts.confirmado
   const bloqueio = wedding.hotelQuartos
 
-  // Tarefas (medição do planejamento) + prazo dos 45 dias.
-  // O início do prazo vem da DATA REAL da reunião que o Calendly gravou no card
-  // (Closer ou SDR); se não houver, cai pra tarefa "Primeira Reunião" e depois o sinal.
+  // Tarefas (medição do planejamento) + prazo configurável.
+  // O relógio conta da ENTRADA no planejamento (carimbada ao entrar em pos_venda);
+  // se não houver carimbo (casamentos antigos), cai pra data de criação do card.
+  // Prazo = override deste casamento (se houver) OU o padrão do workspace.
   const { feitos, atrasados, pendentes } = wedding.checklist
-  const primeiraReuniao = checklist.items.find((t) => t.marco === 'onboarding:reuniao1')
-  const reuniaoCalendly = (pdStr(pd, 'ww_closer_data_reuniao') || pdStr(pd, 'ww_sdr_data_reuniao')).slice(0, 10)
-  const planStart = reuniaoCalendly || (primeiraReuniao?.prazo ?? '') || pdStr(pd, PLANEJ_FIELD.sinalPagoEm)
-  const planDeadline = planStart ? addDaysIso(planStart, 45) : null
+  const planStart = pdStr(pd, PLANEJ_FIELD.posVendaEm).slice(0, 10) || (wedding.created_at ?? '').slice(0, 10)
+  const overrideDias = pdNum(pd, PLANEJ_FIELD.prazoDiasOverride)
+  const prazoDias = overrideDias != null && overrideDias > 0 ? Math.round(overrideDias) : defaultDias
+  const planDeadline = planStart ? addDaysIso(planStart, prazoDias) : null
   const planDias = daysUntil(planDeadline)
   const slaText =
-    planDeadline == null ? 'defina a 1ª reunião'
+    planDeadline == null ? 'sem data de entrada'
     : planDias == null ? '—'
-    : planDias > 0 ? `faltam ${planDias}d dos 45`
+    : planDias > 0 ? `faltam ${planDias}d dos ${prazoDias}`
     : planDias === 0 ? 'prazo é hoje'
     : `${Math.abs(planDias)}d atrasado`
+
+  const salvarPrazo = (dias: number | null) => {
+    const v = dias != null && dias > 0 ? Math.min(365, Math.round(dias)) : null
+    campos.save.mutate(
+      { cardId: wedding.id, values: { [PLANEJ_FIELD.prazoDiasOverride]: v } },
+      { onSuccess: () => setEditandoPrazo(false) },
+    )
+  }
 
   // Financeiro por setor
   const valorTotal = pdNum(pd, PLANEJ_FIELD.valorTotal)
@@ -184,15 +201,41 @@ export default function PlanejamentoDetailPage() {
             </div>
           </HeaderCard>
 
-          {/* Tarefas (meta 45 dias) */}
+          {/* Tarefas (meta de prazo configurável) */}
           <HeaderCard>
-            <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#A89A86]">Tarefas · meta 45 dias</span>
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#A89A86]">
+                Tarefas · meta {prazoDias} dias{overrideDias != null && overrideDias > 0 ? ' (deste casamento)' : ''}
+              </span>
+              {!editandoPrazo && (
+                <button
+                  type="button"
+                  onClick={() => setEditandoPrazo(true)}
+                  className="p-0.5 rounded text-[#B5ABA0] hover:text-[#8A6A33] hover:bg-[#F4ECDD] shrink-0"
+                  title="Definir o prazo deste casamento"
+                  aria-label="Editar prazo deste casamento"
+                >
+                  <Pencil className="w-3 h-3" />
+                </button>
+              )}
+            </div>
             <div className="grid grid-cols-3 gap-2 mt-2 flex-1">
               <MiniNum label="Feitas" value={String(feitos)} />
               <MiniNum label="Atrasadas" value={String(atrasados)} tone={atrasados > 0 ? 'rose' : undefined} />
               <MiniNum label="Pendentes" value={String(pendentes)} />
             </div>
-            <div className="text-[11px] text-[#9A9082] mt-2 [font-family:'Roboto']">{slaText}</div>
+            {editandoPrazo ? (
+              <PrazoEditor
+                inicial={overrideDias != null && overrideDias > 0 ? Math.round(overrideDias) : prazoDias}
+                padrao={defaultDias}
+                temOverride={overrideDias != null && overrideDias > 0}
+                saving={campos.save.isPending}
+                onSalvar={salvarPrazo}
+                onCancelar={() => setEditandoPrazo(false)}
+              />
+            ) : (
+              <div className="text-[11px] text-[#9A9082] mt-2 [font-family:'Roboto']">{slaText}</div>
+            )}
           </HeaderCard>
 
           {/* Financeiro por setor */}
@@ -255,6 +298,67 @@ function MiniNum({ label, value, tone }: { label: string; value: string; tone?: 
     <div className="min-w-0">
       <div className={cn('text-[18px] font-bold [font-family:\'Roboto\'] tabular-nums leading-none', tone === 'rose' ? 'text-rose-600' : 'text-[#211F1D]')}>{value}</div>
       <div className="text-[10px] text-[#B5ABA0] mt-0.5 uppercase tracking-[0.05em] truncate">{label}</div>
+    </div>
+  )
+}
+
+// Editor inline do prazo DESTE casamento (override). Vazio/0 → volta pro padrão do workspace.
+function PrazoEditor({
+  inicial,
+  padrao,
+  temOverride,
+  saving,
+  onSalvar,
+  onCancelar,
+}: {
+  inicial: number
+  padrao: number
+  temOverride: boolean
+  saving: boolean
+  onSalvar: (dias: number | null) => void
+  onCancelar: () => void
+}) {
+  const [val, setVal] = useState(String(inicial))
+  return (
+    <div className="mt-2 flex flex-col gap-1.5">
+      <div className="flex items-center gap-1.5">
+        <input
+          type="number"
+          min={1}
+          max={365}
+          autoFocus
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          className="w-16 px-2 py-1 text-[12px] rounded-md border border-[#E0D6C8] bg-white tabular-nums focus:outline-none focus:ring-2 focus:ring-[#BD965C]/30"
+        />
+        <span className="text-[11px] text-[#9A9082]">dias</span>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => onSalvar(Number(val) || null)}
+          className="p-1 rounded text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
+          title="Salvar"
+          aria-label="Salvar prazo"
+        >
+          <Check className="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={onCancelar}
+          className="p-1 rounded text-slate-400 hover:bg-slate-100"
+          title="Cancelar"
+          aria-label="Cancelar"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={() => onSalvar(null)}
+        className={cn('self-start text-[10px] underline', temOverride ? 'text-[#A88C57] hover:text-[#8A6A33]' : 'text-transparent pointer-events-none')}
+      >
+        usar o padrão ({padrao} dias)
+      </button>
     </div>
   )
 }

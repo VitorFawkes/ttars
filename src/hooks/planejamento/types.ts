@@ -98,6 +98,12 @@ export const PLANEJ_FIELD = {
   mesmoLocal: 'ww_planej_mesmo_local',
   // Marcos concluídos manualmente (Opção B) — array de "etapa:key"
   marcosFeitos: 'ww_planej_marcos_feitos',
+  // Entrada no planejamento (carimbada pelo gatilho ao entrar em pos_venda) —
+  // início do relógio de prazo (D-P5). NÃO usar a data da reunião.
+  posVendaEm: 'ww_planej_pos_venda_em',
+  // Override do prazo de planejamento (dias) DESTE casamento; NULL = usa o
+  // padrão do workspace (wedding_planning_settings).
+  prazoDiasOverride: 'ww_planej_prazo_dias',
 } as const
 
 /** Âncoras (id no DOM) dos blocos permanentes da tela do casamento. Os marcos
@@ -118,13 +124,18 @@ export const BLOCO = {
 // ordem, os marcos que recebem tarefas (a espinha agrupa por eles).
 
 export const MARCO_LABEL: Record<string, string> = {
+  'boas_vindas:preparacao': 'Preparação',
   'onboarding:reuniao1': 'Primeira Reunião',
+  'onboarding:lista_iniciada': 'Lista iniciada',
   'propostas:definicao': 'Destino, Local & Data',
   'definicao:reserva': 'Reserva da Cerimônia',
   'definicao:documentacao': 'Documentação',
   'definicao:pagamento': 'Pagamento',
   'passagem:bloqueio': 'Bloqueio de Apartamentos',
+  'passagem:hotel': 'Hotel / Bloqueio',
+  'passagem:promo': 'Ação Promocional',
   'aditivo:lista': 'Lista de Convidados',
+  'aditivo:programacao': 'Programação',
 }
 
 export const MARCOS_POR_ETAPA: Record<EtapaPlanejamento, string[]> = {
