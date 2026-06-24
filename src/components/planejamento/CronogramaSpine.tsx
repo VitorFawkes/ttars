@@ -41,9 +41,12 @@ const TIPO_SUGERIDO: Record<string, WeddingTaskTipo> = {
 export function CronogramaSpine({
   checklist,
   currentEtapa,
+  onOpenDoc,
 }: {
   checklist: ChecklistApi
   currentEtapa: EtapaPlanejamento
+  /** Abre os anexos do casamento (📎 das tarefas com abre_doc). */
+  onOpenDoc?: () => void
 }) {
   const { items } = checklist
   const [open, setOpen] = useState<Set<EtapaPlanejamento>>(() => new Set([currentEtapa]))
@@ -143,6 +146,7 @@ export function CronogramaSpine({
                       checklist={checklist}
                       onAdd={() => setModal({ marco: mk, edit: null })}
                       onEdit={(it) => setModal({ marco: mk, edit: it })}
+                      onOpenDoc={onOpenDoc}
                     />
                   ))}
                 </div>
@@ -161,7 +165,7 @@ export function CronogramaSpine({
           </div>
           <div className="px-3.5 pb-3 flex flex-col gap-1.5">
             {byMarco.avulsas.map((it) => (
-              <TaskRow key={it.id} item={it} checklist={checklist} onEdit={() => setModal({ marco: null, edit: it })} />
+              <TaskRow key={it.id} item={it} checklist={checklist} onEdit={() => setModal({ marco: null, edit: it })} onOpenDoc={onOpenDoc} />
             ))}
             <button
               type="button"
@@ -194,12 +198,14 @@ function MarcoGroup({
   checklist,
   onAdd,
   onEdit,
+  onOpenDoc,
 }: {
   marcoKey: string
   tasks: ChecklistItem[]
   checklist: ChecklistApi
   onAdd: () => void
   onEdit: (it: ChecklistItem) => void
+  onOpenDoc?: () => void
 }) {
   const label = MARCO_LABEL[marcoKey] ?? marcoKey.split(':')[1]
   const done = tasks.filter((t) => t.feito).length
@@ -211,7 +217,7 @@ function MarcoGroup({
       </div>
       <div className="flex flex-col gap-1.5">
         {tasks.map((it) => (
-          <TaskRow key={it.id} item={it} checklist={checklist} onEdit={() => onEdit(it)} />
+          <TaskRow key={it.id} item={it} checklist={checklist} onEdit={() => onEdit(it)} onOpenDoc={onOpenDoc} />
         ))}
         <button
           type="button"
@@ -229,10 +235,12 @@ function TaskRow({
   item,
   checklist,
   onEdit,
+  onOpenDoc,
 }: {
   item: ChecklistItem
   checklist: ChecklistApi
   onEdit: () => void
+  onOpenDoc?: () => void
 }) {
   const meta = WEDDING_TASK_TYPES[item.tipo] ?? WEDDING_TASK_TYPES.tarefa
   const Icon = meta.icon
@@ -274,9 +282,20 @@ function TaskRow({
           </span>
         )}
         {item.abre_doc && (
-          <span title="Abre um documento/anexo" className="w-5 h-5 rounded grid place-items-center bg-slate-50 border border-slate-200">
-            <Paperclip className="w-3 h-3 text-slate-500" />
-          </span>
+          onOpenDoc ? (
+            <button
+              type="button"
+              onClick={onOpenDoc}
+              title="Abrir os documentos do casamento (anexos)"
+              className="w-5 h-5 rounded grid place-items-center bg-slate-50 border border-slate-200 hover:bg-slate-100 hover:border-slate-300"
+            >
+              <Paperclip className="w-3 h-3 text-slate-500" />
+            </button>
+          ) : (
+            <span title="Abre um documento/anexo" className="w-5 h-5 rounded grid place-items-center bg-slate-50 border border-slate-200">
+              <Paperclip className="w-3 h-3 text-slate-500" />
+            </span>
+          )
         )}
         {item.observacoes && item.observacoes.trim().length > 0 && (
           <span title={item.observacoes} className="w-5 h-5 rounded grid place-items-center bg-emerald-50 border border-emerald-100">

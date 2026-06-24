@@ -7,9 +7,9 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-06-24
 > **Trigger:** ALWAYS ON
-> **Stats:** 240 tabelas | 213 paginas | 373 hooks | 30 views | 866 components
-> **Stats:** 240 tabelas | 213 paginas | 373 hooks | 30 views | 866 components
-> **Stats:** 240 tabelas | 213 paginas | 373 hooks | 30 views | 866 components
+> **Stats:** 243 tabelas | 213 paginas | 375 hooks | 30 views | 868 components
+> **Stats:** 243 tabelas | 213 paginas | 375 hooks | 30 views | 868 components
+> **Stats:** 243 tabelas | 213 paginas | 375 hooks | 30 views | 868 components
 
 ---
 
@@ -171,7 +171,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **373 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **375 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -465,6 +465,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useViagemMutations()` | `useViagemMutations.ts` |
 | `useWedding()` | `useWedding.ts` |
 | `useWeddingChecklist()` | `useWeddingChecklist.ts` |
+| `useWeddingDecisoes()` | `useWeddingDecisoes.ts` |
 | `useWeddingEditValues()` | `useWeddingEditValues.ts` |
 | `useWeddingFluxo()` | `useWeddingFluxo.ts` |
 | `useWeddingFornecedores()` | `useWeddingFornecedores.ts` |
@@ -491,6 +492,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useCardConciergeStats()` | `useCardConciergeStats.ts` |
 | `useCardContactNames()` | `useCardContactNames.ts` |
 | `useCardCreationRules()` | `useCardCreationRules.ts` |
+| `useCardEmails()` | `useCardEmails.ts` |
 | `useCardFinancialSummary()` | `useCardFinancialSummary.ts` |
 | `useCardGifts()` | `useCardGifts.ts` |
 | `useCardMondeVendas()` | `useCardMondeVendas.ts` |

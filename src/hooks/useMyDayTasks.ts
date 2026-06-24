@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { sbAny } from './convidados/_supabaseUntyped'
 import { useAuth } from '../contexts/AuthContext'
 import { startOfDay, endOfDay, addDays, subDays, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -18,6 +19,8 @@ export interface MyDayTask {
     contato_nome: string | null
     responsavel_id: string | null
     responsavel_nome: string | null
+    /** 'tarefa' (nativa) | 'wedding_checklist' (tarefa do casamento, Fase 5). */
+    origin?: 'tarefa' | 'wedding_checklist'
 }
 
 export type DayBucket = {
@@ -39,6 +42,12 @@ interface UseMyDayTasksOptions {
  * - responsavelIds = [userId] → only that user's tasks
  * - responsavelIds = [a, b, c] → tasks for those users (team or filtered)
  * - responsavelIds = [] → returns empty (waiting for data)
+ *
+ * Fase 5 (Weddings): quando productFilter==='WEDDING', faz uma 2ª leitura
+ * (read-only) das tarefas do casamento em wedding_checklist e funde no resultado,
+ * mapeando feito→concluida, prazo→data_vencimento e responsável = dono do card
+ * (pos_owner_id/dono_atual_id). NÃO migra nada — wedding_checklist segue a fonte
+ * única da trava/cobrança. Para Trips o bloco é pulado (comportamento idêntico).
  */
 export function useMyDayTasks({ productFilter, responsavelIds }: UseMyDayTasksOptions) {
     const { profile } = useAuth()
@@ -57,7 +66,7 @@ export function useMyDayTasks({ productFilter, responsavelIds }: UseMyDayTasksOp
             let q = supabase
                 .from('tarefas')
                 .select(`
-                    id, titulo, tipo, data_vencimento, concluida, status, card_id, responsavel_id,
+                    id, titulo, tipo, data_vencimento, concluida, status, card_id, responsavel_id, metadata,
                     card:cards!tarefas_card_id_fkey(id, titulo, produto, pessoa_principal_id,
                         contato:contatos!cards_pessoa_principal_id_fkey(nome, sobrenome)
                     )
@@ -89,20 +98,8 @@ export function useMyDayTasks({ productFilter, responsavelIds }: UseMyDayTasksOp
                 result = result.filter((t: any) => t.card?.produto === productFilter)
             }
 
-            // Fetch profile names for responsavel_id (no FK exists between tarefas→profiles)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const uniqueIds = [...new Set(result.map((t: any) => t.responsavel_id).filter(Boolean))]
-            let profileMap: Record<string, string> = {}
-            if (uniqueIds.length > 0) {
-                const { data: profiles } = await supabase
-                    .from('profiles')
-                    .select('id, nome')
-                    .in('id', uniqueIds)
-                profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p.nome || '']))
-            }
-
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            return result.map((t: any) => ({
+            const nativeTasks: MyDayTask[] = result.map((t: any) => ({
                 id: t.id,
                 titulo: t.titulo,
                 tipo: t.tipo,
@@ -113,6 +110,80 @@ export function useMyDayTasks({ productFilter, responsavelIds }: UseMyDayTasksOp
                 card_titulo: t.card?.titulo || '',
                 contato_nome: t.card?.contato ? (formatContactName(t.card.contato) || null) : null,
                 responsavel_id: t.responsavel_id,
+                responsavel_nome: null,
+                origin: 'tarefa' as const,
+            }))
+
+            // ── Fase 5: tarefas do casamento (wedding_checklist) ──────────────
+            // Só no workspace Weddings. Itens não-feitos COM prazo na janela
+            // (sem prazo não entram numa fila por data — aparecem no Planejamento).
+            let weddingTasks: MyDayTask[] = []
+            if (productFilter === 'WEDDING') {
+                const startDate = format(rangeStart, 'yyyy-MM-dd')
+                const endDate = format(rangeEnd, 'yyyy-MM-dd')
+                const { data: wc, error: wcErr } = await sbAny
+                    .from('wedding_checklist')
+                    .select(`
+                        id, titulo, tipo, prazo, feito, card_id,
+                        card:cards!wedding_checklist_card_id_fkey(id, titulo, produto, pos_owner_id, dono_atual_id,
+                            contato:contatos!cards_pessoa_principal_id_fkey(nome, sobrenome))
+                    `)
+                    .eq('feito', false)
+                    .not('prazo', 'is', null)
+                    .gte('prazo', startDate)
+                    .lte('prazo', endDate)
+                if (wcErr) throw wcErr
+
+                weddingTasks = (wc ?? [])
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    .map((r: any) => {
+                        const owner: string | null = r.card?.pos_owner_id || r.card?.dono_atual_id || null
+                        return {
+                            id: r.id,
+                            titulo: r.titulo,
+                            tipo: r.tipo,
+                            data_vencimento: r.prazo ? `${String(r.prazo).slice(0, 10)}T12:00:00` : null,
+                            concluida: false,
+                            status: null,
+                            card_id: r.card?.id || r.card_id,
+                            card_titulo: r.card?.titulo || '',
+                            contato_nome: r.card?.contato ? (formatContactName(r.card.contato) || null) : null,
+                            responsavel_id: owner,
+                            responsavel_nome: null,
+                            origin: 'wedding_checklist' as const,
+                        } as MyDayTask
+                    })
+                    // mesma régua de responsável que as nativas
+                    .filter((t: MyDayTask) => {
+                        if (responsavelIds === undefined) return true
+                        return t.responsavel_id != null && responsavelIds.includes(t.responsavel_id)
+                    })
+
+                // Sem duplicar: se a cobrança automática já criou uma tarefa nativa
+                // "🔁 Recobrar" pra este item (metadata.wedding_checklist_id), some com
+                // o item original — a recobrança nativa é a ação que vale na fila.
+                const coveredWcIds = new Set(
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (result as any[]).map((t) => t?.metadata?.wedding_checklist_id).filter(Boolean),
+                )
+                weddingTasks = weddingTasks.filter((t) => !coveredWcIds.has(t.id))
+            }
+
+            const combined = [...nativeTasks, ...weddingTasks]
+
+            // Fetch profile names for all responsavel_ids (no FK exists between tarefas→profiles)
+            const uniqueIds = [...new Set(combined.map((t) => t.responsavel_id).filter(Boolean))] as string[]
+            let profileMap: Record<string, string> = {}
+            if (uniqueIds.length > 0) {
+                const { data: profiles } = await supabase
+                    .from('profiles')
+                    .select('id, nome')
+                    .in('id', uniqueIds)
+                profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p.nome || '']))
+            }
+
+            return combined.map((t) => ({
+                ...t,
                 responsavel_nome: t.responsavel_id ? (profileMap[t.responsavel_id] || null) : null,
             })) as MyDayTask[]
         },
@@ -120,9 +191,22 @@ export function useMyDayTasks({ productFilter, responsavelIds }: UseMyDayTasksOp
         enabled: !!profile?.id && isReady,
     })
 
+    // Lookup origin/card ao concluir (a UI só passa o id).
+    const taskIndex = new Map((query.data || []).map((t) => [t.id, t]))
+
     // Complete task mutation (supports optional outcome/feedback)
     const completeMutation = useMutation({
         mutationFn: async ({ taskId, outcome, feedback }: { taskId: string; outcome?: string; feedback?: string }) => {
+            const task = taskIndex.get(taskId)
+            if (task?.origin === 'wedding_checklist') {
+                // tarefa do casamento → marca feito na fonte (wedding_checklist)
+                const { error } = await sbAny
+                    .from('wedding_checklist')
+                    .update({ feito: true })
+                    .eq('id', taskId)
+                if (error) throw error
+                return
+            }
             const { error } = await supabase
                 .from('tarefas')
                 .update({
@@ -142,6 +226,7 @@ export function useMyDayTasks({ productFilter, responsavelIds }: UseMyDayTasksOp
             queryClient.invalidateQueries({ queryKey: ['tasks'] })
             queryClient.invalidateQueries({ queryKey: ['tasks-list'] })
             queryClient.invalidateQueries({ queryKey: ['cards'] })
+            queryClient.invalidateQueries({ queryKey: ['planejamento'] })
             toast.success('Tarefa concluida')
         },
         onError: (error: Error) => {

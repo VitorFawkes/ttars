@@ -1,4 +1,4 @@
-import { Check, Phone, MessageSquare, Mail, Calendar, FileText, CheckSquare, Send, Clock, Gift } from 'lucide-react'
+import { Check, Phone, MessageSquare, Mail, Calendar, FileText, CheckSquare, Send, Clock, Gift, ListChecks, BedDouble, Landmark, CreditCard } from 'lucide-react'
 import { format, differenceInDays, isToday, isTomorrow, startOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { cn } from '../../lib/utils'
@@ -16,6 +16,12 @@ const TASK_TYPE_CONFIG: Record<string, { icon: typeof Phone; label: string; colo
     coleta_documentos: { icon: FileText, label: 'Docs', color: 'text-amber-500' },
     solicitacao_mudanca: { icon: FileText, label: 'Mudança', color: 'text-rose-500' },
     envio_presente: { icon: Gift, label: 'Presente', color: 'text-pink-500' },
+    // Tarefas de casamento (wedding_checklist → Fase 5)
+    documento: { icon: FileText, label: 'Documento', color: 'text-amber-600' },
+    lista: { icon: ListChecks, label: 'Lista', color: 'text-teal-600' },
+    bloqueio: { icon: BedDouble, label: 'Hospedagem', color: 'text-indigo-600' },
+    reserva: { icon: Landmark, label: 'Reserva', color: 'text-violet-600' },
+    pagamento: { icon: CreditCard, label: 'Pagamento', color: 'text-emerald-600' },
 }
 
 interface MyDayTaskCardProps {

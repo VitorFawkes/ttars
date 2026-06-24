@@ -1,6 +1,6 @@
 import {
     CheckSquare, Phone, MessageSquare, Mail,
-    Calendar, FileText, Send,
+    Calendar, FileText, Send, ListChecks, BedDouble, Landmark, CreditCard,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -23,6 +23,12 @@ export const TASK_TYPE_CONFIG: Record<string, TaskTypeConfig> = {
     coleta_documentos: { icon: FileText, label: 'Docs', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
     solicitacao_mudanca: { icon: FileText, label: 'Mudança', color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-200' },
     envio_presente: { icon: CheckSquare, label: 'Presente', color: 'text-pink-600', bg: 'bg-pink-50', border: 'border-pink-200' },
+    // Tipos das tarefas de casamento (wedding_checklist → Fase 5)
+    documento: { icon: FileText, label: 'Documento', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
+    lista: { icon: ListChecks, label: 'Lista', color: 'text-teal-600', bg: 'bg-teal-50', border: 'border-teal-200' },
+    bloqueio: { icon: BedDouble, label: 'Hospedagem', color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-200' },
+    reserva: { icon: Landmark, label: 'Reserva', color: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-200' },
+    pagamento: { icon: CreditCard, label: 'Pagamento', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200' },
     outro: { icon: CheckSquare, label: 'Outro', color: 'text-slate-600', bg: 'bg-slate-100', border: 'border-slate-200' },
 }
 

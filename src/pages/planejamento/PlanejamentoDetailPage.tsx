@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -12,6 +13,7 @@ import {
   X,
   Lock,
   Bell,
+  Paperclip,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import './champagne.css'
@@ -26,6 +28,9 @@ import { CasalSection } from '../../components/planejamento/CasalSection'
 import { WeddingEquipeSection } from '../../components/planejamento/WeddingEquipeSection'
 import { LocalHospedagemSection } from '../../components/planejamento/LocalHospedagemSection'
 import { CronogramaSpine } from '../../components/planejamento/CronogramaSpine'
+import { DecisoesSection } from '../../components/planejamento/DecisoesSection'
+import { EmailCasalSection } from '../../components/planejamento/EmailCasalSection'
+import AttachmentsWidget from '../../components/card/attachments/AttachmentsWidget'
 import {
   AcaoPromoSection,
   ConvidadosResumoSection,
@@ -65,6 +70,7 @@ export default function PlanejamentoDetailPage() {
   const { defaultDias } = useWeddingPlanningPrazo()
   const campos = usePlanejamentoCampos()
   const [editandoPrazo, setEditandoPrazo] = useState(false)
+  const [docsOpen, setDocsOpen] = useState(false)
 
   if (isLoading) {
     return (
@@ -279,8 +285,17 @@ export default function PlanejamentoDetailPage() {
 
       {/* Cronograma & Tarefas — a espinha (Etapa → Marco → Tarefa) */}
       <div id={BLOCO.spine} className="scroll-mt-6">
-        <CronogramaSpine checklist={checklist} currentEtapa={wedding.planejamentoEtapa} />
+        <CronogramaSpine checklist={checklist} currentEtapa={wedding.planejamentoEtapa} onOpenDoc={() => setDocsOpen(true)} />
       </div>
+
+      {/* Documentos do casamento — anexos nativos do card (📎 abre-doc, Fase 4) */}
+      {docsOpen && <DocsDrawer cardId={wedding.id} onClose={() => setDocsOpen(false)} />}
+
+      {/* Decisões do casamento (destino/data/local/orçamento) + aceite do casal */}
+      <DecisoesSection wedding={wedding} />
+
+      {/* E-mail com o casal (registro no card) */}
+      <EmailCasalSection wedding={wedding} />
 
       {/* Notas da planejadora (texto livre) */}
       <NotasSection wedding={wedding} />
@@ -358,6 +373,32 @@ function TravaBanner({
         </div>
       )}
     </section>
+  )
+}
+
+// Gaveta lateral com os anexos NATIVOS do card (tabela arquivos + bucket
+// card-documents). O 📎 das tarefas "Ler/Receber o contrato" abre aqui — sem
+// tirar a planejadora da tela do casamento. Vazio até subirem o 1º documento.
+function DocsDrawer({ cardId, onClose }: { cardId: string; onClose: () => void }) {
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/30 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose() }} role="dialog" aria-modal="true">
+      <div className="w-full max-w-md h-full bg-[#F7F2EA] border-l border-[#E6DBC9] shadow-xl flex flex-col overflow-y-auto">
+        <header className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-[#E6DBC9] bg-white sticky top-0">
+          <div className="flex items-center gap-2">
+            <Paperclip className="w-4 h-4 text-[#BD965C]" />
+            <h2 className="text-[15px] font-semibold text-[#211F1D]">Documentos do casamento</h2>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500" aria-label="Fechar"><X className="w-4 h-4" /></button>
+        </header>
+        <div className="p-4">
+          <p className="text-[12px] text-[#9A9082] mb-3 [font-family:'Roboto',sans-serif]">
+            Contratos e arquivos deste casamento. Arraste pra cá ou clique pra subir; depois é só clicar pra abrir.
+          </p>
+          <AttachmentsWidget cardId={cardId} />
+        </div>
+      </div>
+    </div>,
+    document.body,
   )
 }
 
