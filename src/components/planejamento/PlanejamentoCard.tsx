@@ -1,5 +1,5 @@
 import { useDraggable } from '@dnd-kit/core'
-import { Heart, Calendar, MapPin, Users, CheckCircle2, CircleDashed } from 'lucide-react'
+import { Heart, Calendar, MapPin, Users, CheckCircle2, Lock, Bell } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { formatDataCurta, isPast } from '../../lib/planejamento/format'
 import type { EtapaPlanejamento } from '../../hooks/planejamento/types'
@@ -76,18 +76,26 @@ export function PlanejamentoCard({ wedding, onClick, isOverlay = false }: Planej
         </span>
       </div>
 
-      {/* Saúde da trava da etapa atual */}
-      <div className="pt-1.5 border-t border-slate-100">
-        {wedding.gate.allOk ? (
+      {/* Trava real da etapa atual (Fase 4): tarefas 🔒 não-feitas seguram o avanço */}
+      <div className="pt-1.5 border-t border-slate-100 flex items-center gap-1.5 flex-wrap">
+        {wedding.travaPendentes.length === 0 ? (
           <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-1.5 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">
             <CheckCircle2 className="w-3 h-3" /> Pronto para avançar
           </span>
         ) : (
           <span
             className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-1.5 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200"
-            title={wedding.gate.criteria.filter((c) => !c.ok).map((c) => c.label).join('; ')}
+            title={wedding.travaPendentes.map((t) => t.titulo).join('; ')}
           >
-            <CircleDashed className="w-3 h-3" /> Trava {wedding.gate.met}/{wedding.gate.total}
+            <Lock className="w-3 h-3" /> Travada · {wedding.travaPendentes.length}
+          </span>
+        )}
+        {wedding.cobrancasVencidas > 0 && (
+          <span
+            className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-1.5 py-0.5 rounded-full border bg-indigo-50 text-indigo-600 border-indigo-100"
+            title={`${wedding.cobrancasVencidas} tarefa(s) vencida(s) viram cobrança automática`}
+          >
+            <Bell className="w-3 h-3" /> {wedding.cobrancasVencidas}
           </span>
         )}
       </div>

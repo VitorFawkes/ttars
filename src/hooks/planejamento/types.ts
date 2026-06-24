@@ -237,7 +237,10 @@ export const FORNECEDOR_SETORES: string[] = [
 
 /** Item do cronograma & checklist de um casamento (= uma TAREFA). Itens com
  *  `prazo` formam o cronograma; `feito` é o checklist. `marco` liga a tarefa a
- *  um marco (rola pra cima); `tipo` dá ícone/cor; `ordem` ordena dentro do marco. */
+ *  um marco (rola pra cima); `tipo` dá ícone/cor; `ordem` ordena dentro do marco.
+ *  As flags `trava`/`gera_cobranca`/`abre_doc` + `stage_id` são herdadas da
+ *  tarefa-padrão (Fase 4): 🔒 segura o avanço da etapa, 🔁 cobra sozinha ao
+ *  vencer, 📎 abre um documento. Opcionais (avulsas não têm). */
 export interface ChecklistItem {
   id: string
   titulo: string
@@ -247,6 +250,10 @@ export interface ChecklistItem {
   tipo: WeddingTaskTipo
   marco: string | null
   ordem: number
+  stage_id?: string | null
+  trava?: boolean
+  gera_cobranca?: boolean
+  abre_doc?: boolean
 }
 
 /** Entrada do banco de fornecedores (catálogo per-workspace, reutilizável

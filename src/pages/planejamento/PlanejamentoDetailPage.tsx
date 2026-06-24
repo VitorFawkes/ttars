@@ -10,6 +10,8 @@ import {
   Pencil,
   Check,
   X,
+  Lock,
+  Bell,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import './champagne.css'
@@ -250,6 +252,13 @@ export default function PlanejamentoDetailPage() {
         </div>
       </div>
 
+      {/* Trava da etapa (Fase 4) — a tarefa 🔒 que segura o avanço sobe pro topo */}
+      <TravaBanner
+        pendentes={wedding.travaPendentes}
+        cobrancasVencidas={wedding.cobrancasVencidas}
+        etapaLabel={PLANEJAMENTO_LABEL[wedding.planejamentoEtapa]}
+      />
+
       {/* Marcos da etapa — atalhos pros blocos + concluir na mão */}
       <EtapaPanel wedding={wedding} />
 
@@ -279,6 +288,76 @@ export default function PlanejamentoDetailPage() {
       {/* Relatório do casamento — saúde, financeiro, convidados, prazos */}
       <RelatorioCasamento wedding={wedding} />
     </div>
+  )
+}
+
+// Trava visível no topo (D-P3): a(s) tarefa(s) 🔒 que seguram a etapa atual.
+// Some quando nada trava. Clique rola até a espinha de tarefas.
+function TravaBanner({
+  pendentes,
+  cobrancasVencidas,
+  etapaLabel,
+}: {
+  pendentes: { titulo: string; prazo: string | null }[]
+  cobrancasVencidas: number
+  etapaLabel: string
+}) {
+  if (pendentes.length === 0 && cobrancasVencidas === 0) return null
+
+  const irParaTarefas = () => {
+    const el = document.getElementById(BLOCO.spine)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    el.classList.add('bloco-flash')
+    window.setTimeout(() => el.classList.remove('bloco-flash'), 1400)
+  }
+
+  return (
+    <section className="rounded-2xl border border-[#E7C9A0] bg-gradient-to-b from-[#FBF1E0] to-white shadow-[0_1px_2px_rgba(140,100,40,0.08)] p-4 sm:p-5">
+      {pendentes.length > 0 && (
+        <div className="flex items-start gap-3">
+          <span className="w-9 h-9 rounded-xl bg-[#F4E2C4] border border-[#E7C9A0] grid place-items-center shrink-0">
+            <Lock className="w-[18px] h-[18px] text-[#A2741F]" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-[14px] font-bold text-[#7A581A]">Esta etapa está travada</h3>
+              <span className="text-[11px] text-[#A88C57]">· {etapaLabel}</span>
+            </div>
+            <p className="text-[12.5px] text-[#8A6A33] mt-0.5 [font-family:'Roboto']">
+              Conclua {pendentes.length === 1 ? 'a tarefa abaixo' : `as ${pendentes.length} tarefas abaixo`} para avançar de etapa:
+            </p>
+            <ul className="mt-2 flex flex-col gap-1.5">
+              {pendentes.map((t, i) => (
+                <li key={i} className="flex items-center gap-2 text-[13px] text-[#3A3633]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#BD965C] shrink-0" />
+                  <span className="font-medium">{t.titulo}</span>
+                  {t.prazo && (
+                    <span className={cn('text-[11px] tabular-nums', t.prazo < new Date().toISOString().slice(0, 10) ? 'text-rose-600' : 'text-[#A88C57]')}>
+                      · prazo {t.prazo.slice(8, 10)}/{t.prazo.slice(5, 7)}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <button
+            type="button"
+            onClick={irParaTarefas}
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-[#E0D6C8] bg-white text-[#8A6A33] text-[12.5px] font-semibold hover:bg-[#FCFAF6] shrink-0"
+          >
+            Ver tarefas
+          </button>
+        </div>
+      )}
+
+      {cobrancasVencidas > 0 && (
+        <div className={cn('flex items-center gap-2 text-[12px] text-[#9A7B2E]', pendentes.length > 0 && 'mt-3 pt-3 border-t border-[#EFE0B3]')}>
+          <Bell className="w-3.5 h-3.5 text-[#BD965C]" />
+          {cobrancasVencidas} {cobrancasVencidas === 1 ? 'tarefa vencida vira cobrança automática' : 'tarefas vencidas viram cobrança automática'} — a recobrança aparece em “Minhas tarefas”.
+        </div>
+      )}
+    </section>
   )
 }
 

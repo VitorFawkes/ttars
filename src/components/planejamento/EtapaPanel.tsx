@@ -52,15 +52,22 @@ export function EtapaPanel({ wedding }: { wedding: WeddingPlanejamento }) {
     save.mutate({ cardId: wedding.id, values: { [PLANEJ_FIELD.marcosFeitos]: next } })
   }
 
+  // Trava real (Fase 4): tarefas 🔒 não-feitas DESTA etapa seguram o avanço — a
+  // mesma régra que o banco aplica no mover_card. O board/Kanban também são
+  // barrados no servidor; aqui é o espelho de UX (avisa antes de tentar).
+  const travaPendentes = wedding.travaPendentes ?? []
+  const blockedByTrava = travaPendentes.length > 0
+
   const handleAdvance = () => {
-    if (!next || !gate.allOk) {
-      if (!gate.allOk) toast.error('Cumpra os marcos da etapa antes de avançar.')
+    if (!next) return
+    if (blockedByTrava) {
+      toast.error(`Conclua as tarefas 🔒 desta etapa antes de avançar: ${travaPendentes.map(t => t.titulo).join(', ')}`)
       return
     }
     update.mutate({ cardId: wedding.id, etapa: next })
   }
 
-  const liberado = gate.allOk && next != null
+  const liberado = next != null && !blockedByTrava
 
   return (
     <section className={cn(CARD, 'p-5 sm:p-6')}>

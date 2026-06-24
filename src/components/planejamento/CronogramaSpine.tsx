@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ListChecks, Plus, Pencil, Trash2, Check, X, ChevronDown, ChevronRight } from 'lucide-react'
+import { ListChecks, Plus, Pencil, Trash2, Check, X, ChevronDown, ChevronRight, Lock, Repeat, Paperclip, MessageSquare } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { daysUntil, isPast } from '../../lib/planejamento/format'
 import { WEDDING_TASK_TYPES, WEDDING_TASK_TIPO_LIST } from '../../hooks/planejamento/taskTypes'
@@ -260,6 +260,30 @@ function TaskRow({
       <span className={cn('flex-1 min-w-0 text-[13px] truncate', item.feito ? 'text-slate-400 line-through' : 'text-slate-800')} title={item.titulo}>
         {item.titulo}
       </span>
+
+      {/* Marcadores da tarefa (Fase 4): 🔒 trava · 🔁 cobra · 📎 abre doc · 💬 comentário */}
+      <div className="flex items-center gap-1 shrink-0">
+        {item.trava && !item.feito && (
+          <span title="Segura o avanço da etapa" className="w-5 h-5 rounded grid place-items-center bg-amber-50 border border-amber-200">
+            <Lock className="w-3 h-3 text-amber-700" />
+          </span>
+        )}
+        {item.gera_cobranca && (
+          <span title="Cobra sozinha quando o prazo vence" className="w-5 h-5 rounded grid place-items-center bg-indigo-50 border border-indigo-100">
+            <Repeat className="w-3 h-3 text-indigo-500" />
+          </span>
+        )}
+        {item.abre_doc && (
+          <span title="Abre um documento/anexo" className="w-5 h-5 rounded grid place-items-center bg-slate-50 border border-slate-200">
+            <Paperclip className="w-3 h-3 text-slate-500" />
+          </span>
+        )}
+        {item.observacoes && item.observacoes.trim().length > 0 && (
+          <span title={item.observacoes} className="w-5 h-5 rounded grid place-items-center bg-emerald-50 border border-emerald-100">
+            <MessageSquare className="w-3 h-3 text-emerald-600" />
+          </span>
+        )}
+      </div>
 
       <input
         type="date"

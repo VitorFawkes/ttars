@@ -20,7 +20,7 @@ export function useWeddingChecklist(cardId: string | null | undefined) {
       if (!orgId || !cardId) return []
       const { data, error } = await sbAny
         .from('wedding_checklist')
-        .select('id, titulo, prazo, feito, observacoes, tipo, marco, ordem')
+        .select('id, titulo, prazo, feito, observacoes, tipo, marco, ordem, stage_id, trava, gera_cobranca, abre_doc')
         .eq('org_id', orgId)
         .eq('card_id', cardId)
         .order('ordem', { ascending: true })

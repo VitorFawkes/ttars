@@ -26,6 +26,12 @@ export interface PlanejamentoChecklistResumo {
   pendentes: number
 }
 
+/** Tarefa-trava pendente da ETAPA ATUAL — segura o avanço (Fase 4). */
+export interface TravaPendente {
+  titulo: string
+  prazo: string | null
+}
+
 export interface WeddingPlanejamento extends WeddingWithGuests {
   /** Coluna atual no board — derivada da etapa real do funil (pipeline_stage_id). */
   planejamentoEtapa: EtapaPlanejamento
@@ -38,6 +44,10 @@ export interface WeddingPlanejamento extends WeddingWithGuests {
   convitesCount: number
   fornecedores: PlanejamentoFornecedor[]
   checklist: PlanejamentoChecklistResumo
+  /** Tarefas 🔒 da etapa ATUAL ainda não feitas — bloqueiam o avanço (Fase 4). */
+  travaPendentes: TravaPendente[]
+  /** Tarefas 🔁 já vencidas e não feitas (qualquer etapa) — viram cobrança. */
+  cobrancasVencidas: number
 }
 
 /**
@@ -97,7 +107,7 @@ export function usePlanejamentoWeddings() {
       const [hotelRes, convitesRes, checklistRes, fornRes] = await Promise.all([
         sbAny.from('wedding_hotel').select('card_id, status, tarifa, total_quartos').eq('org_id', orgId),
         sbAny.from('wedding_convites').select('card_id').eq('org_id', orgId),
-        sbAny.from('wedding_checklist').select('card_id, prazo, feito, marco').eq('org_id', orgId),
+        sbAny.from('wedding_checklist').select('card_id, titulo, prazo, feito, marco, stage_id, trava, gera_cobranca').eq('org_id', orgId),
         sbAny.from('wedding_fornecedores').select('card_id, setor, status, valor').eq('org_id', orgId),
       ])
 
@@ -114,13 +124,18 @@ export function usePlanejamentoWeddings() {
       const hoje = new Date().toISOString().slice(0, 10)
       const checklist: Record<string, PlanejamentoChecklistResumo> = {}
       const tasks: Record<string, GateTask[]> = {}
-      for (const r of (checklistRes.data ?? []) as { card_id: string; prazo: string | null; feito: boolean; marco: string | null }[]) {
+      // Tarefas 🔒 não-feitas, com sua etapa (pra filtrar pela etapa atual no builder).
+      const travaTasks: Record<string, { titulo: string; stageId: string | null; prazo: string | null }[]> = {}
+      const cobrancasVencidas: Record<string, number> = {}
+      for (const r of (checklistRes.data ?? []) as ChecklistGateRow[]) {
         const c = checklist[r.card_id] ?? { total: 0, feitos: 0, comPrazo: 0, atrasados: 0, pendentes: 0 }
         c.total += 1
         if (r.feito) c.feitos += 1
         else {
           c.pendentes += 1
           if (r.prazo && r.prazo < hoje) c.atrasados += 1
+          if (r.trava) (travaTasks[r.card_id] ??= []).push({ titulo: r.titulo, stageId: r.stage_id ?? null, prazo: r.prazo })
+          if (r.gera_cobranca && r.prazo && r.prazo < hoje) cobrancasVencidas[r.card_id] = (cobrancasVencidas[r.card_id] ?? 0) + 1
         }
         if (r.prazo) c.comPrazo += 1
         checklist[r.card_id] = c
@@ -134,14 +149,14 @@ export function usePlanejamentoWeddings() {
         fornecedores[r.card_id] = list
       }
 
-      return { hotel, convites, checklist, fornecedores, tasks } as GateData
+      return { hotel, convites, checklist, fornecedores, tasks, travaTasks, cobrancasVencidas } as GateData
     },
   })
 
   const data = useMemo<WeddingPlanejamento[]>(() => {
     const weddings: WeddingWithGuests[] = base.data ?? []
     const stageMap = stagesQuery.data ?? {}
-    const gd: GateData = gateDataQuery.data ?? { hotel: {}, convites: {}, checklist: {}, fornecedores: {}, tasks: {} }
+    const gd: GateData = gateDataQuery.data ?? { hotel: {}, convites: {}, checklist: {}, fornecedores: {}, tasks: {}, travaTasks: {}, cobrancasVencidas: {} }
 
     const out: WeddingPlanejamento[] = []
     for (const w of weddings) {
@@ -154,6 +169,11 @@ export function usePlanejamentoWeddings() {
       const convitesCount = gd.convites[w.id] ?? 0
       const checklist = gd.checklist[w.id] ?? { total: 0, feitos: 0, comPrazo: 0, atrasados: 0, pendentes: 0 }
       const fornecedores = gd.fornecedores[w.id] ?? []
+      // Trava da Fase 4: tarefas 🔒 não-feitas DESTA etapa (stage atual) seguram o avanço.
+      const travaPendentes = (gd.travaTasks[w.id] ?? [])
+        .filter(t => t.stageId === w.pipeline_stage_id)
+        .map(t => ({ titulo: t.titulo, prazo: t.prazo }))
+      const cobrancasVencidas = gd.cobrancasVencidas[w.id] ?? 0
       const marcosFeitos = Array.isArray(w.produto_data?.[PLANEJ_FIELD.marcosFeitos])
         ? (w.produto_data![PLANEJ_FIELD.marcosFeitos] as unknown[]).filter((x): x is string => typeof x === 'string')
         : []
@@ -182,6 +202,8 @@ export function usePlanejamentoWeddings() {
         convitesCount,
         fornecedores,
         checklist,
+        travaPendentes,
+        cobrancasVencidas,
       })
     }
     return out
@@ -195,10 +217,23 @@ export function usePlanejamentoWeddings() {
   }
 }
 
+interface ChecklistGateRow {
+  card_id: string
+  titulo: string
+  prazo: string | null
+  feito: boolean
+  marco: string | null
+  stage_id: string | null
+  trava: boolean | null
+  gera_cobranca: boolean | null
+}
+
 interface GateData {
   hotel: Record<string, { status: HotelStatus | null; tarifa: number | null; quartos: number | null }>
   convites: Record<string, number>
   checklist: Record<string, PlanejamentoChecklistResumo>
   fornecedores: Record<string, PlanejamentoFornecedor[]>
   tasks: Record<string, GateTask[]>
+  travaTasks: Record<string, { titulo: string; stageId: string | null; prazo: string | null }[]>
+  cobrancasVencidas: Record<string, number>
 }

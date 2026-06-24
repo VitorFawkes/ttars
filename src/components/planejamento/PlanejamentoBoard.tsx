@@ -91,12 +91,13 @@ export function PlanejamentoBoard() {
     if (!item || !isEtapaPlanejamento(destino)) return
     if (item.planejamentoEtapa === destino) return
 
-    // Trava: só deixa AVANÇAR se a etapa atual está cumprida. Voltar é livre.
+    // Trava (Fase 4): só deixa AVANÇAR se as tarefas 🔒 da etapa atual estão
+    // feitas — a MESMA régua do EtapaPanel e do servidor (mover_card). Voltar é
+    // livre. Espelhar aqui evita o arraste "aceito → revertido" com erro técnico.
     const avancando = etapaIndex(destino) > etapaIndex(item.planejamentoEtapa)
-    if (avancando && !item.gate.allOk) {
-      const faltam = item.gate.criteria.filter((c) => !c.ok).map((c) => c.label)
+    if (avancando && item.travaPendentes.length > 0) {
       toast.error(
-        `Faltam ${faltam.length} de ${item.gate.total} para avançar "${item.titulo}": ${faltam.join('; ')}`,
+        `Conclua as tarefas 🔒 desta etapa antes de avançar "${item.titulo}": ${item.travaPendentes.map((t) => t.titulo).join(', ')}`,
         { duration: 6000 },
       )
       return
