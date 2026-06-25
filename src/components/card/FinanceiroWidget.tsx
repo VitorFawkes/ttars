@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Package, TrendingUp, RefreshCw, Trash2, Check, ChevronDown, ChevronRight, Paperclip, ClipboardList, MessageSquare, Users, Calendar, Building2, FileText, AlertCircle } from 'lucide-react'
+import { Package, TrendingUp, RefreshCw, Trash2, Check, ChevronDown, ChevronRight, Paperclip, ClipboardList, MessageSquare, Users, Calendar, Building2, FileText, AlertCircle, DownloadCloud } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SectionCollapseToggle } from './DynamicSectionWidget'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -11,6 +11,7 @@ import { useDeleteFinancialItem } from '@/hooks/useDeleteFinancialItem'
 import type { FinancialItemPassenger } from '@/hooks/useFinancialItemPassengers'
 import { useCardFinancialSummary, type FinancialItem } from '@/hooks/useCardFinancialSummary'
 import { useCardMondeVendas, useReconcileMondeVenda } from '@/hooks/useCardMondeVendas'
+import { useMondePullCard } from '@/hooks/useMondePullCard'
 import type { Database } from '@/database.types'
 
 type Card = Database['public']['Tables']['cards']['Row']
@@ -82,6 +83,7 @@ export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCol
     const summary = useCardFinancialSummary(cardId, card)
     const { items, isLoading, readyCount, obsCount } = summary
     const { data: mondeVendas = [] } = useCardMondeVendas(cardId)
+    const pullMonde = useMondePullCard(cardId)
     const totalVenda = summary.fechado
     const valorPrevisto = summary.orcamentoPrevisto
     const showComparativo = summary.hasOrcamento
@@ -120,9 +122,23 @@ export default function FinanceiroWidget({ cardId, card, isExpanded, onToggleCol
                         </span>
                     )}
                 </h3>
-                {onToggleCollapse && (
-                    <SectionCollapseToggle isExpanded={isExpanded ?? true} onToggle={onToggleCollapse} />
-                )}
+                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    {card.produto === 'TRIPS' && (
+                        <button
+                            type="button"
+                            onClick={() => pullMonde.mutate()}
+                            disabled={pullMonde.isPending}
+                            title="Buscar as vendas deste card direto no Monde e atualizar valor/receita"
+                            className="flex items-center gap-1 text-[11px] font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-md px-2 py-1 transition-colors disabled:opacity-50"
+                        >
+                            <DownloadCloud className={cn("h-3.5 w-3.5", pullMonde.isPending && "animate-pulse")} />
+                            {pullMonde.isPending ? 'Puxando…' : 'Puxar do Monde'}
+                        </button>
+                    )}
+                    {onToggleCollapse && (
+                        <SectionCollapseToggle isExpanded={isExpanded ?? true} onToggle={onToggleCollapse} />
+                    )}
+                </div>
             </div>
 
             {/* Comparativo Previsto vs Fechado */}
