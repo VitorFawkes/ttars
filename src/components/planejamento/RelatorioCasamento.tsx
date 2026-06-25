@@ -1,4 +1,4 @@
-import { CalendarClock, DollarSign, BedDouble, ListChecks, Landmark } from 'lucide-react'
+import { CalendarClock, DollarSign, BedDouble, ListChecks, Landmark, Check, Lock } from 'lucide-react'
 import { brl, daysUntil } from '../../lib/planejamento/format'
 import type { WeddingPlanejamento } from '../../hooks/planejamento/usePlanejamentoWeddings'
 import { PLANEJ_FIELD, PLANEJAMENTO_LABEL } from '../../hooks/planejamento/types'
@@ -60,19 +60,32 @@ export function RelatorioCasamento({ wedding }: { wedding: WeddingPlanejamento }
       </div>
 
       <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Bar
-          icon={<ListChecks className="w-4 h-4" />}
-          label="Trava da etapa"
-          done={wedding.gate.met}
-          total={wedding.gate.total}
-          tone={wedding.gate.allOk ? 'emerald' : 'amber'}
-        />
+        {/* Avanço da etapa — a MESMA trava real do topo (não o gate antigo). */}
+        <div className="rounded-lg border border-slate-100 p-3 flex items-center gap-2.5">
+          {wedding.travaPendentes.length === 0 ? (
+            <>
+              <span className="w-7 h-7 rounded-full bg-emerald-50 text-emerald-600 grid place-items-center shrink-0"><Check className="w-4 h-4" /></span>
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-slate-600">Avanço da etapa</p>
+                <p className="text-[13px] font-semibold text-emerald-700">Liberada pra avançar</p>
+              </div>
+            </>
+          ) : (
+            <>
+              <span className="w-7 h-7 rounded-full bg-amber-50 text-amber-600 grid place-items-center shrink-0"><Lock className="w-4 h-4" /></span>
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-slate-600">Avanço da etapa</p>
+                <p className="text-[13px] font-semibold text-amber-700">{wedding.travaPendentes.length} tarefa{wedding.travaPendentes.length === 1 ? '' : 's'} travando o avanço</p>
+              </div>
+            </>
+          )}
+        </div>
         <Bar
           icon={<ListChecks className="w-4 h-4" />}
           label={`Cronograma & checklist (${checklistPct}%)`}
           done={wedding.checklist.feitos}
           total={wedding.checklist.total}
-          tone="indigo"
+          tone="gold"
         />
       </div>
     </div>
@@ -94,7 +107,7 @@ function Stat({ icon, label, value, sub }: { icon: React.ReactNode; label: strin
 const BAR_TONE: Record<string, string> = {
   emerald: 'bg-emerald-500',
   amber: 'bg-amber-500',
-  indigo: 'bg-indigo-500',
+  gold: 'bg-[#BD965C]',
 }
 
 function Bar({ icon, label, done, total, tone }: { icon: React.ReactNode; label: string; done: number; total: number; tone: string }) {

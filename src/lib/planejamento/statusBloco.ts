@@ -56,8 +56,13 @@ export function faixaDeSaude(w: WeddingPlanejamento): AreaStatus[] {
     : (w.hotelQuartos ?? 0) > 0 ? 'doing'
     : 'todo'
 
-  // Comissionamento (campo novo): ok se houver % de hospedagem OU de pacote.
-  const comissao: BlocoStatus = (has(pd, 'ww_planej_comissao_hosp_pct') || has(pd, 'ww_planej_comissao_pacote_pct')) ? 'ok' : 'todo'
+  // Comissionamento (o dado que "se perde muito"): verde só quando ao menos um
+  // lado (hospedagem OU pacote) tem o mínimo USÁVEL — % E contato. Senão, amarelo
+  // se começou, cinza se vazio. Evita "bater o olho, ver verde, e estar incompleto".
+  const hospComissaoOk = has(pd, 'ww_planej_comissao_hosp_pct') && has(pd, 'ww_planej_comissao_hosp_contato')
+  const pacoteComissaoOk = has(pd, 'ww_planej_comissao_pacote_pct') && has(pd, 'ww_planej_comissao_pacote_contato')
+  const algumComissao = ['ww_planej_comissao_hosp_pct', 'ww_planej_comissao_hosp_contato', 'ww_planej_comissao_hosp_valor', 'ww_planej_comissao_pacote_pct', 'ww_planej_comissao_pacote_contato', 'ww_planej_comissao_pacote_valor'].some(k => has(pd, k))
+  const comissao: BlocoStatus = (hospComissaoOk || pacoteComissaoOk) ? 'ok' : algumComissao ? 'doing' : 'todo'
 
   // Convidados: lista preenchida → ok; algum convidado → doing; nada → todo.
   const conv: BlocoStatus =
