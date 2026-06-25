@@ -1,10 +1,8 @@
 import { useState } from 'react'
-import { Mail, Send, Info } from 'lucide-react'
+import { Send, Info } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useCardEmails } from '../../hooks/planejamento/useCardEmails'
 import type { WeddingPlanejamento } from '../../hooks/planejamento/usePlanejamentoWeddings'
-
-const CARD = 'bg-white border border-[#EAE1D3] rounded-2xl p-5 shadow-[0_1px_2px_rgba(78,24,32,0.05)]'
 const FIELD = 'w-full px-3 py-2 border border-[#E0D6C8] rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#BD965C]/30 focus:border-[#BD965C]'
 
 function fmt(iso: string | null): string {
@@ -37,12 +35,7 @@ export function EmailCasalSection({ wedding }: { wedding: WeddingPlanejamento })
   }
 
   return (
-    <section className={CARD}>
-      <header className="flex items-center gap-2 mb-1">
-        <Mail className="w-5 h-5 text-[#BD965C]" />
-        <h2 className="text-base font-semibold text-slate-900">E-mail com o casal</h2>
-        {emails.length > 0 && <span className="text-[11px] text-slate-500 tabular-nums">{emails.length}</span>}
-      </header>
+    <div className="pt-3">
       <p className="text-[12px] text-[#9A9082] mb-4 [font-family:'Roboto',sans-serif]">
         A conversa formal por e-mail, dentro do casamento. (Receber e responder de dentro do card vem na próxima etapa.)
       </p>
@@ -96,6 +89,6 @@ export function EmailCasalSection({ wedding }: { wedding: WeddingPlanejamento })
           <span>O <b>envio de verdade ainda não está ligado</b> — falta configurar o provedor de e-mail. Por enquanto os e-mails ficam registrados aqui, mas não saem. Me avisa quando quiser que eu ligue o envio.</span>
         </div>
       )}
-    </section>
+    </div>
   )
 }

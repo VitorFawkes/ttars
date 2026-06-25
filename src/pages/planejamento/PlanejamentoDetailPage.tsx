@@ -25,6 +25,12 @@ import {
   Coins,
   Receipt,
   History,
+  Megaphone,
+  Users,
+  StickyNote,
+  Scale,
+  Mail,
+  BarChart3,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { getTaskTypeConfig } from '../../components/tasks/taskTypeConfig'
@@ -171,6 +177,14 @@ export default function PlanejamentoDetailPage() {
   const resumoComissao = comissaoSet ? 'registrado (hospedagem / pacote)' : 'a registrar — some no Monde se faltar'
   const tarifasSet = !!(pdStr(pd, PLANEJ_FIELD.tarifasObs) || pdStr(pd, PLANEJ_FIELD.politicaCancelamento) || pdStr(pd, PLANEJ_FIELD.politicaReducao))
   const resumoTarifas = tarifasSet ? 'tarifas e políticas registradas' : 'aguardando o contrato do hotel'
+  const promoSet = !!pdStr(pd, PLANEJ_FIELD.promoTarifa)
+  const resumoPromo = promoSet
+    ? [pdStr(pd, PLANEJ_FIELD.promoTarifa) ? `R$ ${pdStr(pd, PLANEJ_FIELD.promoTarifa)}/noite` : null, pdStr(pd, PLANEJ_FIELD.promoFim) ? `até ${pdStr(pd, PLANEJ_FIELD.promoFim).slice(8, 10)}/${pdStr(pd, PLANEJ_FIELD.promoFim).slice(5, 7)}` : null].filter(Boolean).join(' · ')
+    : 'a definir (tarifa + janela)'
+  const resumoConvidados = `${listaTotal} na lista · ${confirmados} confirmados${contrato != null ? ` · contrato ${contrato}` : ''}`
+  const notasTxt = pdStr(pd, PLANEJ_FIELD.notas)
+  const resumoNotas = notasTxt ? notasTxt.split('\n')[0].slice(0, 80) : 'sem notas'
+  const decididas = [pdStr(pd, PLANEJ_FIELD.regiao), pdStr(pd, PLANEJ_FIELD.dataHoraCasamento) || (wedding.wedding_date ?? ''), pdStr(pd, PLANEJ_FIELD.espaco), pdStr(pd, PLANEJ_FIELD.valorTotal) || pdStr(pd, PLANEJ_FIELD.pacoteValor)].filter(Boolean).length
 
   return (
     <div className={cn(CHAMP_PAGE, 'px-6 py-4 flex flex-col gap-4')}>
@@ -371,11 +385,31 @@ export default function PlanejamentoDetailPage() {
         <TarifasPoliticasSection wedding={wedding} onOpenDocs={() => setDocsOpen(true)} />
       </BlocoColapsavel>
 
-      {/* Ação promocional (definição) + Convidados (lista & estimativa) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
-        <div id={BLOCO.promo} className="scroll-mt-6"><AcaoPromoSection wedding={wedding} /></div>
-        <div id={BLOCO.convidados} className="scroll-mt-6"><ConvidadosResumoSection wedding={wedding} /></div>
-      </div>
+      {/* Ação promocional (definição) */}
+      <BlocoColapsavel
+        id={BLOCO.promo}
+        icon={Megaphone}
+        titulo="Ação promocional"
+        status={promoSet ? 'ok' : 'todo'}
+        resumo={resumoPromo}
+        storageKey={`${wedding.id}:promo`}
+        defaultOpen={false}
+      >
+        <AcaoPromoSection wedding={wedding} />
+      </BlocoColapsavel>
+
+      {/* Convidados (lista & estimativa) */}
+      <BlocoColapsavel
+        id={BLOCO.convidados}
+        icon={Users}
+        titulo="Convidados (lista & estimativa)"
+        status={st('convidados')}
+        resumo={resumoConvidados}
+        storageKey={`${wedding.id}:convidados`}
+        defaultOpen={false}
+      >
+        <ConvidadosResumoSection wedding={wedding} />
+      </BlocoColapsavel>
 
       {/* Cronograma & Tarefas — a espinha (Etapa → Marco → Tarefa) */}
       <div id={BLOCO.spine} className="scroll-mt-6">
@@ -386,16 +420,49 @@ export default function PlanejamentoDetailPage() {
       {docsOpen && <DocsDrawer cardId={wedding.id} onClose={() => setDocsOpen(false)} />}
 
       {/* Decisões do casamento (destino/data/local/orçamento) + aceite do casal */}
-      <DecisoesSection wedding={wedding} />
+      <BlocoColapsavel
+        icon={Scale}
+        titulo="Decisões do casamento"
+        status={decididas === 4 ? 'ok' : decididas > 0 ? 'doing' : 'todo'}
+        resumo={`${decididas} de 4 decididas (destino · data · local · orçamento)`}
+        storageKey={`${wedding.id}:decisoes`}
+        defaultOpen={false}
+      >
+        <DecisoesSection wedding={wedding} />
+      </BlocoColapsavel>
 
       {/* E-mail com o casal (registro no card) */}
-      <EmailCasalSection wedding={wedding} />
+      <BlocoColapsavel
+        icon={Mail}
+        titulo="E-mail com o casal"
+        resumo="a conversa formal por e-mail, dentro do casamento"
+        storageKey={`${wedding.id}:email`}
+        defaultOpen={false}
+      >
+        <EmailCasalSection wedding={wedding} />
+      </BlocoColapsavel>
 
       {/* Notas da planejadora (texto livre) */}
-      <NotasSection wedding={wedding} />
+      <BlocoColapsavel
+        icon={StickyNote}
+        titulo="Notas da planejadora"
+        resumo={resumoNotas}
+        storageKey={`${wedding.id}:notas`}
+        defaultOpen={false}
+      >
+        <NotasSection wedding={wedding} />
+      </BlocoColapsavel>
 
       {/* Relatório do casamento — saúde, financeiro, convidados, prazos */}
-      <RelatorioCasamento wedding={wedding} />
+      <BlocoColapsavel
+        icon={BarChart3}
+        titulo="Relatório do casamento"
+        resumo="saúde, financeiro, convidados e prazos num resumo"
+        storageKey={`${wedding.id}:relatorio`}
+        defaultOpen={false}
+      >
+        <RelatorioCasamento wedding={wedding} />
+      </BlocoColapsavel>
 
       {/* Linha do tempo do casamento — histórico real (entrou, mudou de etapa,
           "campo X: A → B", cobrança) reusando o ActivityFeed nativo do card. */}

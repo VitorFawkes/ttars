@@ -1,4 +1,4 @@
-import { BarChart3, CalendarClock, DollarSign, BedDouble, ListChecks, Landmark } from 'lucide-react'
+import { CalendarClock, DollarSign, BedDouble, ListChecks, Landmark } from 'lucide-react'
 import { brl, daysUntil } from '../../lib/planejamento/format'
 import type { WeddingPlanejamento } from '../../hooks/planejamento/usePlanejamentoWeddings'
 import { PLANEJ_FIELD, PLANEJAMENTO_LABEL } from '../../hooks/planejamento/types'
@@ -30,11 +30,7 @@ export function RelatorioCasamento({ wedding }: { wedding: WeddingPlanejamento }
     : 0
 
   return (
-    <section className="bg-white border border-[#EAE1D3] rounded-2xl p-5 shadow-[0_1px_2px_rgba(78,24,32,0.05)]">
-      <header className="flex items-center gap-2 mb-3">
-        <BarChart3 className="w-5 h-5 text-[#BD965C]" />
-        <h2 className="text-base font-semibold text-slate-900">Relatório do casamento</h2>
-      </header>
+    <div className="pt-3">
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat
@@ -79,7 +75,7 @@ export function RelatorioCasamento({ wedding }: { wedding: WeddingPlanejamento }
           tone="indigo"
         />
       </div>
-    </section>
+    </div>
   )
 }
 

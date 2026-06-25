@@ -1,10 +1,8 @@
-import { ScrollText, Check, Clock, ExternalLink } from 'lucide-react'
+import { Check, Clock, ExternalLink } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { PLANEJ_FIELD } from '../../hooks/planejamento/types'
 import { useWeddingDecisoes, type DecisaoTipo } from '../../hooks/planejamento/useWeddingDecisoes'
 import type { WeddingPlanejamento } from '../../hooks/planejamento/usePlanejamentoWeddings'
-
-const CARD = 'bg-white border border-[#EAE1D3] rounded-2xl p-5 shadow-[0_1px_2px_rgba(78,24,32,0.05)]'
 
 function pd(data: Record<string, unknown> | null, key: string): string {
   const v = data?.[key]
@@ -63,11 +61,7 @@ export function DecisoesSection({ wedding }: { wedding: WeddingPlanejamento }) {
   const { byTipo, setStatus } = useWeddingDecisoes(wedding.id)
 
   return (
-    <section className={CARD}>
-      <header className="flex items-center gap-2 mb-1">
-        <ScrollText className="w-5 h-5 text-[#BD965C]" />
-        <h2 className="text-base font-semibold text-slate-900">Decisões do casamento</h2>
-      </header>
+    <div className="pt-3">
       <p className="text-[12px] text-[#9A9082] mb-4 [font-family:'Roboto',sans-serif]">
         As escolhas que valem (destino, data, local, orçamento) e o aceite do casal. Pronto pro casal confirmar quando o portal conectar.
       </p>
@@ -143,6 +137,6 @@ export function DecisoesSection({ wedding }: { wedding: WeddingPlanejamento }) {
       >
         Ver o histórico completo de mudanças no card <ExternalLink className="w-3 h-3" />
       </a>
-    </section>
+    </div>
   )
 }
