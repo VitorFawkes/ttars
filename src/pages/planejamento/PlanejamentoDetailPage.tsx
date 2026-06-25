@@ -20,6 +20,11 @@ import {
   ChevronRight,
   Bell,
   Paperclip,
+  MapPin,
+  BedDouble,
+  Coins,
+  Receipt,
+  History,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { getTaskTypeConfig } from '../../components/tasks/taskTypeConfig'
@@ -34,10 +39,14 @@ import { RelatorioCasamento } from '../../components/planejamento/RelatorioCasam
 import { faixaDeSaude, STATUS_META } from '../../lib/planejamento/statusBloco'
 import { CasalSection } from '../../components/planejamento/CasalSection'
 import { WeddingEquipeSection } from '../../components/planejamento/WeddingEquipeSection'
-import { LocalHospedagemSection } from '../../components/planejamento/LocalHospedagemSection'
+import { LocalCerimoniaBody, HospedagemBloqueioBody } from '../../components/planejamento/LocalHospedagemSection'
+import { ComissionamentoSection } from '../../components/planejamento/ComissionamentoSection'
+import { TarifasPoliticasSection } from '../../components/planejamento/TarifasPoliticasSection'
+import { BlocoColapsavel } from '../../components/planejamento/BlocoColapsavel'
 import { CronogramaSpine } from '../../components/planejamento/CronogramaSpine'
 import { DecisoesSection } from '../../components/planejamento/DecisoesSection'
 import { EmailCasalSection } from '../../components/planejamento/EmailCasalSection'
+import ActivityFeed from '../../components/card/ActivityFeed'
 import AttachmentsWidget from '../../components/card/attachments/AttachmentsWidget'
 import {
   AcaoPromoSection,
@@ -146,6 +155,22 @@ export default function PlanejamentoDetailPage() {
   const evento = valorTotal ?? pacoteValor
   const hosp = wedding.hotelTarifa != null && wedding.hotelQuartos != null ? wedding.hotelTarifa * wedding.hotelQuartos : null
   const sinal = pdNum(pd, PLANEJ_FIELD.sinalValor)
+
+  // Status + resumo dos blocos colapsáveis — o "bater o olho" de cada gaveta.
+  const areas = faixaDeSaude(wedding)
+  const st = (k: string) => areas.find(a => a.key === k)?.status
+  const resumoLocal = [pdStr(pd, PLANEJ_FIELD.regiao), pdStr(pd, PLANEJ_FIELD.formato), pdStr(pd, PLANEJ_FIELD.espaco)].filter(Boolean).join(' · ') || 'a preencher'
+  const hotelStatusLabel = wedding.hotelStatus === 'confirmado' ? 'confirmado' : wedding.hotelStatus === 'bloqueado' ? 'bloqueado' : 'a definir'
+  const fechados = pdNum(pd, PLANEJ_FIELD.bloqueioAptosFechados)
+  const resumoHosp = [
+    wedding.hotelQuartos != null ? `${wedding.hotelQuartos} aptos` : null,
+    `bloqueio ${hotelStatusLabel}`,
+    fechados != null ? `${fechados} já fecharam` : null,
+  ].filter(Boolean).join(' · ')
+  const comissaoSet = !!(pdStr(pd, PLANEJ_FIELD.comissaoHospPct) || pdStr(pd, PLANEJ_FIELD.comissaoPacotePct))
+  const resumoComissao = comissaoSet ? 'registrado (hospedagem / pacote)' : 'a registrar — some no Monde se faltar'
+  const tarifasSet = !!(pdStr(pd, PLANEJ_FIELD.tarifasObs) || pdStr(pd, PLANEJ_FIELD.politicaCancelamento) || pdStr(pd, PLANEJ_FIELD.politicaReducao))
+  const resumoTarifas = tarifasSet ? 'tarifas e políticas registradas' : 'aguardando o contrato do hotel'
 
   return (
     <div className={cn(CHAMP_PAGE, 'px-6 py-4 flex flex-col gap-4')}>
@@ -297,8 +322,54 @@ export default function PlanejamentoDetailPage() {
         <div id={BLOCO.equipe} className="scroll-mt-6"><WeddingEquipeSection cardId={wedding.id} /></div>
       </div>
 
-      {/* Local & Hospedagem (venue + reserva/contrato + hotel — fonte única) */}
-      <div id={BLOCO.local} className="scroll-mt-6"><LocalHospedagemSection wedding={wedding} /></div>
+      {/* Local & Cerimônia — onde acontece + reserva/contrato (gaveta) */}
+      <BlocoColapsavel
+        id={BLOCO.local}
+        icon={MapPin}
+        titulo="Local & Cerimônia"
+        status={st('local')}
+        resumo={resumoLocal}
+        storageKey={`${wedding.id}:local`}
+        defaultOpen
+      >
+        <LocalCerimoniaBody wedding={wedding} />
+      </BlocoColapsavel>
+
+      {/* Hospedagem & Bloqueio — hotel + detalhe do bloqueio (pedido × fechado) */}
+      <BlocoColapsavel
+        icon={BedDouble}
+        titulo="Hospedagem & Bloqueio"
+        status={st('hospedagem')}
+        resumo={resumoHosp}
+        storageKey={`${wedding.id}:hospedagem`}
+        defaultOpen
+      >
+        <HospedagemBloqueioBody wedding={wedding} />
+      </BlocoColapsavel>
+
+      {/* Comissionamento — a "abinha" pedida na reunião (hospedagem + pacote) */}
+      <BlocoColapsavel
+        icon={Coins}
+        titulo="Comissionamento"
+        status={st('comissao')}
+        resumo={resumoComissao}
+        storageKey={`${wedding.id}:comissao`}
+        defaultOpen={false}
+      >
+        <ComissionamentoSection wedding={wedding} />
+      </BlocoColapsavel>
+
+      {/* Tarifas & Políticas — denso (do contrato): texto + anexo */}
+      <BlocoColapsavel
+        icon={Receipt}
+        titulo="Tarifas & Políticas (cancelamento / redução)"
+        status={tarifasSet ? 'ok' : 'todo'}
+        resumo={resumoTarifas}
+        storageKey={`${wedding.id}:tarifas`}
+        defaultOpen={false}
+      >
+        <TarifasPoliticasSection wedding={wedding} onOpenDocs={() => setDocsOpen(true)} />
+      </BlocoColapsavel>
 
       {/* Ação promocional (definição) + Convidados (lista & estimativa) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
@@ -325,6 +396,18 @@ export default function PlanejamentoDetailPage() {
 
       {/* Relatório do casamento — saúde, financeiro, convidados, prazos */}
       <RelatorioCasamento wedding={wedding} />
+
+      {/* Linha do tempo do casamento — histórico real (entrou, mudou de etapa,
+          "campo X: A → B", cobrança) reusando o ActivityFeed nativo do card. */}
+      <BlocoColapsavel
+        icon={History}
+        titulo="Linha do tempo do casamento"
+        resumo="tudo que já aconteceu — entradas, mudanças de etapa e de decisões"
+        storageKey={`${wedding.id}:timeline`}
+        defaultOpen={false}
+      >
+        <div className="pt-3"><ActivityFeed cardId={wedding.id} /></div>
+      </BlocoColapsavel>
     </div>
   )
 }

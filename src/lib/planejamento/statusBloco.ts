@@ -56,8 +56,8 @@ export function faixaDeSaude(w: WeddingPlanejamento): AreaStatus[] {
     : (w.hotelQuartos ?? 0) > 0 ? 'doing'
     : 'todo'
 
-  // Comissionamento (campo novo): ok se houver dado de hospedagem OU pacote.
-  const comissao: BlocoStatus = has(pd, 'ww_planej_comissionamento') ? 'ok' : 'todo'
+  // Comissionamento (campo novo): ok se houver % de hospedagem OU de pacote.
+  const comissao: BlocoStatus = (has(pd, 'ww_planej_comissao_hosp_pct') || has(pd, 'ww_planej_comissao_pacote_pct')) ? 'ok' : 'todo'
 
   // Convidados: lista preenchida → ok; algum convidado → doing; nada → todo.
   const conv: BlocoStatus =

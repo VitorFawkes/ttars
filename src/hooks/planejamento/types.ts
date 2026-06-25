@@ -90,6 +90,32 @@ export const PLANEJ_FIELD = {
   promoTarifa: 'ww_planej_promo_tarifa',
   promoInicio: 'ww_planej_promo_inicio',
   promoFim: 'ww_planej_promo_fim',
+  // Bloqueio detalhado (reunião 25/06): o casal PEDE um período/qtd, a gente
+  // FECHA outro; saber a diferença + quantos já fecharam pra antecipar reforço.
+  bloqueioAptosPedido: 'ww_planej_bloqueio_aptos_pedido',
+  bloqueioPeriodoPedidoIn: 'ww_planej_bloqueio_periodo_pedido_in',
+  bloqueioPeriodoPedidoOut: 'ww_planej_bloqueio_periodo_pedido_out',
+  bloqueioAptosFechados: 'ww_planej_bloqueio_aptos_fechados',
+  bloqueioCategorias: 'ww_planej_bloqueio_categorias',
+  bloqueioValorCasal: 'ww_planej_bloqueio_valor_casal',
+  formaPagamentoConvidados: 'ww_planej_forma_pagamento_convidados',
+  // Comissionamento (reunião 25/06): "se perde muito". Hospedagem E pacote, cada
+  // um com % que o hotel paga, % extra negociado, valor, quando paga e contato.
+  comissaoHospPct: 'ww_planej_comissao_hosp_pct',
+  comissaoHospExtraPct: 'ww_planej_comissao_hosp_extra_pct',
+  comissaoHospValor: 'ww_planej_comissao_hosp_valor',
+  comissaoHospQuando: 'ww_planej_comissao_hosp_quando',
+  comissaoHospContato: 'ww_planej_comissao_hosp_contato',
+  comissaoPacotePct: 'ww_planej_comissao_pacote_pct',
+  comissaoPacoteExtraPct: 'ww_planej_comissao_pacote_extra_pct',
+  comissaoPacoteValor: 'ww_planej_comissao_pacote_valor',
+  comissaoPacoteQuando: 'ww_planej_comissao_pacote_quando',
+  comissaoPacoteContato: 'ww_planej_comissao_pacote_contato',
+  // Tarifas & políticas (vêm do contrato — reunião 25/06). Híbrido: texto + anexo.
+  tarifasObs: 'ww_planej_tarifas_obs',
+  politicaCancelamento: 'ww_planej_politica_cancelamento',
+  politicaReducao: 'ww_planej_politica_reducao',
+  beneficios: 'ww_planej_beneficios',
   // Etapa 6 — Programação + lista preenchida
   listaPreenchida: 'ww_planej_lista_preenchida',
   dataHoraCasamento: 'ww_planej_data_hora_casamento',
