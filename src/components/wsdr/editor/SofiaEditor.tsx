@@ -193,9 +193,15 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
   const capEmBreve = CAPABILITY_META.filter(m => m.status === 'em_breve')
 
   // Primeira mensagem da Sofia, pra prévia da persona.
+  // Honestidade (F6): o preview reflete o MODO que roda de verdade, não sempre o texto literal.
+  const openingMode = c.voice.abertura_mode ?? 'directive'
   const openingPreview = c.voice.opening_stepped
     ? (c.voice.opening_steps?.[0]?.fala ?? '')
-    : (c.voice.abertura ?? '')
+    : openingMode === 'free'
+      ? 'A Sofia compõe a abertura na hora (modo livre) — o texto abaixo NÃO é enviado.'
+      : openingMode === 'directive'
+        ? `Diretriz: ${c.voice.abertura ?? ''}`
+        : (c.voice.abertura ?? '')
 
   // Completude por tema (selo X/Y na linha) — orienta onde falta trabalho.
   const themeCompleteness = (key: ThemeKey): { done: number; total: number } => {
@@ -238,7 +244,7 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
       case 'identidade':
         return [`${c.identity.persona_nome || '—'} · ${c.identity.empresa || '—'}`, `Tom: ${TOM_OPTIONS.find(t => t.value === c.voice.tom)?.label ?? c.voice.tom}`]
       case 'conversa':
-        return [`Abertura ${c.voice.opening_stepped ? 'em passos' : 'direta'}`, `${c.phases?.length ?? 0} fases · ${c.moments?.length ?? 0} momentos`]
+        return [`Abertura: ${c.voice.opening_stepped ? 'em passos' : openingMode === 'free' ? 'livre (ela compõe)' : openingMode === 'literal' ? 'mensagem exata' : 'por diretriz'}`, `${c.phases?.length ?? 0} fases · ${c.moments?.length ?? 0} momentos`]
       case 'negocio':
         return [`Nota mínima ${c.qualification.threshold ?? '—'}/100`, `${c.qualification.criteria?.length ?? 0} critérios · ${c.qualification.faixas_orcamento?.length ?? 0} faixas`, `Preço: ${REVEAL_LABEL[c.pricing.reveal_strategy] ?? '—'}`]
       case 'capacidades': {
@@ -424,6 +430,11 @@ export function SofiaEditor({ slug = 'sofia-weddings' }: { slug?: string }) {
               <span>Abertura em passos <span className="text-xs text-ww-n400">(pausa e espera a resposta a cada passo)</span></span>
               <Switch checked={c.voice.opening_stepped ?? false} onCheckedChange={v => update(x => ({ ...x, voice: { ...x.voice, opening_stepped: v } }))} className={(c.voice.opening_stepped ?? false) ? 'bg-ww-gold' : ''} />
             </label>
+            {(c.voice.opening_stepped ?? false) ? (
+              <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">No modo passos, a Sofia segue os passos abaixo. O texto e os modos de mensagem única ficam de fora.</p>
+            ) : openingMode === 'free' ? (
+              <p className="text-[11px] text-ww-n600 bg-ww-sand/40 border border-ww-sand rounded-lg px-3 py-2 mb-3">No modo livre, a Sofia compõe a abertura sozinha. O texto escrito abaixo não é enviado, serve só de referência.</p>
+            ) : null}
             {(c.voice.opening_stepped ?? false) ? (
               <OpeningStepsEditor steps={c.voice.opening_steps ?? []} onChange={steps => update(x => ({ ...x, voice: { ...x.voice, opening_steps: steps } }))} />
             ) : (

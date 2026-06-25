@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Laudo de teste da Sofia — 24 de junho de 2026</title>
+<style>
+  :root{
+    --paper:#FBF8F4; --card:#FFFFFF;
+    --sand:#EAE1D3; --line:#EAE1D3; --sand-dk:#D8CBB6;
+    --ink:#2B2622; --ink-soft:#6B6258; --ink-3:#6E665B;
+    --gold:#BD965C; --gold-ink:#A37F47; --gold-dk:#8A6A3A; --gold-bg:#FBF4E9;
+    --rosewood:#874B52; --rose-bub:#F7EFEC; --rose-tint:#F8EDEE;
+    --terra:#B26A4A;
+    --sage:#5F7A57; --sage-ink:#4E6648; --sage-bg:#EEF2EA;
+    --crit:#8E3B3B;  --crit-bg:#F7EBEA;  --crit-line:#E6C9C7;   /* grave  */
+    --amber:#946818; --amber-bg:#FBF3E3; --amber-line:#EAD9B8;   /* médio (escuro, texto branco) */
+    --yellow:#9A7B16;--yellow-bg:#FBF7E6;--yellow-line:#ECE0B6;  /* baixo  */
+    --yellow-badge:#E8CF5E;  /* baixo: pílula clara + texto escuro, p/ distinguir do âmbar */
+    --sand-warm:#E4D4BE; --sand-warm-bg:#F4EDE1; --sand-warm-ink:#7A6A4E; /* "frio" quente */
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --serif:ui-serif,Georgia,"Times New Roman","Iowan Old Style",serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:var(--sans);color:var(--ink);line-height:1.55;font-size:15px;
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+    background:
+      radial-gradient(900px 600px at 100% -5%, var(--gold-bg) 0%, transparent 55%),
+      radial-gradient(820px 560px at -8% 8%, var(--rose-tint) 0%, transparent 52%),
+      var(--paper);
+    background-attachment:fixed;
+    padding:48px 24px 96px;
+  }
+  .wrap{max-width:1120px;margin:0 auto}
+  .serif{font-family:var(--serif);letter-spacing:-.02em}
+  .mono{font-family:var(--mono)}
+  .muted{color:var(--ink-soft)}
+  .eyebrow{font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--gold-dk)}
+  h1{font-family:var(--serif);font-weight:700;font-size:clamp(30px,5vw,46px);line-height:1.08;letter-spacing:-.02em}
+  h2{font-family:var(--serif);font-weight:600;font-size:24px;letter-spacing:-.02em}
+  h3{font-family:var(--serif);font-weight:600}
+  a{color:var(--gold-dk)}
+
+  /* ============ HERO ============ */
+  .hero{
+    background:linear-gradient(135deg,#fff 0%,#FCF7EF 100%);
+    border:1px solid var(--sand);border-radius:26px;padding:42px 46px;
+    box-shadow:0 1px 2px rgba(43,38,34,.04),0 18px 44px -22px rgba(135,75,82,.20);
+    display:grid;grid-template-columns:1fr auto;gap:40px;align-items:center}
+  .hero-left{max-width:600px}
+  .hero h1{margin:14px 0 16px}
+  .hero h1 .rw{display:block;color:var(--rosewood)}
+  .hero p{font-size:16px;color:var(--ink-soft);max-width:560px}
+  .hero-meta{font-size:13px;color:var(--ink-soft);margin-top:20px;display:flex;gap:16px;flex-wrap:wrap}
+  .hero-meta span{display:inline-flex;align-items:center;gap:7px}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--gold-ink);flex:none}
+
+  /* dual gauges */
+  .gauges{display:flex;gap:26px;align-items:flex-start}
+  .gauge{text-align:center;width:150px}
+  .gauge svg{display:block;margin:0 auto}
+  .gauge .gnum{font-family:var(--serif);font-weight:700;font-size:34px;letter-spacing:-.02em}
+  .gauge .glab{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-top:8px}
+  .gauge .gsub{font-size:12px;color:var(--ink-soft);margin-top:2px}
+  .verdict{margin-top:22px;display:flex;justify-content:center}
+  .verdict .pill{background:var(--sage-bg);color:var(--sage-ink);border:1px solid #CBDAC2;
+    border-radius:999px;padding:9px 18px;font-size:13px;font-weight:700;letter-spacing:.01em;
+    display:inline-flex;align-items:center;gap:8px;text-align:center}
+
+  /* ============ SECTION HEAD ============ */
+  section{margin-top:52px}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:20px}
+  .sec-head .num{font-family:var(--serif);font-size:16px;color:var(--rosewood);font-weight:700;flex:none}
+  .sec-head .rule{height:1px;background:linear-gradient(90deg,var(--sand-dk),transparent);flex:1;align-self:center;margin-left:6px}
+  .sec-sub{font-size:14px;color:var(--ink-soft);margin:-8px 0 18px;max-width:820px}
+
+  /* ============ KPI STRIP ============ */
+  .kpis{background:var(--card);border:1px solid var(--sand);border-radius:18px;
+    box-shadow:0 1px 2px rgba(43,38,34,.03),0 14px 30px -26px rgba(43,38,34,.4);
+    display:grid;grid-template-columns:repeat(6,1fr);overflow:hidden}
+  .kpi{padding:22px 16px;text-align:center;border-left:1px solid #F1E9DC}
+  .kpi:first-child{border-left:none}
+  .kpi b{font-family:var(--serif);font-weight:700;font-size:26px;line-height:1.05;display:block;color:var(--gold-ink)}
+  .kpi.crit b{color:var(--crit)}
+  .kpi.sage b{color:var(--sage-ink)}
+  .kpi small{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);display:block;margin-top:9px;line-height:1.35}
+
+  /* ============ GENERIC PANEL ============ */
+  .panel{background:var(--card);border:1px solid var(--sand);border-radius:18px;padding:26px 28px;
+    box-shadow:0 1px 2px rgba(43,38,34,.03)}
+  .panel.sage{background:linear-gradient(160deg,#fff,#F1F5ED);border-color:#CBDAC2}
+
+  /* ============ PIPELINE ============ */
+  .flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;justify-content:center}
+  .cap{background:#fff;border:1px solid var(--sand);border-radius:14px;padding:14px 16px;text-align:center;
+    width:162px;box-shadow:0 1px 2px rgba(43,38,34,.04)}
+  .cap .cstep{font-size:10.5px;font-weight:800;letter-spacing:.07em;color:var(--gold-dk);text-transform:uppercase}
+  .cap .cname{font-family:var(--serif);font-weight:600;font-size:16px;margin:5px 0 4px}
+  .cap .crole{font-size:11.5px;color:var(--ink-soft);line-height:1.35}
+  .cap .cmodel{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:8px;
+    background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:2px 6px;display:inline-block}
+  .cap.brain{width:190px;background:var(--gold-bg);border-color:var(--gold);
+    box-shadow:0 2px 4px rgba(189,150,92,.18),0 12px 26px -16px rgba(189,150,92,.5)}
+  .cap.brain .cname{font-size:18px}
+  .arrow{display:flex;align-items:center;color:var(--sand-dk);padding:0 2px;flex:none}
+  .arrow svg{display:block}
+  .tools-strip{margin-top:22px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .tools-strip .tlab{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-right:4px}
+  .chip{font-family:var(--mono);font-size:11.5px;border:1px solid var(--line);background:var(--paper);
+    border-radius:999px;padding:4px 11px;color:var(--ink-soft);display:inline-flex;align-items:center;gap:7px}
+  .chip .live{width:7px;height:7px;border-radius:50%;background:var(--sage);box-shadow:0 0 0 3px var(--sage-bg)}
+  .chip .bg{width:7px;height:7px;border-radius:50%;background:var(--ink-3);box-shadow:0 0 0 3px var(--sand)}
+  .chip.bastidor{color:var(--ink-soft)}
+  .tools-legend{margin-top:9px;font-size:11.5px;color:var(--ink-soft);display:flex;gap:16px;flex-wrap:wrap}
+  .tools-legend span{display:inline-flex;align-items:center;gap:6px}
+  .tools-legend i{width:7px;height:7px;border-radius:50%;flex:none}
+  .tools-legend .l-live{background:var(--sage)}
+  .tools-legend .l-bg{background:var(--ink-3)}
+  details.tech{margin-top:18px;border-top:1px dashed var(--sand-dk);padding-top:14px}
+  details.tech>summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--gold-dk);list-style:none;
+    display:inline-flex;align-items:center;gap:8px}
+  details.tech>summary::-webkit-details-marker{display:none}
+  details.tech>summary::before{content:"\25B8";transition:transform .15s;display:inline-block}
+  details.tech[open]>summary::before{transform:rotate(90deg)}
+  .ttable{width:100%;border-collapse:collapse;margin-top:14px;font-size:12.5px}
+  .ttable th,.ttable td{text-align:left;padding:8px 10px;border-bottom:1px solid #F1E9DC;vertical-align:top}
+  .ttable th{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
+  .ttable td .mono{font-family:var(--mono);font-size:11.5px;color:var(--gold-dk)}
+
+  /* ============ SCORE CHART ============ */
+  .chartcard{background:var(--card);border:1px solid var(--sand);border-radius:18px;padding:24px 26px 18px;
+    box-shadow:0 1px 2px rgba(43,38,34,.03)}
+  .chart-legend{display:flex;flex-wrap:wrap;gap:18px;margin-top:14px;font-size:12.5px;color:var(--ink-soft)}
+  .chart-legend span{display:inline-flex;align-items:center;gap:7px}
+  .lg-line{width:18px;height:0;border-top:3px solid var(--crit);border-radius:2px}
+  .lg-cut{width:18px;height:0;border-top:2px dashed var(--crit)}
+  .lg-up{width:13px;height:13px;border-radius:50%;background:var(--sage)}
+  .lg-dn{width:11px;height:11px;background:var(--crit);transform:rotate(45deg)}
+  .svg-note{opacity:1}
+
+  /* ============ FUNNEL ============ */
+  .funnel{display:grid;grid-template-columns:auto 1fr;gap:28px;align-items:center}
+  .funnel .steps{display:flex;flex-direction:column;gap:14px}
+  .fcard{background:#fff;border:1px solid var(--sand);border-radius:14px;padding:16px 18px;display:flex;gap:14px;align-items:center;
+    box-shadow:0 1px 2px rgba(43,38,34,.03)}
+  .fcard .fbadge{flex:none;width:46px;height:46px;border-radius:12px;display:grid;place-items:center;
+    font-family:var(--serif);font-weight:700;font-size:18px}
+  .fcard .fb-cold{background:var(--sand-warm-bg);color:var(--sand-warm-ink)}
+  .fcard .fb-qual{background:var(--gold-bg);color:var(--gold-ink)}
+  .fcard .fb-book{background:var(--sage-bg);color:var(--sage-ink)}
+  .fcard .ftitle{font-family:var(--serif);font-weight:600;font-size:16px}
+  .fcard .fmeta{font-size:12.5px;color:var(--ink-soft);margin-top:2px}
+  .fcard .fnote{margin-left:auto;font-family:var(--mono);font-size:11.5px;color:var(--ink-3);text-align:right;flex:none}
+  .fcard.won{border-color:#CBDAC2;background:linear-gradient(160deg,#fff,#F1F5ED)}
+
+  /* ============ CONVERSA / CHAT ============ */
+  .spine{position:relative}
+  .spine::before{content:"";position:absolute;left:23px;top:22px;bottom:34px;width:2px;background:#EFE6D7;z-index:0}
+  .turn{display:grid;grid-template-columns:46px 1fr;gap:0;padding:10px 0 18px;align-items:start}
+  .node-col{position:relative;display:flex;justify-content:center;padding-top:6px}
+  .node{position:relative;z-index:1;width:30px;height:30px;border-radius:50%;background:#fff;border:2px solid var(--sand-dk);
+    display:grid;place-items:center;font-size:12px;font-weight:800;color:var(--ink-soft)}
+  .node.ok{border-color:var(--sage);color:var(--sage-ink);background:var(--sage-bg)}
+  .node.alerta{border-color:var(--amber);color:#8A6015;background:var(--amber-bg)}
+  .node.bom{border-color:var(--sage);color:var(--sage-ink);background:#fff;box-shadow:0 0 0 3px var(--sage-bg)}
+  .node.marco{border-color:var(--gold);color:var(--gold-ink);background:var(--gold-bg);box-shadow:0 0 0 3px var(--gold-bg)}
+  .node.erro{border-color:var(--crit);color:var(--crit);background:var(--crit-bg);box-shadow:0 0 0 3px var(--crit-bg)}
+  .bubbles{display:flex;flex-direction:column;gap:9px}
+  .bub{max-width:76%;padding:11px 15px;font-size:14px;line-height:1.5;position:relative;
+    box-shadow:0 1px 1px rgba(43,38,34,.05)}
+  .bub.casal{align-self:flex-start;background:#fff;border:1px solid var(--sand);
+    border-radius:16px 16px 16px 4px;color:var(--ink)}
+  .bub.sofia{align-self:flex-end;background:var(--rose-bub);border:1px solid #EAD9D3;
+    border-radius:16px 16px 4px 16px;color:#3A2E2C}
+  .bub .who{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;opacity:.85}
+  .bub.casal .who{color:var(--ink-3)}
+  .bub.sofia .who{color:var(--rosewood);display:inline-flex;align-items:center;gap:6px}
+  .bub.sofia .who .seal{width:13px;height:13px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#E7C386,var(--gold));display:inline-block}
+  .anno{align-self:flex-start;margin-top:5px;display:inline-flex;align-items:flex-start;gap:8px;
+    font-size:12.5px;padding:5px 12px;border-radius:12px;border:1px solid;font-weight:500;line-height:1.45;max-width:90%}
+  .anno .micro-score{font-family:var(--mono);font-size:11px;font-weight:700;opacity:.9;flex:none;white-space:nowrap}
+  .anno.ok{background:#fff;border-color:var(--sand);color:var(--ink-soft)}
+  .anno.alerta{background:var(--amber-bg);border-color:var(--amber-line);color:#8a6418}
+  .anno.bom{background:var(--sage-bg);border-color:#CBDAC2;color:var(--sage-ink)}
+  .anno.marco{background:var(--gold-bg);border-color:var(--amber-line);color:var(--gold-dk)}
+  .anno.erro{background:var(--crit-bg);border-color:var(--crit-line);color:var(--crit)}
+  .anno b{font-weight:800}
+
+  /* ============ SEVERITY TABS ============ */
+  .sevtabs > input{position:absolute;opacity:0;pointer-events:none}
+  .tablist{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+  .tablist label{cursor:pointer;font-size:13px;font-weight:700;padding:8px 16px;border-radius:999px;
+    border:1px solid var(--line);background:#fff;color:var(--ink-soft);transition:all .12s;display:inline-flex;align-items:center;gap:8px}
+  .tablist label .cnt{font-family:var(--mono);font-size:11px;opacity:.7}
+  .tablist label:hover{border-color:var(--sand-dk)}
+  #f-all:checked    ~ .tablist label[for=f-all]{background:var(--ink);color:#fff;border-color:var(--ink)}
+  #f-grave:checked  ~ .tablist label[for=f-grave]{background:var(--crit);color:#fff;border-color:var(--crit)}
+  #f-medio:checked  ~ .tablist label[for=f-medio]{background:var(--amber);color:#fff;border-color:var(--amber)}
+  #f-baixo:checked  ~ .tablist label[for=f-baixo]{background:var(--yellow-badge);color:#3d3210;border-color:#C9A93A}
+  #f-all:checked    ~ .tablist label[for=f-all] .cnt,
+  #f-grave:checked  ~ .tablist label[for=f-grave] .cnt,
+  #f-medio:checked  ~ .tablist label[for=f-medio] .cnt,
+  #f-baixo:checked  ~ .tablist label[for=f-baixo] .cnt{opacity:.85}
+  /* foco visível por teclado */
+  #f-all:focus-visible    ~ .tablist label[for=f-all],
+  #f-grave:focus-visible  ~ .tablist label[for=f-grave],
+  #f-medio:focus-visible  ~ .tablist label[for=f-medio],
+  #f-baixo:focus-visible  ~ .tablist label[for=f-baixo]{outline:2px solid var(--gold-dk);outline-offset:2px}
+  /* filtering */
+  #f-grave:checked ~ .findgrid .find:not(.grave){display:none}
+  #f-medio:checked ~ .findgrid .find:not(.medio){display:none}
+  #f-baixo:checked ~ .findgrid .find:not(.baixo){display:none}
+
+  /* ============ FINDINGS ============ */
+  .findgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .find{background:#fff;border:1px solid var(--sand);border-radius:16px;padding:0;overflow:hidden;
+    box-shadow:0 1px 2px rgba(43,38,34,.03);display:flex;flex-direction:column}
+  .find.full{grid-column:1 / -1}
+  .find .body{padding:22px 24px;border-left:4px solid}
+  .find.grave .body{border-left-color:var(--crit)}
+  .find.medio .body{border-left-color:var(--amber)}
+  .find.baixo .body{border-left-color:var(--yellow)}
+  .find .topline{display:flex;align-items:center;gap:10px;margin-bottom:11px;flex-wrap:wrap}
+  .find .fid{font-family:var(--mono);font-weight:700;font-size:13px;color:var(--ink)}
+  .badge{font-size:10.5px;font-weight:800;letter-spacing:.06em;padding:3px 9px;border-radius:6px;color:#fff;text-transform:uppercase}
+  .find.grave .badge{background:var(--crit)}
+  .find.medio .badge{background:var(--amber)}
+  .find.baixo .badge{background:var(--yellow-badge);color:#3d3210}
+  .find h3{font-size:18px;margin-bottom:11px;color:var(--ink);line-height:1.25}
+  .find.full h3{font-size:20px}
+  .evid{font-family:var(--mono);font-size:12px;color:var(--ink-soft);line-height:1.55;
+    background:var(--paper);border:1px dashed var(--sand-dk);border-radius:10px;padding:11px 13px;margin-bottom:14px}
+  .evid b{color:var(--ink)}
+  .lenses{display:grid;gap:10px}
+  .find.full .lenses{grid-template-columns:1fr 1fr}
+  .lens{border-radius:10px;padding:12px 14px;font-size:13.5px;line-height:1.5}
+  .lens .lh{font-weight:800;font-size:11px;letter-spacing:.05em;text-transform:uppercase;margin-bottom:5px;display:flex;align-items:center;gap:6px}
+  .lens.sales{background:var(--rose-tint);border:1px solid #ECD6D8}
+  .lens.sales .lh{color:var(--rosewood)}
+  .lens.solo{grid-column:1/-1;display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start;padding:11px 14px}
+  .lens.solo .lh{margin-bottom:0;white-space:nowrap;padding-top:1px}
+  .lens.solo .lh .solo-tag{display:block;font-size:9.5px;font-weight:700;letter-spacing:.04em;opacity:.7;margin-top:3px;text-transform:none}
+  .lens.ai{background:var(--gold-bg);border:1px solid var(--amber-line)}
+  .lens.ai .lh{color:var(--gold-dk)}
+  details.why{margin-top:14px;border-top:1px dashed var(--sand-dk);padding-top:13px}
+  details.why>summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--ink-soft);list-style:none;display:inline-flex;align-items:center;gap:8px}
+  details.why>summary::-webkit-details-marker{display:none}
+  details.why>summary::before{content:"\25B8";transition:transform .15s;display:inline-block;color:var(--gold-ink)}
+  details.why[open]>summary::before{transform:rotate(90deg)}
+  .why .whybody{margin-top:12px;font-size:13.5px;color:#4A433B;line-height:1.55}
+  .why .whybody p+p{margin-top:8px}
+  .why .whybody .lbl{font-weight:800;color:var(--ink)}
+  .fixbox{margin-top:12px;background:var(--sage-bg);border:1px solid #CBDAC2;border-radius:10px;padding:12px 14px;
+    font-size:13.5px;color:var(--sage-ink);line-height:1.55}
+  .fixbox .lbl{font-weight:800;display:inline-flex;align-items:center;gap:6px;color:var(--sage-ink);margin-bottom:3px}
+
+  /* ============ ÓTIMO + PRIORIDADE ============ */
+  .li{display:flex;gap:11px;font-size:14.5px;padding:9px 0;color:#3d4a37;line-height:1.5}
+  .li .mk{flex:none;color:var(--sage);font-weight:800;margin-top:1px}
+  .prio{display:flex;flex-direction:column;gap:12px}
+  .prow{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center;
+    background:#fff;border:1px solid var(--sand);border-radius:14px;padding:16px 20px;
+    box-shadow:0 1px 2px rgba(43,38,34,.03);border-left:4px solid var(--line)}
+  .prow.l1{border-left-color:var(--crit)}
+  .prow.l2{border-left-color:var(--amber)}
+  .prow.l3{border-left-color:var(--amber)}
+  .prow.l4{border-left-color:var(--yellow)}
+  .prow .pn{font-family:var(--serif);font-weight:700;font-size:30px;color:var(--gold-ink);width:34px;text-align:center;flex:none}
+  .prow .ptxt{font-size:14.5px;color:var(--ink)}
+  .prow .ptxt .ids{display:inline-flex;gap:5px;margin-right:8px;flex-wrap:wrap;vertical-align:middle}
+  .prow .ptxt .idc{font-family:var(--mono);font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px}
+  .idc.r{background:var(--crit-bg);color:var(--crit)}
+  .idc.a{background:var(--amber-bg);color:#8A6015}
+  .idc.y{background:var(--yellow-bg);color:#80690F}
+
+  /* ============ FOOTER ============ */
+  footer{margin-top:60px;padding-top:26px;border-top:1px solid var(--sand);text-align:center;font-size:12.5px;color:var(--ink-soft)}
+  footer .meta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:10px;color:var(--ink-3)}
+  footer .gold{color:var(--gold-dk);font-weight:700;font-family:var(--mono);font-size:12px}
+
+  /* ============ RESPONSIVE ============ */
+  @media(max-width:900px){
+    .kpis{grid-template-columns:repeat(3,1fr)}
+    .kpi:nth-child(4){border-left:none}
+    .findgrid{grid-template-columns:1fr}
+    .find.full .lenses{grid-template-columns:1fr}
+    .funnel{grid-template-columns:1fr}
+    .funnel .fchart{margin:0 auto 4px}
+    .funnel .fchart svg{max-width:230px;height:auto}
+  }
+  @media(max-width:680px){
+    body{padding:30px 14px 70px}
+    .hero{grid-template-columns:1fr;padding:32px 24px;text-align:center}
+    .hero-left{max-width:none}.hero p{max-width:none}.hero-meta{justify-content:center}
+    .gauges{justify-content:center}
+    .kpis{grid-template-columns:repeat(2,1fr)}
+    .kpi:nth-child(3),.kpi:nth-child(5){border-left:none}
+    .flow{flex-direction:column;align-items:center}
+    .arrow{transform:rotate(90deg);padding:6px 0}
+    .cap,.cap.brain{width:100%;max-width:280px}
+    .bub{max-width:90%}
+  }
+  @media print{body{background:#fff}.hero{box-shadow:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============================================================= HERO -->
+  <div class="hero">
+    <div class="hero-left">
+      <div class="eyebrow">Laudo de teste &middot; Welcome Weddings</div>
+      <h1 class="serif">Exame da Sofia<span class="rw">do primeiro &ldquo;oi&rdquo; &agrave; reuni&atilde;o marcada</span></h1>
+      <p>Um casal de mentira &mdash; Marina &amp; Rafael, casamento de praia no Nordeste &mdash; conversou 10 vezes com a Sofia, de ponta a ponta. Este &eacute; o resultado, lido como um exame: <b>os dois mostradores abaixo</b>, o gr&aacute;fico que sobe e despenca, e a lista do que tratar primeiro.</p>
+      <div class="hero-meta">
+        <span><i class="dot"></i> 24 de junho de 2026</span>
+        <span><i class="dot"></i> 10 turnos, conversa real testada</span>
+        <span><i class="dot"></i> res&iacute;duo de teste zerado</span>
+      </div>
+    </div>
+    <div>
+      <div class="gauges">
+        <!-- GAUGE 1: conversa 8,5 (sage) -->
+        <div class="gauge">
+          <svg width="150" height="92" viewBox="0 0 150 92" role="img" aria-label="Nota da conversa: 8,5 de 10">
+            <path d="M12 86 A63 63 0 0 1 138 86" fill="none" stroke="#EAE1D3" stroke-width="13" stroke-linecap="round"/>
+            <path d="M12 86 A63 63 0 0 1 138 86" fill="none" stroke="#5F7A57" stroke-width="13" stroke-linecap="round"
+                  stroke-dasharray="198" stroke-dashoffset="29.7"/>
+          </svg>
+          <div class="gnum" style="color:var(--sage-ink)">8,5<span style="font-size:16px;color:var(--ink-3)">/10</span></div>
+          <div class="glab">A conversa</div>
+          <div class="gsub">como ela fala e vende</div>
+        </div>
+        <!-- GAUGE 2: dados 6,0 (amber) -->
+        <div class="gauge">
+          <svg width="150" height="92" viewBox="0 0 150 92" role="img" aria-label="Nota dos dados e memoria: 6,0 de 10">
+            <path d="M12 86 A63 63 0 0 1 138 86" fill="none" stroke="#EAE1D3" stroke-width="13" stroke-linecap="round"/>
+            <path d="M12 86 A63 63 0 0 1 138 86" fill="none" stroke="#B8842B" stroke-width="13" stroke-linecap="round"
+                  stroke-dasharray="198" stroke-dashoffset="79.2"/>
+          </svg>
+          <div class="gnum" style="color:var(--amber)">6,0<span style="font-size:16px;color:var(--ink-3)">/10</span></div>
+          <div class="glab">Os bastidores</div>
+          <div class="gsub">mem&oacute;ria e dado no CRM</div>
+        </div>
+      </div>
+      <div class="verdict">
+        <span class="pill">&#10003; O funil fechou &mdash; frio &rarr; qualificado &rarr; reuni&atilde;o marcada</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================= KPI STRIP -->
+  <section style="margin-top:28px">
+    <div class="kpis">
+      <div class="kpi"><b>10</b><small>turnos da<br>conversa</small></div>
+      <div class="kpi sage"><b>25/06&nbsp;18h</b><small>reuni&atilde;o<br>marcada</small></div>
+      <div class="kpi crit"><b>3 de 10</b><small>achados s&atilde;o bug<br>de dado (F1&middot;F2&middot;F3)</small></div>
+      <div class="kpi"><b>~40s</b><small>por<br>resposta</small></div>
+      <div class="kpi"><b>~8 mil</b><small>tokens de<br>instru&ccedil;&atilde;o</small></div>
+      <div class="kpi"><b>5 LLMs</b><small>por<br>turno</small></div>
+    </div>
+  </section>
+
+  <!-- ============================================================= PIPELINE -->
+  <section>
+    <div class="sec-head"><span class="num">01</span><h2 class="serif">Como a Sofia monta cada resposta</h2><div class="rule"></div></div>
+    <p class="sec-sub">A cada mensagem do casal, cinco intelig&ecirc;ncias trabalham em fila &mdash; uma cuida da <b>mem&oacute;ria</b>, outra d&aacute; a <b>nota</b>, o <b>c&eacute;rebro</b> escreve a fala, uma quebra em <b>bal&otilde;es de WhatsApp</b> e a &uacute;ltima <b>grava no CRM</b>. Entre elas, sete ferramentas (a agenda real, a base de perguntas, o cadastro).</p>
+    <div class="panel">
+      <div class="flow">
+        <div class="cap">
+          <div class="cstep">1 &middot; Mem&oacute;ria</div>
+          <div class="cname">Consolida</div>
+          <div class="crole">resume o casal, marca os sinais e diz em que fase a conversa est&aacute;</div>
+          <div class="cmodel">gpt-5.1</div>
+        </div>
+        <div class="arrow"><svg width="26" height="14"><path d="M2 7h18m0 0l-5-4m5 4l-5 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="cap">
+          <div class="cstep">2 &middot; Nota</div>
+          <div class="cname">Qualifica</div>
+          <div class="crole">d&aacute; a nota por crit&eacute;rios; soma de pesos, corte &ge; 25 pra liberar o convite</div>
+          <div class="cmodel">gpt-5.1</div>
+        </div>
+        <div class="arrow"><svg width="26" height="14"><path d="M2 7h18m0 0l-5-4m5 4l-5 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="cap brain">
+          <div class="cstep">3 &middot; C&eacute;rebro</div>
+          <div class="cname">Responde Lead</div>
+          <div class="crole">escreve a fala <b>e</b> decide marcar ou n&atilde;o a reuni&atilde;o &mdash; tudo numa passada s&oacute;</div>
+          <div class="cmodel">gpt-5.5</div>
+        </div>
+        <div class="arrow"><svg width="26" height="14"><path d="M2 7h18m0 0l-5-4m5 4l-5 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="cap">
+          <div class="cstep">4 &middot; Bal&otilde;es</div>
+          <div class="cname">Formata</div>
+          <div class="crole">quebra a resposta em 1 a 3 bal&otilde;es, do jeito que gente manda no WhatsApp</div>
+          <div class="cmodel">gpt-5.1</div>
+        </div>
+        <div class="arrow"><svg width="26" height="14"><path d="M2 7h18m0 0l-5-4m5 4l-5 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="cap">
+          <div class="cstep">5 &middot; Grava CRM</div>
+          <div class="cname">Extrai Dados</div>
+          <div class="crole">depois de responder, l&ecirc; a conversa e grava os campos no card do casal</div>
+          <div class="cmodel">gpt-5.1</div>
+        </div>
+      </div>
+
+      <div class="tools-strip">
+        <span class="tlab">Ferramentas</span>
+        <span class="chip"><i class="live"></i>wsdr_check_availability</span>
+        <span class="chip"><i class="live"></i>wsdr_book_meeting</span>
+        <span class="chip"><i class="live"></i>wsdr_persist_lead</span>
+        <span class="chip bastidor"><i class="bg"></i>wsdr_get_config</span>
+        <span class="chip bastidor"><i class="bg"></i>wsdr_get_conversation_state</span>
+        <span class="chip bastidor"><i class="bg"></i>wsdr_save_conversation_state</span>
+        <span class="chip bastidor"><i class="bg"></i>wsdr-knowledge &middot; RAG, 5 FAQs</span>
+      </div>
+      <div class="tools-legend">
+        <span><i class="l-live"></i> usada com sinal verde neste teste</span>
+        <span><i class="l-bg"></i> bastidor &mdash; roda internamente todo turno</span>
+      </div>
+
+      <details class="tech">
+        <summary>Ver a ficha t&eacute;cnica (para quem programa)</summary>
+        <table class="ttable">
+          <thead><tr><th>Etapa</th><th>Modelo</th><th>Papel</th></tr></thead>
+          <tbody>
+            <tr><td><b>Consolida</b> &mdash; mem&oacute;ria</td><td><span class="mono">gpt-5.1</span></td><td>resume o casal (<span class="mono">resumo</span>), descreve onde a conversa est&aacute; (<span class="mono">contexto</span>), marca <span class="mono">sinais</span> e a <span class="mono">fase</span></td></tr>
+            <tr><td><b>Qualifica</b> &mdash; nota</td><td><span class="mono">gpt-5.1</span></td><td>avalia cada crit&eacute;rio; a nota final &eacute; determin&iacute;stica (soma de pesos), corte &ge; 25</td></tr>
+            <tr><td><b>Responde Lead</b> &mdash; c&eacute;rebro</td><td><span class="mono">gpt-5.5</span></td><td>escreve a fala e decide <span class="mono">agenda.acao</span> (marcar/nenhuma) numa passada s&oacute;</td></tr>
+            <tr><td><b>Formata Bolhas</b></td><td><span class="mono">gpt-5.1</span></td><td>quebra a resposta em 1&ndash;3 bolhas de WhatsApp</td></tr>
+            <tr><td><b>Extrai Dados</b> &mdash; CRM</td><td><span class="mono">gpt-5.1</span></td><td>p&oacute;s-resposta: l&ecirc; a conversa e grava os campos <span class="mono">ww_*</span> no card</td></tr>
+          </tbody>
+        </table>
+        <p style="font-size:12.5px;color:var(--ink-soft);margin-top:12px">Por turno: <b>5 LLMs</b> &middot; prompt do c&eacute;rebro <span class="mono">7.606 &rarr; 8.783 tokens</span> (cresce com o hist&oacute;rico) &middot; <span class="mono">15s</span> de debounce antes de responder &middot; sem indicador de &ldquo;digitando&rdquo;. Capacidades ligadas: mem&oacute;ria/bolhas, agenda (1 closer, seg&ndash;sex 10&ndash;20h, 45min), CRM, conhecimento (5 FAQs), handoff, nota com corte 25, multimodal. Follow-up autom&aacute;tico: <b>desligado</b>.</p>
+      </details>
+    </div>
+  </section>
+
+  <!-- ============================================================= GRÁFICO DA NOTA -->
+  <section>
+    <div class="sec-head"><span class="num">02</span><h2 class="serif">A nota, turno a turno</h2><div class="rule"></div></div>
+    <p class="sec-sub">&Eacute; o &ldquo;exame&rdquo; da conversa: a linha sobe conforme o casal se abre, cruza o <b>corte 25</b> e qualifica no T6. Repare na <b>queda no T9</b> &mdash; a reuni&atilde;o <em>j&aacute; estava marcada</em> e mesmo assim a nota despencou para 22, desqualificando o casal por um turno. Esse &eacute; o bug grave <b>F1</b>.</p>
+    <div class="chartcard">
+      <svg viewBox="0 0 880 320" width="100%" role="img" aria-label="Grafico da nota de qualificacao por turno, de T1 a T10, com a linha de corte em 25 e a queda no T9.">
+        <!-- plot area: x 70..840, y 270 baseline (score 0) ; score*5.111 above baseline -->
+        <g font-family="ui-monospace,Menlo,monospace" font-size="11" fill="#6E665B">
+          <line x1="70" y1="270" x2="840" y2="270" stroke="#EFE6D7"/>
+          <text x="58" y="274" text-anchor="end">0</text>
+          <line x1="70" y1="219" x2="840" y2="219" stroke="#F4ECE0"/>
+          <text x="58" y="223" text-anchor="end">10</text>
+          <line x1="70" y1="168" x2="840" y2="168" stroke="#F4ECE0"/>
+          <text x="58" y="172" text-anchor="end">20</text>
+          <line x1="70" y1="117" x2="840" y2="117" stroke="#F4ECE0"/>
+          <text x="58" y="121" text-anchor="end">30</text>
+          <line x1="70" y1="66"  x2="840" y2="66"  stroke="#F4ECE0"/>
+          <text x="58" y="70" text-anchor="end">40</text>
+          <line x1="70" y1="40"  x2="840" y2="40"  stroke="#FAF4EA"/>
+          <text x="58" y="44" text-anchor="end" fill="#A39A8C">45</text>
+        </g>
+        <!-- disambiguation: this chart is the qualification score 0-40, NOT the conversation grade -->
+        <text x="70" y="24" font-family="ui-sans-serif,system-ui,sans-serif" font-size="11.5" font-weight="700" fill="#6E665B">Escala de qualifica&ccedil;&atilde;o 0&ndash;40 &mdash; outra da nota da conversa (8,5/10)</text>
+        <!-- cut line at 25 -> y = 270 - 25*5.111 = 142.2 -->
+        <line x1="70" y1="142" x2="840" y2="142" stroke="#8E3B3B" stroke-width="2" stroke-dasharray="7 6"/>
+        <text x="836" y="135" text-anchor="end" font-family="ui-sans-serif,system-ui,sans-serif" font-size="11.5" font-weight="700" fill="#8E3B3B">corte 25 &mdash; qualifica</text>
+
+        <!-- x labels (T1..T10) ; step = (840-70)/9 = 85.555 -->
+        <g font-family="ui-monospace,Menlo,monospace" font-size="11.5" fill="#6B6258" text-anchor="middle">
+          <text x="70"  y="294">T1</text><text x="155.6" y="294">T2</text><text x="241.1" y="294">T3</text>
+          <text x="326.7" y="294">T4</text><text x="412.2" y="294">T5</text><text x="497.8" y="294">T6</text>
+          <text x="583.3" y="294">T7</text><text x="668.9" y="294">T8</text><text x="754.4" y="294">T9</text>
+          <text x="840" y="294">T10</text>
+        </g>
+
+        <!-- T1->T3 dashed bridge through T2 (no score) -->
+        <line x1="70" y1="259.8" x2="241.1" y2="183.1" stroke="#B8842B" stroke-width="2.4" stroke-dasharray="6 5" opacity=".75"/>
+        <!-- T3->T4->T5 flat (below cut, amber) -->
+        <polyline points="241.1,183.1 326.7,183.1 412.2,183.1" fill="none" stroke="#B8842B" stroke-width="2.6"/>
+        <!-- T5->T6 climb crossing the cut (sage) -->
+        <line x1="412.2" y1="183.1" x2="497.8" y2="65.6" stroke="#5F7A57" stroke-width="2.8"/>
+        <!-- T6->T7->T8 plateau qualified (sage) -->
+        <polyline points="497.8,65.6 583.3,65.6 668.9,65.6" fill="none" stroke="#5F7A57" stroke-width="2.8"/>
+        <!-- T8->T9 DIVE (red, thick) below cut -->
+        <line x1="668.9" y1="65.6" x2="754.4" y2="157.6" stroke="#8E3B3B" stroke-width="4.5" stroke-linecap="round"/>
+        <!-- T9->T10 recovery (red, thick) back up -->
+        <line x1="754.4" y1="157.6" x2="840" y2="65.6" stroke="#8E3B3B" stroke-width="4.5" stroke-linecap="round"/>
+
+        <!-- dots -->
+        <circle cx="70"   cy="259.8" r="5.5" fill="#fff" stroke="#B8842B" stroke-width="2.4"/>
+        <circle cx="155.6" cy="183.1" r="4.5" fill="#FBF8F4" stroke="#C9A227" stroke-width="2" stroke-dasharray="3 3"/>
+        <text x="155.6" y="207" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="10.5" fill="#6E665B">sem nota</text>
+        <circle cx="241.1" cy="183.1" r="5.5" fill="#fff" stroke="#B8842B" stroke-width="2.4"/>
+        <circle cx="326.7" cy="183.1" r="5.5" fill="#fff" stroke="#B8842B" stroke-width="2.4"/>
+        <circle cx="412.2" cy="183.1" r="5.5" fill="#fff" stroke="#B8842B" stroke-width="2.4"/>
+        <circle cx="497.8" cy="65.6"  r="6"   fill="#5F7A57" stroke="#fff" stroke-width="2"/>
+        <circle cx="583.3" cy="65.6"  r="6"   fill="#5F7A57" stroke="#fff" stroke-width="2"/>
+        <circle cx="668.9" cy="65.6"  r="6"   fill="#5F7A57" stroke="#fff" stroke-width="2"/>
+        <!-- T9 big red diamond below the cut -->
+        <rect x="745.4" y="148.6" width="18" height="18" fill="#8E3B3B" stroke="#fff" stroke-width="2" transform="rotate(45 754.4 157.6)"/>
+        <circle cx="840" cy="65.6" r="6" fill="#5F7A57" stroke="#fff" stroke-width="2"/>
+
+        <!-- F1 note — permanente e legível -->
+        <g class="svg-note">
+          <rect x="612" y="186" width="184" height="46" rx="8" fill="#F7EBEA" stroke="#E6C9C7"/>
+          <text x="624" y="206" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12.5" font-weight="800" fill="#8E3B3B">F1 &middot; nota 40 &rarr; 22 &rarr; 40</text>
+          <text x="624" y="223" font-family="ui-sans-serif,system-ui,sans-serif" font-size="11.5" fill="#6B6258">desqualificou com a reuni&atilde;o marcada</text>
+        </g>
+
+        <!-- seals -->
+        <rect x="455" y="38" width="92" height="20" rx="10" fill="#FBF4E9" stroke="#EAD9B8"/>
+        <text x="501" y="52" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="11" font-weight="800" fill="#A37F47">QUALIFICOU</text>
+        <rect x="613" y="38" width="124" height="20" rx="10" fill="#EEF2EA" stroke="#CBDAC2"/>
+        <text x="675" y="52" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="11" font-weight="800" fill="#4E6648">REUNI&Atilde;O MARCADA</text>
+      </svg>
+      <div class="chart-legend">
+        <span><i class="lg-cut"></i> linha de corte 25</span>
+        <span><i class="lg-up"></i> qualificado (acima do corte)</span>
+        <span><i class="lg-dn"></i> a queda do T9 (bug F1)</span>
+        <span><i class="lg-line"></i> trecho que sobe e despenca</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================= FUNIL -->
+  <section>
+    <div class="sec-head"><span class="num">03</span><h2 class="serif">O funil, do frio ao marcado</h2><div class="rule"></div></div>
+    <p class="sec-sub">Tr&ecirc;s paradas: o primeiro contato frio, o momento em que o casal qualifica, e a reuni&atilde;o agendada de verdade. A Sofia atravessou as tr&ecirc;s.</p>
+    <div class="panel">
+      <div class="funnel">
+        <div class="fchart">
+          <svg width="260" height="220" viewBox="0 0 260 220" role="img" aria-label="Funil afunilando do contato frio ate a reuniao agendada">
+            <path d="M20 14 H240 L206 70 H54 Z" fill="#F4EDE1" stroke="#E4D4BE"/>
+            <text x="130" y="48" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="13" font-weight="700" fill="#7A6A4E">Frio &middot; T1</text>
+            <path d="M58 78 H202 L172 134 H88 Z" fill="#FBF4E9" stroke="#EAD9B8"/>
+            <text x="130" y="112" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="13" font-weight="700" fill="#8A6A3A">Qualificou &middot; T6</text>
+            <path d="M92 142 H168 L150 200 H110 Z" fill="#EEF2EA" stroke="#CBDAC2"/>
+            <text x="130" y="176" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="700" fill="#4E6648">Reuni&atilde;o marcada &middot; T8</text>
+          </svg>
+        </div>
+        <div class="steps">
+          <div class="fcard">
+            <div class="fbadge fb-cold">T1</div>
+            <div><div class="ftitle">Frio</div><div class="fmeta">&ldquo;Achei o perfil de voc&ecirc;s no Instagram&hellip;&rdquo; &mdash; s&oacute; curiosidade, ainda sem dados.</div></div>
+            <div class="fnote">nota 2</div>
+          </div>
+          <div class="fcard">
+            <div class="fbadge fb-qual">T6</div>
+            <div><div class="ftitle">Qualificou</div><div class="fmeta">80 convidados, R$ 120&ndash;150 mil, praia no Nordeste. Bateu o corte e a Sofia convidou pra Planner.</div></div>
+            <div class="fnote">nota 40</div>
+          </div>
+          <div class="fcard won">
+            <div class="fbadge fb-book">T8</div>
+            <div><div class="ftitle">Reuni&atilde;o marcada</div><div class="fmeta">Hor&aacute;rio escolhido, reserva confirmada de verdade, e-mail pedido.</div></div>
+            <div class="fnote">25/06 &middot; 18h<br><span style="color:var(--sage-ink);font-weight:700">&#10003; virou reuni&atilde;o</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================= CONVERSA -->
+  <section>
+    <div class="sec-head"><span class="num">04</span><h2 class="serif">A conversa inteira</h2><div class="rule"></div></div>
+    <p class="sec-sub">Casal &agrave; esquerda, Sofia &agrave; direita &mdash; como no WhatsApp. A coluna numerada muda de cor pela <b>temperatura de cada turno</b>: bata o olho nela pra achar os pontos quentes (o &acirc;mbar do T2/T3, o erro vermelho do T9). A p&iacute;lula sob cada par &eacute; a anota&ccedil;&atilde;o do laudo.</p>
+    <div class="panel" style="padding:14px 22px 22px">
+      <div class="spine">
+
+        <!-- T1 -->
+        <div class="turn">
+          <div class="node-col"><div class="node ok">1</div></div>
+          <div>
+            <div class="bubbles">
+              <div class="bub casal"><div class="who">Marina &amp; Rafael</div>Oii! Achei o perfil de voc&ecirc;s no Instagram e fiquei encantada &#129392; A gente t&aacute; come&ccedil;ando a pensar no casamento e queria entender como funciona casar em outro lugar, fora de SP</div>
+              <div class="bub sofia"><div class="who"><i class="seal"></i> Sofia</div>Oi, Marina! Sou a Sofia, da Welcome Weddings, a gente nasceu em 2012 e cuida de Destination Weddings do come&ccedil;o ao fim, tudo desenhado do zero pra cada casal. Fico feliz que voc&ecirc;s estejam come&ccedil;ando a pensar nisso, qual &eacute; o nome do seu noivo ou noiva?</div>
+            </div>
+            <div class="anno ok"><span class="micro-score">nota 2</span><span>Abertura livre, 2 bal&otilde;es. Boa apresenta&ccedil;&atilde;o (2012, do zero) e j&aacute; pede o nome.</span></div>
+          </div>
+        </div>
+
+        <!-- T2 -->
+        <div class="turn">
+          <div class="node-col"><div class="node alerta">2</div></div>
+          <div>
+            <div class="bubbles">
+              <div class="bub casal"><div class="who">Marina &amp; Rafael</div>Somos a Marina e o Rafael &#128141; A gente t&aacute; sonhando em casar na praia, talvez Trancoso ou Maragogi, algo mais intimista</div>
+              <div class="bub sofia"><div class="who"><i class="seal"></i> Sofia</div>Marina e Rafael, praia + intimista combina muito com essa ideia de casar fora, e Trancoso/Maragogi t&ecirc;m climas bem diferentes entre si. Nessa primeira conversa eu fa&ccedil;o algumas perguntinhas pra entender se a gente consegue cuidar com a excel&ecirc;ncia que voc&ecirc;s merecem. Quando voc&ecirc;s imaginam mais ou menos: j&aacute; tem m&ecirc;s ou &eacute;poca no radar, ou ainda est&aacute; bem aberto?</div>
+            </div>
+            <div class="anno alerta"><span class="micro-score">sem nota</span><span><b>F3</b>: alucinou que Trancoso e Maragogi t&ecirc;m climas bem diferentes (s&atilde;o praias parecidas do NE). <b>F8</b>: triagem de &ldquo;excel&ecirc;ncia&rdquo; cedo demais.</span></div>
+          </div>
+        </div>
+
+        <!-- T3 -->
+        <div class="turn">
+          <div class="node-col"><div class="node alerta">3</div></div>
+          <div>
+            <div class="bubbles">
+              <div class="bub casal"><div class="who">Marina &amp; Rafael</div>A gente pensa em outubro de 2026 &#128591; Imagina um p&ocirc;r do sol na praia, s&oacute; a gente e quem a gente ama de verdade por perto</div>
+              <div class="bub sofia"><div class="who"><i class="seal"></i> Sofia</div>Essa imagem do p&ocirc;r do sol, com s&oacute; quem &eacute; muito pr&oacute;ximo, j&aacute; d&aacute; um norte bem bonito pro formato de voc&ecirc;s. Pensando nessa lista mais afetiva, quantas pessoas voc&ecirc;s imaginam que v&atilde;o de fato estar l&aacute; com voc&ecirc;s? Destination Wedding costuma ter uma presen&ccedil;a diferente da lista de convidados.</div>
+            </div>
+            <div class="anno alerta"><span class="micro-score">nota 17</span><span><b>F2</b>: o CRM gravou a data <span class="mono">2026-10-01</span>, inventando o dia 01 (o casal s&oacute; disse outubro/2026).</span></div>
+          </div>
+        </div>
+
+        <!-- T4 -->
+        <div class="turn">
+          <div class="node-col"><div class="node bom">4</div></div>
+          <div>
+            <div class="bubbles">
+              <div class="bub casal"><div class="who">Marina &amp; Rafael</div>Antes da gente continuar, posso perguntar uma coisa? Quanto custa mais ou menos pra fazer um casamento desses com voc&ecirc;s? To meio perdida nos valores &#128517;</div>
+              <div class="bub sofia"><div class="who"><i class="seal"></i> Sofia</div>Claro, faz todo sentido perguntar isso, Marina. A nossa assessoria fica entre R$ 4 mil e R$ 18 mil, conforme escopo, e no Nordeste a refer&ecirc;ncia do casamento em si come&ccedil;a em torno de R$ 40 mil para 20 convidados, R$ 100 mil para 50 e R$ 200 mil para 100, sempre variando por destino, &eacute;poca e formato. Pra trazer isso mais pra realidade de Trancoso ou Maragogi, voc&ecirc;s imaginam quantas pessoas v&atilde;o de fato estar l&aacute; com voc&ecirc;s?</div>
+            </div>
+            <div class="anno bom"><span class="micro-score">nota 17</span><span>Disciplina de pre&ccedil;o correta: faixas reais do Nordeste, nada inventado, e voltou pra descoberta.</span></div>
+          </div>
+        </div>
+
+        <!-- T5 -->
+        <div class="turn">
+          <div class="node-col"><div class="node bom">5</div></div>
+          <div>
+            <div class="bubbles">
+              <div class="bub casal"><div class="who">Marina &amp; Rafael</div>Nossa, mas s&oacute; a assessoria de voc&ecirc;s j&aacute; &eacute; 4 a 18 mil? achei salgado isso, ainda mais sem contar o resto &#128556;</div>
+              <div class="bub sofia"><div class="who"><i class="seal"></i> Sofia</div>Faz sentido bater esse susto, Marina, ainda mais quando voc&ecirc;s est&atilde;o come&ccedil;ando a entender o todo. A assessoria &eacute; o trabalho de desenhar tudo do zero, curar fornecedores no destino, organizar decis&otilde;es e coordenar pra voc&ecirc;s n&atilde;o carregarem isso &agrave; dist&acirc;ncia, n&atilde;o &eacute; uma taxa solta. O que voc&ecirc;s imaginavam que estaria inclu&iacute;do nesse valor pra ele fazer sentido pra voc&ecirc;s?</div>
+            </div>
+            <div class="anno bom"><span class="micro-score">nota 17</span><span>Tratamento de obje&ccedil;&atilde;o exemplar: ficou DENTRO da assessoria, n&atilde;o reabriu o or&ccedil;amento total.</span></div>
+          </div>
+        </div>
+
+        <!-- T6 -->
+        <div class="turn">
+          <div class="node-col"><div class="node marco">6</div></div>
+          <div>
+            <div class="bubbles">
+              <div class="bub casal"><div class="who">Marina &amp; Rafael</div>Ah, entendi melhor agora. Olha, a gente imagina uns 80 convidados de fato indo. E no total, somando tudo, a gente pensa em algo entre 120 e 150 mil. Ta dentro do que voc&ecirc;s fazem?</div>
+              <div class="bub sofia"><div class="who"><i class="seal"></i> Sofia</div>Marina, com 80 convidados e R$ 120 a 150 mil, d&aacute; pra olhar com carinho, mas &eacute; um or&ccedil;amento que precisa ser bem desenhado pra praia no Nordeste, principalmente escolhendo bem destino, formato e prioridades. Pelo que voc&ecirc;s contaram, acho que faz sentido voc&ecirc;s conversarem com a nossa Wedding Planner pra ela mostrar caminhos reais entre Trancoso e Maragogi. Tenho hoje 18h30 ou 19h, ou amanh&atilde; 10h, 10h30 e 11h, qual fica melhor pra voc&ecirc;s?</div>
+            </div>
+            <div class="anno marco"><span class="micro-score">nota 40</span><span>QUALIFICOU. Convidou e ofereceu hor&aacute;rios. <b>F8</b>: ofereceu hoje 18h30 a um casal sem urg&ecirc;ncia.</span></div>
+          </div>
+        </div>
+
+        <!-- T7 -->
+        <div class="turn">
+          <div class="node-col"><div class="node bom">7</div></div>
+          <div>
+            <div class="bubbles">
+              <div class="bub casal"><div class="who">Marina &amp; Rafael</div>Pode ser sim! Mas hoje t&aacute; corrido aqui... tem algum hor&aacute;rio amanh&atilde; no fim da tarde?</div>
+              <div class="bub sofia"><div class="who"><i class="seal"></i> Sofia</div>Tem sim, Marina. Amanh&atilde; consigo 17h30, 18h ou 18h30 com a nossa Wedding Planner. Qual desses fica melhor pra voc&ecirc;s?</div>
+            </div>
+            <div class="anno bom"><span class="micro-score">nota 40</span><span>Reconheceu o per&iacute;odo pedido (fim da tarde) e ofereceu da lista real, sem inventar.</span></div>
+          </div>
+        </div>
+
+        <!-- T8 -->
+        <div class="turn">
+          <div class="node-col"><div class="node marco">8</div></div>
+          <div>
+            <div class="bubbles">
+              <div class="bub casal"><div class="who">Marina &amp; Rafael</div>Perfeito, pode ser 18h ent&atilde;o!</div>
+              <div class="bub sofia"><div class="who"><i class="seal"></i> Sofia</div>Perfeito, Marina, deixei reservado amanh&atilde; &agrave;s 18h com a nossa Wedding Planner para voc&ecirc;s e o Rafael. Me manda um e-mail de voc&ecirc;s pra ficar tudo certinho no convite?</div>
+            </div>
+            <div class="anno marco"><span class="micro-score">nota 40</span><span>REUNI&Atilde;O MARCADA de verdade (25/06 18h, closer Ana), confirmou a reserva e pediu o e-mail.</span></div>
+          </div>
+        </div>
+
+        <!-- T9 -->
+        <div class="turn">
+          <div class="node-col"><div class="node erro">9</div></div>
+          <div>
+            <div class="bubbles">
+              <div class="bub casal"><div class="who">Marina &amp; Rafael</div>Claro! meu email &eacute; marina.alves.teste@gmail.com &#128522;</div>
+              <div class="bub sofia"><div class="who"><i class="seal"></i> Sofia</div>Obrigada, Marina! O convite vai nesse e-mail, e a conversa de voc&ecirc;s com a nossa Wedding Planner fica amanh&atilde;, 25/06, &agrave;s 18h. Se o Rafael quiser receber tamb&eacute;m, me manda o e-mail dele por aqui.</div>
+            </div>
+            <div class="anno erro"><span class="micro-score">nota 22</span><span><b>F1</b>: a NOTA despencou de 40 para 22 (n&atilde;o-qualificado) com a reuni&atilde;o j&aacute; marcada, e o CRM gravou &ldquo;n&atilde;o-qualificado&rdquo; por cima do &ldquo;qualificado&rdquo;.</span></div>
+          </div>
+        </div>
+
+        <!-- T10 -->
+        <div class="turn">
+          <div class="node-col"><div class="node alerta">10</div></div>
+          <div>
+            <div class="bubbles">
+              <div class="bub casal"><div class="who">Marina &amp; Rafael</div>Ahhh que al&iacute;vio, muito obrigada Sofia! Voc&ecirc;s j&aacute; me deixaram bem mais tranquila &#128156;</div>
+              <div class="bub sofia"><div class="who"><i class="seal"></i> Sofia</div>Fico muito feliz de ler isso, Marina &#128156; A ideia &eacute; justamente tirar esse peso do come&ccedil;o e ajudar voc&ecirc;s a enxergarem caminhos poss&iacute;veis com calma. Amanh&atilde; &agrave;s 18h a nossa Wedding Planner aprofunda tudo com voc&ecirc;s.</div>
+            </div>
+            <div class="anno alerta"><span class="micro-score">nota 40</span><span>Nota voltou a 40. <b>F9</b>: re-pitchou em vez de uma despedida curta, e repetiu o hor&aacute;rio pela 3&ordf; vez.</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================= ACHADOS -->
+  <section class="sevtabs">
+    <input type="radio" name="sev" id="f-all" checked>
+    <input type="radio" name="sev" id="f-grave">
+    <input type="radio" name="sev" id="f-medio">
+    <input type="radio" name="sev" id="f-baixo">
+
+    <div class="sec-head"><span class="num">05</span><h2 class="serif">Achados, por gravidade</h2><div class="rule"></div></div>
+    <p class="sec-sub">Cada achado traz a evid&ecirc;ncia, dois olhares (&#128119; de Vendas e &#129504; de IA) e, escondido pra quem quiser ir fundo, por que aconteceu e como consertar. Use os filtros pra isolar o que &eacute; grave.</p>
+
+    <div class="tablist">
+      <label for="f-all">Todos <span class="cnt">10</span></label>
+      <label for="f-grave">Graves <span class="cnt">1</span></label>
+      <label for="f-medio">M&eacute;dios <span class="cnt">4</span></label>
+      <label for="f-baixo">Baixos <span class="cnt">5</span></label>
+    </div>
+
+    <div class="findgrid">
+
+      <!-- F1 — GRAVE, full width, open -->
+      <div class="find grave full">
+        <div class="body">
+          <div class="topline"><span class="fid">F1</span><span class="badge">Grave</span></div>
+          <h3>A nota oscila e desqualifica um casal j&aacute; qualificado e agendado</h3>
+          <div class="evid">No <b>T9</b> (reuni&atilde;o j&aacute; marcada) a nota caiu de <b>40 para 22</b>, virando n&atilde;o-qualificado, e o CRM gravou <span class="mono">ww_sdr_qualificado=false</span>. No T10 voltou a 40. A flag no card piscou <b>true &rarr; false &rarr; true</b>.</div>
+          <div class="lenses">
+            <div class="lens sales">
+              <div class="lh">&#128119; Olhar de Vendas</div>
+              Um casal qualificado e com reuni&atilde;o marcada n&atilde;o pode constar como n&atilde;o-qualificado no CRM; a Wedding Planner abre o card e v&ecirc; um lead frio que na verdade fechou. Se o &ldquo;sim&rdquo; do casal cair no momento errado, a trava de qualifica&ccedil;&atilde;o bloqueia o agendamento.
+            </div>
+            <div class="lens ai">
+              <div class="lh">&#129504; Olhar de IA</div>
+              A mem&oacute;ria guarda os fatos essenciais (convidados, or&ccedil;amento, data) s&oacute; no campo de prosa <span class="mono">contexto</span> e nunca os promove pro resumo estruturado, que ficou congelado desde o T2 repetindo &ldquo;n&atilde;o informaram or&ccedil;amento&rdquo;. A nota &eacute; re-derivada do resumo e perde o or&ccedil;amento &mdash; <b>15 pontos essenciais</b>.
+            </div>
+          </div>
+          <details class="why">
+            <summary>Por que foi gerado &amp; como corrigir</summary>
+            <div class="whybody">
+              <p><span class="lbl">Por que foi gerado assim:</span> a instru&ccedil;&atilde;o &ldquo;mem&oacute;ria cumulativa: repita o anterior INTEIRO&rdquo; faz a mem&oacute;ria re-copiar a linha velha em vez de atualizar com os novos fatos.</p>
+              <div class="fixbox"><span class="lbl">&#10003; Como corrigir</span>Resumo com esqueleto fixo (destino / convidados / or&ccedil;amento / data / fam&iacute;lia / pesquisou), com jun&ccedil;&atilde;o que nunca esvazia um campo j&aacute; preenchido; nota mon&oacute;tona calculada dos valores j&aacute; extra&iacute;dos; <span class="mono">ww_sdr_qualificado</span> mon&oacute;tono (n&atilde;o sobrescrever true por false sem desqualificador real).</div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- F2 — MÉDIO -->
+      <div class="find medio">
+        <div class="body">
+          <div class="topline"><span class="fid">F2</span><span class="badge">M&eacute;dio</span></div>
+          <h3>O extrator inventa o DIA da data</h3>
+          <div class="evid">O casal disse <b>outubro de 2026</b> (sem dia). O CRM gravou <span class="mono">ww_data_casamento = 2026-10-01</span> em todos os turnos.</div>
+          <div class="lenses">
+            <div class="lens sales"><div class="lh">&#128119; Olhar de Vendas</div>Dado falso com apar&ecirc;ncia de preciso; a Planner v&ecirc; 01/10/2026 como confirmado e pode decidir agenda/or&ccedil;amento em cima de um dia que ningu&eacute;m escolheu.</div>
+            <div class="lens ai"><div class="lh">&#129504; Olhar de IA</div>O extrator normaliza m&ecirc;s/ano para data cheia, fabricando o dia 01. A regra &ldquo;s&oacute; o que o casal afirma&rdquo; barra hip&oacute;tese, mas n&atilde;o barra a sobre-precis&atilde;o.</div>
+          </div>
+          <details class="why">
+            <summary>Por que foi gerado &amp; como corrigir</summary>
+            <div class="whybody">
+              <p><span class="lbl">Por que foi gerado assim:</span> o prompt do extrator pede a data no formato <span class="mono">YYYY-MM-DD</span>, induzindo a completar o dia.</p>
+              <div class="fixbox"><span class="lbl">&#10003; Como corrigir</span>Aceitar data parcial: se vier s&oacute; m&ecirc;s/ano, n&atilde;o completar o dia (guardar &ldquo;outubro/2026&rdquo; ou <span class="mono">2026-10</span>) e marcar a precis&atilde;o.</div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- F3 — MÉDIO -->
+      <div class="find medio">
+        <div class="body">
+          <div class="topline"><span class="fid">F3</span><span class="badge">M&eacute;dio</span></div>
+          <h3>Alucina&ccedil;&atilde;o factual fora do guard &ldquo;nunca invente&rdquo; (clima/geografia)</h3>
+          <div class="evid"><b>T2:</b> &ldquo;Trancoso/Maragogi t&ecirc;m climas bem diferentes entre si&rdquo;. S&atilde;o duas praias do Nordeste, clima parecido.</div>
+          <div class="lenses">
+            <div class="lens sales"><div class="lh">&#128119; Olhar de Vendas</div>Um casal que pesquisou pega a imprecis&atilde;o e a confian&ccedil;a cai; vendedor especialista n&atilde;o erra geografia b&aacute;sica do pr&oacute;prio produto.</div>
+            <div class="lens ai"><div class="lh">&#129504; Olhar de IA</div>A linha vermelha &ldquo;JAMAIS INVENTE&rdquo; cobre pre&ccedil;o, data, disponibilidade, capacidade, pol&iacute;tica e fornecedores, mas n&atilde;o cobre afirma&ccedil;&otilde;es casuais sobre o destino (clima, melhor &eacute;poca, dist&acirc;ncias).</div>
+          </div>
+          <details class="why">
+            <summary>Por que foi gerado &amp; como corrigir</summary>
+            <div class="whybody">
+              <p><span class="lbl">Por que foi gerado assim:</span> o c&eacute;rebro preenche &ldquo;cor de especialista&rdquo; livremente para soar conhecedor, porque nada o pro&iacute;be nesse campo.</p>
+              <div class="fixbox"><span class="lbl">&#10003; Como corrigir</span>Estender o &ldquo;nunca invente&rdquo; para qualquer afirma&ccedil;&atilde;o espec&iacute;fica sobre o destino, ou ancorar fatos reais dos destinos na base de conhecimento (RAG).</div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- F4 — MÉDIO -->
+      <div class="find medio">
+        <div class="body">
+          <div class="topline"><span class="fid">F4</span><span class="badge">M&eacute;dio</span></div>
+          <h3>Prompt de ~8 mil tokens com redund&acirc;ncia e contradi&ccedil;&atilde;o</h3>
+          <div class="evid">O prompt do c&eacute;rebro tem <b>7,6k a 8,8k tokens</b>. As linhas vermelhas repetem &ldquo;nunca pre&ccedil;o fechado&rdquo;, &ldquo;nunca inventar destino&rdquo;, &ldquo;nunca transferir&rdquo; e &ldquo;n&atilde;o repetir&rdquo; de 2 a 4 vezes cada. O bloco de agenda (~30 linhas + 4 dias de hor&aacute;rios) aparece desde o T1, com nota 2.</div>
+          <div class="lenses">
+            <div class="lens ai solo"><div class="lh">&#129504; Olhar de IA<span class="solo-tag">s&oacute; esta &oacute;tica</span></div><div>A pr&oacute;pria diretriz do projeto diz que modelo de racioc&iacute;nio piora com contradi&ccedil;&atilde;o/redund&acirc;ncia. Al&eacute;m do custo: ~8k tokens &times; 5 LLMs &times; todo turno.</div></div>
+          </div>
+          <details class="why">
+            <summary>Por que foi gerado &amp; como corrigir</summary>
+            <div class="whybody">
+              <p><span class="lbl">Por que foi gerado assim:</span> a config acumulou ao longo de muitas sess&otilde;es; as fronteiras custom duplicam as regras curadas com outras palavras; a agenda &eacute; calculada incondicionalmente todo turno.</p>
+              <div class="fixbox"><span class="lbl">&#10003; Como corrigir</span>De-duplicar as linhas vermelhas (uma fonte por regra); renderizar a agenda s&oacute; quando qualificado/perto do convite; fundir gloss&aacute;rio e &ldquo;como conversa&rdquo;. D&aacute; pra cortar 30&ndash;40% do prompt.</div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- F5 — MÉDIO -->
+      <div class="find medio">
+        <div class="body">
+          <div class="topline"><span class="fid">F5</span><span class="badge">M&eacute;dio</span></div>
+          <h3>~40s por resposta, sem &ldquo;digitando&hellip;&rdquo;</h3>
+          <div class="evid">Cada turno levou <b>35&ndash;47s</b> (15s de debounce + 4 LLMs no caminho cr&iacute;tico + c&eacute;rebro de 8k tokens). O lead espera ~40s sem nenhum sinal de &ldquo;digitando&rdquo;.</div>
+          <div class="lenses">
+            <div class="lens sales"><div class="lh">&#128119; Olhar de Vendas</div>Para um lead quente, 40s de sil&ecirc;ncio convida a re-mandar mensagem ou esfriar.</div>
+            <div class="lens ai"><div class="lh">&#129504; Olhar de IA</div>Pipeline sequencial de 4&ndash;5 LLMs + debounce de 15s, tudo s&iacute;ncrono; agenda e RAG rodam todo turno mesmo sem necessidade.</div>
+          </div>
+          <details class="why">
+            <summary>Por que foi gerado &amp; como corrigir</summary>
+            <div class="whybody">
+              <p><span class="lbl">Por que foi gerado assim:</span> arquitetura prioriza qualidade/robustez por turno sem otimizar o caminho cr&iacute;tico.</p>
+              <div class="fixbox"><span class="lbl">&#10003; Como corrigir</span>Indicador de &ldquo;digitando&rdquo; ou micro-ack instant&acirc;neo; gate na agenda/RAG; avaliar paralelizar mem&oacute;ria/nota.</div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- F6 — BAIXO -->
+      <div class="find baixo">
+        <div class="body">
+          <div class="topline"><span class="fid">F6</span><span class="badge">Baixo</span></div>
+          <h3>Abertura configurada &eacute; diferente da que roda (controle falso)</h3>
+          <div class="evid">A config tem uma abertura literal e 3 passos de abertura, mas o modo &eacute; livre e os passos est&atilde;o desligados, ent&atilde;o os dois s&atilde;o ignorados.</div>
+          <div class="lenses">
+            <div class="lens ai solo"><div class="lh">&#129504; Olhar de IA<span class="solo-tag">s&oacute; esta &oacute;tica</span></div><div>Quem editar o texto de abertura na tela n&atilde;o v&ecirc; mudan&ccedil;a &mdash; exatamente o &ldquo;controle falso&rdquo; que o projeto combate; a abertura em passos desenhada pela equipe n&atilde;o est&aacute; no ar.</div></div>
+          </div>
+          <details class="why">
+            <summary>Por que foi gerado &amp; como corrigir</summary>
+            <div class="whybody">
+              <p><span class="lbl">Por que foi gerado assim:</span> os flags de modo sobrep&otilde;em o conte&uacute;do literal/stepped; sobra de config de design anterior.</p>
+              <div class="fixbox"><span class="lbl">&#10003; Como corrigir</span>Alinhar: colocar o modo em stepped/literal para honrar o configurado, ou esconder os campos inertes.</div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- F7 — BAIXO -->
+      <div class="find baixo">
+        <div class="body">
+          <div class="topline"><span class="fid">F7</span><span class="badge">Baixo</span></div>
+          <h3>A nota sugere falas fora do tom (e &agrave;s vezes movimento de SDR errado)</h3>
+          <div class="evid">A pr&oacute;xima pergunta sugerida injetada no c&eacute;rebro come&ccedil;ou com &ldquo;Que del&iacute;cia&rdquo; (a muleta proibida) no T1 e T3, e no T5 sugeriu reabrir o or&ccedil;amento total durante a obje&ccedil;&atilde;o &agrave; assessoria. O c&eacute;rebro ignorou as duas.</div>
+          <div class="lenses">
+            <div class="lens ai solo"><div class="lh">&#129504; Olhar de IA<span class="solo-tag">s&oacute; esta &oacute;tica</span></div><div>O agente da nota n&atilde;o &eacute; vinculado ao gloss&aacute;rio de marca nem &agrave; doutrina de obje&ccedil;&atilde;o; &eacute; um gerador gen&eacute;rico de &ldquo;pr&oacute;xima pergunta&rdquo;.</div></div>
+          </div>
+          <details class="why">
+            <summary>Por que foi gerado &amp; como corrigir</summary>
+            <div class="whybody">
+              <p><span class="lbl">Por que foi gerado assim:</span> a sugest&atilde;o &eacute; injetada verbatim no prompt do c&eacute;rebro sem passar pelos guards de tom/obje&ccedil;&atilde;o.</p>
+              <div class="fixbox"><span class="lbl">&#10003; Como corrigir</span>Passar a sugest&atilde;o pelo mesmo guard de tom/obje&ccedil;&atilde;o, ou rebaix&aacute;-la; avisar o agente da nota das palavras proibidas e do &ldquo;n&atilde;o reabrir vari&aacute;vel que o casal n&atilde;o questionou&rdquo;.</div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- F8 — BAIXO -->
+      <div class="find baixo">
+        <div class="body">
+          <div class="topline"><span class="fid">F8</span><span class="badge">Baixo</span></div>
+          <h3>Triagem cedo demais + slot &ldquo;hoje 18h30&rdquo; para lead sem pressa</h3>
+          <div class="evid"><b>T2:</b> &ldquo;pra entender se a gente consegue cuidar com a excel&ecirc;ncia que voc&ecirc;s merecem&rdquo; no 2&ordm; turno. <b>T6:</b> ofereceu &ldquo;hoje 18h30 ou 19h&rdquo; a um casal planejando out/2026.</div>
+          <div class="lenses">
+            <div class="lens sales solo"><div class="lh">&#128119; Olhar de Vendas<span class="solo-tag">s&oacute; esta &oacute;tica</span></div><div>Triagem/exclusividade cedo soa fria; hor&aacute;rio no mesmo dia (daqui 1h30) para compra de luxo de baixa urg&ecirc;ncia soa transacional.</div></div>
+          </div>
+          <details class="why">
+            <summary>Por que foi gerado &amp; como corrigir</summary>
+            <div class="whybody">
+              <p><span class="lbl">Por que foi gerado assim:</span> o texto da fase de qualifica&ccedil;&atilde;o vaza cedo; a l&oacute;gica de slots oferece sempre os mais pr&oacute;ximos (hoje) independente da temperatura do lead.</p>
+              <div class="fixbox"><span class="lbl">&#10003; Como corrigir</span>Suavizar a triagem para algo centrado no sonho; para slots, preferir pr&oacute;ximo dia &uacute;til em vez de hoje em 1h30 quando n&atilde;o h&aacute; urg&ecirc;ncia.</div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- F9 — BAIXO -->
+      <div class="find baixo">
+        <div class="body">
+          <div class="topline"><span class="fid">F9</span><span class="badge">Baixo</span></div>
+          <h3>Encerramento re-pitcha em vez de frase curta + repete o hor&aacute;rio 3&times;</h3>
+          <div class="evid"><b>T10:</b> ao &ldquo;que al&iacute;vio, obrigada &#128156;&rdquo;, respondeu com re-pitch de 2 frases e repetiu &ldquo;amanh&atilde; 18h&rdquo; pela 3&ordf; vez seguida (T8, T9, T10).</div>
+          <div class="lenses">
+            <div class="lens sales solo"><div class="lh">&#128119; Olhar de Vendas<span class="solo-tag">s&oacute; esta &oacute;tica</span></div><div>Repetiu &ldquo;amanh&atilde; 18h&rdquo; pela 3&ordf; vez seguida (T8, T9, T10), com o hor&aacute;rio j&aacute; ancorado, e respondeu ao al&iacute;vio do casal com re-pitch em vez de espelhar curto. Depois de ancorado, n&atilde;o precisa repetir.</div></div>
+          </div>
+          <details class="why">
+            <summary>Por que foi gerado &amp; como corrigir</summary>
+            <div class="whybody">
+              <p><span class="lbl">Por que foi gerado assim:</span> o momento de encerramento dispara em &ldquo;ok/blz/obrigado&rdquo; literais; &ldquo;que al&iacute;vio, obrigada&rdquo; n&atilde;o casou, e o c&eacute;rebro defaultou para refor&ccedil;ar valor.</p>
+              <div class="fixbox"><span class="lbl">&#10003; Como corrigir</span>Ampliar a detec&ccedil;&atilde;o de encerramento para desfechos emocionais; espelhar curto (&ldquo;Imagina, Marina &#128156; at&eacute; amanh&atilde;!&rdquo;) sem re-pitch; n&atilde;o repetir o hor&aacute;rio depois de ancorado.</div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- F10 — BAIXO -->
+      <div class="find baixo">
+        <div class="body">
+          <div class="topline"><span class="fid">F10</span><span class="badge">Baixo</span></div>
+          <h3>Fuso do &ldquo;Hoje&rdquo; em &minus;04:00 vs agenda em &minus;03:00</h3>
+          <div class="evid">O prompt diz &ldquo;Hoje &eacute; <span class="mono">2026-06-24T16:05:36-04:00</span>&rdquo; enquanto os hor&aacute;rios e o iso de marca&ccedil;&atilde;o s&atilde;o <span class="mono">-03:00</span> (BRT).</div>
+          <div class="lenses">
+            <div class="lens ai solo"><div class="lh">&#129504; Olhar de IA<span class="solo-tag">s&oacute; esta &oacute;tica</span></div><div>1h de desencontro entre o &ldquo;agora&rdquo; do modelo e a agenda; casos de borda perto da anteced&ecirc;ncia m&iacute;nima ou do &ldquo;hoje&rdquo; podem errar.</div></div>
+          </div>
+          <details class="why">
+            <summary>Por que foi gerado &amp; como corrigir</summary>
+            <div class="whybody">
+              <p><span class="lbl">Por que foi gerado assim:</span> o n8n usa o fuso do servidor (&minus;04) para o agora.</p>
+              <div class="fixbox"><span class="lbl">&#10003; Como corrigir</span>Normalizar o agora para America/Sao_Paulo antes de injetar no prompt.</div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============================================================= ÓTIMO -->
+  <section>
+    <div class="sec-head"><span class="num">06</span><h2 class="serif">O que est&aacute; &oacute;timo &mdash; n&atilde;o mexer</h2><div class="rule"></div></div>
+    <div class="panel sage">
+      <div class="li"><span class="mk">&#10003;</span> <span><b>Disciplina de pre&ccedil;o:</b> nunca inventou valor; faixas do Nordeste corretas; assessoria s&oacute; quando perguntada.</span></div>
+      <div class="li"><span class="mk">&#10003;</span> <span><b>Tratamento de obje&ccedil;&atilde;o (T5):</b> ficou no item, explicou o valor, n&atilde;o reabriu o total.</span></div>
+      <div class="li"><span class="mk">&#10003;</span> <span><b>Agenda:</b> reconheceu &ldquo;fim da tarde&rdquo;, marcou o hor&aacute;rio escolhido entre v&aacute;rios, ancorou a reuni&atilde;o e pediu e-mail, sem flip-flop.</span></div>
+      <div class="li"><span class="mk">&#10003;</span> <span><b>Voz:</b> &ldquo;a gente&rdquo;/&ldquo;voc&ecirc;s&rdquo;, zero travess&atilde;o, nunca disse que &eacute; IA, sem clich&ecirc; batido, espelhou emoji, bal&otilde;es humanos.</span></div>
+      <div class="li"><span class="mk">&#10003;</span> <span><b>Trava de qualifica&ccedil;&atilde;o:</b> segurou o convite at&eacute; a nota &ge; 25.</span></div>
+    </div>
+  </section>
+
+  <!-- ============================================================= PRIORIDADE -->
+  <section>
+    <div class="sec-head"><span class="num">07</span><h2 class="serif">Prioridade de conserto</h2><div class="rule"></div></div>
+    <div class="prio">
+      <div class="prow l1">
+        <div class="pn">1</div>
+        <div class="ptxt"><span class="ids"><span class="idc r">F1</span></span><b>Resumo congelado &rarr; oscila&ccedil;&atilde;o/desqualifica&ccedil;&atilde;o.</b> &Uacute;nico com risco real de bloquear agendamento e sujar o CRM. Tratar primeiro.</div>
+      </div>
+      <div class="prow l2">
+        <div class="pn">2</div>
+        <div class="ptxt"><span class="ids"><span class="idc a">F2</span><span class="idc a">F3</span></span><b>Dia da data inventado &amp; alucina&ccedil;&atilde;o de destino.</b> Integridade e confian&ccedil;a; conserto s&oacute; de prompt.</div>
+      </div>
+      <div class="prow l3">
+        <div class="pn">3</div>
+        <div class="ptxt"><span class="ids"><span class="idc a">F4</span><span class="idc a">F5</span></span><b>Prompt inchado + lat&ecirc;ncia.</b> Qualidade e custo; de-duplicar as regras + gate de agenda/RAG.</div>
+      </div>
+      <div class="prow l4">
+        <div class="pn">4</div>
+        <div class="ptxt"><span class="ids"><span class="idc y">F6</span><span class="idc y">F7</span><span class="idc y">F8</span><span class="idc y">F9</span><span class="idc y">F10</span></span><b>Refino de tom, UX e config honesta.</b> Polimento depois do essencial.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================= FOOTER -->
+  <footer>
+    Laudo t&eacute;cnico completo em <span class="gold">docs/sofia-teste-conversa-2026-06-24.md</span> &middot; Welcome Weddings
+    <div class="meta">
+      <span>10 turnos</span><span>&middot;</span>
+      <span>n&uacute;mero simulado 11964293533</span><span>&middot;</span>
+      <span>res&iacute;duo de teste zerado</span><span>&middot;</span>
+      <span>24/06/2026</span>
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>

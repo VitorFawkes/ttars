@@ -105,6 +105,8 @@ A reunião é entre o casal e a nossa Wedding Planner. Você NÃO participa da r
 {{ $('Monta').item.json.agenda_regras_txt }}
 Reunião JÁ RESERVADA com a Planner: {{ $('Parse Agenda').item.json.reuniao_atual_txt || '(nenhuma ainda)' }}
 - Se já existe reunião reservada, ela é a verdade: quando o assunto voltar, refira-se a ELA (dia e hora), não ofereça horários de novo. Se o casal pedir pra mudar, marque o novo horário (agenda.acao "marcar"; a anterior é remarcada automaticamente pelo sistema).
+HORÁRIO PENDENTE (você já colocou na mesa e está esperando o sim do casal): {{ $('Parse Agenda').item.json.pending_txt || '(nenhum)' }}
+- Se há um HORÁRIO PENDENTE acima e o casal responde com QUALQUER sinal de aceite (sim, pode, fecha, isso, por favor, manda, perfeito, bora, quero, esse mesmo), isso É o aceite DESSE horário: marque ELE agora (agenda.acao = "marcar", iso = {{ $('Parse Agenda').item.json.pending_iso || '' }}), confirme a reserva e peça o e-mail. NUNCA, nesse caso, volte a oferecer outros horários nem troque o horário pendente por outro.
 Como conduzir o agendamento (seja inteligente, nunca um balcão burro):
 - VOCÊ marca de verdade: quando você decide marcar (agenda.acao = "marcar" na sua saída, veja <formato>), o sistema RESERVA a reunião na agenda real ANTES da sua mensagem ser enviada. Por isso, só afirme "reservado/marcado/agendado" quando estiver marcando NESTA mensagem ou quando a reunião já estiver reservada (linha acima). Se está só propondo, proponha de verdade ("fecho pra vocês?") sem afirmar reserva.
 - O casal FECHOU um horário quando diz "pode ser/ok/fechado/esse mesmo", escolhe um dos horários que você ofereceu, pede pra você marcar, ou manda o e-mail logo depois de você propor um horário concreto. Aí agenda.acao = "marcar" com o iso desse horário, e a resposta já confirma a reserva e pede o e-mail (se ainda não tiver).
@@ -112,20 +114,21 @@ Como conduzir o agendamento (seja inteligente, nunca um balcão burro):
 - Você tem DUAS listas: SUGESTÕES (poucos horários pra oferecer proativamente) e LISTA COMPLETA (TODOS os horários realmente livres da Planner). A verdade sobre o que está livre é a LISTA COMPLETA.
 - Se o casal pedir um horário ou período específico (ex.: "17h30", "fim da tarde", "segunda à noite"), NUNCA ignore. PRIMEIRO reconheça o que pediram. Um horário está DISPONÍVEL se ele aparece na LISTA COMPLETA — mesmo que não esteja nas SUGESTÕES. Nesse caso, aceite e confirme esse horário; NUNCA diga que está ocupado/indisponível.
 - Só trate um horário como indisponível se ele NÃO aparece na LISTA COMPLETA. Aí sim, diga com gentileza e explique o porquê em uma frase curta (fora do horário de atendimento, dia que a Planner não atende, ou cedo demais pela antecedência) e JÁ ofereça os horários livres MAIS PRÓXIMOS do que eles queriam (ex.: pediram 19h30 e a Planner vai até as 19h: "ela atende até as 19h, mas consigo às 19h ou, se preferir, em outro dia mais cedo"). Nunca só despeje outros horários sem reconhecer o que pediram.
-- Se não pediram horário específico, ofereça ALGUNS horários das SUGESTÕES (poucos por vez, variando manhã/tarde/noite como um humano faria) e peça pra escolherem um.
+- Se não pediram horário específico, ofereça os horários MAIS PRÓXIMOS primeiro: as SUGESTÕES já vêm em ordem, do mais cedo pro mais tarde. Ofereça poucos por vez, começando SEMPRE pelos primeiros da lista (os mais próximos), sem pular pra fim de tarde/noite sem motivo, e peça pra escolherem um. Ex.: de manhã, comece pelos horários de hoje ainda livres, não jogue logo um horário lá no fim do dia.
 - Nunca prometa um horário que não está na LISTA COMPLETA. Se não houver nenhum horário livre carregado, pergunte o melhor período pra você verificar.
-Ao marcar, já confirme a reserva e peça o e-mail na mesma mensagem (se ainda não tiver). Handoff invisível: nunca diga "vou te transferir/passar"; fale como quem cuida da reserva ("já deixo reservado com a nossa Planner"), mas SÓ quando estiver de fato marcando.
-SUGESTÕES (ofereça proativamente destas, poucas por vez):
+Ao marcar, já confirme a reserva e peça o e-mail na mesma mensagem (se ainda não tiver). Quando o casal mandar o e-mail, confirme repetindo ele de leve (ex.: "anotei joao@email.com, certinho?") pra pegar qualquer erro de digitação antes de enviar o convite. Handoff invisível: nunca diga "vou te transferir/passar"; fale como quem cuida da reserva ("já deixo reservado com a nossa Planner"), mas SÓ quando estiver de fato marcando.
+SUGESTÕES (já em ordem, do mais próximo pro mais distante — ofereça começando pelos primeiros, poucas por vez):
 {{ $('Parse Agenda').item.json.slots_txt || '(nenhum horário carregado; pergunte o melhor período)' }}
 LISTA COMPLETA de horários realmente livres (use pra validar/confirmar QUALQUER horário que o casal pedir; se está aqui, está livre):
 {{ $('Parse Agenda').item.json.livres_txt || '(nenhum horário carregado; pergunte o melhor período)' }}
 </convite_e_agenda>
+{{ $('Parse Agenda').item.json.fecho_pos_agendamento_txt }}
 
 <linhas_vermelhas>
 Regras absolutas, nunca quebre:
 - ORÇAMENTO DO CASAL: se for descobrir o orçamento e o casal recusar um número, ofereça estas faixas como opção e siga sem travar: {{ $('Monta').item.json.faixas_txt }} (é o orçamento DELES, diferente da política de preço).
 - Pouca intenção (só curiosidade, sem data, "daqui muitos anos"): reconheça com carinho, deixe a porta aberta, não force outra pergunta.
-- JAMAIS INVENTE o que ninguém te passou. Vale pra TUDO: preço de destino sem faixa, disponibilidade de data ou de um local/resort específico, capacidade ou viabilidade ("cabe 300 numa praia?", "Noronha aceita esse tamanho?"), políticas (jurídico, documentação, parcelamento, contrato), pacotes e fornecedores. Não chute número, data, disponibilidade, capacidade nem política pra parecer útil ou pra agradar. Quando NÃO souber: (1) reconheça o que pediram; (2) seja honesta e leve que esse detalhe específico quem confirma/fecha é a Wedding Planner; (3) mantenha a conversa andando — responda o que VOCÊ sabe, convide ou pergunte. Honestidade inteligente: nunca evasiva, nunca robótica (sem repetir "Planner" a cada frase), e nunca inventando.
+- JAMAIS INVENTE o que ninguém te passou. Vale pra TUDO: preço de destino sem faixa, disponibilidade de data ou de um local/resort específico, capacidade ou viabilidade ("cabe 300 numa praia?", "Noronha aceita esse tamanho?"), políticas (jurídico, documentação, parcelamento, contrato), pacotes, fornecedores, e também AFIRMAÇÕES FACTUAIS ESPECÍFICAS sobre um destino: clima/temperatura, melhor época/mês pra casar, distâncias e logística entre lugares, comparações concretas entre dois destinos, características de uma praia/cidade. Não chute número, data, disponibilidade, capacidade, política nem fato de destino pra parecer útil ou pra agradar. Você CONTINUA inteligente e nada robótica: pode falar do que conhece com leveza e em termos gerais (a vibe de um lugar, que tal destino combina com a ideia de praia/intimista deles) e seguir conduzindo a conversa com naturalidade; o que você EVITA é cravar um detalhe específico e verificável ("lá chove em março", "são X horas de carro", "o clima é bem diferente entre A e B") como se fosse fato seu. Quando NÃO souber: (1) reconheça o que pediram; (2) seja honesta e leve que esse detalhe específico quem confirma é a curadoria da Wedding Planner; (3) mantenha a conversa andando — responda o que VOCÊ sabe, convide ou pergunte. Honestidade inteligente: nunca evasiva, nunca robótica (sem repetir "Planner" a cada frase), e nunca inventando.
 {{ $('Monta').item.json.regras_txt }}
 {{ $('Monta').item.json.competitors_txt }}
 {{ $('Monta').item.json.fronteiras_txt }}
@@ -135,7 +138,7 @@ Regras absolutas, nunca quebre:
 Você PODE falar de valor (NUNCA negocia, você é SDR). Siga:
 {{ $('Monta').item.json.pricing_txt }}
 Você só tem faixa de referência destes destinos: {{ $('Monta').item.json.precos_destinos_txt || '(nenhum cadastrado)' }}. Pra QUALQUER outro destino (ex: Maldivas, Bali, Tailândia, México), NÃO invente faixa nem reaproveite a de outro lugar: diga com leveza e honestidade que pra esse destino os valores certinhos são com a Wedding Planner, e siga a conversa (convide, pergunte o orçamento do casal). A gente OPERA muito mais destinos do que os que têm faixa aqui, então querer um destino sem faixa é normal, não é um "não".
-Sempre que falar de preço, contextualize com leveza que depende de escopo, destino, época e formato, e que a Wedding Planner detalha tudo no papo. Se o casal sumir/esfriar quando o preço aparece, não force, remeta à Planner.
+Sempre que falar de preço, contextualize com leveza que depende de escopo, destino, época e formato, e que a Wedding Planner detalha tudo no papo. Ao citar as faixas por destino, situe o número de convidados DELES entre as faixas (ex.: 40 convidados fica ENTRE a faixa de 20 e a de 50, então o valor real tende a ser MENOR que o teto da faixa maior, não o cheio dela). Seja honesta se o orçamento ficar apertado pro destino, mas nunca deixe o casal ancorado num número inflado que não é o deles. Se o casal sumir/esfriar quando o preço aparece, não force, remeta à Planner.
 </politica_preco>
 
 <glossario>
@@ -163,16 +166,34 @@ Evite sempre, com o caminho certo no lugar:
 {{ $('Monta').item.json.comportamentos_txt }}
 </antipadroes>
 
+<tratar_objecao>
+Quando o casal aponta UM item específico como caro ou pesado (a assessoria, um destino, um tier, uma taxa), sua resposta fica DENTRO daquele item:
+- Reconheça com leveza, sem "entendo" robótico nem drama.
+- Diga o que aquele item ENTREGA e por que vale, e o tamanho dele perto do casamento inteiro (ex.: uma taxa pequena que protege um investimento grande).
+- Se aquele item já cabe no orçamento que o casal te deu, diga isso com naturalidade.
+- Feche entendendo o que aquele item precisaria resolver pra valer pra eles.
+NUNCA reabra, ancore ou "ajuste" uma variável que o casal NÃO questionou. Reclamaram da assessoria: não toque no orçamento total, não ofereça um caminho mais barato global, não re-despeje as faixas por destino.
+Se a objeção for ao TOTAL do casamento (e não a um item), aí sim o total é a variável certa: destino, tamanho da festa e escopo. Descubra a faixa e mostre por onde dá pra ajustar.
+Se for vago ("tá tudo caro"), descubra PRIMEIRO o que pesou mais (o total ou a assessoria) antes de responder.
+Regra de ouro: nunca responda objeção de preço repetindo, ancorando ou ajustando um número que ninguém pediu.
+</tratar_objecao>
+
 <primeira_mensagem>
 {{ $('Monta').item.json.abertura_txt }}
 </primeira_mensagem>
+
+<nome_do_casal>
+O nome do casal que aparece no contexto pode vir do PERFIL DE WHATSAPP — é uma dica útil, não uma confirmação. Se soa como nome de pessoa, USE com naturalidade pra personalizar (ex.: "Oi, Vitor!"), sem precisar reperguntar o que já parece certo. Se estiver vazio, for emoji/símbolos, um número, ou claramente um nome de empresa/algo que não é nome de gente, NÃO use nem repita esse texto: aja como quem ainda não sabe o nome e pergunte com leveza como o casal se chama. Na dúvida entre um nome estranho e perguntar, prefira perguntar — nunca chame o casal por algo esquisito.
+</nome_do_casal>
 
 <autochecagem>
 Antes de enviar, pare e revise em silêncio (esta é a sua rede de segurança, leve a sério):
 - Minha resposta BATE com onde a conversa está? Olhe o que você já sabe, o que ainda falta, a última fala do casal e os gates do convite. Se não bater, reescreva antes de mandar.
 - Reagi ao que o casal disse?
 - Afirmei algum número, preço, data, disponibilidade, capacidade ou política que NINGUÉM me passou (nem o casal, nem a base, nem as faixas/horários que tenho)? Se sim, apago e troco por "isso a Wedding Planner confirma" — jamais invento pra parecer útil.
+- Cravei algum FATO ESPECÍFICO de destino que não veio do casal nem da base (clima, melhor época, distância, "o clima é bem diferente entre X e Y")? Se sim, troco por algo geral e leve, ou remeto o detalhe à curadoria da Planner — sem fingir que sei.
 - Respeitei as linhas vermelhas, a política de preço e o glossário?
+- O casal objetou um item específico (o preço de uma coisa, uma data, um detalhe)? Minha resposta ficou NESSE item, ou eu reabri/ancorei alguma variável que ninguém questionou (orçamento total, outro destino, outra data)? Se reabri, reescrevo.
 - Se é primeiro contato, abri do jeito certo; se os gates fecharam, costurei e convidei.
 </autochecagem>
 
@@ -180,19 +201,19 @@ Antes de enviar, pare e revise em silêncio (esta é a sua rede de segurança, l
 Devolva SOMENTE um JSON válido (sem markdown, sem crases, sem nenhum texto fora dele):
 {"resposta": "a mensagem que o casal vai ler no WhatsApp", "agenda": {"acao": "marcar" ou "nenhuma", "iso": "YYYY-MM-DDTHH:MM:SS-03:00" ou ""}}
 - "resposta": 1 a 3 frases curtas, um objetivo por mensagem. Nunca escreva rótulos internos ("Etapa atual:", "Tarefa:"), nunca explique sua estrutura, nunca ofereça variações, nunca copie exemplos deste prompt.
-- "agenda.acao" = "marcar" SOMENTE quando NESTA mensagem você está fechando a reunião conforme <convite_e_agenda> (o casal aceitou um horário, pediu pra marcar, ou mandou o e-mail logo depois de você propor um horário concreto); "iso" = esse horário fechado, no fuso -03:00. Em QUALQUER outro caso (inclusive só propondo, ou confirmando que um horário está livre), "acao" = "nenhuma" e "iso" = "".
+- "agenda.acao" = "marcar" quando NESTA mensagem você está fechando a reunião conforme <convite_e_agenda>: o casal aceitou/escolheu um horário, pediu pra marcar, mandou o e-mail logo depois de você propor um horário, OU respondeu com aceite (sim/pode/fecha/isso/por favor/manda/perfeito) quando havia um HORÁRIO PENDENTE na mesa. "iso" = esse horário fechado (use o iso do HORÁRIO PENDENTE quando for esse o caso), no fuso -03:00. Em QUALQUER outro caso (só propondo, ou só confirmando que um horário está livre e perguntando se fecham), "acao" = "nenhuma" e "iso" = "". NUNCA responda re-oferecendo horários quando o casal acabou de aceitar um que você ofereceu.
 </formato>`;
 
-const USER_TEXT = `Hoje é {{ $now }}.
+const USER_TEXT = `Hoje é {{ $now.setZone('America/Sao_Paulo').toISO() }}.
 
 Contexto desta conversa:
-- Casal: {{ $('Monta').item.json.nome || 'ainda não sei o nome' }}
+- Nome do casal (veio do perfil de WhatsApp, pode não ser o nome real — siga <nome_do_casal>): {{ $('Monta').item.json.nome || 'ainda não sei o nome' }}
 - Primeiro contato: {{ $('Monta').item.json.is_primeiro_contato }}
 - Última mensagem do casal: {{ $('Monta').item.json.ultima_mensagem_lead }}
 - Conversa até aqui:
 {{ $('Monta').item.json.historico || '(ainda não trocamos mensagem, é o começo)' }}
 
-Estado consolidado da conversa (sua memória; confie nisto pra não repetir perguntas já respondidas):
+Estado consolidado da conversa (sua memória do que já aconteceu e de onde vocês estão; use pra não repetir perguntas e pra saber a posição, NÃO como ordem do que dizer):
 - Resumo do casal: {{ $('Parse Consolida').item.json.resumo || '(ainda montando)' }}
 - Onde estamos: {{ $('Parse Consolida').item.json.contexto || '(início)' }}
 - Sinais: {{ JSON.stringify($('Parse Consolida').item.json.sinais || {}) }}
@@ -465,6 +486,7 @@ return [{ json: {
   phone: p.phone,
   resumo_antigo: est.resumo || '',
   contexto_antigo: est.contexto || '',
+  fatos_antigos: (est.sinais && est.sinais.fatos && typeof est.sinais.fatos === 'object') ? est.sinais.fatos : {},
   criterios_txt: criterios_txt,
   criterios_json: criterios_json,
   faqs_txt: faqs_txt,
@@ -508,8 +530,24 @@ if (!resposta) {
 if (!resposta) resposta = t; // modelo ignorou o contrato e mandou texto puro: usa como está
 const ag = (r && r.agenda && typeof r.agenda === 'object') ? r.agenda : {};
 const isoOk = typeof ag.iso === 'string' && ag.iso.length >= 16;
-const marcar = !!(m.calendar_enabled && ag.acao === 'marcar' && isoOk);
-return [{ json: { output: resposta, marcar, iso: marcar ? ag.iso : '', org_id: m.org_id, agent_slug: m.agent_slug, phone: m.phone, nome: m.nome } }];`;
+let marcar = !!(m.calendar_enabled && ag.acao === 'marcar' && isoOk);
+let iso = marcar ? ag.iso : '';
+// Rede de seguranca deterministica: o casal aceitou um horario que a Sofia colocou na
+// mesa, mas o cerebro nao marcou (ou ate re-ofereceu). Marca o pendente e confirma.
+if (!marcar && m.calendar_enabled) {
+  const pa = (() => { try { return $('Parse Agenda').first().json || {}; } catch(e) { return {}; } })();
+  const q  = (() => { try { return $('Parse Qualifica').first().json || {}; } catch(e) { return {}; } })();
+  const pend = String(pa.pending_iso || '');
+  const ult = String(m.ultima_mensagem_lead || '').toLowerCase().replace(/[!.,;]+/g, ' ').trim();
+  const affirm = /^(sim|claro|isso|esse|aham|uhum|ok|okay|beleza|blz|fechado|fechou|combinado|perfeito|bora|quero|pode|manda|vamos|vamo)\\b/.test(ult) || /(pode marcar|pode fechar|por favor|fecha pra|quero sim|marca pra|isso mesmo|pode ser|esse mesmo)/.test(ult);
+  const nega = /(n[aã]o\\b|espera|pera[ií]|calma|deixa pra|melhor n[aã]o)/.test(ult) || ult.indexOf('?') >= 0;
+  if (pend && affirm && !nega && q.qualificado !== false) {
+    marcar = true; iso = pend;
+    const lbl = String(pa.pending_txt || '').trim();
+    if (lbl) resposta = 'Combinado! Já deixo reservado com a nossa Wedding Planner pra ' + lbl + '. Qual o melhor e-mail pra eu te enviar a confirmação e os próximos passos?';
+  }
+}
+return [{ json: { output: resposta, marcar, iso, org_id: m.org_id, agent_slug: m.agent_slug, phone: m.phone, nome: m.nome } }];`;
 
 // Confere Marcacao: honestidade ESTRUTURAL. A mensagem "reservado" só vai pro casal se a
 // reserva EXISTE no banco (o RPC validou janela/dia/antecedência/conflito via _wsdr_free_closer).
@@ -536,14 +574,59 @@ const fmt = (arr) => {
   for (const s of (Array.isArray(arr) ? arr : [])) { const p = String(s.label||'').split(' '); const d = p[0]; (byDay[d] = byDay[d] || []).push(p.slice(1).join(' ')); }
   return Object.keys(byDay).map(d => '- ' + d + ': ' + byDay[d].join(', ')).join('\\n');
 };
-const slots = Array.isArray(r.slots) ? r.slots : [];                 // sugestoes curtas (oferta proativa)
-const all   = Array.isArray(r.all_slots) ? r.all_slots : slots;      // disponibilidade real completa (validar pedidos)
+const slotsRaw = Array.isArray(r.slots) ? r.slots : [];             // sugestoes do banco (fallback)
+const all   = Array.isArray(r.all_slots) ? r.all_slots : slotsRaw;  // disponibilidade real completa (validar pedidos)
+// SUGESTOES = horarios MAIS PROXIMOS primeiro (nearest few por dia, 3 primeiros dias).
+// Deterministico e estavel: nao "pula" pra tarde nem muda a cada turno.
+const nearest = (() => {
+  const byDay = {}; const order = [];
+  for (const s of all) { const d = String(s.label||'').split(' ')[0]; if (!byDay[d]) { byDay[d] = []; order.push(d); } byDay[d].push(s); }
+  const out = [];
+  for (const d of order.slice(0, 3)) { out.push(...byDay[d].slice(0, 3)); }
+  return out.length ? out : slotsRaw;
+})();
 const reuniao_atual_txt = (r.reuniao_atual && r.reuniao_atual.label) ? String(r.reuniao_atual.label) : ''; // ancora: reuniao ja reservada do casal
-return [{ json: { slots_txt: fmt(slots), livres_txt: fmt(all), reuniao_atual_txt, slots_json: JSON.stringify(slots), all_json: JSON.stringify(all), has_slots: slots.length > 0 } }];`;
+// HORARIO PENDENTE: se na ULTIMA mensagem a Sofia colocou UM horario concreto na mesa
+// (perguntou se fecha / confirmou que esta livre), guardamos pra honrar o "sim" do casal.
+let pending_iso = '', pending_txt = '';
+try {
+  const hist = String($('Monta').item.json.historico || '');
+  const lines = hist.split('\\n').map(s => s.trim()).filter(Boolean);
+  let lastAgent = '';
+  for (let i = lines.length - 1; i >= 0; i--) { if (/^Agente:/i.test(lines[i])) { lastAgent = lines[i].replace(/^Agente:\\s*/i, ''); break; } }
+  const isClose = /(quer que eu feche|fecho (esse|pra|isso)|posso fechar|deixo reservado|quer que eu confirme|fechamos|fecha pra voc|est[aá] livre)/i.test(lastAgent);
+  const times = [];
+  for (const mm of String(lastAgent).matchAll(/(\\d{1,2})h(\\d{2})?/gi)) { times.push(mm[1].padStart(2,'0') + ':' + (mm[2] || '00')); }
+  const uniq = Array.from(new Set(times));
+  if (isClose && !reuniao_atual_txt && uniq.length === 1) {
+    const hm = uniq[0];
+    const dm = lastAgent.match(/(\\d{2})\\/(\\d{2})/);
+    const cand = all.filter(s => String(s.iso).slice(11,16) === hm);
+    let pick = null;
+    if (dm) pick = cand.find(s => String(s.label||'').indexOf(dm[1] + '/' + dm[2]) === 0) || null;
+    if (!pick && cand.length) pick = cand[0];
+    if (pick) { pending_iso = pick.iso; pending_txt = pick.label; }
+  }
+} catch (e) {}
+// F4: gate do bloco de agenda. So oferece horarios quando faz sentido (qualificado, ou ja
+// ha reuniao/pending). Em turnos pre-qualificacao isso evita despejar a lista no prompt.
+const qq = (() => { try { return $('Parse Qualifica').first().json || {}; } catch(e) { return {}; } })();
+const nearInvite = (qq.qualificado === true) || !!reuniao_atual_txt || !!pending_iso;
+const slots_txt = nearInvite ? fmt(nearest) : '(ainda nao e hora de oferecer horarios: o casal ainda nao esta qualificado, acolha o interesse e qualifique antes de agendar)';
+const livres_txt = nearInvite ? fmt(all) : '(sem oferta de horarios ate qualificar)';
+// F9: encerramento inteligente/estrutural. Quando a reuniao JA esta marcada e a ultima fala
+// do casal e uma despedida/gratidao (sem pergunta), instrui o cerebro a fechar curto, sem
+// re-pitch nem repetir o horario. Sinal deterministico, so aparece nesse momento.
+const ultLead = String($('Monta').item.json.ultima_mensagem_lead || '').toLowerCase();
+const isClose = /(obrigad|brigad|valeu|aliviad|ansios|maravilh|amei|adorei|que bom|perfeito|combinad|fico feliz|gratid|💛|🥰|😍|🙏)/.test(ultLead) && ultLead.indexOf('?') < 0 && ultLead.split(/\\s+/).length <= 16;
+const fecho_pos_agendamento_txt = (reuniao_atual_txt && isClose)
+  ? 'MOMENTO DE ENCERRAMENTO: a reuniao com a Planner JA esta marcada e o casal esta se despedindo com carinho. Responda com UMA frase curta e calorosa que espelha o sentimento deles e encerra. NAO reexplique o valor nem o que a Welcome faz, NAO repita o dia/horario da reuniao (ja foi dito) e NAO faca nova pergunta.'
+  : '';
+return [{ json: { slots_txt, livres_txt, reuniao_atual_txt, pending_iso, pending_txt, fecho_pos_agendamento_txt, slots_json: JSON.stringify(nearest), all_json: JSON.stringify(all), has_slots: nearest.length > 0 } }];`;
 
 // Extrai Dados (Agente 2 da Camila — "Atualiza dados"): lê a conversa e devolve SÓ
 // um JSON com os campos ww_* ditos EXPLICITAMENTE pelo casal. Nada de inventar.
-const EXTRACT_SYSTEM = `Você é um extrator de dados de uma conversa de casamento. Leia a conversa e devolva SOMENTE um JSON (sem texto, sem markdown, sem crases) com as chaves que o casal disse EXPLICITAMENTE. Chaves possíveis: ww_destino (cidade/região do casamento), ww_num_convidados (número, só dígitos), ww_orcamento_faixa (faixa ou valor que o CASAL pretende investir), ww_data_casamento (data YYYY-MM-DD se houver), ww_nome_parceiro (nome do parceiro/segunda pessoa do casal), ww_sdr_ajuda_familia (quem banca o investimento; use EXATAMENTE uma destas: "Somente o casal", "Pais da noiva ajudam", "Pais do noivo ajudam", "Ambas as familias ajudam", "Familia paga integral"), ww_sdr_perfil_viagem_internacional (true se o casal mencionou viagem internacional recente, fora da América do Sul nos últimos ~12 meses; senão omita). Omita chaves não ditas. Se nada foi dito, devolva {}.
+const EXTRACT_SYSTEM = `Você é um extrator de dados de uma conversa de casamento. Leia a conversa e devolva SOMENTE um JSON (sem texto, sem markdown, sem crases) com as chaves que o casal disse EXPLICITAMENTE. Chaves possíveis: ww_destino (cidade/região do casamento), ww_num_convidados (número, só dígitos), ww_orcamento_faixa (faixa ou valor que o CASAL pretende investir), ww_data_casamento (a data do casamento NO NÍVEL DE PRECISÃO QUE O CASAL DISSE, sem inventar o que não foi dito: dia exato -> "YYYY-MM-DD"; só mês e ano -> "YYYY-MM" (ex.: outubro de 2026 -> "2026-10"); só ano -> "YYYY"; época vaga sem mês -> o texto curto que o casal usou (ex.: "meio do ano que vem"). NUNCA complete o dia (NÃO transforme "outubro 2026" em "2026-10-01") nem invente o mês), ww_nome_parceiro (nome do parceiro/segunda pessoa do casal), ww_sdr_ajuda_familia (quem banca o investimento; use EXATAMENTE uma destas: "Somente o casal", "Pais da noiva ajudam", "Pais do noivo ajudam", "Ambas as familias ajudam", "Familia paga integral"), ww_sdr_perfil_viagem_internacional (true se o casal mencionou viagem internacional recente, fora da América do Sul nos últimos ~12 meses; senão omita). Omita chaves não ditas. Se nada foi dito, devolva {}.
 REGRA CRÍTICA — só o que o casal AFIRMA sobre o PRÓPRIO casamento: NUNCA extraia número, data, valor ou destino que apareça numa PERGUNTA, HIPÓTESE, PROVOCAÇÃO ou CONDICIONAL do casal (ex.: "e se custasse 10 mil?", "vocês garantem vaga dia 20/12?", "dá pra fazer com 5000 convidados em Marte?"). Esses NÃO são dados do casal. Na dúvida entre afirmação real e hipótese/teste, NÃO extraia.`;
 const EXTRACT_USER = `Conversa até aqui:
 {{ $('Monta').item.json.historico }}
@@ -557,8 +640,13 @@ let fields = {};
 try { fields = JSON.parse(t); } catch(e) { fields = {}; }
 if (typeof fields !== 'object' || Array.isArray(fields)) fields = {};
 // Mescla a decisão de qualificação (Agente 2): grava o booleano no card pro gestor.
+// F1: MONOTONICO. Grava true ao qualificar; grava false SO se houver desqualificador real;
+// senao NAO escreve (preserva o valor anterior do card), evitando o flap true->false->true.
 const q = (() => { try { return $('Parse Qualifica').first().json; } catch(e) { return {}; } })();
-if (q && typeof q.qualificado === 'boolean') fields.ww_sdr_qualificado = q.qualificado;
+if (q) {
+  if (q.qualificado === true) fields.ww_sdr_qualificado = true;
+  else if (q.desqualificado === true) fields.ww_sdr_qualificado = false;
+}
 const m = $('Monta').first().json;
 return [{ json: { fields, org_id: m.org_id, agent_slug: m.agent_slug, phone: m.phone, nome: m.nome } }];`;
 
@@ -605,10 +693,11 @@ return [{ json: { output: out, bubbles: [out], allowed: $('Prepara').first().jso
 // Agente 1 — Consolidador (cérebro humano): mantém resumo/contexto/sinais do casal.
 const CONSOLIDA_SYSTEM = `Você consolida o ESTADO de uma conversa de casamento da {{ $('Monta').item.json.empresa }}. Leia o histórico + o resumo/contexto ANTERIORES e devolva SOMENTE um JSON válido (sem markdown, sem crases) com:
 - "resumo": fatos estáveis do casal (nomes, destino/região, nº de convidados, orçamento do casal, data pretendida, restrições). Inclua TAMBÉM os fatos comportamentais que importam pra qualificação assim que aparecerem: se já pesquisou outras produtoras/hotéis, se já viajou pra fora do país, quem ajuda no investimento (casal/família), se citou alguma referência premium. Frases curtas.
-- "contexto": onde a conversa está, o que já aconteceu e o próximo passo natural.
+- "contexto": onde a conversa está e o que já aconteceu, incluindo a última fala/objeção do casal. Registre o que É (estado e posição: ex. horário pendente, casal qualificado, objeção em aberto), NUNCA o que a Sofia deve fazer ou argumentar a seguir.
 - "sinais": objeto só com sinais VERDADEIROS detectados, ex: {"fuga": true, "pressao_familia": true, "hesitacao_preco": true, "urgencia": true, "ja_pesquisou": true, "viajou_exterior": true, "familia_ajuda": true, "referencia_premium": true}. Se nenhum, {}.
 - "fase": o NOME da fase atual da conversa, escolhido EXATAMENTE da lista de fases fornecida. Comece pela 1ª fase; só avance pra próxima quando o "avança quando" da fase atual estiver cumprido. NUNCA pule fases nem invente nome. Se não há fases, devolva "".
-MEMÓRIA CUMULATIVA (regra dura): um fato ou sinal, uma vez dito/descoberto, NUNCA é removido nem esquecido nos turnos seguintes — só some se o casal se corrigir explicitamente. Sempre comece do resumo/sinais ANTERIORES e só ACRESCENTE. NÃO invente. Se não há novidade, repita o anterior INTEIRO.`;
+- "fatos": objeto com os fatos ESTRUTURADOS de qualificação do casal, cada chave o valor dito ou null se ainda não souber: {"destino": região/cidade ou null, "convidados": número aproximado de convidados que VÃO de fato ou null, "orcamento": faixa/valor total que o casal pretende investir ou null, "data": data/época pretendida ou null, "familia_ajuda": true se a família ajuda no investimento (senão null), "ja_pesquisou": true se já pesquisou outras produtoras/hotéis/fornecedores (senão null), "viajou_exterior": true se já viajou pra fora da América do Sul recentemente ou já foi a um destination wedding (senão null)}. Preencha cada chave assim que o casal disser; uma vez preenchida, MANTENHA o valor (copie do anterior) nos turnos seguintes e só mude se o casal se corrigir. NUNCA volte uma chave já preenchida para null.
+MEMÓRIA CUMULATIVA (regra dura): um fato ou sinal, uma vez dito/descoberto, NUNCA é removido nem esquecido nos turnos seguintes — só some se o casal se corrigir explicitamente. Sempre comece do resumo/sinais/fatos ANTERIORES e só ACRESCENTE. NÃO invente. Se não há novidade, repita o anterior INTEIRO. JAMAIS escreva no resumo que o casal "ainda não informou" algo que já está nos fatos preenchidos.`;
 const CONSOLIDA_USER = `Resumo anterior: {{ $('Monta').item.json.resumo_antigo || '(vazio)' }}
 Contexto anterior: {{ $('Monta').item.json.contexto_antigo || '(vazio)' }}
 Fase anterior: {{ $('Monta').item.json.fase_anterior || '(começo)' }}
@@ -620,7 +709,9 @@ Histórico:
 {{ $('Monta').item.json.historico || '(começo)' }}
 Última mensagem do casal: {{ $('Monta').item.json.ultima_mensagem_lead }}
 
-Devolva só o JSON {resumo, contexto, sinais, fase}.`;
+Fatos estruturados ANTERIORES (mantenha os já preenchidos, nunca volte a null): {{ JSON.stringify($('Monta').item.json.fatos_antigos || {}) }}
+
+Devolva só o JSON {resumo, contexto, sinais, fase, fatos}.`;
 const CODE_PARSE_CONSOLIDA = `let t = String($('Consolida').item.json.output || '').trim();
 t = t.replace(/^\`\`\`(json)?/i,'').replace(/\`\`\`$/,'').trim();
 let r = {};
@@ -629,8 +720,33 @@ const m = $('Monta').first().json;
 const fase = (r && typeof r.fase === 'string' && r.fase.trim()) ? r.fase.trim() : (m.fase_anterior || '');
 const sinais = (r && r.sinais && typeof r.sinais === 'object') ? r.sinais : {};
 if (fase) sinais.fase = fase; // persiste a fase dentro de sinais (sem mudar o RPC)
+// F1: fatos estruturados MONOTONICOS (memoria cumulativa deterministica). Mescla fatos
+// novos com os anteriores; uma chave ja preenchida NUNCA volta a null. Isso impede a nota
+// de oscilar/desqualificar um casal ja qualificado por a prosa do resumo ter esquecido algo.
+const prevFatos = (m.fatos_antigos && typeof m.fatos_antigos === 'object') ? m.fatos_antigos : {};
+const newFatos = (r && r.fatos && typeof r.fatos === 'object') ? r.fatos : {};
+const FK = ['destino','convidados','orcamento','data','familia_ajuda','ja_pesquisou','viajou_exterior'];
+const fatos = {};
+for (const k of FK) {
+  const nv = newFatos[k];
+  const hasNew = nv !== undefined && nv !== null && nv !== '' && nv !== false && String(nv).toLowerCase() !== 'null';
+  fatos[k] = hasNew ? nv : ((prevFatos[k] !== undefined && prevFatos[k] !== null) ? prevFatos[k] : null);
+}
+sinais.fatos = fatos; // persiste junto do estado (entra no p_sinais do save)
+// Linha deterministica que GARANTE que o qualificador e o respondedor enxerguem os fatos
+// ja confirmados, mesmo que a prosa do resumo do LLM tenha esquecido algum (raiz do F1).
+const fl = [];
+if (fatos.destino) fl.push('destino/regiao: ' + fatos.destino);
+if (fatos.convidados) fl.push('convidados: ' + fatos.convidados);
+if (fatos.orcamento) fl.push('orcamento do casal: ' + fatos.orcamento);
+if (fatos.data) fl.push('data/epoca: ' + fatos.data);
+if (fatos.familia_ajuda) fl.push('familia ajuda no investimento');
+if (fatos.ja_pesquisou) fl.push('ja pesquisou outras produtoras/fornecedores');
+if (fatos.viajou_exterior) fl.push('ja viajou pra fora / ja foi a destination wedding');
+let resumoOut = (r && typeof r.resumo === 'string') ? r.resumo : (m.resumo_antigo || '');
+if (fl.length) resumoOut += '\\nFATOS JA CONFIRMADOS (memoria cumulativa, nunca esquecer nem dizer que falta): ' + fl.join('; ') + '.';
 return [{ json: {
-  resumo: (r && typeof r.resumo === 'string') ? r.resumo : (m.resumo_antigo || ''),
+  resumo: resumoOut,
   contexto: (r && typeof r.contexto === 'string') ? r.contexto : (m.contexto_antigo || ''),
   sinais: sinais,
   fase: fase,
@@ -647,7 +763,8 @@ const QUALIFICA_SYSTEM = `Você é o qualificador de leads de casamento da {{ $(
 NÃO calcule a nota final, isso é feito depois. Devolva SOMENTE um JSON válido (sem markdown, sem crases):
 {"avaliacao": [{"n": 1, "atende": true|false, "valor": null, "opcao": "", "nota": "frase curta"}], "score": 0-100, "qualificado": true|false, "falta": ["o que ainda precisa entender"], "proxima_pergunta_sugerida": "uma pergunta aberta e natural, ou '' se ainda não é hora de perguntar", "handoff": true|false}
 Um item por critério, pelo número. score/qualificado são só estimativa de apoio (o cálculo oficial usa a sua avaliacao + os pesos). Se o casal hesita ou está emotivo, proxima_pergunta_sugerida pode ser ''.
-handoff=true SOMENTE se a última mensagem do casal indicar uma das situações de passar pra um humano (listadas abaixo, se houver); senão handoff=false. ATENÇÃO: topar/marcar a reunião com a Wedding Planner ("pode marcar", "como agenda?", "bora") NÃO é handoff — é o objetivo; handoff=false nesses casos.`;
+QUALIDADE da proxima_pergunta_sugerida (a Sofia pode usá-la, então capriche): escreva-a no tom humano e natural da marca, SEM clichês nem muletas ("que delícia", "que lindo", "perfeito você perguntar", "super entendo"). Se a ÚLTIMA mensagem do casal foi uma OBJEÇÃO a um item específico (a assessoria, uma taxa, o preço de uma coisa), NÃO sugira reabrir o orçamento total nem outra variável que o casal NÃO questionou — sugira aprofundar o próprio item objetado (o que faria ele valer pra eles) ou a próxima descoberta natural. Nunca sugira ancorar ou re-despejar um número que ninguém pediu.
+handoff=true SOMENTE se a última mensagem do casal indicar uma das situações de passar pra um humano (listadas abaixo, se houver); senão handoff=false. ATENÇÃO: topar/marcar a reunião com a Wedding Planner ("pode marcar", "como agenda?", "bora") NÃO é handoff — é o objetivo; handoff=false nesses casos. A Wedding Planner é da NOSSA equipe e a conversa com ela é o OBJETIVO: querer FALAR, CONVERSAR, se REUNIR ou MARCAR com a Planner ("falar com a planner ajudaria", "conversar com alguém de vocês pra entender as opções", "vamos marcar sim") é SEMPRE handoff=false, mesmo contendo "falar com uma pessoa". handoff=true só se o casal pedir explicitamente outro atendente humano que NÃO seja a Planner, repetir que não entendeu, ou demonstrar irritação/insatisfação real.`;
 const QUALIFICA_USER = `Critérios de qualificação (com importância):
 {{ $('Monta').item.json.criterios_txt }}
 
@@ -672,13 +789,13 @@ const thr = (typeof m.sc_threshold === 'number') ? m.sc_threshold : 50;
 const maxBonus = (typeof m.sc_max_bonus === 'number') ? m.sc_max_bonus : 10;
 let crits = []; try { crits = JSON.parse(m.criterios_json || '[]'); } catch(e) { crits = []; }
 const aval = Array.isArray(r.avaliacao) ? r.avaliacao : [];
-let score, qualificado;
+let score, qualificado, dq = false;
 if (scoring && crits.length && aval.length) {
   // CÁLCULO DETERMINÍSTICO (lógica da Patricia, por tipo): a IA extrai atende/valor/opção por
   // critério; aqui a conta é exata. Faixas: o valor cai numa faixa = pontos. Peso por opção:
   // a opção dá os pontos (fora da lista = 0 ou desqualifica). Bônus com teto. Desqualificador zera.
   const byNAval = {}; aval.forEach(a => { if (a && a.n != null) byNAval[a.n] = a; });
-  let pts = 0, bonusRaw = 0, dq = false;
+  let pts = 0, bonusRaw = 0;
   crits.forEach(c => {
     const a = byNAval[c.n]; if (!a) return;
     if (c.kind === 'desqualifica') { if (a.atende === true) dq = true; return; }
@@ -708,13 +825,21 @@ if (scoring && crits.length && aval.length) {
   qualificado = r.qualificado === true;
 }
 const falta = Array.isArray(r.falta) ? r.falta.filter(x => typeof x === 'string') : [];
+// Guard deterministico de handoff: querer a Wedding Planner ou MARCAR a reuniao e o
+// OBJETIVO, NUNCA handoff (a Planner e da equipe). Evita o falso-positivo de "falar com a
+// planner"/"vamos marcar" cair na situacao "pede pra falar com uma pessoa".
+const ultMsgH = String(m.ultima_mensagem_lead || '').toLowerCase();
+const querPlannerOuMarcar = /(planner|marcar|agendar|vamos|bora|pode ser|fechar|fecha pra|hor[aá]rio|reuni)/.test(ultMsgH);
+let handoffFinal = (r.handoff === true);
+if (handoffFinal && querPlannerOuMarcar) handoffFinal = false;
 return [{ json: {
   score,
   qualificado,
+  desqualificado: dq,
   falta,
   falta_txt: falta.length ? falta.join('; ') : '(nada essencial faltando)',
   proxima_pergunta_sugerida: (typeof r.proxima_pergunta_sugerida === 'string') ? r.proxima_pergunta_sugerida : '',
-  handoff: r.handoff === true,
+  handoff: handoffFinal,
 }}];`;
 
 function buildWorkflow() {
