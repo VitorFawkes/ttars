@@ -120,8 +120,6 @@ export default function PlanejamentoDetailPage() {
   const days = daysUntil(wedding.wedding_date)
   const pd = wedding.produto_data
   const tipoLabel = pdStr(pd, 'ww_tipo_casamento') || 'Destination Wedding'
-  const gate = wedding.gate
-  const gatePct = gate.total > 0 ? Math.round((gate.met / gate.total) * 100) : 0
   const etapaIdx = PLANEJAMENTO_ORDER.indexOf(wedding.planejamentoEtapa) + 1
 
   // 4 números de convidados (blueprint): contrato · lista · bloqueio · confirmados
@@ -135,6 +133,7 @@ export default function PlanejamentoDetailPage() {
   // se não houver carimbo (casamentos antigos), cai pra data de criação do card.
   // Prazo = override deste casamento (se houver) OU o padrão do workspace.
   const { feitos, atrasados, pendentes } = wedding.checklist
+  const planejPct = wedding.checklist.total > 0 ? Math.round((feitos / wedding.checklist.total) * 100) : 0
   const planStart = pdStr(pd, PLANEJ_FIELD.posVendaEm).slice(0, 10) || (wedding.created_at ?? '').slice(0, 10)
   const overrideDias = pdNum(pd, PLANEJ_FIELD.prazoDiasOverride)
   const prazoDias = overrideDias != null && overrideDias > 0 ? Math.round(overrideDias) : defaultDias
@@ -235,14 +234,14 @@ export default function PlanejamentoDetailPage() {
 
         {/* stat row — foto rápida alinhada ao blueprint */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 px-6 pb-5 items-stretch">
-          {/* Etapa + marcos */}
+          {/* Etapa + progresso das tarefas */}
           <HeaderCard tone="gold">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#A88C57]">Etapa · {etapaIdx} de 6</span>
-              <span className="text-[11px] font-bold text-[#8A6A33]">{gate.met}/{gate.total} marcos</span>
+              <span className="text-[11px] font-bold text-[#8A6A33]">{feitos}/{wedding.checklist.total} tarefas</span>
             </div>
             <div className="text-[14px] font-semibold text-[#211F1D] mt-1.5 leading-tight flex-1">{PLANEJAMENTO_LABEL[wedding.planejamentoEtapa]}</div>
-            <div className="h-1.5 rounded-full bg-[#EFE3CC] overflow-hidden mt-2.5"><div className="h-full bg-[#BD965C] rounded-full" style={{ width: `${gatePct}%` }} /></div>
+            <div className="h-1.5 rounded-full bg-[#EFE3CC] overflow-hidden mt-2.5"><div className="h-full bg-[#BD965C] rounded-full" style={{ width: `${planejPct}%` }} /></div>
           </HeaderCard>
 
           {/* 4 números de convidados */}
