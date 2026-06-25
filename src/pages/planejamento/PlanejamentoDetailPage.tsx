@@ -308,7 +308,7 @@ export default function PlanejamentoDetailPage() {
             cinza = a fazer, vermelho = atenção. Pedido direto da planejadora (25/06). */}
         <div className="flex items-center gap-1.5 flex-wrap px-6 py-3 border-t border-[#F0E9DD] bg-[#FCFAF6]">
           <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#A88C57] mr-1">Saúde</span>
-          {faixaDeSaude(wedding).map(a => {
+          {areas.map(a => {
             const m = STATUS_META[a.status]
             return (
               <span key={a.key} className={cn('inline-flex items-center gap-1.5 h-7 pl-2 pr-2.5 rounded-full text-[11.5px] font-semibold', m.chipBg, m.chipText)} title={`${a.label}: ${m.label}`}>

@@ -18,7 +18,6 @@ export function BlocoColapsavel({
   resumo,
   defaultOpen = true,
   storageKey,
-  right,
   children,
 }: {
   id?: string
@@ -30,7 +29,6 @@ export function BlocoColapsavel({
   defaultOpen?: boolean
   /** Chave pra persistir aberto/fechado (ex.: `${cardId}:local`). */
   storageKey?: string
-  right?: ReactNode
   children: ReactNode
 }) {
   const [open, setOpen] = useState<boolean>(() => {
@@ -78,7 +76,6 @@ export function BlocoColapsavel({
           </div>
           {resumo && <p className="text-[12px] text-[#9A9082] mt-0.5 truncate [font-family:'Roboto']">{resumo}</p>}
         </div>
-        {right}
         <ChevronDown className={cn('w-[18px] h-[18px] text-[#B5ABA0] shrink-0 transition-transform', open && 'rotate-180')} />
       </button>
       {open && <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-[#F0E9DD]">{children}</div>}
