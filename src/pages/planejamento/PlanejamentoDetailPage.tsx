@@ -29,8 +29,9 @@ import { usePlanejamentoWeddings } from '../../hooks/planejamento/usePlanejament
 import { useWeddingChecklist } from '../../hooks/planejamento/useWeddingChecklist'
 import { useWeddingPlanningPrazo } from '../../hooks/planejamento/useWeddingPlanningPrazo'
 import { usePlanejamentoCampos } from '../../hooks/planejamento/usePlanejamentoCampos'
-import { EtapaPanel } from '../../components/planejamento/EtapaPanel'
+import { AvancarEtapaBar } from '../../components/planejamento/AvancarEtapaBar'
 import { RelatorioCasamento } from '../../components/planejamento/RelatorioCasamento'
+import { faixaDeSaude, STATUS_META } from '../../lib/planejamento/statusBloco'
 import { CasalSection } from '../../components/planejamento/CasalSection'
 import { WeddingEquipeSection } from '../../components/planejamento/WeddingEquipeSection'
 import { LocalHospedagemSection } from '../../components/planejamento/LocalHospedagemSection'
@@ -263,7 +264,24 @@ export default function PlanejamentoDetailPage() {
             </div>
           </HeaderCard>
         </div>
+
+        {/* Faixa de saúde — o "bater o olho": verde = ok, amarelo = em andamento,
+            cinza = a fazer, vermelho = atenção. Pedido direto da planejadora (25/06). */}
+        <div className="flex items-center gap-1.5 flex-wrap px-6 py-3 border-t border-[#F0E9DD] bg-[#FCFAF6]">
+          <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#A88C57] mr-1">Saúde</span>
+          {faixaDeSaude(wedding).map(a => {
+            const m = STATUS_META[a.status]
+            return (
+              <span key={a.key} className={cn('inline-flex items-center gap-1.5 h-7 pl-2 pr-2.5 rounded-full text-[11.5px] font-semibold', m.chipBg, m.chipText)} title={`${a.label}: ${m.label}`}>
+                <span className={cn('w-2 h-2 rounded-full', m.dot)} /> {a.label}
+              </span>
+            )
+          })}
+        </div>
       </div>
+
+      {/* Avançar de etapa — barra enxuta (substitui a antiga grade "Marcos"). */}
+      <AvancarEtapaBar wedding={wedding} />
 
       {/* Trava da etapa (Fase 4) — a tarefa 🔒 que segura o avanço sobe pro topo */}
       <TravaBanner
@@ -272,9 +290,6 @@ export default function PlanejamentoDetailPage() {
         etapaLabel={PLANEJAMENTO_LABEL[wedding.planejamentoEtapa]}
         paradoDesde={wedding.paradoDesde}
       />
-
-      {/* Marcos da etapa — atalhos pros blocos + concluir na mão */}
-      <EtapaPanel wedding={wedding} />
 
       {/* Casal (clientes) + Equipe do casamento (interno) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
