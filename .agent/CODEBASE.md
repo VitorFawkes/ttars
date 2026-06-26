@@ -5,11 +5,11 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-06-25
+> **Last Updated:** 2026-06-26
 > **Trigger:** ALWAYS ON
-> **Stats:** 243 tabelas | 213 paginas | 378 hooks | 30 views | 881 components
-> **Stats:** 243 tabelas | 213 paginas | 378 hooks | 30 views | 881 components
-> **Stats:** 243 tabelas | 213 paginas | 378 hooks | 30 views | 881 components
+> **Stats:** 245 tabelas | 214 paginas | 379 hooks | 30 views | 881 components
+> **Stats:** 245 tabelas | 214 paginas | 379 hooks | 30 views | 881 components
+> **Stats:** 245 tabelas | 214 paginas | 379 hooks | 30 views | 881 components
 
 ---
 
@@ -171,7 +171,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **378 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **379 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -521,6 +521,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useKanbanTarefas()` | `useKanbanTarefas.ts` |
 | `useKanbanViagens()` | `useKanbanViagens.ts` |
 | `useLeadsFilters()` | `useLeadsFilters.ts` |
+| `useMondePullCard()` | `useMondePullCard.ts` |
 | `useMyAssistCardIds()` | `useMyAssistCardIds.ts` |
 | `usePipelineCards()` | `usePipelineCards.ts` |
 | `usePipelineCurrent()` | `usePipelineCurrent.ts` |
@@ -628,11 +629,12 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **213 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **214 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
 | `AnalyticsWeddingsPage` | `src/pages/AnalyticsWeddings/AnalyticsWeddingsPage.tsx` |
+| `DiretoriaPage` | `src/pages/AnalyticsWeddings/DiretoriaPage.tsx` |
 | `EntradaRealidade` | `src/pages/AnalyticsWeddings/tabs/EntradaRealidade.tsx` |
 | `Equipe` | `src/pages/AnalyticsWeddings/tabs/Equipe.tsx` |
 | `FunilComparado` | `src/pages/AnalyticsWeddings/tabs/FunilComparado.tsx` |

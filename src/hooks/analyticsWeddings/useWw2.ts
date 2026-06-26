@@ -1535,3 +1535,50 @@ export function useWwAgendamentosPorDia(
     refetchInterval: 5 * 60_000,
   })
 }
+
+// ── Diretoria · Estado Geral da Operação ─────────────────────────────────────
+// Visão executiva das 4 macro-fases (SDR → Closer → Planejamento → Produção).
+// Cada `deal` vira uma minibarrinha clicável (abre /cards/:id). RPC: ww_diretoria_overview.
+
+export type WwDiretoriaDeal = {
+  card_id: string
+  titulo: string
+  valor: number
+}
+
+export type WwDiretoriaFaseKey = 'sdr' | 'closer' | 'planejamento' | 'producao'
+
+export type WwDiretoriaFase = {
+  key: WwDiretoriaFaseKey
+  label: string
+  sub: string
+  count: number
+  valor_total: number
+  deals: WwDiretoriaDeal[]
+  entrou_periodo: number | null
+  entrou_periodo_prev: number | null
+  tendencia_pct: number | null
+  conversao_proxima_pct: number | null
+}
+
+export type WwDiretoria = {
+  org_id: string
+  pipeline_id: string
+  periodo: { date_start: string; date_end: string; prev_start: string; prev_end: string }
+  fases: WwDiretoriaFase[]
+  error?: string
+}
+
+export function useWwDiretoria(params: { dateStart?: string; dateEnd?: string }) {
+  const orgId = useOrgId()
+  return useQuery({
+    queryKey: ['ww-diretoria', orgId, params.dateStart, params.dateEnd],
+    queryFn: () => callRpc<WwDiretoria>('ww_diretoria_overview', {
+      p_org_id: orgId,
+      p_date_start: params.dateStart ?? null,
+      p_date_end: params.dateEnd ?? null,
+    }),
+    enabled: !!orgId,
+    staleTime: 60_000,
+  })
+}
