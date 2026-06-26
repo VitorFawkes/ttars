@@ -72,9 +72,10 @@ export function Diretoria() {
           ) : null}
 
           <p className="text-[11px] text-ww-n400 pt-2 border-t border-ww-sand">
-            O número de casais por fase é a foto de agora (etapa atual no CRM). Conversão, tendência e tempos usam o
-            funil próprio (coorte por data de entrada do lead), então podem não bater exatamente com os Indicadores de vendas.
-            Planejamento e Produção ainda não têm carimbo de tempo — por isso aparecem sem tempos.
+            O número de casais por fase é a foto de agora (etapa atual no CRM). Conversão, tendência e os tempos de SDR/Closer
+            usam o funil próprio (coorte por data de entrada do lead), então podem não bater exatamente com os Indicadores de vendas.
+            Planejamento e Produção mostram a ocupação atual; a duração só conta quem já tem carimbo de entrada e vai
+            preenchendo conforme os casais avançam.
           </p>
         </>
       )}

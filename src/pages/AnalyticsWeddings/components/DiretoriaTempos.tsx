@@ -4,23 +4,32 @@ import { SectionCard, EmptyState } from './ui'
 import { FASE_UI } from './diretoriaColors'
 
 const AMOSTRA_MIN = 8 // abaixo disso a mediana não é confiável → "dados insuficientes"
+const OPERACIONAL = new Set(['sdr', 'closer'])
 const fmtDias = (n: number | null | undefined) => (n == null ? '—' : `${Number.isInteger(n) ? n : n.toFixed(1)}d`)
 
 export function DiretoriaTempos({ tempos }: { tempos: WwDiretoriaTempos }) {
   const { velocidade, dwell, aging } = tempos
+  // SDR/Closer = tempo de travessia da operação; Planejamento/Produção = ocupação atual.
+  const dwellOp = dwell.filter((d) => OPERACIONAL.has(d.key))
+  const agingOp = aging.filter((a) => OPERACIONAL.has(a.key))
+  const posVenda = aging.filter((a) => !OPERACIONAL.has(a.key))
+
   return (
     <div className="space-y-5">
       <KpiVelocidade tempos={tempos} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <SectionCard title="Tempo em cada fase" subtitle="Mediana e dispersão (p25–p90) dos casais que passaram pela fase no período. Só SDR e Closer têm carimbo de tempo hoje.">
-          <DwellRangeBars dwell={dwell} />
+        <SectionCard title="Tempo de travessia · SDR e Closer" subtitle="Mediana e dispersão (p25–p90) do tempo até passar pela fase, por coorte de entrada do lead no período.">
+          <DwellRangeBars dwell={dwellOp} />
         </SectionCard>
         <SectionCard title="Onde o tempo vai até fechar" subtitle="Ciclo típico do lead até o contrato assinado, em medianas. Cobre SDR + Closer.">
           <CicloBar velocidade={velocidade} />
         </SectionCard>
       </div>
       <SectionCard title="Casais parados por fase" subtitle="Casais abertos hoje em SDR/Closer, por quanto tempo estão na operação. Quanto mais quente a cor, mais tempo parado.">
-        <AgingView aging={aging} />
+        <AgingView aging={agingOp} />
+      </SectionCard>
+      <SectionCard title="Pós-venda hoje · Planejamento e Produção" subtitle="Quantos casais estão em cada fase agora e há quanto tempo. A duração mede só quem já tem carimbo de entrada — vai preenchendo conforme os casais avançam.">
+        <PosVendaView fases={posVenda} />
       </SectionCard>
     </div>
   )
@@ -37,11 +46,12 @@ function legValue(leg: WwTempoLeg): { value: string; sub: string } {
 function KpiVelocidade({ tempos }: { tempos: WwDiretoriaTempos }) {
   const { velocidade, dwell, aging } = tempos
   const fech = velocidade.lead_para_fechamento
-  // gargalo = fase (com amostra confiável) de maior mediana de dwell — mesmo corte das barras
-  const comDado = dwell.filter((d) => !d.sem_dados && (d.amostra ?? 0) >= AMOSTRA_MIN && (d.mediana_dias ?? 0) > 0)
+  // gargalo = fase OPERACIONAL (SDR/Closer) de maior mediana de dwell — pós-venda
+  // fica de fora: tempo longo no pós-venda é esperado e não é gargalo de venda.
+  const comDado = dwell.filter((d) => OPERACIONAL.has(d.key) && !d.sem_dados && (d.amostra ?? 0) >= AMOSTRA_MIN && (d.mediana_dias ?? 0) > 0)
   const gargalo = comDado.length ? comDado.reduce((a, b) => ((b.mediana_dias ?? 0) > (a.mediana_dias ?? 0) ? b : a)) : null
-  // casais parados há +60d (SDR + Closer)
-  const parados60 = aging.reduce((s, a) => s + (a.buckets?.mais_60 ?? 0), 0)
+  // casais parados há +60d (só SDR + Closer)
+  const parados60 = aging.filter((a) => OPERACIONAL.has(a.key)).reduce((s, a) => s + (a.buckets?.mais_60 ?? 0), 0)
 
   const sdr = legValue(velocidade.lead_para_sdr)
   const fechV = legValue(fech)
@@ -181,9 +191,6 @@ function AgingView({ aging }: { aging: WwAgingFase[] }) {
       ) : (
         comDado.map((a) => <AgingFaseRow key={a.key} a={a} />)
       )}
-      <p className="text-[10px] text-ww-n400">
-        Planejamento e Produção não entram aqui: tempo longo no pós-venda é normal (casamento é planejado com meses de antecedência).
-      </p>
     </div>
   )
 }
@@ -225,6 +232,77 @@ function AgingFaseRow({ a }: { a: WwAgingFase }) {
               <Link to={`/cards/${t.card_id}`} className="flex-1 min-w-0 truncate text-indigo-700 hover:underline">{t.titulo}</Link>
               {t.responsavel && <span className="hidden sm:inline text-ww-n400 shrink-0">{t.responsavel}</span>}
               <span className={`shrink-0 tabular-nums font-medium ${t.dias > 60 ? 'text-rose-600' : 'text-amber-600'}`}>{t.dias}d</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Pós-venda (Planejamento · Produção): contagem + ocupação honesta ─────────
+function PosVendaView({ fases }: { fases: WwAgingFase[] }) {
+  const comCasais = fases.filter((f) => (f.amostra ?? 0) > 0)
+  return (
+    <div className="space-y-5">
+      {comCasais.length === 0 ? (
+        <EmptyState message="Nenhum casal em Planejamento ou Produção agora." />
+      ) : (
+        comCasais.map((f) => <PosVendaRow key={f.key} f={f} />)
+      )}
+      <p className="text-[10px] text-ww-n400">
+        Tempo longo no pós-venda é normal (casamento é planejado com meses de antecedência). A duração começou a ser
+        registrada agora — casais sem carimbo de entrada aparecem na contagem, mas ainda não na barra de tempo.
+      </p>
+    </div>
+  )
+}
+
+function PosVendaRow({ f }: { f: WwAgingFase }) {
+  const ui = FASE_UI[f.key]
+  const total = f.amostra ?? 0
+  const comTempo = f.com_tempo ?? 0
+  return (
+    <div>
+      <div className="flex items-center justify-between text-sm mb-1.5">
+        <span className="inline-flex items-center gap-1.5">
+          <span className={`w-2 h-2 rounded-full ${ui.dot}`} />
+          <span className="text-ww-n700 font-medium">{f.label}</span>
+          <span className="text-ww-n400 text-xs">· {total} {total === 1 ? 'casal' : 'casais'} agora</span>
+        </span>
+        {comTempo > 0 && f.mediana_aberto_dias != null && (
+          <span className="text-xs text-ww-n500 tabular-nums">mediana {fmtDias(f.mediana_aberto_dias)} na fase</span>
+        )}
+      </div>
+      {comTempo > 0 && f.buckets ? (
+        <>
+          <div className="flex h-4 w-full rounded overflow-hidden mb-1.5">
+            {BUCKETS.map((b) => {
+              const n = f.buckets![b.key]
+              return n > 0 ? <div key={b.key} className={`${b.cls} h-full`} style={{ width: `${(n / comTempo) * 100}%` }} title={`${b.label}: ${n}`} /> : null
+            })}
+          </div>
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mb-1">
+            {BUCKETS.map((b) => (
+              <span key={b.key} className="inline-flex items-center gap-1 text-[11px] text-ww-n500">
+                <span className={`w-2 h-2 rounded-sm ${b.cls}`} />{b.label}: <span className="tabular-nums text-ww-n700">{f.buckets![b.key]}</span>
+              </span>
+            ))}
+          </div>
+          {comTempo < total && (
+            <p className="text-[11px] text-ww-n400 mb-1.5">{comTempo} de {total} com tempo medido (o resto entrou antes do carimbo).</p>
+          )}
+        </>
+      ) : (
+        <div className="h-4 bg-ww-cream/60 rounded mb-1.5" />
+      )}
+      {f.top_parados.length > 0 && (
+        <div className="space-y-0.5 pl-1">
+          {f.top_parados.map((t) => (
+            <div key={t.card_id} className="flex items-center gap-2 text-xs py-0.5">
+              <Link to={`/cards/${t.card_id}`} className="flex-1 min-w-0 truncate text-indigo-700 hover:underline">{t.titulo}</Link>
+              {t.responsavel && <span className="hidden sm:inline text-ww-n400 shrink-0">{t.responsavel}</span>}
+              <span className="shrink-0 tabular-nums font-medium text-ww-n500">{t.dias}d</span>
             </div>
           ))}
         </div>

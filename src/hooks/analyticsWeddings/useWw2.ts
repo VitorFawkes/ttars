@@ -1593,8 +1593,11 @@ export function useWwDiretoria(params: { dateStart?: string; dateEnd?: string })
 }
 
 // ── Diretoria · Tempos da operação (velocidade · dwell · aging) ──────────────
-// RPC ww_diretoria_tempos. Realidade: só SDR e Closer têm carimbos de tempo;
-// Planejamento/Produção vêm com sem_dados=true (placeholder honesto no front).
+// RPC ww_diretoria_tempos.
+//   SDR/Closer  → tempo de TRAVESSIA (coorte por data de entrada do lead).
+//   Planejamento/Produção → tempo NA FASE HOJE (ocupação): count_aberto = nº de
+//     casais na fase; amostra/com_tempo = quantos têm carimbo de entrada (20260626d).
+//     Sem carimbo entram na contagem mas ficam fora da distribuição de tempo.
 
 export type WwTempoLeg = {
   amostra: number
@@ -1607,6 +1610,8 @@ export type WwDwellFase = {
   key: WwDiretoriaFaseKey
   label: string
   amostra?: number
+  /** Pós-venda: total de casais abertos na fase agora (independe de ter carimbo). */
+  count_aberto?: number
   p25_dias?: number | null
   mediana_dias?: number | null
   p75_dias?: number | null
@@ -1622,6 +1627,8 @@ export type WwAgingFase = {
   key: WwDiretoriaFaseKey
   label: string
   amostra?: number
+  /** Pós-venda: quantos dos `amostra` casais têm carimbo de entrada (entram nos buckets). */
+  com_tempo?: number
   mediana_aberto_dias?: number | null
   buckets: WwAgingBuckets | null
   top_parados: WwAgingTop[]
