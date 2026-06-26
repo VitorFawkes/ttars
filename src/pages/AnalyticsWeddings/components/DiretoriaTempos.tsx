@@ -37,8 +37,8 @@ function legValue(leg: WwTempoLeg): { value: string; sub: string } {
 function KpiVelocidade({ tempos }: { tempos: WwDiretoriaTempos }) {
   const { velocidade, dwell, aging } = tempos
   const fech = velocidade.lead_para_fechamento
-  // gargalo = fase (com dado) de maior mediana de dwell
-  const comDado = dwell.filter((d) => !d.sem_dados && (d.mediana_dias ?? 0) > 0)
+  // gargalo = fase (com amostra confiável) de maior mediana de dwell — mesmo corte das barras
+  const comDado = dwell.filter((d) => !d.sem_dados && (d.amostra ?? 0) >= AMOSTRA_MIN && (d.mediana_dias ?? 0) > 0)
   const gargalo = comDado.length ? comDado.reduce((a, b) => ((b.mediana_dias ?? 0) > (a.mediana_dias ?? 0) ? b : a)) : null
   // casais parados há +60d (SDR + Closer)
   const parados60 = aging.reduce((s, a) => s + (a.buckets?.mais_60 ?? 0), 0)
