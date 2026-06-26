@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlertTriangle, Archive, ChevronDown, Gauge, Loader2, Plane, Search, Smile, Ticket, X } from 'lucide-react'
 import {
@@ -213,7 +213,7 @@ function NPSResponseCard({ row, cards }: { row: NPSResponseRow; cards: ContactCa
     const canExpand = detailHeight > NPS_DETAIL_COLLAPSED_H
     const segment = segmentOf(row.score)
     const contactName = row.contato_nome || row.original_name || null
-    const headerLabel = contactName || row.card_titulo || 'Resposta sem contato vinculado'
+    const headerLabel = contactName || row.card_titulo || row.original_phone || 'Resposta sem contato vinculado'
 
     return (
         <div
@@ -461,6 +461,7 @@ export default function NPSPage() {
                 row.card_titulo,
                 row.contato_nome,
                 row.original_name,
+                row.original_phone,
                 row.comment,
                 row.proximo_destino,
             ]
@@ -471,10 +472,14 @@ export default function NPSPage() {
         })
     }, [allResponses, searchQuery])
 
-    // Reset do load-more ao mudar período/busca.
-    useEffect(() => {
+    // Reset do load-more ao mudar período/busca — ajuste de estado durante o render
+    // (padrão recomendado pelo React em vez de um efeito que dispara re-render em cascata).
+    const filterKey = `${periodPreset}|${customStart}|${customEnd}|${searchQuery}|${hideLegacy}`
+    const [prevFilterKey, setPrevFilterKey] = useState(filterKey)
+    if (filterKey !== prevFilterKey) {
+        setPrevFilterKey(filterKey)
         setVisibleCount(PAGE_INCREMENT)
-    }, [periodPreset, customStart, customEnd, searchQuery, hideLegacy])
+    }
 
     const visibleResponses = useMemo(
         () => filteredResponses.slice(0, visibleCount),

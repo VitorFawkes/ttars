@@ -15,6 +15,14 @@ export interface NPSResponseRow {
     contato_nome: string | null
     channel: string | null
     original_name: string | null
+    /** Telefone informado na resposta (Typeform "Qual seu telefone?"), quando não há contato vinculado. */
+    original_phone: string | null
+}
+
+interface RawAnswer {
+    title?: string | null
+    value?: unknown
+    questionId?: string | null
 }
 
 interface RawRow {
@@ -24,12 +32,27 @@ interface RawRow {
     proximo_destino: string | null
     responded_at: string
     card_id: string | null
-    raw_payload: { original_name?: string; proximo_destino?: string } | null
+    raw_payload: { original_name?: string; proximo_destino?: string; answers?: RawAnswer[] } | null
     cards: { titulo: string | null } | null
     nps_surveys: {
         channel: string | null
         contatos: { id: string; nome: string | null; sobrenome: string | null } | null
     } | null
+}
+
+/** Extrai o telefone das respostas cruas do Typeform (campo "Qual seu telefone?"). */
+function extractPhone(payload: RawRow['raw_payload']): string | null {
+    const answers = payload?.answers
+    if (!Array.isArray(answers)) return null
+    const phoneAnswer = answers.find((a) => {
+        const title = (a.title ?? '')
+            .normalize('NFD')
+            .replace(/[̀-ͯ]/g, '')
+            .toLowerCase()
+        return title.includes('telefone') || a.questionId === 'og97XVJEVy'
+    })
+    const value = phoneAnswer?.value
+    return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
 export function useNPSResponses(
@@ -90,6 +113,7 @@ export function useNPSResponses(
                     contato_nome: fullName,
                     channel: row.nps_surveys?.channel ?? null,
                     original_name: row.raw_payload?.original_name ?? null,
+                    original_phone: extractPhone(row.raw_payload),
                 }
             })
         },
