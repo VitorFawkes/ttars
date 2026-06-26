@@ -1345,3 +1345,4 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-26T13:42:07Z | supabase/migrations/20260626a_ww_diretoria_overview.sql | applied_to_prod
 2026-06-26T13:51:59Z | supabase/migrations/20260626b_ww_diretoria_overview_deal_preview.sql | applied_to_prod
 2026-06-26T13:54:58Z | supabase/migrations/20260626b_ww_diretoria_overview_deal_preview.sql | applied_to_prod
+2026-06-26T14:31:26Z | supabase/migrations/20260626c_ww_diretoria_tempos.sql | applied_to_prod

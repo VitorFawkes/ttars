@@ -49,12 +49,7 @@ function KpiVelocidade({ tempos }: { tempos: WwDiretoriaTempos }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       <KpiTile label="Lead → 1ª reunião" value={sdr.value} sub={sdr.sub} />
-      <KpiTile
-        label="Lead → fechamento"
-        value={fechV.value}
-        sub={fechV.sub}
-        trend={fech.amostra >= AMOSTRA_MIN ? <TrendFaster cur={fech.mediana_dias} prev={fech.mediana_prev_dias} /> : null}
-      />
+      <KpiTile label="Lead → fechamento" value={fechV.value} sub={fechV.sub} />
       <KpiTile
         label="Gargalo de tempo"
         value={gargalo ? gargalo.label : '—'}
@@ -81,14 +76,6 @@ function KpiTile({ label, value, sub, trend, valueClass = 'text-ww-n700' }: { la
       {sub && <div className="text-[11px] text-ww-n400 mt-0.5">{sub}</div>}
     </div>
   )
-}
-
-function TrendFaster({ cur, prev }: { cur: number | null; prev: number | null | undefined }) {
-  if (cur == null || prev == null) return null
-  const delta = Math.round(cur - prev)
-  if (delta === 0) return <span className="text-slate-400">igual</span>
-  const faster = delta < 0 // menos dias = mais rápido = bom
-  return <span className={faster ? 'text-emerald-700' : 'text-rose-600'} title="vs. período anterior">{faster ? '↓' : '↑'}{Math.abs(delta)}d</span>
 }
 
 // ── Barras de tempo por fase (p25–p90 + mediana) ─────────────────────────────
