@@ -5,11 +5,11 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-06-25
+> **Last Updated:** 2026-06-26
 > **Trigger:** ALWAYS ON
-> **Stats:** 243 tabelas | 213 paginas | 378 hooks | 30 views | 881 components
-> **Stats:** 243 tabelas | 213 paginas | 378 hooks | 30 views | 881 components
-> **Stats:** 243 tabelas | 213 paginas | 378 hooks | 30 views | 881 components
+> **Stats:** 245 tabelas | 213 paginas | 376 hooks | 30 views | 873 components
+> **Stats:** 245 tabelas | 213 paginas | 376 hooks | 30 views | 873 components
+> **Stats:** 245 tabelas | 213 paginas | 376 hooks | 30 views | 873 components
 
 ---
 
@@ -171,7 +171,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **378 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **376 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -372,9 +372,6 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useGuests()` | `useGuests.ts` |
 | `useHorizontalScroll()` | `useHorizontalScroll.ts` |
 | `useImportarCasamento()` | `useImportarCasamento.ts` |
-| `useInternalInventoryMovements()` | `useInternalInventoryMovements.ts` |
-| `useInternalInventoryProducts()` | `useInternalInventoryProducts.ts` |
-| `useInternalInventoryStats()` | `useInternalInventoryStats.ts` |
 | `useInventoryMovements()` | `useInventoryMovements.ts` |
 | `useInventoryProducts()` | `useInventoryProducts.ts` |
 | `useInventoryStats()` | `useInventoryStats.ts` |
@@ -521,6 +518,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useKanbanTarefas()` | `useKanbanTarefas.ts` |
 | `useKanbanViagens()` | `useKanbanViagens.ts` |
 | `useLeadsFilters()` | `useLeadsFilters.ts` |
+| `useMondePullCard()` | `useMondePullCard.ts` |
 | `useMyAssistCardIds()` | `useMyAssistCardIds.ts` |
 | `usePipelineCards()` | `usePipelineCards.ts` |
 | `usePipelineCurrent()` | `usePipelineCurrent.ts` |
