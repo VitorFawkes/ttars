@@ -141,11 +141,12 @@ export default function PlanejamentoDetailPage() {
   const prazoDias = overrideDias != null && overrideDias > 0 ? Math.round(overrideDias) : defaultDias
   const planDeadline = planStart ? addDaysIso(planStart, prazoDias) : null
   const planDias = daysUntil(planDeadline)
+  // Prazo do planejamento, curto (o chip já diz "faltam N tarefas" — não repetir "faltam").
   const slaText =
-    planDeadline == null ? 'sem data de entrada'
+    planDeadline == null ? 'sem prazo de entrada'
     : planDias == null ? '—'
-    : planDias > 0 ? `faltam ${planDias}d dos ${prazoDias}`
-    : planDias === 0 ? 'prazo é hoje'
+    : planDias > 0 ? `${planDias}d dos ${prazoDias}`
+    : planDias === 0 ? 'fecha hoje'
     : `${Math.abs(planDias)}d atrasado`
 
   const salvarPrazo = (dias: number | null) => {
