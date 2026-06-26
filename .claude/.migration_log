@@ -1342,3 +1342,4 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-24T12:39:59Z | supabase/migrations/20260623g_seed_checklist_from_defaults.sql | applied_to_prod
 2026-06-24T13:14:38Z | supabase/migrations/20260624a_backfill_wedding_checklist_existing.sql | applied_to_prod
 2026-06-24T14:36:59Z | supabase/migrations/20260624c_ww_pos_venda_marca_ganho.sql | applied_to_prod
+2026-06-26T13:42:07Z | supabase/migrations/20260626a_ww_diretoria_overview.sql | applied_to_prod

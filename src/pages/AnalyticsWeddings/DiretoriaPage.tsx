@@ -119,8 +119,9 @@ export default function DiretoriaPage() {
             </div>
 
             <p className="text-[11px] text-ww-n400 pt-2 border-t border-ww-sand">
-              Cada tracinho é um casal — clique para abrir o card. O número de casais é a foto de agora;
-              conversão e tendência usam o período selecionado.
+              Cada tracinho é um casal — clique para abrir o card. O número de casais é a foto de agora.
+              Conversão e tendência contam quantos <em>entraram</em> em cada fase no período (incluindo os que depois se perderam),
+              então não batem exatamente com os Indicadores de vendas.
             </p>
           </>
         )}
@@ -169,6 +170,7 @@ function FaseBarra({ fase, className = '' }: { fase: WwDiretoriaFase; className?
                 key={d.card_id}
                 to={`/cards/${d.card_id}`}
                 title={`${d.titulo}${d.valor > 0 ? ` · ${formatCurrency(d.valor)}` : ''}`}
+                aria-label={`Abrir card: ${d.titulo}`}
                 className={`w-[4px] h-7 rounded-[1px] ${ui.bar} opacity-80 origin-bottom hover:opacity-100 hover:scale-y-110 transition-all`}
               />
             ))}
