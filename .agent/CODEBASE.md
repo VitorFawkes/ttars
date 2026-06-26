@@ -7,9 +7,9 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-06-26
 > **Trigger:** ALWAYS ON
-> **Stats:** 245 tabelas | 214 paginas | 379 hooks | 30 views | 881 components
-> **Stats:** 245 tabelas | 214 paginas | 379 hooks | 30 views | 881 components
-> **Stats:** 245 tabelas | 214 paginas | 379 hooks | 30 views | 881 components
+> **Stats:** 245 tabelas | 215 paginas | 379 hooks | 30 views | 881 components
+> **Stats:** 245 tabelas | 215 paginas | 379 hooks | 30 views | 881 components
+> **Stats:** 245 tabelas | 215 paginas | 379 hooks | 30 views | 881 components
 
 ---
 
@@ -629,12 +629,13 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **214 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **215 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
 | `AnalyticsWeddingsPage` | `src/pages/AnalyticsWeddings/AnalyticsWeddingsPage.tsx` |
 | `DiretoriaPage` | `src/pages/AnalyticsWeddings/DiretoriaPage.tsx` |
+| `Diretoria` | `src/pages/AnalyticsWeddings/tabs/Diretoria.tsx` |
 | `EntradaRealidade` | `src/pages/AnalyticsWeddings/tabs/EntradaRealidade.tsx` |
 | `Equipe` | `src/pages/AnalyticsWeddings/tabs/Equipe.tsx` |
 | `FunilComparado` | `src/pages/AnalyticsWeddings/tabs/FunilComparado.tsx` |

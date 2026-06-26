@@ -1591,3 +1591,68 @@ export function useWwDiretoria(params: { dateStart?: string; dateEnd?: string })
     staleTime: 60_000,
   })
 }
+
+// ── Diretoria · Tempos da operação (velocidade · dwell · aging) ──────────────
+// RPC ww_diretoria_tempos. Realidade: só SDR e Closer têm carimbos de tempo;
+// Planejamento/Produção vêm com sem_dados=true (placeholder honesto no front).
+
+export type WwTempoLeg = {
+  amostra: number
+  mediana_dias: number | null
+  p75_dias: number | null
+  mediana_prev_dias?: number | null
+}
+
+export type WwDwellFase = {
+  key: WwDiretoriaFaseKey
+  label: string
+  amostra?: number
+  p25_dias?: number | null
+  mediana_dias?: number | null
+  p75_dias?: number | null
+  p90_dias?: number | null
+  sem_dados: boolean
+}
+
+export type WwAgingTop = { card_id: string; titulo: string; dias: number; responsavel: string | null }
+
+export type WwAgingBuckets = { ate_7: number; d8_30: number; d31_60: number; mais_60: number }
+
+export type WwAgingFase = {
+  key: WwDiretoriaFaseKey
+  label: string
+  amostra?: number
+  mediana_aberto_dias?: number | null
+  buckets: WwAgingBuckets | null
+  top_parados: WwAgingTop[]
+  sem_dados?: boolean
+}
+
+export type WwDiretoriaTempos = {
+  org_id: string
+  pipeline_id: string
+  periodo: { date_start: string; date_end: string; prev_start: string; prev_end: string }
+  velocidade: {
+    lead_para_sdr: WwTempoLeg
+    lead_para_closer: WwTempoLeg
+    lead_para_fechamento: WwTempoLeg
+    closer_para_fechamento: WwTempoLeg
+  }
+  dwell: WwDwellFase[]
+  aging: WwAgingFase[]
+  error?: string
+}
+
+export function useWwDiretoriaTempos(params: { dateStart?: string; dateEnd?: string }) {
+  const orgId = useOrgId()
+  return useQuery({
+    queryKey: ['ww-diretoria-tempos', orgId, params.dateStart, params.dateEnd],
+    queryFn: () => callRpc<WwDiretoriaTempos>('ww_diretoria_tempos', {
+      p_org_id: orgId,
+      p_date_start: params.dateStart ?? null,
+      p_date_end: params.dateEnd ?? null,
+    }),
+    enabled: !!orgId,
+    staleTime: 60_000,
+  })
+}
