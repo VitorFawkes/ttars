@@ -1544,6 +1544,15 @@ export type WwDiretoriaDeal = {
   card_id: string
   titulo: string
   valor: number
+  /** Campos de preview (variam por fase; nulos onde não se aplica) */
+  stage_name: string | null
+  destino: string | null
+  faixa: string | null
+  convidados: string | null
+  tipo: string | null
+  data_casamento: string | null
+  responsavel: string | null
+  entrou_at: string | null
 }
 
 export type WwDiretoriaFaseKey = 'sdr' | 'closer' | 'planejamento' | 'producao'
