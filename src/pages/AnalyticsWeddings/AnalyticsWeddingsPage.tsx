@@ -1,5 +1,5 @@
 import { useState, useEffect, createElement } from 'react'
-import { LayoutDashboard, GitCompare, Shuffle, Target, TrendingUp, Megaphone, TrendingDown, type LucideIcon } from 'lucide-react'
+import { Gauge, LayoutDashboard, GitCompare, Shuffle, Target, TrendingUp, Megaphone, TrendingDown, type LucideIcon } from 'lucide-react'
 import { useOrg } from '@/contexts/OrgContext'
 import { useCurrentProductMeta } from '@/hooks/useCurrentProductMeta'
 import { useAnalyticsVariant } from '@/hooks/analyticsWeddings/AnalyticsVariantContext'
@@ -11,11 +11,13 @@ import { Qualidade } from './tabs/Qualidade'
 import { Perfil } from './tabs/Perfil'
 import { Marketing } from './tabs/Marketing'
 import { Perdas } from './tabs/Perdas'
+import { Diretoria } from './tabs/Diretoria'
 import { formatRange, periodToDates } from './lib/dates'
 
-type Tab = 'visao' | 'funil-comparado' | 'entrada-realidade' | 'qualidade' | 'perfil' | 'marketing' | 'perdas'
+type Tab = 'operacao' | 'visao' | 'funil-comparado' | 'entrada-realidade' | 'qualidade' | 'perfil' | 'marketing' | 'perdas'
 
 const TABS: { id: Tab; label: string; icon: LucideIcon; description: string }[] = [
+  { id: 'operacao', label: 'Operação', icon: Gauge, description: 'Estado geral da operação e tempos por fase' },
   { id: 'visao', label: 'Visão geral', icon: LayoutDashboard, description: 'KPIs, funil, conversões, alertas' },
   { id: 'funil-comparado', label: 'Funil comparado', icon: GitCompare, description: 'Comparar a conversão de um perfil entre dois períodos' },
   { id: 'entrada-realidade', label: 'Entrada × Realidade', icon: Shuffle, description: 'O que disse no site × o que virou' },
@@ -31,7 +33,7 @@ const TABS_COM_FILTRO: Tab[] = ['visao', 'entrada-realidade', 'qualidade', 'perf
 // Persistência dos filtros por aba (localStorage, por org). Cada aba lembra o seu recorte
 // mesmo ao trocar de aba ou sair e voltar da página.
 const FILTERS_KEY = (orgId?: string) => `ww-analytics-filters-v1-${orgId ?? 'default'}`
-const TAB_IDS: Tab[] = ['visao', 'funil-comparado', 'entrada-realidade', 'qualidade', 'perfil', 'marketing', 'perdas']
+const TAB_IDS: Tab[] = ['operacao', 'visao', 'funil-comparado', 'entrada-realidade', 'qualidade', 'perfil', 'marketing', 'perdas']
 
 function loadFiltersByTab(orgId?: string): Record<Tab, AppliedFilters> {
   const base = Object.fromEntries(TAB_IDS.map(t => [t, defaultFilters()])) as Record<Tab, AppliedFilters>
@@ -102,6 +104,7 @@ export default function AnalyticsWeddingsPage() {
         <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 items-stretch lg:items-start">
           <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} filtersByTab={filtersByTab} />
           <div className="flex-1 min-w-0">
+            {activeTab === 'operacao' && <Diretoria />}
             {activeTab === 'visao' && <VisaoGeral {...tabProps('visao')} />}
             {activeTab === 'funil-comparado' && <FunilComparado />}
             {activeTab === 'entrada-realidade' && <EntradaRealidade {...tabProps('entrada-realidade')} />}

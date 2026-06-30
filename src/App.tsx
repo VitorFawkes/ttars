@@ -28,6 +28,7 @@ import PortalEditor from './pages/PortalEditor'
 import ProposalsPage from './pages/ProposalsPage'
 import CatalogoPage from './pages/CatalogoPage'
 import AnalyticsWeddingsPage from './pages/AnalyticsWeddings/AnalyticsWeddingsPage'
+import DiretoriaPage from './pages/AnalyticsWeddings/DiretoriaPage'
 import Analytics2Page from './pages/AnalyticsWeddings2/Analytics2Page'
 import SdrConfigPage from './pages/wsdr/SdrConfigPage'
 import ProposalView from './pages/public/ProposalView'
@@ -357,6 +358,8 @@ function App() {
                   <Route path="/analytics-weddings" element={<AnalyticsWeddingsPage />} />
                   {/* Analytics 2 (oculto, sem item na sidebar) — variante 'native' (dados ttars). Só por URL. */}
                   <Route path="/analytics-weddings-2" element={<Analytics2Page />} />
+                  {/* Diretoria · Estado da Operação (oculto, sem item na sidebar) — visão executiva 4 fases. Só por URL. */}
+                  <Route path="/weddings/diretoria" element={<DiretoriaPage />} />
                   <Route path="/weddings/sdr" element={<SdrConfigPage />} />
                   <Route path="/proposals/:id/edit" element={<BuilderPageV5 />} />
                   <Route path="/portal-editor/:proposalId" element={<PortalEditor />} />

@@ -1535,3 +1535,131 @@ export function useWwAgendamentosPorDia(
     refetchInterval: 5 * 60_000,
   })
 }
+
+// ── Diretoria · Estado Geral da Operação ─────────────────────────────────────
+// Visão executiva das 4 macro-fases (SDR → Closer → Planejamento → Produção).
+// Cada `deal` vira uma minibarrinha clicável (abre /cards/:id). RPC: ww_diretoria_overview.
+
+export type WwDiretoriaDeal = {
+  card_id: string
+  titulo: string
+  valor: number
+  /** Campos de preview (variam por fase; nulos onde não se aplica) */
+  stage_name: string | null
+  destino: string | null
+  faixa: string | null
+  convidados: string | null
+  tipo: string | null
+  data_casamento: string | null
+  responsavel: string | null
+  entrou_at: string | null
+}
+
+export type WwDiretoriaFaseKey = 'sdr' | 'closer' | 'planejamento' | 'producao'
+
+export type WwDiretoriaFase = {
+  key: WwDiretoriaFaseKey
+  label: string
+  sub: string
+  count: number
+  valor_total: number
+  deals: WwDiretoriaDeal[]
+  entrou_periodo: number | null
+  entrou_periodo_prev: number | null
+  tendencia_pct: number | null
+  conversao_proxima_pct: number | null
+}
+
+export type WwDiretoria = {
+  org_id: string
+  pipeline_id: string
+  periodo: { date_start: string; date_end: string; prev_start: string; prev_end: string }
+  fases: WwDiretoriaFase[]
+  error?: string
+}
+
+export function useWwDiretoria(params: { dateStart?: string; dateEnd?: string }) {
+  const orgId = useOrgId()
+  return useQuery({
+    queryKey: ['ww-diretoria', orgId, params.dateStart, params.dateEnd],
+    queryFn: () => callRpc<WwDiretoria>('ww_diretoria_overview', {
+      p_org_id: orgId,
+      p_date_start: params.dateStart ?? null,
+      p_date_end: params.dateEnd ?? null,
+    }),
+    enabled: !!orgId,
+    staleTime: 60_000,
+  })
+}
+
+// ── Diretoria · Tempos da operação (velocidade · dwell · aging) ──────────────
+// RPC ww_diretoria_tempos.
+//   SDR/Closer  → tempo de TRAVESSIA (coorte por data de entrada do lead).
+//   Planejamento/Produção → tempo NA FASE HOJE (ocupação): count_aberto = nº de
+//     casais na fase; amostra/com_tempo = quantos têm carimbo de entrada (20260626d).
+//     Sem carimbo entram na contagem mas ficam fora da distribuição de tempo.
+
+export type WwTempoLeg = {
+  amostra: number
+  mediana_dias: number | null
+  p75_dias: number | null
+  mediana_prev_dias?: number | null
+}
+
+export type WwDwellFase = {
+  key: WwDiretoriaFaseKey
+  label: string
+  amostra?: number
+  /** Pós-venda: total de casais abertos na fase agora (independe de ter carimbo). */
+  count_aberto?: number
+  p25_dias?: number | null
+  mediana_dias?: number | null
+  p75_dias?: number | null
+  p90_dias?: number | null
+  sem_dados: boolean
+}
+
+export type WwAgingTop = { card_id: string; titulo: string; dias: number; responsavel: string | null }
+
+export type WwAgingBuckets = { ate_7: number; d8_30: number; d31_60: number; mais_60: number }
+
+export type WwAgingFase = {
+  key: WwDiretoriaFaseKey
+  label: string
+  amostra?: number
+  /** Pós-venda: quantos dos `amostra` casais têm carimbo de entrada (entram nos buckets). */
+  com_tempo?: number
+  mediana_aberto_dias?: number | null
+  buckets: WwAgingBuckets | null
+  top_parados: WwAgingTop[]
+  sem_dados?: boolean
+}
+
+export type WwDiretoriaTempos = {
+  org_id: string
+  pipeline_id: string
+  periodo: { date_start: string; date_end: string; prev_start: string; prev_end: string }
+  velocidade: {
+    lead_para_sdr: WwTempoLeg
+    lead_para_closer: WwTempoLeg
+    lead_para_fechamento: WwTempoLeg
+    closer_para_fechamento: WwTempoLeg
+  }
+  dwell: WwDwellFase[]
+  aging: WwAgingFase[]
+  error?: string
+}
+
+export function useWwDiretoriaTempos(params: { dateStart?: string; dateEnd?: string }) {
+  const orgId = useOrgId()
+  return useQuery({
+    queryKey: ['ww-diretoria-tempos', orgId, params.dateStart, params.dateEnd],
+    queryFn: () => callRpc<WwDiretoriaTempos>('ww_diretoria_tempos', {
+      p_org_id: orgId,
+      p_date_start: params.dateStart ?? null,
+      p_date_end: params.dateEnd ?? null,
+    }),
+    enabled: !!orgId,
+    staleTime: 60_000,
+  })
+}
