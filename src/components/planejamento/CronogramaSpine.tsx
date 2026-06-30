@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ListChecks, Plus, Pencil, Trash2, Check, X, ChevronDown, ChevronRight, Lock, Repeat, Paperclip, MessageSquare } from 'lucide-react'
+import { ListChecks, Plus, Pencil, Trash2, Check, X, ChevronDown, ChevronRight, Paperclip, MessageSquare } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { daysUntil, isPast } from '../../lib/planejamento/format'
 import { WEDDING_TASK_TYPES, WEDDING_TASK_TIPO_LIST } from '../../hooks/planejamento/taskTypes'
@@ -269,37 +269,23 @@ function TaskRow({
         {item.titulo}
       </span>
 
-      {/* Marcadores da tarefa (Fase 4): 🔒 trava · 🔁 cobra · 📎 abre doc · 💬 comentário */}
+      {/* Ações discretas (sem tags coloridas): 📎 abrir documento · 💬 comentário.
+          Trava/cobrança não viram etiqueta — a trava aparece no botão Avançar e a
+          data vencida fica em vermelho aqui mesmo. */}
       <div className="flex items-center gap-1 shrink-0">
-        {item.trava && !item.feito && (
-          <span title="Segura o avanço da etapa" className="w-5 h-5 rounded grid place-items-center bg-amber-50 border border-amber-200">
-            <Lock className="w-3 h-3 text-amber-700" />
-          </span>
-        )}
-        {item.gera_cobranca && (
-          <span title="Cobra sozinha quando o prazo vence" className="w-5 h-5 rounded grid place-items-center bg-indigo-50 border border-indigo-100">
-            <Repeat className="w-3 h-3 text-indigo-500" />
-          </span>
-        )}
-        {item.abre_doc && (
-          onOpenDoc ? (
-            <button
-              type="button"
-              onClick={onOpenDoc}
-              title="Abrir os documentos do casamento (anexos)"
-              className="w-5 h-5 rounded grid place-items-center bg-slate-50 border border-slate-200 hover:bg-slate-100 hover:border-slate-300"
-            >
-              <Paperclip className="w-3 h-3 text-slate-500" />
-            </button>
-          ) : (
-            <span title="Abre um documento/anexo" className="w-5 h-5 rounded grid place-items-center bg-slate-50 border border-slate-200">
-              <Paperclip className="w-3 h-3 text-slate-500" />
-            </span>
-          )
+        {item.abre_doc && onOpenDoc && (
+          <button
+            type="button"
+            onClick={onOpenDoc}
+            title="Abrir os documentos do casamento (anexos)"
+            className="w-6 h-6 rounded grid place-items-center text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+          >
+            <Paperclip className="w-3.5 h-3.5" />
+          </button>
         )}
         {item.observacoes && item.observacoes.trim().length > 0 && (
-          <span title={item.observacoes} className="w-5 h-5 rounded grid place-items-center bg-emerald-50 border border-emerald-100">
-            <MessageSquare className="w-3 h-3 text-emerald-600" />
+          <span title={item.observacoes} className="w-6 h-6 rounded grid place-items-center text-slate-400">
+            <MessageSquare className="w-3.5 h-3.5" />
           </span>
         )}
       </div>
@@ -310,7 +296,7 @@ function TaskRow({
         onChange={(e) => checklist.update.mutate({ ...item, prazo: e.target.value || null })}
         className={cn(
           'shrink-0 text-[11.5px] px-1.5 py-1 rounded-md border bg-white tabular-nums',
-          past ? 'border-rose-200 text-rose-600' : d === 0 ? 'border-amber-200 text-amber-700' : 'border-slate-200 text-slate-600',
+          past ? 'border-rose-300 text-rose-600 font-semibold bg-rose-50' : d === 0 ? 'border-amber-200 text-amber-700' : 'border-slate-200 text-slate-600',
         )}
         title={past ? 'atrasada' : 'prazo'}
       />

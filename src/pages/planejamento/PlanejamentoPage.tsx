@@ -7,7 +7,7 @@ export default function PlanejamentoPage() {
     <div className="px-6 py-4 flex flex-col gap-4">
       <header className="flex items-start justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2.5">
-          <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600">
+          <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-[#FBF6E8] text-[#8A6A33]">
             <ClipboardList className="w-4 h-4" />
           </span>
           <div>

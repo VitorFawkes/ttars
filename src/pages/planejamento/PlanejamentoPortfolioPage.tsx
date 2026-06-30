@@ -51,7 +51,10 @@ export default function PlanejamentoPortfolioPage() {
 
     for (const w of data) {
       porEtapa.set(w.planejamentoEtapa, (porEtapa.get(w.planejamentoEtapa) ?? 0) + 1)
-      if (!w.gate.allOk) travados += 1
+      // "travado" = a MESMA régua da tela do casamento e do quadro: a etapa tem
+      // tarefa-trava 🔒 pendente (Fase 4). Antes usava o gate legado (computeGate),
+      // que dava número diferente do que o usuário via na tela → confiança quebrada.
+      if (w.travaPendentes.length > 0) travados += 1
       if (!w.wedding_date) semData += 1
       const d = daysUntil(w.wedding_date)
       if (d != null && d >= 0 && d <= 90 && !hasSinal(w.produto_data)) pertoSemSinal += 1
@@ -164,12 +167,18 @@ export default function PlanejamentoPortfolioPage() {
                   <span
                     className={cn(
                       'text-[11px] font-semibold px-2 py-0.5 rounded-full border',
-                      w.gate.allOk
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : 'bg-amber-50 text-amber-700 border-amber-200',
+                      w.travaPendentes.length > 0
+                        ? 'bg-amber-50 text-amber-700 border-amber-200'
+                        : w.checklist.atrasados > 0
+                          ? 'bg-rose-50 text-rose-700 border-rose-200'
+                          : 'bg-emerald-50 text-emerald-700 border-emerald-200',
                     )}
                   >
-                    {w.gate.met}/{w.gate.total}
+                    {w.travaPendentes.length > 0
+                      ? 'travado'
+                      : w.checklist.atrasados > 0
+                        ? `${w.checklist.atrasados} atrasada${w.checklist.atrasados > 1 ? 's' : ''}`
+                        : 'em dia'}
                   </span>
                   <span className="text-xs font-semibold text-slate-600 tabular-nums w-16 text-right">
                     {d === 0 ? 'hoje' : `${d}d`}

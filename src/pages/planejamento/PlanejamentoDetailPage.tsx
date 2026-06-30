@@ -10,14 +10,11 @@ import {
   ExternalLink,
   Loader2,
   Heart,
-  Hourglass,
   Pencil,
   Check,
+  Circle,
   X,
-  Lock,
   AlarmClock,
-  ChevronRight,
-  Bell,
   Paperclip,
   MapPin,
   BedDouble,
@@ -30,21 +27,20 @@ import {
   Scale,
   Mail,
   BarChart3,
-  Pause,
-  Target,
-  ListChecks,
+  PackageCheck,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { getTaskTypeConfig } from '../../components/tasks/taskTypeConfig'
 import './champagne.css'
 import { daysUntil, addDaysIso } from '../../lib/planejamento/format'
-import { usePlanejamentoWeddings } from '../../hooks/planejamento/usePlanejamentoWeddings'
+import { usePlanejamentoWeddings, type WeddingPlanejamento } from '../../hooks/planejamento/usePlanejamentoWeddings'
 import { useWeddingChecklist } from '../../hooks/planejamento/useWeddingChecklist'
 import { useWeddingPlanningPrazo } from '../../hooks/planejamento/useWeddingPlanningPrazo'
 import { usePlanejamentoCampos } from '../../hooks/planejamento/usePlanejamentoCampos'
+import { useEntregarParaProducao } from '../../hooks/planejamento/useEntregarParaProducao'
 import { JornadaCasamento } from '../../components/planejamento/JornadaCasamento'
 import { RelatorioCasamento } from '../../components/planejamento/RelatorioCasamento'
-import { faixaDeSaude, STATUS_META } from '../../lib/planejamento/statusBloco'
+import { faixaDeSaude } from '../../lib/planejamento/statusBloco'
 import { CasalSection } from '../../components/planejamento/CasalSection'
 import { WeddingEquipeSection } from '../../components/planejamento/WeddingEquipeSection'
 import { LocalCerimoniaBody, HospedagemBloqueioBody } from '../../components/planejamento/LocalHospedagemSection'
@@ -61,11 +57,7 @@ import {
   ConvidadosResumoSection,
   NotasSection,
 } from '../../components/planejamento/PlanejamentoSections'
-import {
-  PLANEJAMENTO_LABEL,
-  PLANEJ_FIELD,
-  BLOCO,
-} from '../../hooks/planejamento/types'
+import { PLANEJ_FIELD, BLOCO, type ChecklistItem } from '../../hooks/planejamento/types'
 
 // Tema champanhe (design do Vitor no Claude Design) — paleta em champagne.css
 const CHAMP_PAGE = "planej-champ min-h-screen bg-[#EAE2D5] px-6 py-5"
@@ -80,6 +72,25 @@ function pdNum(pd: Record<string, unknown> | null, key: string): number | null {
   if (!s) return null
   const n = Number(s.replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, ''))
   return Number.isNaN(n) ? null : n
+}
+function pdBool(pd: Record<string, unknown> | null, key: string): boolean {
+  const v = pd?.[key]
+  return v === true || v === 'true'
+}
+
+function diaMes(iso: string): string {
+  const d = iso.slice(0, 10)
+  return `${d.slice(8, 10)}/${d.slice(5, 7)}`
+}
+function diasDesde(iso: string): number {
+  const ms = Date.now() - new Date(iso).getTime()
+  return Math.max(0, Math.floor(ms / 86400000))
+}
+function dataExtenso(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
 export default function PlanejamentoDetailPage() {
@@ -106,7 +117,7 @@ export default function PlanejamentoDetailPage() {
   if (isError || !wedding) {
     return (
       <div className="px-6 py-8">
-        <button onClick={() => navigate('/planejamento')} className="text-sm text-indigo-600 hover:underline mb-4">
+        <button onClick={() => navigate('/planejamento')} className="text-sm text-[#a37f47] hover:underline mb-4">
           ← Voltar
         </button>
         <div className="bg-white border border-rose-200 text-rose-700 rounded-xl p-4 text-sm">
@@ -119,35 +130,27 @@ export default function PlanejamentoDetailPage() {
   const days = daysUntil(wedding.wedding_date)
   const pd = wedding.produto_data
   const tipoLabel = pdStr(pd, 'ww_tipo_casamento') || 'Destination Wedding'
+  const dataFmt = dataExtenso(wedding.wedding_date)
 
-  // Números de convidados — usados no resumo do bloco Convidados.
+  // Convidados — usados no resumo do bloco Convidados.
   const contrato = pdNum(pd, PLANEJ_FIELD.convidadosContrato)
   const listaTotal = wedding.counts.total
   const confirmados = wedding.counts.confirmado
 
-  // Tarefas (medição do planejamento) + prazo configurável.
-  // O relógio conta da ENTRADA no planejamento (carimbada ao entrar em pos_venda);
-  // se não houver carimbo (casamentos antigos), cai pra data de criação do card.
-  // Prazo = override deste casamento (se houver) OU o padrão do workspace.
-  const { pendentes } = wedding.checklist
-  // Ritmo do casamento (tempos que a planejadora pediu): parado, próxima, última, faltam.
-  const proximaPrazo = wedding.checklist.proximaPrazo
-  const ultimaConclusao = wedding.checklist.ultimaConclusao
-  const proxDias = proximaPrazo ? daysUntil(proximaPrazo) : null
-  const ultimaDias = ultimaConclusao ? diasDesde(ultimaConclusao) : null
-  const paradoDias = wedding.paradoDesde ? diasDesde(wedding.paradoDesde) : null
+  // Prazo do PLANEJAMENTO (relógio interno) — conta da ENTRADA no planejamento.
+  // (≠ data do casamento, que vai no cabeçalho.) Override por casamento ou padrão do workspace.
   const planStart = pdStr(pd, PLANEJ_FIELD.posVendaEm).slice(0, 10) || (wedding.created_at ?? '').slice(0, 10)
   const overrideDias = pdNum(pd, PLANEJ_FIELD.prazoDiasOverride)
   const prazoDias = overrideDias != null && overrideDias > 0 ? Math.round(overrideDias) : defaultDias
   const planDeadline = planStart ? addDaysIso(planStart, prazoDias) : null
   const planDias = daysUntil(planDeadline)
-  // Prazo do planejamento, curto (o chip já diz "faltam N tarefas" — não repetir "faltam").
   const slaText =
     planDeadline == null ? 'sem prazo de entrada'
     : planDias == null ? '—'
-    : planDias > 0 ? `${planDias}d dos ${prazoDias}`
+    : planDias > 0 ? `faltam ${planDias}d dos ${prazoDias}`
     : planDias === 0 ? 'fecha hoje'
     : `${Math.abs(planDias)}d atrasado`
+  const paradoDias = wedding.paradoDesde ? diasDesde(wedding.paradoDesde) : null
 
   const salvarPrazo = (dias: number | null) => {
     const v = dias != null && dias > 0 ? Math.min(365, Math.round(dias)) : null
@@ -157,7 +160,7 @@ export default function PlanejamentoDetailPage() {
     )
   }
 
-  // Status + resumo dos blocos colapsáveis — o "bater o olho" de cada gaveta.
+  // Status + resumo dos blocos colapsáveis (a bolinha de cada gaveta).
   const areas = faixaDeSaude(wedding)
   const st = (k: string) => areas.find(a => a.key === k)?.status
   const resumoLocal = [pdStr(pd, PLANEJ_FIELD.regiao), pdStr(pd, PLANEJ_FIELD.formato), pdStr(pd, PLANEJ_FIELD.espaco)].filter(Boolean).join(' · ') || 'a preencher'
@@ -174,18 +177,27 @@ export default function PlanejamentoDetailPage() {
   const resumoTarifas = tarifasSet ? 'tarifas e políticas registradas' : 'aguardando o contrato do hotel'
   const promoSet = !!pdStr(pd, PLANEJ_FIELD.promoTarifa)
   const resumoPromo = promoSet
-    ? [pdStr(pd, PLANEJ_FIELD.promoTarifa) ? `R$ ${pdStr(pd, PLANEJ_FIELD.promoTarifa)}/noite` : null, pdStr(pd, PLANEJ_FIELD.promoFim) ? `até ${pdStr(pd, PLANEJ_FIELD.promoFim).slice(8, 10)}/${pdStr(pd, PLANEJ_FIELD.promoFim).slice(5, 7)}` : null].filter(Boolean).join(' · ')
+    ? [pdStr(pd, PLANEJ_FIELD.promoTarifa) ? `R$ ${pdStr(pd, PLANEJ_FIELD.promoTarifa)}/noite` : null, pdStr(pd, PLANEJ_FIELD.promoFim) ? `até ${diaMes(pdStr(pd, PLANEJ_FIELD.promoFim))}` : null].filter(Boolean).join(' · ')
     : 'a definir (tarifa + janela)'
   const resumoConvidados = `${listaTotal} na lista · ${confirmados} confirmados${contrato != null ? ` · contrato ${contrato}` : ''}`
   const notasTxt = pdStr(pd, PLANEJ_FIELD.notas)
   const resumoNotas = notasTxt ? notasTxt.split('\n')[0].slice(0, 80) : 'sem notas'
   const decididas = [pdStr(pd, PLANEJ_FIELD.regiao), pdStr(pd, PLANEJ_FIELD.dataHoraCasamento) || (wedding.wedding_date ?? ''), pdStr(pd, PLANEJ_FIELD.espaco), pdStr(pd, PLANEJ_FIELD.valorTotal) || pdStr(pd, PLANEJ_FIELD.pacoteValor)].filter(Boolean).length
 
+  const goToSpine = () => {
+    const el = document.getElementById(BLOCO.spine)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    el.classList.add('bloco-flash')
+    window.setTimeout(() => el.classList.remove('bloco-flash'), 1400)
+  }
+
   return (
     <div className={cn(CHAMP_PAGE, 'px-6 py-4 flex flex-col gap-4')}>
-      {/* Summary band (visual champanhe — design do Vitor) */}
+      {/* Topo: identidade + data do casamento ao lado do nome + trilha das 6 etapas.
+          Sem faixa de "saúde" (poluía) e sem a linha de "ritmo" repetida. */}
       <div className="rounded-2xl border border-[#E6DBC9] bg-white overflow-hidden shadow-[0_10px_30px_rgba(78,24,32,0.06)]">
-        <div className="flex items-center justify-between gap-4 flex-wrap px-6 py-5 bg-gradient-to-b from-[#FBF3E4] to-white">
+        <div className="flex items-start justify-between gap-4 flex-wrap px-6 py-5 bg-gradient-to-b from-[#FBF3E4] to-white">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#A88C57]">
               <button onClick={() => navigate('/planejamento')} className="inline-flex items-center gap-1 hover:text-[#BD965C]">
@@ -194,7 +206,18 @@ export default function PlanejamentoDetailPage() {
               <span className="text-[#D9CFC2]">/</span>
               <span className="truncate">{tipoLabel}{wedding.local ? ` · ${wedding.local}` : ''}</span>
             </div>
-            <h1 className="mt-2 text-[30px] leading-none font-light text-[#211F1D] break-words">{wedding.titulo}</h1>
+            <div className="mt-2 flex items-center gap-3.5 flex-wrap">
+              <h1 className="text-[30px] leading-none font-light text-[#211F1D] break-words">{wedding.titulo}</h1>
+              {(dataFmt || days != null) && (
+                <span className="inline-flex items-center gap-2 h-8 px-3.5 rounded-full bg-[#FBF6E8] border border-[#ECD9B5] text-[13px] text-[#8A6A33] [font-family:'Roboto']">
+                  <Calendar className="w-3.5 h-3.5 text-[#BD965C]" />
+                  {dataFmt && <span>{dataFmt}</span>}
+                  {days != null && (
+                    <b className="text-[#211F1D]">· {days < 0 ? `foi há ${Math.abs(days)} dias` : days === 0 ? 'é hoje' : `faltam ${days} dias`}</b>
+                  )}
+                </span>
+              )}
+            </div>
             {wedding.site_url && (
               <a href={wedding.site_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[12px] text-[#a37f47] hover:underline mt-2 [font-family:'Roboto']">
                 <Globe className="w-3.5 h-3.5" /> Site do casamento <ExternalLink className="w-3 h-3" />
@@ -219,89 +242,41 @@ export default function PlanejamentoDetailPage() {
           </div>
         </div>
 
-        {/* Jornada — onde está + por onde passou, de uma vez (trilha das 6 etapas + Avançar). */}
-        <div className="px-6 pb-4 pt-0.5">
+        {/* Jornada — trilha das 6 etapas + botão Avançar (barrado pela trava real). */}
+        <div className="px-6 pb-5 pt-1 border-t border-[#F0E9DD]">
           <JornadaCasamento wedding={wedding} />
-        </div>
-
-        {/* Ritmo do casamento — os tempos que importam (pedido 25/06): parado · próxima
-            entrega · última concluída · faltam tarefas/dias · casamento. Numa linha só. */}
-        <div className="flex items-center gap-2 flex-wrap px-6 py-3 border-t border-[#F0E9DD] bg-[#FCFAF6]">
-          <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#A88C57] mr-1">Ritmo</span>
-
-          {paradoDias != null && (
-            <span className={cn('inline-flex items-center gap-1.5 h-7 pl-2 pr-3 rounded-full text-[12px] border',
-              paradoDias > 21 ? 'bg-[#F6E5DF] border-[#E7CABF] text-[#9B4E46]' : paradoDias >= 7 ? 'bg-[#F8EBD2] border-[#EAD3A8] text-[#8A6A1A]' : 'bg-white border-[#EAE1D3] text-[#6F675E]')}>
-              <Pause className="w-3.5 h-3.5 shrink-0" /> parado há <b>{paradoDias}d</b> nesta etapa
-            </span>
-          )}
-
-          {proximaPrazo ? (
-            <span className={cn('inline-flex items-center gap-1.5 h-7 pl-2 pr-3 rounded-full text-[12px] border',
-              proxDias != null && proxDias < 0 ? 'bg-[#F8E0DB] border-[#EFCFC6] text-[#B0473C] font-medium' : 'bg-white border-[#EAE1D3] text-[#6F675E]')}>
-              <Target className={cn('w-3.5 h-3.5 shrink-0', proxDias != null && proxDias < 0 ? 'text-[#B0473C]' : 'text-[#BD965C]')} /> próxima entrega <b className={proxDias != null && proxDias < 0 ? '' : 'text-[#211F1D]'}>{diaMes(proximaPrazo)}</b>
-              {proxDias != null && <span className={proxDias < 0 ? '' : 'text-[#9A9082]'}>· {proxDias < 0 ? `vencida há ${Math.abs(proxDias)}d` : proxDias === 0 ? 'hoje' : `em ${proxDias}d`}</span>}
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 h-7 pl-2 pr-3 rounded-full text-[12px] bg-white border border-[#EAE1D3] text-[#9A9082]"><Target className="w-3.5 h-3.5 text-[#CBBEA8] shrink-0" /> sem prazo nas pendentes</span>
-          )}
-
-          {ultimaDias != null && (
-            <span className="inline-flex items-center gap-1.5 h-7 pl-2 pr-3 rounded-full text-[12px] bg-white border border-[#EAE1D3] text-[#6F675E]">
-              <Check className="w-3.5 h-3.5 text-[#4F7A4A] shrink-0" /> última feita {ultimaDias === 0 ? 'hoje' : `há ${ultimaDias}d`}
-            </span>
-          )}
-
-          <span className="inline-flex items-center gap-1.5 h-7 pl-2 pr-2.5 rounded-full text-[12px] bg-white border border-[#EAE1D3] text-[#6F675E]">
-            <ListChecks className="w-3.5 h-3.5 text-[#BD965C] shrink-0" /> faltam <b className="text-[#211F1D]">{pendentes}</b> tarefa{pendentes === 1 ? '' : 's'}
-            <span className="text-[#9A9082]">· {slaText}</span>
-            {!editandoPrazo && (
-              <button type="button" onClick={() => setEditandoPrazo(true)} className="ml-0.5 p-0.5 rounded text-[#B5ABA0] hover:text-[#8A6A33] hover:bg-[#F4ECDD]" title="Definir o prazo deste casamento" aria-label="Editar prazo deste casamento"><Pencil className="w-3 h-3" /></button>
-            )}
-          </span>
-
-          {days !== null && (
-            <span className="inline-flex items-center gap-1.5 h-7 pl-2 pr-3 rounded-full text-[12px] bg-white border border-[#EAE1D3] text-[#6F675E]">
-              <Calendar className="w-3.5 h-3.5 text-[#BD965C] shrink-0" /> casamento {days < 0 ? `foi há ${Math.abs(days)}d` : `em ${days}d`}
-            </span>
-          )}
-
-          {editandoPrazo && (
-            <div className="w-full pt-1">
-              <PrazoEditor
-                inicial={overrideDias != null && overrideDias > 0 ? Math.round(overrideDias) : prazoDias}
-                padrao={defaultDias}
-                temOverride={overrideDias != null && overrideDias > 0}
-                saving={campos.save.isPending}
-                onSalvar={salvarPrazo}
-                onCancelar={() => setEditandoPrazo(false)}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Faixa de saúde — o "bater o olho": verde = ok, amarelo = em andamento,
-            cinza = a fazer, vermelho = atenção. Pedido direto da planejadora (25/06). */}
-        <div className="flex items-center gap-1.5 flex-wrap px-6 py-3 border-t border-[#F0E9DD] bg-[#FCFAF6]">
-          <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#A88C57] mr-1">Saúde</span>
-          {areas.map(a => {
-            const m = STATUS_META[a.status]
-            return (
-              <span key={a.key} className={cn('inline-flex items-center gap-1.5 h-7 pl-2 pr-2.5 rounded-full text-[11.5px] font-semibold', m.chipBg, m.chipText)} title={`${a.label}: ${m.label}`}>
-                <span className={cn('w-2 h-2 rounded-full', m.dot)} /> {a.label}
-              </span>
-            )
-          })}
         </div>
       </div>
 
-      {/* Trava da etapa (Fase 4) — a tarefa 🔒 que segura o avanço sobe pro topo */}
-      <TravaBanner
-        pendentes={wedding.travaPendentes}
-        cobrancasVencidas={wedding.cobrancasVencidas}
-        etapaLabel={PLANEJAMENTO_LABEL[wedding.planejamentoEtapa]}
-        paradoDesde={wedding.paradoDesde}
+      {/* O TRABALHO — última concluída × próxima pendente, com atalho pra tarefa. */}
+      <TrabalhoLane
+        items={checklist.items}
+        currentEtapa={wedding.planejamentoEtapa}
+        paradoDias={paradoDias}
+        feitas={wedding.checklist.feitos}
+        total={wedding.checklist.total}
+        slaText={slaText}
+        prazoDias={prazoDias}
+        defaultDias={defaultDias}
+        overrideDias={overrideDias}
+        editandoPrazo={editandoPrazo}
+        savingPrazo={campos.save.isPending}
+        onEditPrazo={() => setEditandoPrazo(true)}
+        onSalvarPrazo={salvarPrazo}
+        onCancelarPrazo={() => setEditandoPrazo(false)}
+        onGoToSpine={goToSpine}
       />
+
+      {/* Cronograma & Tarefas — a espinha sobe pro topo (trabalho do dia). */}
+      <div id={BLOCO.spine} className="scroll-mt-6">
+        <CronogramaSpine checklist={checklist} currentEtapa={wedding.planejamentoEtapa} onOpenDoc={() => setDocsOpen(true)} />
+      </div>
+
+      {/* Pronto para a próxima fase — o que está definido × em aberto (handoff). */}
+      <HandoffCard wedding={wedding} />
+
+      {/* Documentos do casamento — anexos nativos do card (📎 das tarefas). */}
+      {docsOpen && <DocsDrawer cardId={wedding.id} onClose={() => setDocsOpen(false)} />}
 
       {/* Casal (clientes) + Equipe do casamento (interno) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
@@ -309,281 +284,299 @@ export default function PlanejamentoDetailPage() {
         <div id={BLOCO.equipe} className="scroll-mt-6"><WeddingEquipeSection cardId={wedding.id} /></div>
       </div>
 
-      {/* Local & Cerimônia — onde acontece + reserva/contrato (gaveta) */}
-      <BlocoColapsavel
-        id={BLOCO.local}
-        icon={MapPin}
-        titulo="Local & Cerimônia"
-        status={st('local')}
-        resumo={resumoLocal}
-        storageKey={`${wedding.id}:local`}
-        defaultOpen
-      >
+      {/* As definições (papelada) — recolhidas embaixo, com bolinha de status. */}
+      <BlocoColapsavel id={BLOCO.local} icon={MapPin} titulo="Local & Cerimônia" status={st('local')} resumo={resumoLocal} storageKey={`${wedding.id}:local`} defaultOpen={false}>
         <LocalCerimoniaBody wedding={wedding} />
       </BlocoColapsavel>
 
-      {/* Hospedagem & Bloqueio — hotel + detalhe do bloqueio (pedido × fechado) */}
-      <BlocoColapsavel
-        icon={BedDouble}
-        titulo="Hospedagem & Bloqueio"
-        status={st('hospedagem')}
-        resumo={resumoHosp}
-        storageKey={`${wedding.id}:hospedagem`}
-        defaultOpen
-      >
+      <BlocoColapsavel icon={BedDouble} titulo="Hospedagem & Bloqueio" status={st('hospedagem')} resumo={resumoHosp} storageKey={`${wedding.id}:hospedagem`} defaultOpen={false}>
         <HospedagemBloqueioBody wedding={wedding} />
       </BlocoColapsavel>
 
-      {/* Comissionamento — a "abinha" pedida na reunião (hospedagem + pacote) */}
-      <BlocoColapsavel
-        icon={Coins}
-        titulo="Comissionamento"
-        status={st('comissao')}
-        resumo={resumoComissao}
-        storageKey={`${wedding.id}:comissao`}
-        defaultOpen={false}
-      >
+      <BlocoColapsavel icon={Coins} titulo="Comissionamento" status={st('comissao')} resumo={resumoComissao} storageKey={`${wedding.id}:comissao`} defaultOpen={false}>
         <ComissionamentoSection wedding={wedding} />
       </BlocoColapsavel>
 
-      {/* Tarifas & Políticas — denso (do contrato): texto + anexo */}
-      <BlocoColapsavel
-        icon={Receipt}
-        titulo="Tarifas & Políticas (cancelamento / redução)"
-        status={tarifasSet ? 'ok' : 'todo'}
-        resumo={resumoTarifas}
-        storageKey={`${wedding.id}:tarifas`}
-        defaultOpen={false}
-      >
+      <BlocoColapsavel icon={Receipt} titulo="Tarifas & Políticas (cancelamento / redução)" status={tarifasSet ? 'ok' : 'todo'} resumo={resumoTarifas} storageKey={`${wedding.id}:tarifas`} defaultOpen={false}>
         <TarifasPoliticasSection wedding={wedding} onOpenDocs={() => setDocsOpen(true)} />
       </BlocoColapsavel>
 
-      {/* Ação promocional (definição) */}
-      <BlocoColapsavel
-        id={BLOCO.promo}
-        icon={Megaphone}
-        titulo="Ação promocional"
-        status={promoSet ? 'ok' : 'todo'}
-        resumo={resumoPromo}
-        storageKey={`${wedding.id}:promo`}
-        defaultOpen={false}
-      >
+      <BlocoColapsavel id={BLOCO.promo} icon={Megaphone} titulo="Ação promocional" status={promoSet ? 'ok' : 'todo'} resumo={resumoPromo} storageKey={`${wedding.id}:promo`} defaultOpen={false}>
         <AcaoPromoSection wedding={wedding} />
       </BlocoColapsavel>
 
-      {/* Convidados (lista & estimativa) */}
-      <BlocoColapsavel
-        id={BLOCO.convidados}
-        icon={Users}
-        titulo="Convidados (lista & estimativa)"
-        status={st('convidados')}
-        resumo={resumoConvidados}
-        storageKey={`${wedding.id}:convidados`}
-        defaultOpen={false}
-      >
+      <BlocoColapsavel id={BLOCO.convidados} icon={Users} titulo="Convidados (lista & estimativa)" status={st('convidados')} resumo={resumoConvidados} storageKey={`${wedding.id}:convidados`} defaultOpen={false}>
         <ConvidadosResumoSection wedding={wedding} />
       </BlocoColapsavel>
 
-      {/* Cronograma & Tarefas — a espinha (Etapa → Marco → Tarefa) */}
-      <div id={BLOCO.spine} className="scroll-mt-6">
-        <CronogramaSpine checklist={checklist} currentEtapa={wedding.planejamentoEtapa} onOpenDoc={() => setDocsOpen(true)} />
-      </div>
-
-      {/* Documentos do casamento — anexos nativos do card (📎 abre-doc, Fase 4) */}
-      {docsOpen && <DocsDrawer cardId={wedding.id} onClose={() => setDocsOpen(false)} />}
-
-      {/* Decisões do casamento (destino/data/local/orçamento) + aceite do casal */}
-      <BlocoColapsavel
-        icon={Scale}
-        titulo="Decisões do casamento"
-        status={decididas === 4 ? 'ok' : decididas > 0 ? 'doing' : 'todo'}
-        resumo={`${decididas} de 4 decididas (destino · data · local · orçamento)`}
-        storageKey={`${wedding.id}:decisoes`}
-        defaultOpen={false}
-      >
+      <BlocoColapsavel icon={Scale} titulo="Decisões do casamento" status={decididas === 4 ? 'ok' : decididas > 0 ? 'doing' : 'todo'} resumo={`${decididas} de 4 decididas (destino · data · local · orçamento)`} storageKey={`${wedding.id}:decisoes`} defaultOpen={false}>
         <DecisoesSection wedding={wedding} />
       </BlocoColapsavel>
 
-      {/* E-mail com o casal (registro no card) */}
-      <BlocoColapsavel
-        icon={Mail}
-        titulo="E-mail com o casal"
-        resumo="a conversa formal por e-mail, dentro do casamento"
-        storageKey={`${wedding.id}:email`}
-        defaultOpen={false}
-      >
+      <BlocoColapsavel icon={Mail} titulo="E-mail com o casal" resumo="a conversa formal por e-mail, dentro do casamento" storageKey={`${wedding.id}:email`} defaultOpen={false}>
         <EmailCasalSection wedding={wedding} />
       </BlocoColapsavel>
 
-      {/* Notas da planejadora (texto livre) */}
-      <BlocoColapsavel
-        icon={StickyNote}
-        titulo="Notas da planejadora"
-        resumo={resumoNotas}
-        storageKey={`${wedding.id}:notas`}
-        defaultOpen={false}
-      >
+      <BlocoColapsavel icon={StickyNote} titulo="Notas da planejadora" resumo={resumoNotas} storageKey={`${wedding.id}:notas`} defaultOpen={false}>
         <NotasSection wedding={wedding} />
       </BlocoColapsavel>
 
-      {/* Relatório do casamento — saúde, financeiro, convidados, prazos */}
-      <BlocoColapsavel
-        icon={BarChart3}
-        titulo="Relatório do casamento"
-        resumo="saúde, financeiro, convidados e prazos num resumo"
-        storageKey={`${wedding.id}:relatorio`}
-        defaultOpen={false}
-      >
+      <BlocoColapsavel icon={BarChart3} titulo="Relatório do casamento" resumo="saúde, financeiro, convidados e prazos num resumo" storageKey={`${wedding.id}:relatorio`} defaultOpen={false}>
         <RelatorioCasamento wedding={wedding} />
       </BlocoColapsavel>
 
-      {/* Linha do tempo do casamento — histórico real (entrou, mudou de etapa,
-          "campo X: A → B", cobrança) reusando o ActivityFeed nativo do card. */}
-      <BlocoColapsavel
-        icon={History}
-        titulo="Linha do tempo do casamento"
-        resumo="tudo que já aconteceu — entradas, mudanças de etapa e de decisões"
-        storageKey={`${wedding.id}:timeline`}
-        defaultOpen={false}
-      >
+      <BlocoColapsavel icon={History} titulo="Linha do tempo do casamento" resumo="tudo que já aconteceu — entradas, mudanças de etapa e de decisões" storageKey={`${wedding.id}:timeline`} defaultOpen={false}>
         <div className="pt-3"><ActivityFeed cardId={wedding.id} /></div>
       </BlocoColapsavel>
     </div>
   )
 }
 
-// Trava visível no topo (D-P3): a(s) tarefa(s) 🔒 que seguram a etapa atual, com
-// o dossiê "parado desde X · cobramos Y · resposta até Z". Some quando nada trava.
-function diaMes(iso: string): string {
-  const d = iso.slice(0, 10)
-  return `${d.slice(8, 10)}/${d.slice(5, 7)}`
-}
-function diasDesde(iso: string): number {
-  const ms = Date.now() - new Date(iso).getTime()
-  return Math.max(0, Math.floor(ms / 86400000))
-}
+// ── Faixa "O trabalho": última concluída × próxima pendente ──────────────────
+// Não resolve aqui (pedido do Vitor) — só mostra o essencial e leva pra tarefa.
+function TrabalhoLane({
+  items,
+  currentEtapa,
+  paradoDias,
+  feitas,
+  total,
+  slaText,
+  prazoDias,
+  defaultDias,
+  overrideDias,
+  editandoPrazo,
+  savingPrazo,
+  onEditPrazo,
+  onSalvarPrazo,
+  onCancelarPrazo,
+  onGoToSpine,
+}: {
+  items: ChecklistItem[]
+  currentEtapa: string
+  paradoDias: number | null
+  feitas: number
+  total: number
+  slaText: string
+  prazoDias: number
+  defaultDias: number
+  overrideDias: number | null
+  editandoPrazo: boolean
+  savingPrazo: boolean
+  onEditPrazo: () => void
+  onSalvarPrazo: (dias: number | null) => void
+  onCancelarPrazo: () => void
+  onGoToSpine: () => void
+}) {
+  const hoje = new Date().toISOString().slice(0, 10)
+  const feitos = items.filter(i => i.feito && i.updated_at)
+  const ultima = feitos.length
+    ? feitos.reduce((a, b) => ((a.updated_at ?? '') > (b.updated_at ?? '') ? a : b))
+    : null
+  const abertos = items.filter(i => !i.feito)
+  // "Próxima" = o que vem AGORA: prioriza as tarefas da ETAPA ATUAL; só cai pra
+  // outras etapas se a atual já estiver toda feita. Dentro do escopo, a de menor
+  // prazo (vencida/mais próxima) vem primeiro; sem prazo, a primeira da ordem.
+  const daEtapa = abertos.filter(i => (i.marco ?? '').startsWith(`${currentEtapa}:`))
+  const escopo = daEtapa.length ? daEtapa : abertos
+  const comPrazo = escopo.filter(i => i.prazo).sort((a, b) => (a.prazo! < b.prazo! ? -1 : 1))
+  const proxima = comPrazo[0] ?? escopo[0] ?? null
 
-// Cor do trilho de severidade + da pílula "parada há N dias", escalando com o
-// tempo: calmo (<7d), atenção (7–21d), cutucada (>21d, tom rosewood da marca).
-function paradoTier(dias: number): { rail: string; pill: string } {
-  if (dias > 21) return { rail: 'from-[#C99A53] via-[#B97F46] to-[#9B4E46]', pill: 'bg-[#F6E5DF] ring-[#E7CABF] text-[#9B4E46]' }
-  if (dias >= 7) return { rail: 'from-[#D9BE8C] to-[#C99A53]', pill: 'bg-[#F8EBD2] ring-[#EAD3A8] text-[#8A6A1A]' }
-  return { rail: 'from-[#E3D2AE] to-[#D9BE8C]', pill: 'bg-[#F1ECE3] ring-[#E3D8C6] text-[#8A8278]' }
-}
+  if (!ultima && !proxima && total === 0) return null
 
-type TravaItem = { titulo: string; tipo: string | null; prazo: string | null; ultimaCobranca: string | null; esperandoTerceiro: boolean }
+  const ProxIcon = proxima ? getTaskTypeConfig(proxima.tipo ?? 'tarefa').icon : Circle
+  const proxVencida = !!(proxima?.prazo && proxima.prazo < hoje)
 
-// Cada tarefa-trava vira um cartão acionável: ícone do tipo + título + chips de
-// estado (só os que têm sinal real — sem "sem prazo/ainda não cobramos" mortos).
-function TravaTaskCard({ t, hoje, onJump }: { t: TravaItem; hoje: string; onJump: () => void }) {
-  const Icon = getTaskTypeConfig(t.tipo ?? 'tarefa').icon
-  const vencido = !!t.prazo && t.prazo < hoje
   return (
-    <button
-      type="button"
-      onClick={onJump}
-      className={cn(
-        'group text-left w-full rounded-2xl border p-3.5 flex items-start gap-3 transition-colors',
-        vencido ? 'border-[#F0DCD7] bg-[#FDF6F4] hover:bg-white' : 'border-[#EDE4D6] bg-[#FCFAF6] hover:border-[#E1D2BC] hover:bg-white',
-      )}
-    >
-      <span className={cn('w-9 h-9 rounded-xl bg-white ring-1 grid place-items-center shrink-0', vencido ? 'ring-[#EFCFC6]' : 'ring-[#EAD9BE]')}>
-        <Icon className={cn('w-[18px] h-[18px]', vencido ? 'text-[#B0473C]' : 'text-[#B97F46]')} />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-[13.5px] font-semibold text-[#2B2824] leading-snug">{t.titulo}</p>
-        <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-          {t.esperandoTerceiro && (
-            <span className="inline-flex items-center gap-1.5 h-6 pl-1.5 pr-2.5 rounded-full bg-[#FBEFD9] text-[#8A6A1A] text-[11px] font-medium">
-              <Hourglass className="w-3 h-3" /> esperando o casal/fornecedor
-            </span>
-          )}
-          {t.prazo && (
-            vencido ? (
-              <span className="inline-flex items-center gap-1 h-6 pl-1.5 pr-2 rounded-full bg-[#F8E0DB] text-[#B0473C] text-[11px] font-semibold">
-                <AlarmClock className="w-3 h-3" /> venceu {diaMes(t.prazo)}
-              </span>
+    <section className="rounded-2xl border border-[#E6DBC9] bg-white p-4 shadow-[0_1px_2px_rgba(78,24,32,0.05)] flex flex-col gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-3 items-stretch">
+        {/* Última concluída */}
+        <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
+          <span className="w-9 h-9 rounded-lg bg-emerald-600 text-white grid place-items-center shrink-0">
+            <Check className="w-[18px] h-[18px]" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-bold uppercase tracking-[0.07em] text-emerald-700">Última concluída</p>
+            {ultima ? (
+              <>
+                <p className="text-[13.5px] font-semibold text-[#211F1D] truncate">{ultima.titulo}</p>
+                {ultima.updated_at && <p className="text-[11px] text-emerald-700/80 [font-family:'Roboto']">há {diasDesde(ultima.updated_at)} dias</p>}
+              </>
             ) : (
-              <span className="inline-flex items-center gap-1 h-6 pl-1.5 pr-2 rounded-full bg-[#EEF3EA] text-[#4F7A4A] text-[11px] font-medium">
-                <CalendarCheck className="w-3 h-3" /> responde até {diaMes(t.prazo)}
-              </span>
-            )
+              <p className="text-[12.5px] text-[#9A9082] mt-0.5">nada concluído ainda</p>
+            )}
+          </div>
+        </div>
+
+        <div className="hidden md:flex items-center justify-center text-[#CFC2AE]">
+          <ArrowRight className="w-5 h-5" />
+        </div>
+
+        {/* Próxima pendente */}
+        <button
+          type="button"
+          onClick={onGoToSpine}
+          className={cn(
+            'group flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors',
+            proxVencida ? 'border-rose-200 bg-rose-50/60 hover:bg-rose-50' : 'border-[#EAD9BE] bg-[#FCFAF6] hover:bg-white',
           )}
-          {t.ultimaCobranca && (
-            <span className="inline-flex items-center gap-1 h-6 px-2 rounded-full bg-[#F7EFD9] text-[#9A7B2E] text-[11px] font-medium">
-              <Bell className="w-3 h-3" /> cobramos {diaMes(t.ultimaCobranca)}
+        >
+          <span className={cn('w-9 h-9 rounded-lg grid place-items-center shrink-0 border', proxVencida ? 'bg-rose-100 border-rose-200 text-rose-700' : 'bg-white border-[#EAD9BE] text-[#B97F46]')}>
+            <ProxIcon className="w-[18px] h-[18px]" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-bold uppercase tracking-[0.07em] text-[#A88C57]">Próxima pendente</p>
+            {proxima ? (
+              <>
+                <p className="text-[13.5px] font-semibold text-[#211F1D] truncate">{proxima.titulo}</p>
+                {proxima.prazo ? (
+                  <p className={cn('inline-flex items-center gap-1.5 text-[11px] mt-0.5 [font-family:\'Roboto\']', proxVencida ? 'text-rose-600 font-semibold' : 'text-[#9A9082]')}>
+                    {proxVencida ? <AlarmClock className="w-3 h-3" /> : <CalendarCheck className="w-3 h-3" />}
+                    {proxVencida ? `venceu ${diaMes(proxima.prazo)}` : `até ${diaMes(proxima.prazo)}`}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-[#9A9082] mt-0.5 [font-family:'Roboto']">sem prazo definido</p>
+                )}
+              </>
+            ) : (
+              <p className="text-[12.5px] text-emerald-700 mt-0.5">tudo feito nesta etapa 🎉</p>
+            )}
+          </div>
+          {proxima && (
+            <span className="hidden sm:inline-flex items-center gap-1 text-[12px] font-semibold text-[#8A6A33] whitespace-nowrap shrink-0">
+              ir para a tarefa <ArrowRight className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition" />
             </span>
           )}
-        </div>
+        </button>
       </div>
-      <ChevronRight className="w-4 h-4 text-[#C9BCA8] mt-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-    </button>
+
+      {/* Linha-resumo: parado, progresso e prazo do planejamento (editável). */}
+      <div className="flex items-center gap-2 flex-wrap text-[11.5px] text-[#9A9082] [font-family:'Roboto']">
+        {paradoDias != null && (
+          <span className={cn(paradoDias > 21 ? 'text-rose-600 font-semibold' : paradoDias >= 7 ? 'text-[#8A6A1A] font-semibold' : '')}>
+            Parado nesta etapa há <b>{paradoDias}d</b>
+          </span>
+        )}
+        {paradoDias != null && <span className="text-[#D9CFC2]">·</span>}
+        <span><b className="text-[#5C5751]">{feitas}</b> de {total} tarefas feitas</span>
+        <span className="text-[#D9CFC2]">·</span>
+        <span className="inline-flex items-center gap-1">
+          prazo do planejamento: <b className={planDeadlineTone(slaText)}>{slaText}</b>
+          {!editandoPrazo && (
+            <button type="button" onClick={onEditPrazo} className="ml-0.5 p-0.5 rounded text-[#B5ABA0] hover:text-[#8A6A33] hover:bg-[#F4ECDD]" title="Definir o prazo deste casamento" aria-label="Editar prazo deste casamento">
+              <Pencil className="w-3 h-3" />
+            </button>
+          )}
+        </span>
+      </div>
+
+      {editandoPrazo && (
+        <PrazoEditor
+          inicial={overrideDias != null && overrideDias > 0 ? Math.round(overrideDias) : prazoDias}
+          padrao={defaultDias}
+          temOverride={overrideDias != null && overrideDias > 0}
+          saving={savingPrazo}
+          onSalvar={onSalvarPrazo}
+          onCancelar={onCancelarPrazo}
+        />
+      )}
+    </section>
   )
 }
 
-function TravaBanner({
-  pendentes,
-  cobrancasVencidas,
-  etapaLabel,
-  paradoDesde,
-}: {
-  pendentes: TravaItem[]
-  cobrancasVencidas: number
-  etapaLabel: string
-  paradoDesde: string | null
-}) {
-  if (pendentes.length === 0 && cobrancasVencidas === 0) return null
+function planDeadlineTone(slaText: string): string {
+  if (slaText.includes('atrasado')) return 'text-rose-600'
+  if (slaText.includes('hoje')) return 'text-[#8A6A1A]'
+  return 'text-[#5C5751]'
+}
 
-  const hoje = new Date().toISOString().slice(0, 10)
-  const dias = paradoDesde ? diasDesde(paradoDesde) : 0
-  const tier = paradoTier(dias)
-  const irParaTarefas = () => {
-    const el = document.getElementById(BLOCO.spine)
-    if (!el) return
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    el.classList.add('bloco-flash')
-    window.setTimeout(() => el.classList.remove('bloco-flash'), 1400)
+// ── Cartão "Pronto para a próxima fase" (handoff) ────────────────────────────
+// O que está DEFINIDO × EM ABERTO pra entregar pros próximos times. Lê campos
+// que já existem (sem dado novo). A ação de entregar (mover pra Produção) entra
+// numa próxima leva.
+function HandoffCard({ wedding }: { wedding: WeddingPlanejamento }) {
+  const pd = wedding.produto_data
+  const contrato = pdNum(pd, PLANEJ_FIELD.convidadosContrato)
+  const sinalValor = pdNum(pd, PLANEJ_FIELD.sinalValor)
+  const itens: { ok: boolean; label: string; det?: string }[] = [
+    { ok: !!pdStr(pd, PLANEJ_FIELD.espaco), label: 'Venue fechado', det: pdStr(pd, PLANEJ_FIELD.espaco) || undefined },
+    { ok: pdBool(pd, PLANEJ_FIELD.contratoAssinado), label: 'Contrato do casamento assinado' },
+    { ok: !!pdStr(pd, PLANEJ_FIELD.sinalPagoEm), label: 'Sinal pago', det: sinalValor != null ? `R$ ${sinalValor.toLocaleString('pt-BR')}` : undefined },
+    { ok: wedding.hotelStatus === 'bloqueado' || wedding.hotelStatus === 'confirmado', label: 'Hotel bloqueado', det: wedding.hotelQuartos != null ? `${wedding.hotelQuartos} quartos` : undefined },
+    { ok: !!pdStr(pd, PLANEJ_FIELD.promoTarifa), label: 'Ação promocional', det: pdStr(pd, PLANEJ_FIELD.promoTarifa) ? `R$ ${pdStr(pd, PLANEJ_FIELD.promoTarifa)}/noite` : undefined },
+    { ok: pdBool(pd, PLANEJ_FIELD.listaPreenchida), label: 'Lista de convidados', det: `${wedding.counts.total}${contrato != null ? ` de ${contrato}` : ''}` },
+  ]
+  const done = itens.filter(i => i.ok).length
+
+  const navigate = useNavigate()
+  const entregar = useEntregarParaProducao()
+  const [confirmando, setConfirmando] = useState(false)
+  const handleEntregar = async () => {
+    // mutateAsync (não o callback onSuccess) — ao entregar, o card sai do board e
+    // este componente desmonta; navegar pelo callback corria com a invalidação.
+    // Aqui o navigate roda no próprio fluxo, só no sucesso (erro vira toast no hook).
+    try {
+      await entregar.mutateAsync({ cardId: wedding.id })
+      navigate('/producao')
+    } catch {
+      /* erro já tratado no hook (toast) */
+    }
   }
 
   return (
-    <section className="relative overflow-hidden rounded-[20px] bg-white border border-[#ECE3D5] shadow-[0_10px_34px_rgba(78,24,32,0.07)]">
-      <div className={cn('absolute left-0 top-0 bottom-0 w-[5px] bg-gradient-to-b', tier.rail)} />
-      <div className="p-5 sm:p-6 pl-7">
-        {pendentes.length > 0 && (
-          <>
-            <div className="flex items-start justify-between gap-4 flex-wrap">
-              <div className="flex items-start gap-3.5 min-w-0">
-                <span className="w-11 h-11 rounded-2xl bg-[#FBEFD9] ring-1 ring-[#EAD3A8] grid place-items-center shrink-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
-                  <Lock className="w-5 h-5 text-[#A2741F]" />
-                </span>
-                <div className="min-w-0">
-                  <h3 className="text-[16px] font-extrabold tracking-tight text-[#211F1D] leading-tight">Esta etapa está travada</h3>
-                  <p className="text-[12.5px] text-[#8A8278] mt-1 [font-family:'Roboto']">
-                    {etapaLabel} · <span className="text-[#6F675E] font-semibold">{pendentes.length === 1 ? '1 marco segura' : `${pendentes.length} marcos seguram`} o avanço</span>
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={irParaTarefas}
-                className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full bg-[#BD965C] text-white text-[12.5px] font-semibold shadow-[0_1px_2px_rgba(140,100,40,0.25)] hover:bg-[#a37f47] transition-colors shrink-0"
-              >
-                Ver tarefas <ArrowRight className="w-[14px] h-[14px]" />
-              </button>
-            </div>
-            <div className={cn('mt-4 grid gap-3', pendentes.length === 1 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2')}>
-              {pendentes.map((t, i) => (
-                <TravaTaskCard key={i} t={t} hoje={hoje} onJump={irParaTarefas} />
-              ))}
-            </div>
-          </>
-        )}
-
-        {cobrancasVencidas > 0 && (
-          <div className={cn('flex items-center gap-2 text-[12px] text-[#9A7B2E]', pendentes.length > 0 && 'mt-4 pt-3 border-t border-[#F0E6CE]')}>
-            <Bell className="w-3.5 h-3.5 text-[#BD965C]" />
-            {cobrancasVencidas} {cobrancasVencidas === 1 ? 'tarefa vencida vira cobrança automática' : 'tarefas vencidas viram cobrança automática'} — a recobrança aparece em “Minhas tarefas”.
+    <section className="rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50/60 to-white p-5 shadow-[0_1px_2px_rgba(78,24,32,0.05)]">
+      <div className="flex items-center gap-2.5 flex-wrap">
+        <span className="w-9 h-9 rounded-lg bg-emerald-600 text-white grid place-items-center shrink-0">
+          <PackageCheck className="w-[18px] h-[18px]" />
+        </span>
+        <h2 className="text-[15px] font-bold text-[#211F1D]">Pronto para a próxima fase</h2>
+        <span className="ml-auto text-[12px] font-bold text-emerald-700 [font-family:'Roboto']">{done} de {itens.length} definidos</span>
+      </div>
+      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {itens.map((it, i) => (
+          <div
+            key={i}
+            className={cn(
+              'flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-[12.5px]',
+              it.ok ? 'border-emerald-200 bg-emerald-50/70 text-emerald-800' : 'border-amber-200 bg-amber-50/70 text-amber-800',
+            )}
+          >
+            {it.ok ? <Check className="w-4 h-4 text-emerald-600 shrink-0" /> : <Circle className="w-4 h-4 text-amber-500 shrink-0" />}
+            <span className="font-medium">{it.label}</span>
+            {it.det && <span className="text-[#9A9082] truncate">— {it.det}</span>}
           </div>
+        ))}
+      </div>
+
+      {/* Entregar para a Produção — move o casamento de verdade (mover_card) pra
+          etapa de Produção e o tira do quadro de Planejamento. */}
+      <div className="mt-4 pt-3 border-t border-emerald-100 flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-[12px] text-[#6B8A7F]">
+          {done === itens.length ? 'Tudo definido — pode entregar.' : `${itens.length - done} item(ns) ainda em aberto.`}
+          {' '}A entrega segue a trava da etapa.
+        </p>
+        {confirmando ? (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[12px] text-[#5C5751]">Entregar e tirar do quadro de Planejamento?</span>
+            <button
+              type="button"
+              onClick={handleEntregar}
+              disabled={entregar.isPending}
+              className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg bg-emerald-600 text-white text-[12.5px] font-semibold hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {entregar.isPending ? 'Entregando…' : <>Confirmar <ArrowRight className="w-3.5 h-3.5" /></>}
+            </button>
+            <button type="button" onClick={() => setConfirmando(false)} className="h-8 px-3 rounded-lg border border-slate-200 bg-white text-[12.5px] text-slate-600 hover:bg-slate-50">
+              Cancelar
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirmando(true)}
+            className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-emerald-600 text-white text-[13px] font-semibold hover:bg-emerald-700 shadow-[0_1px_2px_rgba(15,110,94,0.25)]"
+          >
+            <PackageCheck className="w-4 h-4" /> Entregar para Produção <ArrowRight className="w-3.5 h-3.5" />
+          </button>
         )}
       </div>
     </section>
@@ -591,8 +584,7 @@ function TravaBanner({
 }
 
 // Gaveta lateral com os anexos NATIVOS do card (tabela arquivos + bucket
-// card-documents). O 📎 das tarefas "Ler/Receber o contrato" abre aqui — sem
-// tirar a planejadora da tela do casamento. Vazio até subirem o 1º documento.
+// card-documents). O 📎 das tarefas "Ler/Receber o contrato" abre aqui.
 function DocsDrawer({ cardId, onClose }: { cardId: string; onClose: () => void }) {
   return createPortal(
     <div className="fixed inset-0 z-50 flex justify-end bg-black/30 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose() }} role="dialog" aria-modal="true">
@@ -634,7 +626,7 @@ function PrazoEditor({
 }) {
   const [val, setVal] = useState(String(inicial))
   return (
-    <div className="mt-2 flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-1.5">
         <input
           type="number"
@@ -646,23 +638,10 @@ function PrazoEditor({
           className="w-16 px-2 py-1 text-[12px] rounded-md border border-[#E0D6C8] bg-white tabular-nums focus:outline-none focus:ring-2 focus:ring-[#BD965C]/30"
         />
         <span className="text-[11px] text-[#9A9082]">dias</span>
-        <button
-          type="button"
-          disabled={saving}
-          onClick={() => onSalvar(Number(val) || null)}
-          className="p-1 rounded text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
-          title="Salvar"
-          aria-label="Salvar prazo"
-        >
+        <button type="button" disabled={saving} onClick={() => onSalvar(Number(val) || null)} className="p-1 rounded text-emerald-600 hover:bg-emerald-50 disabled:opacity-50" title="Salvar" aria-label="Salvar prazo">
           <Check className="w-3.5 h-3.5" />
         </button>
-        <button
-          type="button"
-          onClick={onCancelar}
-          className="p-1 rounded text-slate-400 hover:bg-slate-100"
-          title="Cancelar"
-          aria-label="Cancelar"
-        >
+        <button type="button" onClick={onCancelar} className="p-1 rounded text-slate-400 hover:bg-slate-100" title="Cancelar" aria-label="Cancelar">
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -676,4 +655,3 @@ function PrazoEditor({
     </div>
   )
 }
-
