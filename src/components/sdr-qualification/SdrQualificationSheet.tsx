@@ -6,7 +6,6 @@ import { Input } from '../ui/Input'
 import { Textarea } from '../ui/textarea'
 import { Switch } from '../ui/switch'
 import { Label } from '../ui/label'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
 import { useEstelaScoringRules, type ScoringRule } from '../../hooks/useEstelaScoringRules'
 import {
     useSdrQualificationSession,
@@ -37,6 +36,11 @@ type Props = {
 
 type DataMode = 'exata' | 'mes_ano' | 'indefinido'
 
+// Abaixo deste piso de convidados o investimento por convidado NÃO pontua —
+// eventos micro distorcem o custo/convidado pra cima e inflam a faixa de valor.
+// Pedido do Vitor (30/06).
+const MIN_CONVIDADOS_PARA_FAIXA = 20
+
 function findRule(rules: ScoringRule[], dimension: string): ScoringRule | undefined {
     return rules.find((r) => r.dimension === dimension)
 }
@@ -62,7 +66,8 @@ function getValorFaixas(rules: ScoringRule[]): ValorFaixa[] {
 }
 
 function findValorFaixaRule(rules: ScoringRule[], investimentoTotal: number, numConvidados: number): ScoringRule | null {
-    if (!numConvidados || numConvidados <= 0 || !investimentoTotal) return null
+    // Menos de 20 convidados não pontua por convidado (micro-evento distorce a faixa).
+    if (!numConvidados || numConvidados < MIN_CONVIDADOS_PARA_FAIXA || !investimentoTotal) return null
     const perGuest = investimentoTotal / numConvidados
     for (const f of getValorFaixas(rules)) {
         const okMin = f.min == null || perGuest >= f.min
@@ -194,13 +199,6 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
         session.setInputs(next)
     }
 
-    const handleSubjetivo = (rule: ScoringRule, valor: 'sim' | 'nao' | 'pendente') => {
-        const next = { ...session.scoringInputs }
-        if (valor === 'sim') next[rule.id] = true
-        else delete next[rule.id]
-        session.setInputs(next)
-    }
-
     const aplicarValorConvidado = (dados: DadosLead) => {
         const next = { ...session.scoringInputs }
         for (const r of findRulesByGroup(rules, 'valor_convidado')) delete next[r.id]
@@ -264,7 +262,8 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
     const sinalViagem = findRule(rules, 'viagem_internacional_recente')
     const sinalFamilia = findRule(rules, 'familia_ajudando')
     const sinalPesquisou = findRule(rules, 'planejamento_avancado')
-    const subjetivoPremium = findRule(rules, 'referencia_casamento_premium')
+    const disqInvestimento = findRuleByType(rules, 'disqualify', 'investimento_abaixo_50k')
+    const disqInternacional = findRuleByType(rules, 'disqualify', 'casal_internacional')
 
     const valorFaixas = useMemo(() => getValorFaixas(rules), [rules])
     const faixaAtual = useMemo(() => {
@@ -277,6 +276,10 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
         if (!inv || !conv) return null
         return inv / conv
     }, [session.dadosLead.investimento_total, session.dadosLead.num_convidados])
+    const convidadosAbaixoMinimo = useMemo(() => {
+        const conv = session.dadosLead.num_convidados
+        return conv != null && conv > 0 && conv < MIN_CONVIDADOS_PARA_FAIXA
+    }, [session.dadosLead.num_convidados])
     const [showFaixasModal, setShowFaixasModal] = useState(false)
 
     return (
@@ -518,7 +521,11 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                                                         {formatBRL(valorPorConvidado)}
                                                     </span>
                                                 </span>
-                                                {faixaAtual ? (
+                                                {convidadosAbaixoMinimo ? (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 font-medium">
+                                                        Menos de {MIN_CONVIDADOS_PARA_FAIXA} convidados — não pontua por convidado
+                                                    </span>
+                                                ) : faixaAtual ? (
                                                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
                                                         +{faixaAtual.weight} pts ({faixaAtual.label?.replace('Valor por convidado: ', '') ?? 'faixa atual'})
                                                     </span>
@@ -676,56 +683,28 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                                     </div>
                                 </section>
 
-                                {/* E. Avaliação subjetiva */}
-                                {subjetivoPremium && (
+                                {/* E. Desqualificadores manuais */}
+                                {(disqInvestimento || disqInternacional) && (
                                     <section>
-                                        <h3 className="text-sm font-semibold text-slate-900 mb-3">Avaliação do SDR</h3>
-                                        <div>
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <Label className="text-sm font-medium text-slate-700">
-                                                    Casal demonstra circulação em meio premium / referência cultural?
-                                                </Label>
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Info className="w-3.5 h-3.5 text-slate-400 cursor-help" />
-                                                        </TooltipTrigger>
-                                                        <TooltipContent className="max-w-xs">
-                                                            Sinais: menciona casamentos de amigos em destinos top, fala em
-                                                            fornecedores conhecidos, usa termos como "destination wedding",
-                                                            cita lugares premium que frequenta.
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                {(['sim', 'nao', 'pendente'] as const).map((v) => {
-                                                    const isSim = v === 'sim'
-                                                    const isNao = v === 'nao'
-                                                    const selected =
-                                                        (isSim && session.scoringInputs[subjetivoPremium.id] === true) ||
-                                                        (isNao && session.scoringInputs[subjetivoPremium.id] === false) ||
-                                                        (v === 'pendente' && session.scoringInputs[subjetivoPremium.id] === undefined)
-                                                    return (
-                                                        <button
-                                                            key={v}
-                                                            type="button"
-                                                            onClick={() => handleSubjetivo(subjetivoPremium, v)}
-                                                            className={
-                                                                'flex-1 px-3 py-2 rounded-lg border text-sm transition ' +
-                                                                (selected
-                                                                    ? 'bg-indigo-50 border-indigo-300 text-indigo-900'
-                                                                    : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300')
-                                                            }
-                                                        >
-                                                            {v === 'sim' ? 'Sim' : v === 'nao' ? 'Não' : 'Ainda não avaliei'}
-                                                        </button>
-                                                    )
-                                                })}
-                                            </div>
-                                            <p className="text-xs text-slate-500 mt-1">
-                                                Bônus +{subjetivoPremium.weight} pts apenas se "Sim".
-                                            </p>
+                                        <h3 className="text-sm font-semibold text-slate-900 mb-1">Desqualificadores</h3>
+                                        <p className="text-xs text-slate-500 mb-3">
+                                            Marque se algum destes se aplica — desqualifica o lead na hora.
+                                        </p>
+                                        <div className="space-y-2">
+                                            {disqInvestimento && (
+                                                <DisqualifyToggle
+                                                    label="Abaixo de R$ 50 mil de investimento"
+                                                    active={session.scoringInputs[disqInvestimento.id] === true}
+                                                    onToggle={(v) => handleSinal(disqInvestimento, v)}
+                                                />
+                                            )}
+                                            {disqInternacional && (
+                                                <DisqualifyToggle
+                                                    label="Casal internacional"
+                                                    active={session.scoringInputs[disqInternacional.id] === true}
+                                                    onToggle={(v) => handleSinal(disqInternacional, v)}
+                                                />
+                                            )}
                                         </div>
                                     </section>
                                 )}
@@ -820,6 +799,42 @@ export function SdrQualificationSheet({ open, onOpenChange, qualificationId, con
                 />
             )}
         </>
+    )
+}
+
+function DisqualifyToggle({
+    label,
+    active,
+    onToggle,
+}: {
+    label: string
+    active: boolean
+    onToggle: (value: boolean) => void
+}) {
+    return (
+        <button
+            type="button"
+            onClick={() => onToggle(!active)}
+            className={
+                'w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border text-sm font-medium transition ' +
+                (active
+                    ? 'bg-rose-50 border-rose-300 text-rose-800'
+                    : 'bg-white border-slate-200 text-slate-700 hover:border-rose-200 hover:text-rose-700')
+            }
+        >
+            <span className="flex items-center gap-2">
+                <XCircle className={'w-4 h-4 ' + (active ? 'text-rose-600' : 'text-slate-400')} />
+                {label}
+            </span>
+            <span
+                className={
+                    'text-xs px-2 py-0.5 rounded-full ' +
+                    (active ? 'bg-rose-200 text-rose-900' : 'bg-slate-100 text-slate-500')
+                }
+            >
+                {active ? 'Desqualifica' : 'Marcar'}
+            </span>
+        </button>
     )
 }
 
