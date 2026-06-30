@@ -1,5 +1,4 @@
 import { memo, useCallback, useState, type CSSProperties, type MouseEvent } from 'react'
-import { Link } from 'react-router-dom'
 import type { WwDiretoriaDeal, WwDiretoriaFase, WwDiretoriaFaseKey } from '@/hooks/analyticsWeddings/useWw2'
 import { formatCurrency, formatNumber } from '../lib/format'
 import { FASE_UI } from './diretoriaColors'
@@ -9,9 +8,9 @@ const OFFSET = ['lg:ml-0', 'lg:ml-12', 'lg:ml-24', 'lg:ml-36'] as const
 
 type HoverState = { deal: WwDiretoriaDeal; fase: WwDiretoriaFaseKey; label: string; x: number; y: number }
 
-export function DiretoriaSnapshot({ fases }: { fases: WwDiretoriaFase[] }) {
+export function DiretoriaSnapshot({ fases, onSelectCard }: { fases: WwDiretoriaFase[]; onSelectCard: (cardId: string) => void }) {
   const [hover, setHover] = useState<HoverState | null>(null)
-  const onHover = useCallback((deal: WwDiretoriaDeal, fase: WwDiretoriaFaseKey, label: string, e: MouseEvent<HTMLAnchorElement>) => {
+  const onHover = useCallback((deal: WwDiretoriaDeal, fase: WwDiretoriaFaseKey, label: string, e: MouseEvent<HTMLElement>) => {
     const r = e.currentTarget.getBoundingClientRect()
     setHover({ deal, fase, label, x: r.left + r.width / 2, y: r.top })
   }, [])
@@ -19,52 +18,23 @@ export function DiretoriaSnapshot({ fases }: { fases: WwDiretoriaFase[] }) {
 
   return (
     <div className="space-y-3">
-      {fases.map((fase, i) => {
-        const proxima = fases[i + 1]
-        return (
-          <div key={fase.key}>
-            <FaseBarra fase={fase} className={OFFSET[i]} onHover={onHover} onLeave={onLeave} />
-            {proxima && (
-              <div className={`flex items-center gap-2 mt-2 pl-1 ${OFFSET[i + 1]}`}>
-                <span className="text-ww-n400">↓</span>
-                <span className="text-xs text-ww-n500">
-                  {fase.conversao_proxima_pct != null ? (
-                    <>
-                      <span className="font-semibold text-ww-n700 tabular-nums">{fase.conversao_proxima_pct}%</span> seguiram para {proxima.label} no período
-                    </>
-                  ) : (
-                    <>sem base no período para medir a passagem para {proxima.label}</>
-                  )}
-                </span>
-              </div>
-            )}
-          </div>
-        )
-      })}
+      {fases.map((fase, i) => (
+        <FaseBarra key={fase.key} fase={fase} className={OFFSET[i]} onHover={onHover} onLeave={onLeave} onSelectCard={onSelectCard} />
+      ))}
       {hover && <DealPreview hover={hover} />}
     </div>
-  )
-}
-
-function Tendencia({ pct }: { pct: number | null }) {
-  if (pct == null) return null
-  const up = pct > 0, down = pct < 0
-  const cls = up ? 'text-emerald-700 bg-emerald-50' : down ? 'text-rose-600 bg-rose-50' : 'text-slate-500 bg-slate-100'
-  return (
-    <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium tabular-nums ${cls}`} title="Variação das entradas na fase vs. período anterior">
-      {up ? '↑' : down ? '↓' : '→'}{Math.abs(pct)}%
-    </span>
   )
 }
 
 type FaseBarraProps = {
   fase: WwDiretoriaFase
   className?: string
-  onHover: (deal: WwDiretoriaDeal, fase: WwDiretoriaFaseKey, label: string, e: MouseEvent<HTMLAnchorElement>) => void
+  onHover: (deal: WwDiretoriaDeal, fase: WwDiretoriaFaseKey, label: string, e: MouseEvent<HTMLElement>) => void
   onLeave: () => void
+  onSelectCard: (cardId: string) => void
 }
 
-const FaseBarra = memo(function FaseBarra({ fase, className = '', onHover, onLeave }: FaseBarraProps) {
+const FaseBarra = memo(function FaseBarra({ fase, className = '', onHover, onLeave, onSelectCard }: FaseBarraProps) {
   const ui = FASE_UI[fase.key]
   const truncados = fase.count - fase.deals.length
   return (
@@ -75,12 +45,11 @@ const FaseBarra = memo(function FaseBarra({ fase, className = '', onHover, onLea
         <span className="text-[11px] uppercase tracking-wide text-ww-n400">{fase.sub}</span>
         <span className="flex-1" />
         <span className="text-sm text-ww-n500 tabular-nums">
-          <span className="text-xl font-semibold text-ww-n700">{formatNumber(fase.count)}</span> {fase.count === 1 ? 'casal' : 'casais'}
+          <span className="text-xl font-semibold text-ww-n700">{formatNumber(fase.count)}</span> {fase.count === 1 ? 'casal' : 'casais'} agora
         </span>
         {fase.valor_total > 0 && (
           <span className="text-sm text-ww-n500 tabular-nums">· {formatCurrency(fase.valor_total)}</span>
         )}
-        <Tendencia pct={fase.tendencia_pct} />
       </div>
 
       {fase.count === 0 ? (
@@ -89,13 +58,14 @@ const FaseBarra = memo(function FaseBarra({ fase, className = '', onHover, onLea
         <>
           <div className="flex flex-wrap gap-[2px]">
             {fase.deals.map((d) => (
-              <Link
+              <button
                 key={d.card_id}
-                to={`/cards/${d.card_id}`}
-                aria-label={`Abrir card: ${d.titulo}`}
+                type="button"
+                aria-label={`Ver histórico de etapas: ${d.titulo}`}
+                onClick={() => onSelectCard(d.card_id)}
                 onMouseEnter={(e) => onHover(d, fase.key, fase.label, e)}
                 onMouseLeave={onLeave}
-                className={`w-[4px] h-7 rounded-[1px] ${ui.bar} opacity-80 origin-bottom hover:opacity-100 hover:scale-y-110 transition-all`}
+                className={`w-[4px] h-7 rounded-[1px] ${ui.bar} opacity-80 origin-bottom hover:opacity-100 hover:scale-y-110 transition-all cursor-pointer`}
               />
             ))}
           </div>
@@ -184,7 +154,7 @@ function DealPreview({ hover }: { hover: HoverState }) {
             </div>
           ))}
         </dl>
-        <div className="mt-2 pt-2 border-t border-ww-sand text-[10px] text-ww-n400">Clique para abrir o card</div>
+        <div className="mt-2 pt-2 border-t border-ww-sand text-[10px] text-ww-n400">Clique para ver o histórico de etapas</div>
       </div>
     </div>
   )

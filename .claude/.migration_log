@@ -1348,3 +1348,5 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-26T14:31:26Z | supabase/migrations/20260626c_ww_diretoria_tempos.sql | applied_to_prod
 2026-06-26T19:41:36Z | supabase/migrations/20260626d_ww_native_pos_venda_carimbos.sql | applied_to_prod
 2026-06-26T19:42:06Z | supabase/migrations/20260626e_ww_diretoria_tempos_pos_venda.sql | applied_to_prod
+2026-06-30T12:26:18Z | supabase/migrations/20260630a_ww_card_stage_history.sql | applied_to_prod
+2026-06-30T12:27:04Z | supabase/migrations/20260630b_ww_diretoria_filtro_tipo.sql | applied_to_prod
