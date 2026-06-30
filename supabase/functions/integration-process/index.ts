@@ -248,6 +248,89 @@ Deno.serve(async (req) => {
             .select('*')
             .eq('is_active', true);
 
+        // Set of local field keys typed as 'boolean' — usado para coagir 'Sim'/'Não' (AC)
+        // em true/false antes de gravar no card (a UI renderiza boolean como checkbox via !!value,
+        // então a string 'Não' renderizaria CHECKED por engano).
+        const booleanFieldKeys = new Set<string>(
+            (systemFields ?? []).filter((f: any) => f.type === 'boolean').map((f: any) => f.key)
+        );
+        const TRUE_STRINGS = new Set(['sim', 'true', '1', 'yes', 'verdadeiro']);
+        const FALSE_STRINGS = new Set(['não', 'nao', 'false', '0', 'no', 'falso', '']);
+        const coerceFieldValue = (localKey: string, value: any): any => {
+            if (!booleanFieldKeys.has(localKey)) return value;
+            if (typeof value === 'boolean') return value;
+            const norm = String(value ?? '').trim().toLowerCase();
+            if (TRUE_STRINGS.has(norm)) return true;
+            if (FALSE_STRINGS.has(norm)) return false;
+            return value; // valor inesperado: mantém cru (não chuta)
+        };
+
+        // ─────────────────────────────────────────────────────────────────────────
+        // AC API resolver para custom fields de DEAL.
+        //
+        // O webhook NATIVO do AC entrega cada campo como deal[fields][N][id] = id do
+        // REGISTRO dealCustomFieldData (que muda a cada edição), deal[fields][N][key] = título
+        // e deal[fields][N][value] = valor. O customFieldId numérico NÃO vem no payload, então
+        // parseCustomFields casaria pelo id errado e todo valor cairia em unmapped_fields.
+        // Para eventos de webhook resolvemos o {customFieldId: value} autoritativo direto na API
+        // do AC (mesma abordagem de ww-ac-funnel-sync). O sync em massa (integration-sync-deals,
+        // import_mode='sync') já manda o customFieldId real em [id], então lá mantemos o parse
+        // local e evitamos dobrar a carga na API do AC durante backfills.
+        // ─────────────────────────────────────────────────────────────────────────
+        let _acCreds: { url: string; key: string } | null | undefined = undefined;
+        const getAcCreds = async (): Promise<{ url: string; key: string } | null> => {
+            if (_acCreds !== undefined) return _acCreds;
+            try {
+                const [u, k] = await Promise.all([
+                    supabase.rpc('get_outbound_setting', { p_key: 'ACTIVECAMPAIGN_API_URL' }),
+                    supabase.rpc('get_outbound_setting', { p_key: 'ACTIVECAMPAIGN_API_KEY' }),
+                ]);
+                const url = (u.data as string | null)?.replace(/\/+$/, '') || '';
+                const key = (k.data as string | null) || '';
+                _acCreds = url && key ? { url, key } : null;
+            } catch (e) {
+                console.warn('[integration-process] AC creds load failed:', (e as Error).message);
+                _acCreds = null;
+            }
+            return _acCreds;
+        };
+        // "['Vídeo']" (multiselect cru do AC) → "Vídeo"; demais valores passam intactos.
+        const cleanAcValue = (v: any): any => {
+            if (typeof v !== 'string') return v;
+            const t = v.trim();
+            if (t.startsWith('[') && t.endsWith(']')) {
+                try {
+                    const arr = JSON.parse(t.replace(/'/g, '"'));
+                    if (Array.isArray(arr)) return arr.map(String).map(s => s.trim()).filter(Boolean).join(', ');
+                } catch { /* mantém cru */ }
+            }
+            return v;
+        };
+        const fetchDealCustomFieldsFromAC = async (dealId: string): Promise<Record<string, any> | null> => {
+            const creds = await getAcCreds();
+            if (!creds || !dealId) return null;
+            try {
+                const res = await fetch(`${creds.url}/api/3/deals/${dealId}/dealCustomFieldData?limit=100`, {
+                    headers: { 'Api-Token': creds.key },
+                });
+                if (!res.ok) {
+                    console.warn(`[integration-process] AC field fetch ${res.status} for deal ${dealId}`);
+                    return null;
+                }
+                const json = await res.json();
+                const out: Record<string, any> = {};
+                for (const f of (json.dealCustomFieldData ?? [])) {
+                    const v = f.fieldValue;
+                    if (v === null || v === undefined || String(v).trim() === '') continue;
+                    out[String(f.customFieldId)] = cleanAcValue(v);
+                }
+                return out;
+            } catch (e) {
+                console.warn(`[integration-process] AC field fetch error deal ${dealId}:`, (e as Error).message);
+                return null;
+            }
+        };
+
         // Helper: Parse flattened AC fields
         // AC webhook sends deal[fields] as a sequential array where:
         //   deal[fields][INDEX][key]   = field name
@@ -1022,7 +1105,21 @@ Deno.serve(async (req) => {
                 }
 
                 // 3.4 Parse Custom Fields & Map Data
-                const acFields = parseCustomFields(payload);
+                // Webhook nativo do AC manda record-id (não o customFieldId) em deal[fields][N][id],
+                // então o parse local não casa com integration_field_map. Para eventos de webhook,
+                // resolvemos {customFieldId: value} direto na API do AC. Bulk sync já manda o
+                // customFieldId real → mantém o parse local (e não dobra carga na API).
+                let acFields = parseCustomFields(payload);
+                if (!isManualSync) {
+                    const dealIdForFields = String(payload.id || payload['deal[id]'] || payload.deal_id || '');
+                    if (dealIdForFields) {
+                        const apiFields = await fetchDealCustomFieldsFromAC(dealIdForFields);
+                        if (apiFields && Object.keys(apiFields).length > 0) {
+                            acFields = apiFields;
+                            log += ` [FIELDS_VIA_AC_API: ${Object.keys(apiFields).length}]`;
+                        }
+                    }
+                }
 
                 // ALSO Parse Contact Fields (for Deal events that carry contact data)
                 const parseContactFieldsForDeal = (payload: Record<string, any>) => {
@@ -1067,8 +1164,9 @@ Deno.serve(async (req) => {
                     );
 
                     if (fieldMap) {
-                        // Store in potential updates
-                        potentialUpdates[fieldMap.local_field_key] = value;
+                        // Limpa multiselect cru ("['Vídeo']" → "Vídeo") e coage 'Sim'/'Não' → boolean.
+                        // Aplicado aqui (downstream) p/ valer no webhook E no sync em massa.
+                        potentialUpdates[fieldMap.local_field_key] = coerceFieldValue(fieldMap.local_field_key, cleanAcValue(value));
 
                         // If sync_always is false, mark as protected
                         if (fieldMap.sync_always === false) {
@@ -1091,7 +1189,7 @@ Deno.serve(async (req) => {
                     const fieldMap = fieldMappings?.find(m => m.external_field_id === externalKey && m.integration_id === event.integration_id && m.entity_type === 'contact');
 
                     if (fieldMap) {
-                        potentialUpdates[fieldMap.local_field_key] = value;
+                        potentialUpdates[fieldMap.local_field_key] = coerceFieldValue(fieldMap.local_field_key, cleanAcValue(value));
                         if (fieldMap.sync_always === false) {
                             protectedFields.push(fieldMap.local_field_key);
                         }
@@ -1344,13 +1442,22 @@ Deno.serve(async (req) => {
                         // PRIORITY 2: MAPPING-LEVEL PROTECTION (sync_always = false)
                         // ═══════════════════════════════════════════════════════════════════
                         if (!shouldSkip && isProtected && existingCard) {
-                            // Check if existing card has a value for this key
-                            // The key could be a top-level column OR inside marketing_data
+                            // Check if existing card has a value for this key.
+                            // O campo pode morar como coluna top-level OU dentro de produto_data /
+                            // marketing_data / briefing_inicial. Sem checar produto_data, campos como
+                            // ww_sdr_* (que vivem em produto_data) NUNCA eram protegidos e o AC
+                            // sobrescrevia valor existente mesmo com sync_always=false (ex.: clobberava
+                            // o link do Calendly em ww_sdr_link_reuniao).
                             let existingValue = existingCard[key];
 
-                            // If not found at top level, check marketing_data
+                            if (existingValue === undefined && existingCard.produto_data) {
+                                existingValue = existingCard.produto_data[key];
+                            }
                             if (existingValue === undefined && existingCard.marketing_data) {
                                 existingValue = existingCard.marketing_data[key];
+                            }
+                            if (existingValue === undefined && existingCard.briefing_inicial) {
+                                existingValue = existingCard.briefing_inicial[key];
                             }
 
                             // If existing value is not null/undefined/empty, protect it
