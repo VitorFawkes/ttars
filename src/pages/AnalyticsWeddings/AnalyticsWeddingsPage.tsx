@@ -64,12 +64,14 @@ function loadFiltersByTab(orgId?: string): Record<Tab, AppliedFilters> {
 export default function AnalyticsWeddingsPage() {
   const { org } = useOrg()
   const { product } = useCurrentProductMeta()
+  const variant = useAnalyticsVariant()
   const orgId = org?.id
   const [activeTab, setActiveTab] = useState<Tab>('visao')
   // Filtro POR ABA — cada aba lembra o seu (não há mais filtro global). Persistido por org.
   const [filtersByTab, setFiltersByTab] = useState<Record<Tab, AppliedFilters>>(() => loadFiltersByTab(orgId))
 
   // Recarrega os filtros guardados quando o workspace muda (ou ao montar com a org já definida).
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- sincroniza o estado de filtros com a troca de workspace (mudança de contexto externo); uso legítimo
   useEffect(() => { if (orgId) setFiltersByTab(loadFiltersByTab(orgId)) }, [orgId])
   // Salva sempre que mudar (não reseta mais ao trocar de aba/sair da página).
   useEffect(() => {
@@ -96,15 +98,20 @@ export default function AnalyticsWeddingsPage() {
 
   const activeFilters = TABS_COM_FILTRO.includes(activeTab) ? filtersByTab[activeTab] : undefined
 
+  // Operação/Diretoria lê dados NATIVOS (RPCs ww_diretoria_* sobre o funil próprio do ttars),
+  // então só aparece na Analytics 2 (variante native). Na Analytics 1 (ActiveCampaign) fica oculta.
+  const isNative = variant === 'native'
+  const visibleTabs = isNative ? TABS : TABS.filter(t => t.id !== 'operacao')
+
   return (
     <div className="h-full overflow-y-auto overflow-x-hidden bg-ww-paper">
       <div className="max-w-[1600px] mx-auto p-6 space-y-5 min-w-0">
         <Header activeFilters={activeFilters} />
         {/* Mobile: navegação vira grade compacta acima do conteúdo; desktop: coluna fixa à esquerda */}
         <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 items-stretch lg:items-start">
-          <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} filtersByTab={filtersByTab} />
+          <Sidebar tabs={visibleTabs} activeTab={activeTab} setActiveTab={setActiveTab} filtersByTab={filtersByTab} />
           <div className="flex-1 min-w-0">
-            {activeTab === 'operacao' && <Diretoria />}
+            {isNative && activeTab === 'operacao' && <Diretoria />}
             {activeTab === 'visao' && <VisaoGeral {...tabProps('visao')} />}
             {activeTab === 'funil-comparado' && <FunilComparado />}
             {activeTab === 'entrada-realidade' && <EntradaRealidade {...tabProps('entrada-realidade')} />}
@@ -144,11 +151,11 @@ function Header({ activeFilters }: { activeFilters?: AppliedFilters }) {
   )
 }
 
-function Sidebar({ activeTab, setActiveTab, filtersByTab }: { activeTab: Tab; setActiveTab: (t: Tab) => void; filtersByTab: Record<Tab, AppliedFilters> }) {
+function Sidebar({ tabs, activeTab, setActiveTab, filtersByTab }: { tabs: typeof TABS; activeTab: Tab; setActiveTab: (t: Tab) => void; filtersByTab: Record<Tab, AppliedFilters> }) {
   return (
     <aside className="w-full lg:w-56 shrink-0 lg:sticky lg:top-20 self-start">
       <nav className="bg-white border border-ww-sand rounded-xl shadow-ww-lift p-2 grid grid-cols-2 gap-1 lg:block lg:space-y-0.5">
-        {TABS.map(t => {
+        {tabs.map(t => {
           // Bolinha com nº de filtros ativos — cada aba lembra o próprio recorte
           const nFiltros = TABS_COM_FILTRO.includes(t.id) ? countActiveFilters(filtersByTab[t.id]) : 0
           return (
