@@ -37,6 +37,7 @@ import { usePlanejamentoWeddings, type WeddingPlanejamento } from '../../hooks/p
 import { useWeddingChecklist } from '../../hooks/planejamento/useWeddingChecklist'
 import { useWeddingPlanningPrazo } from '../../hooks/planejamento/useWeddingPlanningPrazo'
 import { usePlanejamentoCampos } from '../../hooks/planejamento/usePlanejamentoCampos'
+import { useEntregarParaProducao } from '../../hooks/planejamento/useEntregarParaProducao'
 import { JornadaCasamento } from '../../components/planejamento/JornadaCasamento'
 import { RelatorioCasamento } from '../../components/planejamento/RelatorioCasamento'
 import { faixaDeSaude } from '../../lib/planejamento/statusBloco'
@@ -506,6 +507,21 @@ function HandoffCard({ wedding }: { wedding: WeddingPlanejamento }) {
   ]
   const done = itens.filter(i => i.ok).length
 
+  const navigate = useNavigate()
+  const entregar = useEntregarParaProducao()
+  const [confirmando, setConfirmando] = useState(false)
+  const handleEntregar = async () => {
+    // mutateAsync (não o callback onSuccess) — ao entregar, o card sai do board e
+    // este componente desmonta; navegar pelo callback corria com a invalidação.
+    // Aqui o navigate roda no próprio fluxo, só no sucesso (erro vira toast no hook).
+    try {
+      await entregar.mutateAsync({ cardId: wedding.id })
+      navigate('/producao')
+    } catch {
+      /* erro já tratado no hook (toast) */
+    }
+  }
+
   return (
     <section className="rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50/60 to-white p-5 shadow-[0_1px_2px_rgba(78,24,32,0.05)]">
       <div className="flex items-center gap-2.5 flex-wrap">
@@ -529,6 +545,39 @@ function HandoffCard({ wedding }: { wedding: WeddingPlanejamento }) {
             {it.det && <span className="text-[#9A9082] truncate">— {it.det}</span>}
           </div>
         ))}
+      </div>
+
+      {/* Entregar para a Produção — move o casamento de verdade (mover_card) pra
+          etapa de Produção e o tira do quadro de Planejamento. */}
+      <div className="mt-4 pt-3 border-t border-emerald-100 flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-[12px] text-[#6B8A7F]">
+          {done === itens.length ? 'Tudo definido — pode entregar.' : `${itens.length - done} item(ns) ainda em aberto.`}
+          {' '}A entrega segue a trava da etapa.
+        </p>
+        {confirmando ? (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[12px] text-[#5C5751]">Entregar e tirar do quadro de Planejamento?</span>
+            <button
+              type="button"
+              onClick={handleEntregar}
+              disabled={entregar.isPending}
+              className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg bg-emerald-600 text-white text-[12.5px] font-semibold hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {entregar.isPending ? 'Entregando…' : <>Confirmar <ArrowRight className="w-3.5 h-3.5" /></>}
+            </button>
+            <button type="button" onClick={() => setConfirmando(false)} className="h-8 px-3 rounded-lg border border-slate-200 bg-white text-[12.5px] text-slate-600 hover:bg-slate-50">
+              Cancelar
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirmando(true)}
+            className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-emerald-600 text-white text-[13px] font-semibold hover:bg-emerald-700 shadow-[0_1px_2px_rgba(15,110,94,0.25)]"
+          >
+            <PackageCheck className="w-4 h-4" /> Entregar para Produção <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
     </section>
   )

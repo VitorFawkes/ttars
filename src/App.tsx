@@ -76,6 +76,8 @@ import PlanejamentoPage from './pages/planejamento/PlanejamentoPage'
 import PlanejamentoPortfolioPage from './pages/planejamento/PlanejamentoPortfolioPage'
 import PlanejamentoDetailPage from './pages/planejamento/PlanejamentoDetailPage'
 import BancoFornecedoresPage from './pages/planejamento/BancoFornecedoresPage'
+import ProducaoLayout from './pages/producao/ProducaoLayout'
+import ProducaoPage from './pages/producao/ProducaoPage'
 import ConciergeLayout from './pages/concierge/ConciergeLayout'
 import KanbanPage from './pages/concierge/KanbanPage'
 import PainelGestorPage from './pages/concierge/PainelGestorPage'
@@ -308,6 +310,9 @@ function App() {
                     <Route path="portfolio" element={<PlanejamentoPortfolioPage />} />
                     <Route path="fornecedores" element={<BancoFornecedoresPage />} />
                     <Route path="casamento/:id" element={<PlanejamentoDetailPage />} />
+                  </Route>
+                  <Route path="/producao" element={<ProducaoLayout />}>
+                    <Route index element={<ProducaoPage />} />
                   </Route>
                   <Route path="/concierge" element={<ConciergeLayout />}>
                     <Route index element={<KanbanPage />} />
