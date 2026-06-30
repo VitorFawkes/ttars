@@ -71,6 +71,17 @@ import { usePipelineGovernance, getDiasAtrasoDataPrevista, useDataPrevistaTracke
 import { SystemPhase } from '@/types/pipeline'
 import { useCancellationStateByCard, useReabrirCancelamento, modoCancelamentoLabel } from '@/hooks/cancelamento/useCancelamento'
 import { AlertOctagon } from 'lucide-react'
+import { useFutureOpportunities } from '../../hooks/useFutureOpportunities'
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '../ui/alert-dialog'
 
 type CardBase = Database['public']['Tables']['cards']['Row']
 
@@ -441,6 +452,18 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
     const [pendingLossMove, setPendingLossMove] = useState<{ stageId: string; stageName: string } | null>(null)
     const [winOptionsModalOpen, setWinOptionsModalOpen] = useState(false)
     const [ativarPosVendaModalOpen, setAtivarPosVendaModalOpen] = useState(false)
+    const [reopenWarnOpen, setReopenWarnOpen] = useState(false)
+
+    // Aviso de duplicação: se este card perdido já gerou um card de "Oportunidade
+    // Futura" (opp executada com card criado), reabrir aqui deixaria 2 cards ativos
+    // pro mesmo cliente. Só consulta quando o card está perdido (botão Reabrir).
+    const { executed: executedFutureOpps } = useFutureOpportunities(
+        card.status_comercial === 'perdido' ? card.id : undefined
+    )
+    const futureOppCard = useMemo(
+        () => executedFutureOpps.find(o => o.created_card_id) ?? null,
+        [executedFutureOpps]
+    )
 
     const { missingBlocking } = useStageRequirements(card)
     const { getHeaderFields } = useFieldConfig(headerPipelineId)
@@ -1717,6 +1740,12 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                                 />
                                 <button
                                     onClick={() => {
+                                        // Se já existe um card de oportunidade futura criado a partir
+                                        // deste, avisa antes de reabrir (evita 2 cards ativos pro mesmo cliente)
+                                        if (futureOppCard) {
+                                            setReopenWarnOpen(true)
+                                            return
+                                        }
                                         if (confirm('Tem certeza que deseja reabrir este card?\n\nA data de perda será apagada e o card voltará a aparecer como aberto nos relatórios.')) {
                                             reabrirCardMutation.mutate()
                                         }
@@ -2254,6 +2283,44 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
                     }}
                 />
             )}
+
+            {/* Aviso: reabrir card perdido que já gerou card de Oportunidade Futura */}
+            <AlertDialog open={reopenWarnOpen} onOpenChange={setReopenWarnOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Já existe um card de Oportunidade Futura</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Este card perdido já gerou um card de oportunidade futura
+                            {futureOppCard?.titulo ? <> (<strong>{futureOppCard.titulo}</strong>)</> : null}.
+                            {' '}Reabrir este aqui vai deixar <strong>dois cards ativos</strong> para o mesmo cliente.
+                            {' '}O recomendado é continuar no card de oportunidade futura que já existe.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Voltar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => {
+                                setReopenWarnOpen(false)
+                                if (futureOppCard?.created_card_id) {
+                                    navigate(`/cards/${futureOppCard.created_card_id}`)
+                                }
+                            }}
+                        >
+                            Ir para o card existente
+                        </AlertDialogAction>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setReopenWarnOpen(false)
+                                reabrirCardMutation.mutate()
+                            }}
+                            className="px-3 py-2 rounded-md border border-red-300 bg-white text-red-700 text-sm font-medium hover:bg-red-50 transition-colors"
+                        >
+                            Reabrir mesmo assim
+                        </button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
 }
