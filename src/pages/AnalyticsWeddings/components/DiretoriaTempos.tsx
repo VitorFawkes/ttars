@@ -17,7 +17,7 @@ export function DiretoriaTempos({ tempos, onSelectCard }: { tempos: WwDiretoriaT
     <div className="space-y-5">
       <KpiVelocidade tempos={tempos} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <SectionCard title="Tempo de travessia · SDR e Closer" subtitle="Mediana e dispersão (p25–p90) do tempo até passar pela fase, por coorte de entrada do lead no período.">
+        <SectionCard title="Tempo de travessia · SDR e Closer" subtitle="Quanto tempo o casal leva pra passar pela fase. 'Típico' = metade faz em menos que isso (coorte de entrada do lead no período).">
           <DwellRangeBars dwell={dwellOp} />
         </SectionCard>
         <SectionCard title="Onde o tempo vai até fechar" subtitle="Ciclo típico do lead até o contrato assinado, em medianas. Cobre SDR + Closer.">
@@ -87,50 +87,33 @@ function KpiTile({ label, value, sub, trend, valueClass = 'text-ww-n700' }: { la
   )
 }
 
-// ── Barras de tempo por fase (p25–p90 + mediana) ─────────────────────────────
+// ── Tempo por fase em palavras (sem caixinha de percentil) ───────────────────
 function DwellRangeBars({ dwell }: { dwell: WwDwellFase[] }) {
-  const escala = Math.max(1, ...dwell.map((d) => d.p90_dias ?? d.p75_dias ?? 0))
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {dwell.map((d) => {
         const ui = FASE_UI[d.key]
         const insuf = d.sem_dados || (d.amostra ?? 0) < AMOSTRA_MIN || d.mediana_dias == null
         return (
-          <div key={d.key}>
-            <div className="flex items-center justify-between text-sm mb-1.5">
-              <span className="inline-flex items-center gap-1.5">
-                <span className={`w-2 h-2 rounded-full ${ui.dot}`} />
-                <span className="text-ww-n700 font-medium">{d.label}</span>
-              </span>
-              {insuf ? (
-                <span className="text-[11px] text-ww-n400 italic">{d.sem_dados ? 'sem carimbo de entrada' : `poucos dados (n=${d.amostra ?? 0})`}</span>
-              ) : (
-                <span className="text-xs text-ww-n500 tabular-nums">mediana <span className="font-semibold text-ww-n700">{fmtDias(d.mediana_dias)}</span> · n={d.amostra}</span>
-              )}
-            </div>
+          <div key={d.key} className="flex items-baseline justify-between gap-3 flex-wrap">
+            <span className="inline-flex items-center gap-1.5 shrink-0">
+              <span className={`w-2 h-2 rounded-full ${ui.dot}`} />
+              <span className="text-ww-n700 font-medium text-sm">{d.label}</span>
+            </span>
             {insuf ? (
-              <div className="h-5 bg-ww-cream/60 rounded" />
+              <span className="text-[11px] text-ww-n400 italic">{d.sem_dados ? 'sem carimbo de entrada' : `poucos dados (n=${d.amostra ?? 0})`}</span>
             ) : (
-              <RangeTrack d={d} escala={escala} bar={ui.bar} />
+              <span className="text-sm text-ww-n500 text-right">
+                típico <span className="font-semibold text-ww-n700 tabular-nums">{fmtDias(d.mediana_dias)}</span>
+                {d.p90_dias != null && (
+                  <> · 9 em cada 10 em até <span className="font-medium text-ww-n700 tabular-nums">{fmtDias(d.p90_dias)}</span></>
+                )}
+                <span className="text-ww-n400"> · {d.amostra} casais</span>
+              </span>
             )}
           </div>
         )
       })}
-      <p className="text-[10px] text-ww-n400">Faixa clara = p25→p90 · faixa cheia = p25→p75 · risco = mediana.</p>
-    </div>
-  )
-}
-
-function RangeTrack({ d, escala, bar }: { d: WwDwellFase; escala: number; bar: string }) {
-  const p25 = d.p25_dias ?? 0, p75 = d.p75_dias ?? 0, p90 = d.p90_dias ?? p75, med = d.mediana_dias ?? 0
-  const pct = (v: number) => `${Math.max(0, Math.min(100, (v / escala) * 100))}%`
-  const w = (a: number, b: number) => `${Math.max(0, Math.min(100, ((b - a) / escala) * 100))}%`
-  return (
-    <div className="relative h-5 bg-ww-cream rounded">
-      <div className={`absolute top-0 bottom-0 ${bar} opacity-25 rounded`} style={{ left: pct(p25), width: w(p25, p90) }} />
-      <div className={`absolute top-0 bottom-0 ${bar} opacity-80 rounded`} style={{ left: pct(p25), width: w(p25, p75) }} />
-      <div className="absolute -top-0.5 -bottom-0.5 w-[2px] bg-ww-n700 rounded" style={{ left: pct(med) }} title={`mediana ${fmtDias(med)}`} />
-      <span className="absolute -bottom-4 text-[10px] text-ww-n400 tabular-nums" style={{ left: pct(p90) }}>{fmtDias(p90)}</span>
     </div>
   )
 }
