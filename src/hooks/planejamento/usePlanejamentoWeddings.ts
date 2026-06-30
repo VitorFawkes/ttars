@@ -24,6 +24,10 @@ export interface PlanejamentoChecklistResumo {
   atrasados: number
   /** Itens não feitos (pendentes), independente de prazo. */
   pendentes: number
+  /** Próxima entrega: menor prazo entre as tarefas pendentes (pode estar vencido). null = nenhuma com prazo. */
+  proximaPrazo: string | null
+  /** Última conclusão: quando uma tarefa foi marcada feita pela última vez (proxy: max updated_at das feitas). */
+  ultimaConclusao: string | null
 }
 
 /** Tarefa-trava pendente da ETAPA ATUAL — segura o avanço (Fase 4). */
@@ -123,7 +127,7 @@ export function usePlanejamentoWeddings() {
         for (let start = 0; ; start += PAGE) {
           const { data, error } = await sbAny
             .from('wedding_checklist')
-            .select('id, card_id, titulo, tipo, prazo, feito, marco, stage_id, trava, gera_cobranca')
+            .select('id, card_id, titulo, tipo, prazo, feito, marco, stage_id, trava, gera_cobranca, updated_at')
             .eq('org_id', orgId)
             .order('id', { ascending: true })
             .range(start, start + PAGE - 1)
@@ -171,12 +175,17 @@ export function usePlanejamentoWeddings() {
       const travaTasks: Record<string, { id: string; titulo: string; tipo: string | null; stageId: string | null; prazo: string | null; geraCobranca: boolean }[]> = {}
       const cobrancasVencidas: Record<string, number> = {}
       for (const r of checklistRows) {
-        const c = checklist[r.card_id] ?? { total: 0, feitos: 0, comPrazo: 0, atrasados: 0, pendentes: 0 }
+        const c = checklist[r.card_id] ?? { total: 0, feitos: 0, comPrazo: 0, atrasados: 0, pendentes: 0, proximaPrazo: null, ultimaConclusao: null }
         c.total += 1
-        if (r.feito) c.feitos += 1
-        else {
+        if (r.feito) {
+          c.feitos += 1
+          // "última tarefa concluída" — proxy: a feita com updated_at mais recente.
+          if (r.updated_at && (!c.ultimaConclusao || r.updated_at > c.ultimaConclusao)) c.ultimaConclusao = r.updated_at
+        } else {
           c.pendentes += 1
           if (r.prazo && r.prazo < hoje) c.atrasados += 1
+          // "próxima entrega" — o menor prazo entre as pendentes (pode estar vencido).
+          if (r.prazo && (!c.proximaPrazo || r.prazo < c.proximaPrazo)) c.proximaPrazo = r.prazo
           if (r.trava) (travaTasks[r.card_id] ??= []).push({ id: r.id, titulo: r.titulo, tipo: r.tipo ?? null, stageId: r.stage_id ?? null, prazo: r.prazo, geraCobranca: !!r.gera_cobranca })
           if (r.gera_cobranca && r.prazo && r.prazo < hoje) cobrancasVencidas[r.card_id] = (cobrancasVencidas[r.card_id] ?? 0) + 1
         }
@@ -210,7 +219,7 @@ export function usePlanejamentoWeddings() {
       if (!planejamentoEtapa) continue
       const hotel = gd.hotel[w.id] ?? { status: null, tarifa: null, quartos: null }
       const convitesCount = gd.convites[w.id] ?? 0
-      const checklist = gd.checklist[w.id] ?? { total: 0, feitos: 0, comPrazo: 0, atrasados: 0, pendentes: 0 }
+      const checklist = gd.checklist[w.id] ?? { total: 0, feitos: 0, comPrazo: 0, atrasados: 0, pendentes: 0, proximaPrazo: null, ultimaConclusao: null }
       const fornecedores = gd.fornecedores[w.id] ?? []
       // Trava da Fase 4: tarefas 🔒 não-feitas DESTA etapa (stage atual) seguram o avanço.
       const travaPendentes = (gd.travaTasks[w.id] ?? [])
@@ -274,6 +283,7 @@ interface ChecklistGateRow {
   stage_id: string | null
   trava: boolean | null
   gera_cobranca: boolean | null
+  updated_at: string | null
 }
 
 interface GateData {

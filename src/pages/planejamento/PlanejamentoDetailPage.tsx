@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
@@ -15,7 +15,6 @@ import {
   Check,
   X,
   Lock,
-  Clock,
   AlarmClock,
   ChevronRight,
   Bell,
@@ -31,16 +30,19 @@ import {
   Scale,
   Mail,
   BarChart3,
+  Pause,
+  Target,
+  ListChecks,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { getTaskTypeConfig } from '../../components/tasks/taskTypeConfig'
 import './champagne.css'
-import { formatDataLonga, daysUntil, addDaysIso } from '../../lib/planejamento/format'
+import { daysUntil, addDaysIso } from '../../lib/planejamento/format'
 import { usePlanejamentoWeddings } from '../../hooks/planejamento/usePlanejamentoWeddings'
 import { useWeddingChecklist } from '../../hooks/planejamento/useWeddingChecklist'
 import { useWeddingPlanningPrazo } from '../../hooks/planejamento/useWeddingPlanningPrazo'
 import { usePlanejamentoCampos } from '../../hooks/planejamento/usePlanejamentoCampos'
-import { AvancarEtapaBar } from '../../components/planejamento/AvancarEtapaBar'
+import { JornadaCasamento } from '../../components/planejamento/JornadaCasamento'
 import { RelatorioCasamento } from '../../components/planejamento/RelatorioCasamento'
 import { faixaDeSaude, STATUS_META } from '../../lib/planejamento/statusBloco'
 import { CasalSection } from '../../components/planejamento/CasalSection'
@@ -61,7 +63,6 @@ import {
 } from '../../components/planejamento/PlanejamentoSections'
 import {
   PLANEJAMENTO_LABEL,
-  PLANEJAMENTO_ORDER,
   PLANEJ_FIELD,
   BLOCO,
 } from '../../hooks/planejamento/types'
@@ -80,7 +81,6 @@ function pdNum(pd: Record<string, unknown> | null, key: string): number | null {
   const n = Number(s.replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, ''))
   return Number.isNaN(n) ? null : n
 }
-const brlK = (v: number) => v >= 1000 ? `R$ ${Math.round(v / 1000)}k` : `R$ ${v}`
 
 export default function PlanejamentoDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -116,34 +116,37 @@ export default function PlanejamentoDetailPage() {
     )
   }
 
-  const dateLong = formatDataLonga(wedding.wedding_date)
   const days = daysUntil(wedding.wedding_date)
   const pd = wedding.produto_data
   const tipoLabel = pdStr(pd, 'ww_tipo_casamento') || 'Destination Wedding'
-  const etapaIdx = PLANEJAMENTO_ORDER.indexOf(wedding.planejamentoEtapa) + 1
 
-  // 4 números de convidados (blueprint): contrato · lista · bloqueio · confirmados
+  // Números de convidados — usados no resumo do bloco Convidados.
   const contrato = pdNum(pd, PLANEJ_FIELD.convidadosContrato)
   const listaTotal = wedding.counts.total
   const confirmados = wedding.counts.confirmado
-  const bloqueio = wedding.hotelQuartos
 
   // Tarefas (medição do planejamento) + prazo configurável.
   // O relógio conta da ENTRADA no planejamento (carimbada ao entrar em pos_venda);
   // se não houver carimbo (casamentos antigos), cai pra data de criação do card.
   // Prazo = override deste casamento (se houver) OU o padrão do workspace.
-  const { feitos, atrasados, pendentes } = wedding.checklist
-  const planejPct = wedding.checklist.total > 0 ? Math.round((feitos / wedding.checklist.total) * 100) : 0
+  const { pendentes } = wedding.checklist
+  // Ritmo do casamento (tempos que a planejadora pediu): parado, próxima, última, faltam.
+  const proximaPrazo = wedding.checklist.proximaPrazo
+  const ultimaConclusao = wedding.checklist.ultimaConclusao
+  const proxDias = proximaPrazo ? daysUntil(proximaPrazo) : null
+  const ultimaDias = ultimaConclusao ? diasDesde(ultimaConclusao) : null
+  const paradoDias = wedding.paradoDesde ? diasDesde(wedding.paradoDesde) : null
   const planStart = pdStr(pd, PLANEJ_FIELD.posVendaEm).slice(0, 10) || (wedding.created_at ?? '').slice(0, 10)
   const overrideDias = pdNum(pd, PLANEJ_FIELD.prazoDiasOverride)
   const prazoDias = overrideDias != null && overrideDias > 0 ? Math.round(overrideDias) : defaultDias
   const planDeadline = planStart ? addDaysIso(planStart, prazoDias) : null
   const planDias = daysUntil(planDeadline)
+  // Prazo do planejamento, curto (o chip já diz "faltam N tarefas" — não repetir "faltam").
   const slaText =
-    planDeadline == null ? 'sem data de entrada'
+    planDeadline == null ? 'sem prazo de entrada'
     : planDias == null ? '—'
-    : planDias > 0 ? `faltam ${planDias}d dos ${prazoDias}`
-    : planDias === 0 ? 'prazo é hoje'
+    : planDias > 0 ? `${planDias}d dos ${prazoDias}`
+    : planDias === 0 ? 'fecha hoje'
     : `${Math.abs(planDias)}d atrasado`
 
   const salvarPrazo = (dias: number | null) => {
@@ -153,13 +156,6 @@ export default function PlanejamentoDetailPage() {
       { onSuccess: () => setEditandoPrazo(false) },
     )
   }
-
-  // Financeiro por setor
-  const valorTotal = pdNum(pd, PLANEJ_FIELD.valorTotal)
-  const pacoteValor = pdNum(pd, PLANEJ_FIELD.pacoteValor)
-  const evento = valorTotal ?? pacoteValor
-  const hosp = wedding.hotelTarifa != null && wedding.hotelQuartos != null ? wedding.hotelTarifa * wedding.hotelQuartos : null
-  const sinal = pdNum(pd, PLANEJ_FIELD.sinalValor)
 
   // Status + resumo dos blocos colapsáveis — o "bater o olho" de cada gaveta.
   const areas = faixaDeSaude(wedding)
@@ -206,15 +202,6 @@ export default function PlanejamentoDetailPage() {
             )}
           </div>
           <div className="flex items-center gap-2.5 flex-wrap">
-            {days !== null && (
-              <div className="flex items-center gap-3 rounded-xl border border-[#ECD9B5] bg-white px-4 py-2.5">
-                <Calendar className="w-5 h-5 text-[#BD965C]" />
-                <div>
-                  <div className="flex items-baseline gap-1.5"><span className="text-[22px] font-extrabold text-[#8A6A33] leading-none">{Math.abs(days)}</span><span className="text-[13px] font-semibold text-[#A88C57]">{days < 0 ? 'dias atrás' : 'dias p/ o casamento'}</span></div>
-                  <div className="text-[12px] text-[#9A9082] mt-0.5 [font-family:'Roboto']">{dateLong ?? '—'}</div>
-                </div>
-              </div>
-            )}
             <button
               onClick={() => navigate(`/convidados/casamento/${wedding.id}`)}
               className="inline-flex items-center gap-2 h-[38px] px-4 rounded-lg border border-[#E0D6C8] bg-white text-[#5C5751] text-[13px] font-semibold hover:bg-[#FCFAF6]"
@@ -232,53 +219,55 @@ export default function PlanejamentoDetailPage() {
           </div>
         </div>
 
-        {/* stat row — foto rápida alinhada ao blueprint */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 px-6 pb-5 items-stretch">
-          {/* Etapa + progresso das tarefas */}
-          <HeaderCard tone="gold">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#A88C57]">Etapa · {etapaIdx} de 6</span>
-              <span className="text-[11px] font-bold text-[#8A6A33]">{feitos}/{wedding.checklist.total} tarefas</span>
-            </div>
-            <div className="text-[14px] font-semibold text-[#211F1D] mt-1.5 leading-tight flex-1">{PLANEJAMENTO_LABEL[wedding.planejamentoEtapa]}</div>
-            <div className="h-1.5 rounded-full bg-[#EFE3CC] overflow-hidden mt-2.5"><div className="h-full bg-[#BD965C] rounded-full" style={{ width: `${planejPct}%` }} /></div>
-          </HeaderCard>
+        {/* Jornada — onde está + por onde passou, de uma vez (trilha das 6 etapas + Avançar). */}
+        <div className="px-6 pb-4 pt-0.5">
+          <JornadaCasamento wedding={wedding} />
+        </div>
 
-          {/* 4 números de convidados */}
-          <HeaderCard>
-            <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#A89A86]">Convidados</span>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-2 mt-2 flex-1">
-              <MiniNum label="Contrato" value={contrato != null ? String(contrato) : '—'} />
-              <MiniNum label="Lista" value={String(listaTotal)} />
-              <MiniNum label="Bloqueio" value={bloqueio != null ? String(bloqueio) : '—'} />
-              <MiniNum label="Confirmados" value={String(confirmados)} />
-            </div>
-          </HeaderCard>
+        {/* Ritmo do casamento — os tempos que importam (pedido 25/06): parado · próxima
+            entrega · última concluída · faltam tarefas/dias · casamento. Numa linha só. */}
+        <div className="flex items-center gap-2 flex-wrap px-6 py-3 border-t border-[#F0E9DD] bg-[#FCFAF6]">
+          <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#A88C57] mr-1">Ritmo</span>
 
-          {/* Tarefas (meta de prazo configurável) */}
-          <HeaderCard>
-            <div className="flex items-center justify-between gap-1">
-              <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#A89A86]">
-                Tarefas · meta {prazoDias} dias{overrideDias != null && overrideDias > 0 ? ' (deste casamento)' : ''}
-              </span>
-              {!editandoPrazo && (
-                <button
-                  type="button"
-                  onClick={() => setEditandoPrazo(true)}
-                  className="p-0.5 rounded text-[#B5ABA0] hover:text-[#8A6A33] hover:bg-[#F4ECDD] shrink-0"
-                  title="Definir o prazo deste casamento"
-                  aria-label="Editar prazo deste casamento"
-                >
-                  <Pencil className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-            <div className="grid grid-cols-3 gap-2 mt-2 flex-1">
-              <MiniNum label="Feitas" value={String(feitos)} />
-              <MiniNum label="Atrasadas" value={String(atrasados)} tone={atrasados > 0 ? 'rose' : undefined} />
-              <MiniNum label="Pendentes" value={String(pendentes)} />
-            </div>
-            {editandoPrazo ? (
+          {paradoDias != null && (
+            <span className={cn('inline-flex items-center gap-1.5 h-7 pl-2 pr-3 rounded-full text-[12px] border',
+              paradoDias > 21 ? 'bg-[#F6E5DF] border-[#E7CABF] text-[#9B4E46]' : paradoDias >= 7 ? 'bg-[#F8EBD2] border-[#EAD3A8] text-[#8A6A1A]' : 'bg-white border-[#EAE1D3] text-[#6F675E]')}>
+              <Pause className="w-3.5 h-3.5 shrink-0" /> parado há <b>{paradoDias}d</b> nesta etapa
+            </span>
+          )}
+
+          {proximaPrazo ? (
+            <span className={cn('inline-flex items-center gap-1.5 h-7 pl-2 pr-3 rounded-full text-[12px] border',
+              proxDias != null && proxDias < 0 ? 'bg-[#F8E0DB] border-[#EFCFC6] text-[#B0473C] font-medium' : 'bg-white border-[#EAE1D3] text-[#6F675E]')}>
+              <Target className={cn('w-3.5 h-3.5 shrink-0', proxDias != null && proxDias < 0 ? 'text-[#B0473C]' : 'text-[#BD965C]')} /> próxima entrega <b className={proxDias != null && proxDias < 0 ? '' : 'text-[#211F1D]'}>{diaMes(proximaPrazo)}</b>
+              {proxDias != null && <span className={proxDias < 0 ? '' : 'text-[#9A9082]'}>· {proxDias < 0 ? `vencida há ${Math.abs(proxDias)}d` : proxDias === 0 ? 'hoje' : `em ${proxDias}d`}</span>}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 h-7 pl-2 pr-3 rounded-full text-[12px] bg-white border border-[#EAE1D3] text-[#9A9082]"><Target className="w-3.5 h-3.5 text-[#CBBEA8] shrink-0" /> sem prazo nas pendentes</span>
+          )}
+
+          {ultimaDias != null && (
+            <span className="inline-flex items-center gap-1.5 h-7 pl-2 pr-3 rounded-full text-[12px] bg-white border border-[#EAE1D3] text-[#6F675E]">
+              <Check className="w-3.5 h-3.5 text-[#4F7A4A] shrink-0" /> última feita {ultimaDias === 0 ? 'hoje' : `há ${ultimaDias}d`}
+            </span>
+          )}
+
+          <span className="inline-flex items-center gap-1.5 h-7 pl-2 pr-2.5 rounded-full text-[12px] bg-white border border-[#EAE1D3] text-[#6F675E]">
+            <ListChecks className="w-3.5 h-3.5 text-[#BD965C] shrink-0" /> faltam <b className="text-[#211F1D]">{pendentes}</b> tarefa{pendentes === 1 ? '' : 's'}
+            <span className="text-[#9A9082]">· {slaText}</span>
+            {!editandoPrazo && (
+              <button type="button" onClick={() => setEditandoPrazo(true)} className="ml-0.5 p-0.5 rounded text-[#B5ABA0] hover:text-[#8A6A33] hover:bg-[#F4ECDD]" title="Definir o prazo deste casamento" aria-label="Editar prazo deste casamento"><Pencil className="w-3 h-3" /></button>
+            )}
+          </span>
+
+          {days !== null && (
+            <span className="inline-flex items-center gap-1.5 h-7 pl-2 pr-3 rounded-full text-[12px] bg-white border border-[#EAE1D3] text-[#6F675E]">
+              <Calendar className="w-3.5 h-3.5 text-[#BD965C] shrink-0" /> casamento {days < 0 ? `foi há ${Math.abs(days)}d` : `em ${days}d`}
+            </span>
+          )}
+
+          {editandoPrazo && (
+            <div className="w-full pt-1">
               <PrazoEditor
                 inicial={overrideDias != null && overrideDias > 0 ? Math.round(overrideDias) : prazoDias}
                 padrao={defaultDias}
@@ -287,20 +276,8 @@ export default function PlanejamentoDetailPage() {
                 onSalvar={salvarPrazo}
                 onCancelar={() => setEditandoPrazo(false)}
               />
-            ) : (
-              <div className="text-[11px] text-[#9A9082] mt-2 [font-family:'Roboto']">{slaText}</div>
-            )}
-          </HeaderCard>
-
-          {/* Financeiro por setor */}
-          <HeaderCard>
-            <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#A89A86]">Financeiro</span>
-            <div className="text-[19px] font-bold text-[#211F1D] mt-1.5 [font-family:'Roboto'] tabular-nums flex-1">{evento != null ? brlK(evento) : '—'}<span className="text-[11px] font-medium text-[#B5ABA0] ml-1">casamento</span></div>
-            <div className="text-[11px] text-[#9A9082] mt-1 [font-family:'Roboto'] leading-relaxed">
-              Hospedagem {hosp != null ? `~${brlK(hosp)}/noite` : '—'}<br />
-              Sinal {sinal != null ? brlK(sinal) : '—'}
             </div>
-          </HeaderCard>
+          )}
         </div>
 
         {/* Faixa de saúde — o "bater o olho": verde = ok, amarelo = em andamento,
@@ -317,9 +294,6 @@ export default function PlanejamentoDetailPage() {
           })}
         </div>
       </div>
-
-      {/* Avançar de etapa — barra enxuta (substitui a antiga grade "Marcos"). */}
-      <AvancarEtapaBar wedding={wedding} />
 
       {/* Trava da etapa (Fase 4) — a tarefa 🔒 que segura o avanço sobe pro topo */}
       <TravaBanner
@@ -589,21 +563,13 @@ function TravaBanner({
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {paradoDesde && (
-                  <span className={cn('inline-flex items-center gap-1.5 h-8 pl-2.5 pr-3 rounded-full ring-1', tier.pill)} title={`Parada nesta etapa desde ${diaMes(paradoDesde)}`}>
-                    <Clock className="w-[14px] h-[14px]" />
-                    <span className="text-[12.5px] font-bold tabular-nums">parada há {dias} dia{dias === 1 ? '' : 's'}</span>
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={irParaTarefas}
-                  className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full bg-[#BD965C] text-white text-[12.5px] font-semibold shadow-[0_1px_2px_rgba(140,100,40,0.25)] hover:bg-[#a37f47] transition-colors"
-                >
-                  Ver tarefas <ArrowRight className="w-[14px] h-[14px]" />
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={irParaTarefas}
+                className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full bg-[#BD965C] text-white text-[12.5px] font-semibold shadow-[0_1px_2px_rgba(140,100,40,0.25)] hover:bg-[#a37f47] transition-colors shrink-0"
+              >
+                Ver tarefas <ArrowRight className="w-[14px] h-[14px]" />
+              </button>
             </div>
             <div className={cn('mt-4 grid gap-3', pendentes.length === 1 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2')}>
               {pendentes.map((t, i) => (
@@ -647,26 +613,6 @@ function DocsDrawer({ cardId, onClose }: { cardId: string; onClose: () => void }
       </div>
     </div>,
     document.body,
-  )
-}
-
-function HeaderCard({ children, tone }: { children: ReactNode; tone?: 'gold' }) {
-  return (
-    <div className={cn(
-      'rounded-xl border p-3.5 flex flex-col',
-      tone === 'gold' ? 'border-[#ECDCBE] bg-[#FCF7EE]' : 'border-[#EAE1D3] bg-[#FBF8F3]',
-    )}>
-      {children}
-    </div>
-  )
-}
-
-function MiniNum({ label, value, tone }: { label: string; value: string; tone?: 'rose' }) {
-  return (
-    <div className="min-w-0">
-      <div className={cn('text-[18px] font-bold [font-family:\'Roboto\'] tabular-nums leading-none', tone === 'rose' ? 'text-rose-600' : 'text-[#211F1D]')}>{value}</div>
-      <div className="text-[10px] text-[#B5ABA0] mt-0.5 uppercase tracking-[0.05em] truncate">{label}</div>
-    </div>
   )
 }
 

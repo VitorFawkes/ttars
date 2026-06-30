@@ -210,7 +210,9 @@ function NPSResponseCard({ row, cards }: { row: NPSResponseRow; cards: ContactCa
     useLayoutEffect(() => {
         if (detailRef.current) setDetailHeight(detailRef.current.scrollHeight + 8)
     }, [row.comment, row.proximo_destino])
-    const canExpand = detailHeight > NPS_DETAIL_COLLAPSED_H
+    const hasMoreChips = cards.length > NPS_CHIPS_COLLAPSED
+    const canExpand = detailHeight > NPS_DETAIL_COLLAPSED_H || hasMoreChips
+    const visibleChips = expanded ? cards : cards.slice(0, NPS_CHIPS_COLLAPSED)
     const segment = segmentOf(row.score)
     const contactName = row.contato_nome || row.original_name || null
     const headerLabel = contactName || row.card_titulo || row.original_phone || 'Resposta sem contato vinculado'
@@ -277,20 +279,30 @@ function NPSResponseCard({ row, cards }: { row: NPSResponseRow; cards: ContactCa
                     {/* Cards do contato (um contato pode ter mais de uma viagem) */}
                     <div className="flex flex-wrap items-center gap-1.5 mt-3">
                         {cards.length > 0 ? (
-                            cards.map((c) => (
-                                <button
-                                    key={c.id}
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        navigate(`/cards/${c.id}`)
-                                    }}
-                                    title={c.titulo}
-                                    className="inline-flex items-center gap-1 max-w-[200px] px-2 py-1 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100 hover:bg-indigo-100 active:scale-[0.97] transition-[transform,background-color] duration-150 ease-out-strong"
-                                >
-                                    <Ticket className="w-3 h-3 shrink-0" />
-                                    <span className="truncate">{c.titulo}</span>
-                                </button>
-                            ))
+                            <>
+                                {visibleChips.map((c) => (
+                                    <button
+                                        key={c.id}
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            navigate(`/cards/${c.id}`)
+                                        }}
+                                        title={c.titulo}
+                                        className="inline-flex items-center gap-1 max-w-[200px] px-2 py-1 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100 hover:bg-indigo-100 active:scale-[0.97] transition-[transform,background-color] duration-150 ease-out-strong"
+                                    >
+                                        <Ticket className="w-3 h-3 shrink-0" />
+                                        <span className="truncate">{c.titulo}</span>
+                                    </button>
+                                ))}
+                                {!expanded && hasMoreChips && (
+                                    <span
+                                        title={`Mais ${cards.length - NPS_CHIPS_COLLAPSED} ${cards.length - NPS_CHIPS_COLLAPSED === 1 ? 'viagem' : 'viagens'}`}
+                                        className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200"
+                                    >
+                                        +{cards.length - NPS_CHIPS_COLLAPSED}
+                                    </span>
+                                )}
+                            </>
                         ) : (
                             <span className="text-xs text-slate-400 italic">
                                 {contactName ? 'Contato sem card de viagem' : 'Sem contato vinculado'}
@@ -410,6 +422,8 @@ function TrendChart({ period }: { period: NPSPeriod }) {
 const PAGE_INCREMENT = 12
 /** Altura (px) do trecho de comentário/destino visível quando o card está recolhido (~3 linhas). */
 const NPS_DETAIL_COLLAPSED_H = 76
+/** Quantos chips de viagem mostrar com o card recolhido (o resto aparece ao expandir). */
+const NPS_CHIPS_COLLAPSED = 2
 /** Respostas anteriores a esta data são o backfill histórico de formulário (legado).
     "Reais" = abril/2026 em diante (WhatsApp de abril + webhook Typeform novo). */
 const LEGACY_CUTOFF = new Date('2026-04-01T00:00:00')
