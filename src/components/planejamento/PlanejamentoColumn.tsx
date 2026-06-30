@@ -38,7 +38,7 @@ export function PlanejamentoColumn({
         title={`${label} (${count}) — clique para expandir`}
         className={cn(
           'flex flex-col w-[44px] flex-shrink-0 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden cursor-pointer transition-colors',
-          isOver && 'bg-indigo-50/60 ring-2 ring-indigo-400',
+          isOver && 'bg-[#FBF6E8]/70 ring-2 ring-[#E6D3B3]',
         )}
       >
         <div className="relative h-full flex flex-col items-center py-3 gap-2">

@@ -280,6 +280,8 @@ export interface ChecklistItem {
   trava?: boolean
   gera_cobranca?: boolean
   abre_doc?: boolean
+  /** Só leitura (não enviar em update) — usado para achar a última tarefa concluída. */
+  updated_at?: string | null
 }
 
 /** Entrada do banco de fornecedores (catálogo per-workspace, reutilizável

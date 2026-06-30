@@ -20,7 +20,7 @@ export function useWeddingChecklist(cardId: string | null | undefined) {
       if (!orgId || !cardId) return []
       const { data, error } = await sbAny
         .from('wedding_checklist')
-        .select('id, titulo, prazo, feito, observacoes, tipo, marco, ordem, stage_id, trava, gera_cobranca, abre_doc')
+        .select('id, titulo, prazo, feito, observacoes, tipo, marco, ordem, stage_id, trava, gera_cobranca, abre_doc, updated_at')
         .eq('org_id', orgId)
         .eq('card_id', cardId)
         .order('ordem', { ascending: true })
@@ -62,7 +62,8 @@ export function useWeddingChecklist(cardId: string | null | undefined) {
 
   const update = useMutation<void, Error, ChecklistItem>({
     mutationFn: async (item) => {
-      const { id, ...rest } = item
+      // updated_at é só leitura (vem da query p/ achar a última concluída) — nunca enviar no update.
+      const { id, updated_at: _ignored, ...rest } = item
       const { error } = await sbAny.from('wedding_checklist').update(rest).eq('id', id).eq('org_id', orgId)
       if (error) throw error
     },

@@ -5,13 +5,15 @@ import { formatDataCurta, isPast } from '../../lib/planejamento/format'
 import type { EtapaPlanejamento } from '../../hooks/planejamento/types'
 import type { WeddingPlanejamento } from '../../hooks/planejamento/usePlanejamentoWeddings'
 
+// Tema champanhe — borda dourada única (sem arco-íris por etapa). O estado
+// (trava/cobrança/pronto) é quem ganha cor, embaixo do card.
 const ACCENT: Record<EtapaPlanejamento, string> = {
-  boas_vindas: 'border-l-slate-300',
-  onboarding: 'border-l-sky-400',
-  propostas: 'border-l-violet-400',
-  definicao: 'border-l-indigo-500',
-  passagem: 'border-l-amber-400',
-  aditivo: 'border-l-emerald-500',
+  boas_vindas: 'border-l-[#D9BE8C]',
+  onboarding: 'border-l-[#D9BE8C]',
+  propostas: 'border-l-[#D9BE8C]',
+  definicao: 'border-l-[#D9BE8C]',
+  passagem: 'border-l-[#D9BE8C]',
+  aditivo: 'border-l-[#D9BE8C]',
 }
 
 interface PlanejamentoCardProps {
@@ -40,7 +42,7 @@ export function PlanejamentoCard({ wedding, onClick, isOverlay = false }: Planej
         ACCENT[wedding.planejamentoEtapa],
         !isOverlay && 'cursor-grab active:cursor-grabbing hover:shadow-md',
         dnd.isDragging && !isOverlay && 'opacity-40',
-        isOverlay && 'shadow-xl ring-2 ring-indigo-300',
+        isOverlay && 'shadow-xl ring-2 ring-[#E6D3B3]',
         past && !isOverlay && 'opacity-70',
       )}
       {...(!isOverlay ? { ...dnd.listeners, ...dnd.attributes } : {})}
@@ -92,7 +94,7 @@ export function PlanejamentoCard({ wedding, onClick, isOverlay = false }: Planej
         )}
         {wedding.cobrancasVencidas > 0 && (
           <span
-            className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-1.5 py-0.5 rounded-full border bg-indigo-50 text-indigo-600 border-indigo-100"
+            className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-1.5 py-0.5 rounded-full border bg-[#FBF6E8] text-[#8A6A33] border-[#ECD9B5]"
             title={`${wedding.cobrancasVencidas} tarefa(s) vencida(s) viram cobrança automática`}
           >
             <Bell className="w-3 h-3" /> {wedding.cobrancasVencidas}

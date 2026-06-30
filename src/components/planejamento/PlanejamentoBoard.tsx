@@ -25,13 +25,16 @@ import {
 import { PlanejamentoColumn, type ColumnTone } from './PlanejamentoColumn'
 import { PlanejamentoCard } from './PlanejamentoCard'
 
+// Tema champanhe (marca Weddings) — "cor só pra estado". As colunas não viram
+// arco-íris: todas usam o dourado da marca; quem dá o estado é o card (trava etc.).
+const TONE_CHAMP: ColumnTone = { accent: 'bg-[#D9BE8C]', chip: 'bg-[#FBF6E8] text-[#8A6A33] border-[#ECD9B5]' }
 const COLUMN_TONE: Record<EtapaPlanejamento, ColumnTone> = {
-  boas_vindas: { accent: 'bg-slate-300', chip: 'bg-slate-100 text-slate-600 border-slate-200' },
-  onboarding: { accent: 'bg-sky-400', chip: 'bg-sky-50 text-sky-700 border-sky-200' },
-  propostas: { accent: 'bg-violet-400', chip: 'bg-violet-50 text-violet-700 border-violet-200' },
-  definicao: { accent: 'bg-indigo-500', chip: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  passagem: { accent: 'bg-amber-400', chip: 'bg-amber-50 text-amber-700 border-amber-200' },
-  aditivo: { accent: 'bg-emerald-500', chip: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  boas_vindas: TONE_CHAMP,
+  onboarding: TONE_CHAMP,
+  propostas: TONE_CHAMP,
+  definicao: TONE_CHAMP,
+  passagem: TONE_CHAMP,
+  aditivo: TONE_CHAMP,
 }
 
 export function PlanejamentoBoard() {
@@ -137,7 +140,7 @@ export function PlanejamentoBoard() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar casamento…"
-            className="h-8 w-56 pl-8 pr-2.5 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            className="h-8 w-56 pl-8 pr-2.5 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-[#BD965C]/40"
           />
         </div>
         <span className="text-xs text-slate-500">
