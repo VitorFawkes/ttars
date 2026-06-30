@@ -766,6 +766,7 @@ function KanbanCard({ card, phaseSlug, onWin, onLoss, conciergeStatsMap, isDataP
                                     className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border', color)}
                                     title={`Pontuação SDR: ${sdr.score} (${sdr.disqualified ? 'desqualificado' : sdr.qualificado ? 'qualificado' : 'abaixo do mínimo'})`}
                                 >
+                                    <span className="opacity-70 font-medium">Score</span>
                                     {sdr.score}
                                     {sdr.qualificado && !sdr.disqualified && <span>✓</span>}
                                     {sdr.disqualified && <span>✗</span>}
