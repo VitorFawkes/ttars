@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useWwDiretoria, useWwDiretoriaTempos } from '@/hooks/analyticsWeddings/useWw2'
 import { DiretoriaSnapshot } from '../components/DiretoriaSnapshot'
+import { DiretoriaFunil } from '../components/DiretoriaFunil'
 import { DiretoriaTempos } from '../components/DiretoriaTempos'
 import { StageHistoryModal } from '../components/StageHistoryModal'
-import { LoadingSkeleton, ErrorBanner, EmptyState } from '../components/ui'
+import { LoadingSkeleton, ErrorBanner, EmptyState, SectionCard } from '../components/ui'
 import { formatCurrency, formatNumber } from '../lib/format'
 import { periodToDates, formatRange, type PeriodOption } from '../lib/dates'
 
@@ -87,7 +88,14 @@ export function Diretoria() {
             </div>
           </div>
 
-          <DiretoriaSnapshot fases={fases} onSelectCard={setHistCardId} />
+          <SectionCard title="Funil do período" subtitle="Do grupo de leads que entrou no período, quantos chegaram até cada etapa. Sempre afunila.">
+            <DiretoriaFunil fases={fases} />
+          </SectionCard>
+
+          <div>
+            <h3 className="text-sm font-semibold text-ww-n700 mb-2 px-0.5">Onde os casais estão agora</h3>
+            <DiretoriaSnapshot fases={fases} onSelectCard={setHistCardId} />
+          </div>
 
           {tempos.isLoading ? (
             <LoadingSkeleton rows={3} />
@@ -98,10 +106,11 @@ export function Diretoria() {
           ) : null}
 
           <p className="text-[11px] text-ww-n400 pt-2 border-t border-ww-sand">
-            O número de casais por fase é a foto de agora (etapa atual no CRM). Conversão, tendência e os tempos de SDR/Closer
-            usam o funil próprio (coorte por data de entrada do lead), então podem não bater exatamente com os Indicadores de vendas.
-            Planejamento e Produção mostram a ocupação atual; a duração só conta quem já tem carimbo de entrada e vai
-            preenchendo conforme os casais avançam.
+            Duas visões: o <strong>Funil do período</strong> mostra, do grupo de leads que entrou no período, quantos chegaram
+            até cada etapa (afunila — coorte por data de entrada). <strong>Onde os casais estão agora</strong> é a foto atual
+            (etapa no CRM) — o número bate com as barrinhas, que são os casais (clique para ver o histórico). Por usar o funil
+            próprio, pode não bater exatamente com os Indicadores de vendas. Em Planejamento e Produção, a duração só conta
+            quem já tem carimbo de entrada e vai preenchendo conforme os casais avançam.
           </p>
         </>
       )}

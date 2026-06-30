@@ -18,41 +18,11 @@ export function DiretoriaSnapshot({ fases, onSelectCard }: { fases: WwDiretoriaF
 
   return (
     <div className="space-y-3">
-      {fases.map((fase, i) => {
-        const proxima = fases[i + 1]
-        return (
-          <div key={fase.key}>
-            <FaseBarra fase={fase} className={OFFSET[i]} onHover={onHover} onLeave={onLeave} onSelectCard={onSelectCard} />
-            {proxima && (
-              <div className={`flex items-center gap-2 mt-2 pl-1 ${OFFSET[i + 1]}`}>
-                <span className="text-ww-n400">↓</span>
-                <span className="text-xs text-ww-n500">
-                  {fase.conversao_proxima_pct != null ? (
-                    <>
-                      <span className="font-semibold text-ww-n700 tabular-nums">{fase.conversao_proxima_pct}%</span> dos leads que entraram no período chegaram a {proxima.label}
-                    </>
-                  ) : (
-                    <>sem base no período para medir a chegada em {proxima.label}</>
-                  )}
-                </span>
-              </div>
-            )}
-          </div>
-        )
-      })}
+      {fases.map((fase, i) => (
+        <FaseBarra key={fase.key} fase={fase} className={OFFSET[i]} onHover={onHover} onLeave={onLeave} onSelectCard={onSelectCard} />
+      ))}
       {hover && <DealPreview hover={hover} />}
     </div>
-  )
-}
-
-function Tendencia({ pct }: { pct: number | null }) {
-  if (pct == null) return null
-  const up = pct > 0, down = pct < 0
-  const cls = up ? 'text-emerald-700 bg-emerald-50' : down ? 'text-rose-600 bg-rose-50' : 'text-slate-500 bg-slate-100'
-  return (
-    <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium tabular-nums ${cls}`} title="Variação das entradas na fase vs. período anterior">
-      {up ? '↑' : down ? '↓' : '→'}{Math.abs(pct)}%
-    </span>
   )
 }
 
@@ -75,12 +45,11 @@ const FaseBarra = memo(function FaseBarra({ fase, className = '', onHover, onLea
         <span className="text-[11px] uppercase tracking-wide text-ww-n400">{fase.sub}</span>
         <span className="flex-1" />
         <span className="text-sm text-ww-n500 tabular-nums">
-          <span className="text-xl font-semibold text-ww-n700">{formatNumber(fase.count)}</span> {fase.count === 1 ? 'casal' : 'casais'}
+          <span className="text-xl font-semibold text-ww-n700">{formatNumber(fase.count)}</span> {fase.count === 1 ? 'casal' : 'casais'} agora
         </span>
         {fase.valor_total > 0 && (
           <span className="text-sm text-ww-n500 tabular-nums">· {formatCurrency(fase.valor_total)}</span>
         )}
-        <Tendencia pct={fase.tendencia_pct} />
       </div>
 
       {fase.count === 0 ? (
