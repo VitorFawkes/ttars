@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom'
 import type { WwDiretoriaTempos, WwDwellFase, WwAgingFase, WwTempoLeg } from '@/hooks/analyticsWeddings/useWw2'
 import { SectionCard, EmptyState } from './ui'
 import { FASE_UI } from './diretoriaColors'
@@ -7,7 +6,7 @@ const AMOSTRA_MIN = 8 // abaixo disso a mediana não é confiável → "dados in
 const OPERACIONAL = new Set(['sdr', 'closer'])
 const fmtDias = (n: number | null | undefined) => (n == null ? '—' : `${Number.isInteger(n) ? n : n.toFixed(1)}d`)
 
-export function DiretoriaTempos({ tempos }: { tempos: WwDiretoriaTempos }) {
+export function DiretoriaTempos({ tempos, onSelectCard }: { tempos: WwDiretoriaTempos; onSelectCard: (cardId: string) => void }) {
   const { velocidade, dwell, aging } = tempos
   // SDR/Closer = tempo de travessia da operação; Planejamento/Produção = ocupação atual.
   const dwellOp = dwell.filter((d) => OPERACIONAL.has(d.key))
@@ -26,10 +25,10 @@ export function DiretoriaTempos({ tempos }: { tempos: WwDiretoriaTempos }) {
         </SectionCard>
       </div>
       <SectionCard title="Casais parados por fase" subtitle="Casais abertos hoje em SDR/Closer, por quanto tempo estão na operação. Quanto mais quente a cor, mais tempo parado.">
-        <AgingView aging={agingOp} />
+        <AgingView aging={agingOp} onSelectCard={onSelectCard} />
       </SectionCard>
       <SectionCard title="Pós-venda hoje · Planejamento e Produção" subtitle="Quantos casais estão em cada fase agora e há quanto tempo. A duração mede só quem já tem carimbo de entrada — vai preenchendo conforme os casais avançam.">
-        <PosVendaView fases={posVenda} />
+        <PosVendaView fases={posVenda} onSelectCard={onSelectCard} />
       </SectionCard>
     </div>
   )
@@ -182,20 +181,20 @@ const BUCKETS = [
   { key: 'mais_60' as const, label: '+60d',    cls: 'bg-rose-500' },
 ]
 
-function AgingView({ aging }: { aging: WwAgingFase[] }) {
+function AgingView({ aging, onSelectCard }: { aging: WwAgingFase[]; onSelectCard: (cardId: string) => void }) {
   const comDado = aging.filter((a) => !a.sem_dados)
   return (
     <div className="space-y-5">
       {comDado.length === 0 ? (
         <EmptyState message="Sem casais abertos em SDR/Closer para medir." />
       ) : (
-        comDado.map((a) => <AgingFaseRow key={a.key} a={a} />)
+        comDado.map((a) => <AgingFaseRow key={a.key} a={a} onSelectCard={onSelectCard} />)
       )}
     </div>
   )
 }
 
-function AgingFaseRow({ a }: { a: WwAgingFase }) {
+function AgingFaseRow({ a, onSelectCard }: { a: WwAgingFase; onSelectCard: (cardId: string) => void }) {
   const ui = FASE_UI[a.key]
   const total = a.buckets ? a.buckets.ate_7 + a.buckets.d8_30 + a.buckets.d31_60 + a.buckets.mais_60 : 0
   return (
@@ -229,7 +228,7 @@ function AgingFaseRow({ a }: { a: WwAgingFase }) {
         <div className="space-y-0.5 pl-1">
           {a.top_parados.map((t) => (
             <div key={t.card_id} className="flex items-center gap-2 text-xs py-0.5">
-              <Link to={`/cards/${t.card_id}`} className="flex-1 min-w-0 truncate text-indigo-700 hover:underline">{t.titulo}</Link>
+              <button type="button" onClick={() => onSelectCard(t.card_id)} className="flex-1 min-w-0 truncate text-left text-indigo-700 hover:underline">{t.titulo}</button>
               {t.responsavel && <span className="hidden sm:inline text-ww-n400 shrink-0">{t.responsavel}</span>}
               <span className={`shrink-0 tabular-nums font-medium ${t.dias > 60 ? 'text-rose-600' : 'text-amber-600'}`}>{t.dias}d</span>
             </div>
@@ -241,14 +240,14 @@ function AgingFaseRow({ a }: { a: WwAgingFase }) {
 }
 
 // ── Pós-venda (Planejamento · Produção): contagem + ocupação honesta ─────────
-function PosVendaView({ fases }: { fases: WwAgingFase[] }) {
+function PosVendaView({ fases, onSelectCard }: { fases: WwAgingFase[]; onSelectCard: (cardId: string) => void }) {
   const comCasais = fases.filter((f) => (f.amostra ?? 0) > 0)
   return (
     <div className="space-y-5">
       {comCasais.length === 0 ? (
         <EmptyState message="Nenhum casal em Planejamento ou Produção agora." />
       ) : (
-        comCasais.map((f) => <PosVendaRow key={f.key} f={f} />)
+        comCasais.map((f) => <PosVendaRow key={f.key} f={f} onSelectCard={onSelectCard} />)
       )}
       <p className="text-[10px] text-ww-n400">
         Tempo longo no pós-venda é normal (casamento é planejado com meses de antecedência). A duração começou a ser
@@ -258,7 +257,7 @@ function PosVendaView({ fases }: { fases: WwAgingFase[] }) {
   )
 }
 
-function PosVendaRow({ f }: { f: WwAgingFase }) {
+function PosVendaRow({ f, onSelectCard }: { f: WwAgingFase; onSelectCard: (cardId: string) => void }) {
   const ui = FASE_UI[f.key]
   const total = f.amostra ?? 0
   const comTempo = f.com_tempo ?? 0
@@ -300,7 +299,7 @@ function PosVendaRow({ f }: { f: WwAgingFase }) {
         <div className="space-y-0.5 pl-1">
           {f.top_parados.map((t) => (
             <div key={t.card_id} className="flex items-center gap-2 text-xs py-0.5">
-              <Link to={`/cards/${t.card_id}`} className="flex-1 min-w-0 truncate text-indigo-700 hover:underline">{t.titulo}</Link>
+              <button type="button" onClick={() => onSelectCard(t.card_id)} className="flex-1 min-w-0 truncate text-left text-indigo-700 hover:underline">{t.titulo}</button>
               {t.responsavel && <span className="hidden sm:inline text-ww-n400 shrink-0">{t.responsavel}</span>}
               <span className="shrink-0 tabular-nums font-medium text-ww-n500">{t.dias}d</span>
             </div>

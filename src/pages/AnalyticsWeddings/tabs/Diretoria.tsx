@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useWwDiretoria, useWwDiretoriaTempos } from '@/hooks/analyticsWeddings/useWw2'
 import { DiretoriaSnapshot } from '../components/DiretoriaSnapshot'
 import { DiretoriaTempos } from '../components/DiretoriaTempos'
+import { StageHistoryModal } from '../components/StageHistoryModal'
 import { LoadingSkeleton, ErrorBanner, EmptyState } from '../components/ui'
 import { formatCurrency, formatNumber } from '../lib/format'
 import { periodToDates, formatRange, type PeriodOption } from '../lib/dates'
@@ -16,11 +17,22 @@ const PERIODOS: { key: PeriodOption; label: string }[] = [
   { key: 'all', label: 'Período todo' },
 ]
 
+// Filtro por tipo de casamento — DW (destination) × Elopement × todos.
+type TipoFiltro = 'all' | 'DW' | 'Elopement'
+const TIPOS: { key: TipoFiltro; label: string }[] = [
+  { key: 'all', label: 'Todos' },
+  { key: 'DW', label: 'DW' },
+  { key: 'Elopement', label: 'Elopement' },
+]
+
 export function Diretoria() {
   const [periodo, setPeriodo] = useState<PeriodOption>('90d')
+  const [tipo, setTipo] = useState<TipoFiltro>('all')
+  const [histCardId, setHistCardId] = useState<string | null>(null)
   const { dateStart, dateEnd } = useMemo(() => periodToDates(periodo), [periodo])
-  const overview = useWwDiretoria({ dateStart, dateEnd })
-  const tempos = useWwDiretoriaTempos({ dateStart, dateEnd })
+  const tipoParam = tipo === 'all' ? null : tipo
+  const overview = useWwDiretoria({ dateStart, dateEnd, tipo: tipoParam })
+  const tempos = useWwDiretoriaTempos({ dateStart, dateEnd, tipo: tipoParam })
 
   const fases = overview.data?.fases ?? []
   const totalCasais = fases.reduce((s, f) => s + f.count, 0)
@@ -33,13 +45,27 @@ export function Diretoria() {
           Onde estão os casais hoje, da pré-venda à produção — e quanto tempo levam em cada parte.
           Tempos e tendência no período de {formatRange(dateStart, dateEnd)}.
         </p>
-        <select
-          value={periodo}
-          onChange={(e) => setPeriodo(e.target.value as PeriodOption)}
-          className="px-3 py-1.5 text-sm font-medium bg-white border border-ww-sand rounded-lg text-ww-n700 hover:border-ww-sand-dk focus:outline-none focus:ring-2 focus:ring-ww-gold transition-colors self-start sm:self-auto shrink-0"
-        >
-          {PERIODOS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
-        </select>
+        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+          <div className="inline-flex rounded-lg border border-ww-sand bg-white p-0.5" role="group" aria-label="Filtrar por tipo de casamento">
+            {TIPOS.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setTipo(t.key)}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${tipo === t.key ? 'bg-ww-gold-soft text-ww-gold-ink' : 'text-ww-n500 hover:text-ww-n700'}`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <select
+            value={periodo}
+            onChange={(e) => setPeriodo(e.target.value as PeriodOption)}
+            className="px-3 py-1.5 text-sm font-medium bg-white border border-ww-sand rounded-lg text-ww-n700 hover:border-ww-sand-dk focus:outline-none focus:ring-2 focus:ring-ww-gold transition-colors"
+          >
+            {PERIODOS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+          </select>
+        </div>
       </div>
 
       {overview.isLoading ? (
@@ -61,14 +87,14 @@ export function Diretoria() {
             </div>
           </div>
 
-          <DiretoriaSnapshot fases={fases} />
+          <DiretoriaSnapshot fases={fases} onSelectCard={setHistCardId} />
 
           {tempos.isLoading ? (
             <LoadingSkeleton rows={3} />
           ) : tempos.error ? (
             <ErrorBanner error={tempos.error as Error} />
           ) : tempos.data && !tempos.data.error ? (
-            <DiretoriaTempos tempos={tempos.data} />
+            <DiretoriaTempos tempos={tempos.data} onSelectCard={setHistCardId} />
           ) : null}
 
           <p className="text-[11px] text-ww-n400 pt-2 border-t border-ww-sand">
@@ -79,6 +105,8 @@ export function Diretoria() {
           </p>
         </>
       )}
+
+      <StageHistoryModal cardId={histCardId} onClose={() => setHistCardId(null)} />
     </div>
   )
 }

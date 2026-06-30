@@ -1578,14 +1578,15 @@ export type WwDiretoria = {
   error?: string
 }
 
-export function useWwDiretoria(params: { dateStart?: string; dateEnd?: string }) {
+export function useWwDiretoria(params: { dateStart?: string; dateEnd?: string; tipo?: string | null }) {
   const orgId = useOrgId()
   return useQuery({
-    queryKey: ['ww-diretoria', orgId, params.dateStart, params.dateEnd],
+    queryKey: ['ww-diretoria', orgId, params.dateStart, params.dateEnd, params.tipo ?? null],
     queryFn: () => callRpc<WwDiretoria>('ww_diretoria_overview', {
       p_org_id: orgId,
       p_date_start: params.dateStart ?? null,
       p_date_end: params.dateEnd ?? null,
+      p_tipo: params.tipo ?? null,
     }),
     enabled: !!orgId,
     staleTime: 60_000,
@@ -1650,16 +1651,53 @@ export type WwDiretoriaTempos = {
   error?: string
 }
 
-export function useWwDiretoriaTempos(params: { dateStart?: string; dateEnd?: string }) {
+export function useWwDiretoriaTempos(params: { dateStart?: string; dateEnd?: string; tipo?: string | null }) {
   const orgId = useOrgId()
   return useQuery({
-    queryKey: ['ww-diretoria-tempos', orgId, params.dateStart, params.dateEnd],
+    queryKey: ['ww-diretoria-tempos', orgId, params.dateStart, params.dateEnd, params.tipo ?? null],
     queryFn: () => callRpc<WwDiretoriaTempos>('ww_diretoria_tempos', {
       p_org_id: orgId,
       p_date_start: params.dateStart ?? null,
       p_date_end: params.dateEnd ?? null,
+      p_tipo: params.tipo ?? null,
     }),
     enabled: !!orgId,
+    staleTime: 60_000,
+  })
+}
+
+// ── Diretoria · Histórico de etapas de um card (dias em cada etapa) ──────────
+// RPC ww_card_stage_history. Reconstrói a linha do tempo a partir das activities
+// (stage_changed). Histórico começa quando o registro automático passou a existir.
+
+export type WwStageHistEtapa = {
+  etapa: string | null
+  stage_id: string | null
+  entrou_em: string
+  saiu_em: string | null
+  dias: number
+  atual: boolean
+}
+
+export type WwCardStageHistory = {
+  card_id: string
+  titulo: string | null
+  created_at: string
+  etapa_atual: string | null
+  etapas: WwStageHistEtapa[]
+  total_dias: number
+  error?: string
+}
+
+export function useWwCardStageHistory(cardId: string | null) {
+  const orgId = useOrgId()
+  return useQuery({
+    queryKey: ['ww-card-stage-history', cardId, orgId],
+    queryFn: () => callRpc<WwCardStageHistory>('ww_card_stage_history', {
+      p_card_id: cardId,
+      p_org_id: orgId,
+    }),
+    enabled: !!cardId && !!orgId,
     staleTime: 60_000,
   })
 }

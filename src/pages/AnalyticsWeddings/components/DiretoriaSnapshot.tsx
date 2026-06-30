@@ -1,5 +1,4 @@
 import { memo, useCallback, useState, type CSSProperties, type MouseEvent } from 'react'
-import { Link } from 'react-router-dom'
 import type { WwDiretoriaDeal, WwDiretoriaFase, WwDiretoriaFaseKey } from '@/hooks/analyticsWeddings/useWw2'
 import { formatCurrency, formatNumber } from '../lib/format'
 import { FASE_UI } from './diretoriaColors'
@@ -9,9 +8,9 @@ const OFFSET = ['lg:ml-0', 'lg:ml-12', 'lg:ml-24', 'lg:ml-36'] as const
 
 type HoverState = { deal: WwDiretoriaDeal; fase: WwDiretoriaFaseKey; label: string; x: number; y: number }
 
-export function DiretoriaSnapshot({ fases }: { fases: WwDiretoriaFase[] }) {
+export function DiretoriaSnapshot({ fases, onSelectCard }: { fases: WwDiretoriaFase[]; onSelectCard: (cardId: string) => void }) {
   const [hover, setHover] = useState<HoverState | null>(null)
-  const onHover = useCallback((deal: WwDiretoriaDeal, fase: WwDiretoriaFaseKey, label: string, e: MouseEvent<HTMLAnchorElement>) => {
+  const onHover = useCallback((deal: WwDiretoriaDeal, fase: WwDiretoriaFaseKey, label: string, e: MouseEvent<HTMLElement>) => {
     const r = e.currentTarget.getBoundingClientRect()
     setHover({ deal, fase, label, x: r.left + r.width / 2, y: r.top })
   }, [])
@@ -23,17 +22,17 @@ export function DiretoriaSnapshot({ fases }: { fases: WwDiretoriaFase[] }) {
         const proxima = fases[i + 1]
         return (
           <div key={fase.key}>
-            <FaseBarra fase={fase} className={OFFSET[i]} onHover={onHover} onLeave={onLeave} />
+            <FaseBarra fase={fase} className={OFFSET[i]} onHover={onHover} onLeave={onLeave} onSelectCard={onSelectCard} />
             {proxima && (
               <div className={`flex items-center gap-2 mt-2 pl-1 ${OFFSET[i + 1]}`}>
                 <span className="text-ww-n400">↓</span>
                 <span className="text-xs text-ww-n500">
                   {fase.conversao_proxima_pct != null ? (
                     <>
-                      <span className="font-semibold text-ww-n700 tabular-nums">{fase.conversao_proxima_pct}%</span> seguiram para {proxima.label} no período
+                      <span className="font-semibold text-ww-n700 tabular-nums">{fase.conversao_proxima_pct}%</span> dos leads que entraram no período chegaram a {proxima.label}
                     </>
                   ) : (
-                    <>sem base no período para medir a passagem para {proxima.label}</>
+                    <>sem base no período para medir a chegada em {proxima.label}</>
                   )}
                 </span>
               </div>
@@ -60,11 +59,12 @@ function Tendencia({ pct }: { pct: number | null }) {
 type FaseBarraProps = {
   fase: WwDiretoriaFase
   className?: string
-  onHover: (deal: WwDiretoriaDeal, fase: WwDiretoriaFaseKey, label: string, e: MouseEvent<HTMLAnchorElement>) => void
+  onHover: (deal: WwDiretoriaDeal, fase: WwDiretoriaFaseKey, label: string, e: MouseEvent<HTMLElement>) => void
   onLeave: () => void
+  onSelectCard: (cardId: string) => void
 }
 
-const FaseBarra = memo(function FaseBarra({ fase, className = '', onHover, onLeave }: FaseBarraProps) {
+const FaseBarra = memo(function FaseBarra({ fase, className = '', onHover, onLeave, onSelectCard }: FaseBarraProps) {
   const ui = FASE_UI[fase.key]
   const truncados = fase.count - fase.deals.length
   return (
@@ -89,13 +89,14 @@ const FaseBarra = memo(function FaseBarra({ fase, className = '', onHover, onLea
         <>
           <div className="flex flex-wrap gap-[2px]">
             {fase.deals.map((d) => (
-              <Link
+              <button
                 key={d.card_id}
-                to={`/cards/${d.card_id}`}
-                aria-label={`Abrir card: ${d.titulo}`}
+                type="button"
+                aria-label={`Ver histórico de etapas: ${d.titulo}`}
+                onClick={() => onSelectCard(d.card_id)}
                 onMouseEnter={(e) => onHover(d, fase.key, fase.label, e)}
                 onMouseLeave={onLeave}
-                className={`w-[4px] h-7 rounded-[1px] ${ui.bar} opacity-80 origin-bottom hover:opacity-100 hover:scale-y-110 transition-all`}
+                className={`w-[4px] h-7 rounded-[1px] ${ui.bar} opacity-80 origin-bottom hover:opacity-100 hover:scale-y-110 transition-all cursor-pointer`}
               />
             ))}
           </div>
@@ -184,7 +185,7 @@ function DealPreview({ hover }: { hover: HoverState }) {
             </div>
           ))}
         </dl>
-        <div className="mt-2 pt-2 border-t border-ww-sand text-[10px] text-ww-n400">Clique para abrir o card</div>
+        <div className="mt-2 pt-2 border-t border-ww-sand text-[10px] text-ww-n400">Clique para ver o histórico de etapas</div>
       </div>
     </div>
   )
