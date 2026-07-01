@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
-import { AlertCircle, Pencil, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { AlertCircle, ChevronDown, Pencil, X } from 'lucide-react'
 import { cn } from '../../../lib/utils'
-import { formatPhoneBR } from '../../../lib/convidados/formatPhoneBR'
 import { precisaTelefone } from '../../../lib/convidados/calcStatsConvites'
+import { formatPhoneBR } from '../../../lib/convidados/formatPhoneBR'
+import { COUNTRIES, OTHER_DIAL, countryByDial, parsePhoneValue, serializePhoneValue } from '../../../lib/convidados/countryDialCodes'
 import { LadoSegmented } from './LadoSegmented'
 import { TipoSelect } from './TipoSelect'
 import { FaixaSelect } from './FaixaSelect'
@@ -26,7 +27,9 @@ const cellBaseCls = 'h-9 px-2 flex items-center border-l border-ww-cream'
 
 export function PessoaRow({ index, pessoa, ladoLabels, onEditLadoNomes, isLastOfLastGroup, canDelete, onChange, onDelete, onEnterCreate }: Props) {
   const [nome, setNome] = useState(pessoa.nome_raw || '')
-  const [telefone, setTelefone] = useState(formatPhoneBR(pessoa.telefone_raw))
+  // Guarda o telefone CRU (formato de armazenamento): BR "DD 99999-9999" sem
+  // "+"; internacional "+DDI dígitos". O PhoneInput fatia isso em país + número.
+  const [telefone, setTelefone] = useState(pessoa.telefone_raw || '')
   const [obs, setObs] = useState(pessoa.observacoes || '')
 
   // Sync prop → state local quando o servidor manda novo valor (refetch, outro
@@ -35,12 +38,13 @@ export function PessoaRow({ index, pessoa, ladoLabels, onEditLadoNomes, isLastOf
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setNome(pessoa.nome_raw || '') }, [pessoa.nome_raw])
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { setTelefone(formatPhoneBR(pessoa.telefone_raw)) }, [pessoa.telefone_raw])
+  useEffect(() => { setTelefone(pessoa.telefone_raw || '') }, [pessoa.telefone_raw])
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setObs(pessoa.observacoes || '') }, [pessoa.observacoes])
 
   const needsPhone = precisaTelefone(pessoa.faixa)
-  const missingPhone = needsPhone && !(telefone.trim().length > 0)
+  // Conta DÍGITOS (não caracteres): "+" ou texto sem número não vale como telefone.
+  const missingPhone = needsPhone && telefone.replace(/\D/g, '').length === 0
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -50,7 +54,7 @@ export function PessoaRow({ index, pessoa, ladoLabels, onEditLadoNomes, isLastOf
   }
 
   const handleNomeChange = (v: string) => { setNome(v); onChange({ nome_raw: v }) }
-  const handleTelefoneChange = (v: string) => { const f = formatPhoneBR(v); setTelefone(f); onChange({ telefone_raw: f }) }
+  const handleTelefoneChange = (raw: string) => { setTelefone(raw); onChange({ telefone_raw: raw }) }
   const handleObsChange = (v: string) => { setObs(v); onChange({ observacoes: v }) }
 
   return (
@@ -202,6 +206,14 @@ function MobileField({ label, children }: { label: string; children: React.React
   )
 }
 
+/**
+ * Campo de telefone com seletor de país (DDI). Aceita número internacional —
+ * não fica mais travado no +55. Brasil continua com a máscara "DD 99999-9999"
+ * e é gravado sem "+"; internacional grava "+DDI dígitos".
+ *
+ * `value` é o telefone CRU (formato de armazenamento) e `onChange` devolve o
+ * telefone CRU já montado (país + número).
+ */
 function PhoneInput({
   value, missing, onChange, onKeyDown,
 }: {
@@ -210,17 +222,82 @@ function PhoneInput({
   onChange: (v: string) => void
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
 }) {
+  const initial = parsePhoneValue(value)
+  const [dial, setDial] = useState(initial.dial)
+  const [local, setLocal] = useState(initial.local)
+  // Re-sincroniza quando o value muda POR FORA (refetch do servidor, outro
+  // editor). Padrão recomendado do React: ajustar estado no render comparando
+  // com o valor anterior, sem useEffect.
+  const [prevValue, setPrevValue] = useState(value)
+  if (value !== prevValue) {
+    setPrevValue(value)
+    // Só re-deriva país/número de mudança EXTERNA. Se o value é o eco da nossa
+    // própria edição (igual ao que serializamos), mantém dial/local — senão o
+    // modo "Outro" seria reclassificado pra um país no meio da digitação e o
+    // texto do casal saltaria/duplicaria o DDI.
+    if (value !== serializePhoneValue(dial, local)) {
+      const p = parsePhoneValue(value)
+      setLocal(p.local)
+      // Não reseta o país escolhido quando o número está vazio (senão trocar de
+      // país com o campo em branco voltaria pro Brasil sozinho).
+      if ((value ?? '').trim()) setDial(p.dial)
+    }
+  }
+
+  const emit = (nextDial: string, nextLocal: string) => {
+    onChange(serializePhoneValue(nextDial, nextLocal))
+  }
+
+  const handleLocal = (typed: string) => {
+    let nextLocal: string
+    if (dial === '55') {
+      nextLocal = formatPhoneBR(typed) // Brasil: máscara BR (idempotente)
+    } else if (dial === OTHER_DIAL) {
+      nextLocal = typed // "Outro": texto livre verbatim (deve conter o +DDI)
+    } else {
+      // País listado: se colou/digitou "+DDI…", remove o DDI redundante uma vez
+      // pra não duplicar (senão o serialize geraria "+33 33…").
+      nextLocal = stripLeadingDial(typed, dial)
+    }
+    setLocal(nextLocal)
+    emit(dial, nextLocal)
+  }
+
+  const handleDial = (nextDial: string) => {
+    // Reajusta o número ao trocar de país, sem perder nem duplicar dígitos.
+    let nextLocal = local
+    if (nextDial === '55') {
+      nextLocal = formatPhoneBR(local)
+    } else if (nextDial === OTHER_DIAL) {
+      // Indo pra "Outro" a partir de um país listado: prefixa "+DDI" pro número
+      // continuar internacional (senão viraria BR no envio).
+      const digits = local.replace(/\D/g, '')
+      nextLocal = dial !== '55' && dial !== OTHER_DIAL && digits ? `+${dial} ${digits}` : local
+    } else {
+      // Outro país listado: número nacional, tirando "+DDI" redundante se o
+      // local trazia o código do país (ex: veio do modo "Outro").
+      nextLocal = stripLeadingDial(local, nextDial)
+    }
+    setDial(nextDial)
+    setLocal(nextLocal)
+    emit(nextDial, nextLocal)
+  }
+
+  const isOther = dial === OTHER_DIAL
+  const placeholder = missing
+    ? 'Obrigatório'
+    : dial === '55' ? 'DDD número' : isOther ? '+DDI número' : 'Número'
+
   return (
     <div className={cn('w-full flex items-stretch border rounded transition-colors',
       missing ? 'border-red-300 bg-red-50/30' : 'border-ww-sand md:border-transparent hover:border-ww-sand focus-within:border-ww-gold focus-within:ring-2 focus-within:ring-ww-gold/30')}>
-      <span className={cn('inline-flex items-center px-1.5 text-[10px] border-r font-mono',
-        missing ? 'border-red-200 text-red-500' : 'border-ww-sand text-ww-n500')}>+55</span>
+      <CountryDialSelect value={dial} invalid={missing} onChange={handleDial} />
       <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        value={local}
+        onChange={(e) => handleLocal(e.target.value)}
         onKeyDown={onKeyDown}
-        placeholder={missing ? 'Obrigatório' : 'DDD número'}
-        inputMode="numeric"
+        placeholder={placeholder}
+        inputMode={isOther ? 'tel' : 'numeric'}
         className={cn('flex-1 min-w-0 px-1.5 py-1 md:py-1 text-[13px] md:text-[13px] bg-transparent focus:outline-none',
           missing ? 'placeholder:text-red-500 text-red-700' : 'text-ww-n700')}
       />
@@ -228,6 +305,122 @@ function PhoneInput({
         <span className="inline-flex items-center px-1.5 text-red-500" title="Telefone obrigatório para adultos">
           <AlertCircle className="w-3 h-3" />
         </span>
+      )}
+    </div>
+  )
+}
+
+const stripAccents = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
+/**
+ * Para um pa\u00eds listado: se o texto veio com "+DDI" (colado ou vindo do modo
+ * "Outro"), devolve s\u00f3 o n\u00famero nacional removendo o DDI redundante uma vez \u2014
+ * evita duplicar o c\u00f3digo do pa\u00eds no valor salvo (ex: "+33 33\u2026"). Se n\u00e3o tem
+ * "+", mant\u00e9m o que foi digitado (n\u00famero nacional).
+ */
+function stripLeadingDial(input: string, dial: string): string {
+  const trimmed = input.trim()
+  if (!trimmed.startsWith('+')) return input
+  const digits = trimmed.replace(/\D/g, '')
+  return digits.startsWith(dial) ? digits.slice(dial.length) : digits
+}
+
+/**
+ * Seletor de país (DDI) próprio. O gatilho fica COMPACTO — bandeira + sigla +
+ * "+DDI" (ex: "🇧🇷 BR +55"), sem cortar — e a lista aberta mostra o nome
+ * completo do país + campo de busca. Native <select> cortava o texto da opção.
+ */
+function CountryDialSelect({
+  value, invalid, onChange,
+}: {
+  value: string
+  invalid: boolean
+  onChange: (dial: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const boxRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onEsc)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onEsc)
+    }
+  }, [open])
+
+  const selected = value === OTHER_DIAL ? null : countryByDial(value)
+  const triggerLabel = value === OTHER_DIAL
+    ? '🌐 Outro'
+    : selected ? `${selected.flag} ${selected.iso} +${selected.dial}` : `+${value}`
+
+  const q = stripAccents(query.trim())
+  const filtered = q
+    ? COUNTRIES.filter((c) => stripAccents(c.name).includes(q) || c.iso.toLowerCase().includes(q) || c.dial.includes(q))
+    : COUNTRIES
+
+  const pick = (dial: string) => { onChange(dial); setOpen(false); setQuery('') }
+
+  return (
+    <div ref={boxRef} className="relative shrink-0 flex">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-label="País do telefone"
+        aria-expanded={open}
+        title="País do telefone"
+        className={cn('flex items-center gap-1 pl-1.5 pr-1 text-[11px] whitespace-nowrap border-r cursor-pointer focus:outline-none',
+          invalid ? 'border-red-200 text-red-600' : 'border-ww-sand text-ww-n600 hover:text-ww-n800')}
+      >
+        <span>{triggerLabel}</span>
+        <ChevronDown className={cn('w-3 h-3 opacity-60 transition-transform', open && 'rotate-180')} />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full mt-1 z-50 w-60 max-w-[78vw] bg-white border border-ww-sand rounded-lg shadow-lg overflow-hidden">
+          <div className="p-1.5 border-b border-ww-cream">
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar país…"
+              className="w-full px-2 py-1.5 text-[12px] border border-ww-sand rounded focus:border-ww-gold focus:ring-2 focus:ring-ww-gold/30 focus:outline-none text-ww-n700"
+            />
+          </div>
+          <div className="max-h-56 overflow-y-auto py-1">
+            {filtered.map((c) => (
+              <button
+                key={c.dial}
+                type="button"
+                onClick={() => pick(c.dial)}
+                className={cn('w-full flex items-center gap-2 px-2.5 py-1.5 text-[12.5px] text-left hover:bg-ww-gold-soft/50 transition-colors',
+                  c.dial === value ? 'bg-ww-gold-soft/40 text-ww-n800 font-medium' : 'text-ww-n600')}
+              >
+                <span className="text-[15px] leading-none">{c.flag}</span>
+                <span className="flex-1 truncate">{c.name}</span>
+                <span className="text-ww-n400 tabular-nums">+{c.dial}</span>
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => pick(OTHER_DIAL)}
+              className={cn('w-full flex items-center gap-2 px-2.5 py-1.5 text-[12.5px] text-left hover:bg-ww-gold-soft/50 border-t border-ww-cream transition-colors',
+                value === OTHER_DIAL ? 'bg-ww-gold-soft/40 text-ww-n800 font-medium' : 'text-ww-n600')}
+            >
+              <span className="text-[15px] leading-none">🌐</span>
+              <span className="flex-1">Outro país (digite o +DDI)</span>
+            </button>
+            {filtered.length === 0 && (
+              <p className="px-2.5 py-3 text-[12px] text-ww-n400 text-center">Nenhum país encontrado</p>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )
