@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { useOrg } from '../contexts/OrgContext';
 
 export interface Role {
     id: string;
@@ -30,26 +31,33 @@ export interface UpdateRoleData extends Partial<CreateRoleData> {
  */
 export function useRoles() {
     const queryClient = useQueryClient();
+    const { org } = useOrg();
+    const activeOrgId = org?.id;
 
     const rolesQuery = useQuery({
-        queryKey: ['roles'],
+        queryKey: ['roles', activeOrgId],
         queryFn: async () => {
+            if (!activeOrgId) return [];
             const { data, error } = await supabase
                 .from('roles')
                 .select('*')
+                .eq('org_id', activeOrgId)
                 .order('name');
 
             if (error) throw error;
             return data as Role[];
         },
         staleTime: 5 * 60 * 1000, // 5 minutes
+        enabled: !!activeOrgId,
     });
 
     const createRole = useMutation({
         mutationFn: async (data: CreateRoleData) => {
+            if (!activeOrgId) throw new Error('Workspace ativo não encontrado');
             const { data: result, error } = await supabase
                 .from('roles')
                 .insert({
+                    org_id: activeOrgId,
                     name: data.name.toLowerCase().replace(/\s+/g, '_'),
                     display_name: data.display_name,
                     description: data.description || null,
