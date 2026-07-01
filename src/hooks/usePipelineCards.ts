@@ -353,9 +353,12 @@ export function usePipelineCards({ productFilter, viewMode, subView, filters, gr
                     query = query.or(orParts.join(','))
                 }
             } else if (!showClosedCards) {
-                // Mostra cards em fluxo: aberto OU ganho-em-execução (ganho mas Pós-venda não concluído).
-                // Cards com ganho_pos=true (Pós-venda finalizado, pós NPS) ficam ocultos por padrão.
-                query = query.or('status_comercial.eq.aberto,and(status_comercial.eq.ganho,ganho_pos.eq.false)')
+                // Mostra cards em fluxo: aberto OU ganho. Cards ENCERRADOS (ganho_pos=true)
+                // somem do funil — independente do status comercial (aberto OU ganho).
+                // É a lógica de "encerramento": encerrou, sai do funil (hard-hide).
+                query = query
+                    .in('status_comercial', ['aberto', 'ganho'])
+                    .or('ganho_pos.is.null,ganho_pos.eq.false')
             }
 
             // Origem Filter

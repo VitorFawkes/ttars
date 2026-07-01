@@ -127,7 +127,7 @@ function eventLabel(ev: TimelineEvent): string {
     case 'ganho_planner_event':
       return 'Planner fechou a venda'
     case 'ganho_pos_event':
-      return 'Viagem entregue pelo Pós'
+      return 'Viagem encerrada'
     case 'lost':
     case 'card_lost':
       return 'Card perdido'
