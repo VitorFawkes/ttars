@@ -152,20 +152,37 @@ export function useQualityGate(pipelineId?: string) {
 
             const labelByKey = new Map<string, string>()
             const sectionByKey = new Map<string, string | null>()
+            const knownFieldKeys = new Set<string>()
+            let fieldCatalogLoaded = false
             if (fieldKeys.length > 0) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- system_fields não está nos types gerados
                 const { data: fields } = await (supabase.from('system_fields') as any)
                     .select('key, label, section')
                     .in('key', fieldKeys)
-                if (fields) {
+                if (fields && fields.length > 0) {
+                    fieldCatalogLoaded = true
                     for (const f of fields as { key: string; label: string; section: string | null }[]) {
                         labelByKey.set(f.key, f.label)
                         sectionByKey.set(f.key, f.section)
+                        knownFieldKeys.add(f.key)
                     }
                 }
             }
 
-            return data.map((item): RequirementRule => {
+            return data
+                // Descarta regras de campo cujo field_key não existe em system_fields
+                // (typo de config ou campo removido). Uma regra 'field' apontando pra campo
+                // inexistente nunca é satisfazível → bloquearia a movimentação pra sempre.
+                // Só filtra quando o catálogo carregou (evita desligar todos os gates numa
+                // falha transitória de leitura de system_fields).
+                .filter((item) => {
+                    const type = (item.requirement_type || 'field') as RequirementType
+                    if (type !== 'field') return true
+                    if (!item.field_key) return false
+                    if (fieldCatalogLoaded && !knownFieldKeys.has(item.field_key)) return false
+                    return true
+                })
+                .map((item): RequirementRule => {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- coluna nova, types não regenerados
                 const role = (item as any).required_team_role as TeamRole | null | undefined
                 const teamLabel = role ? `Responsável ${TEAM_ROLE_LABELS[role]}` : null
