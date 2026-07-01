@@ -1355,3 +1355,4 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-06-30T20:05:56Z | supabase/migrations/20260630e_ac_weddings_sdr_field_mappings.sql | applied_to_prod
 2026-06-30T20:10:55Z | supabase/migrations/20260630f_ww_desativa_campos_tarefa_dado.sql | applied_to_prod
 2026-07-01T13:11:22Z | supabase/migrations/20260701a_ww_card_layout_reuniao_dados.sql | applied_to_prod
+2026-07-01T13:29:15Z | supabase/migrations/20260701b_ww_secoes_nascem_fechadas.sql | applied_to_prod
