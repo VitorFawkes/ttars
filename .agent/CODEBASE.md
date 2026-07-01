@@ -5,9 +5,9 @@
 > Use o workflow `/new-module` Phase 5 para manter sincronizado.
 
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
-> **Last Updated:** 2026-06-30
+> **Last Updated:** 2026-07-01
 > **Trigger:** ALWAYS ON
-> **Stats:** 246 tabelas | 215 paginas | 379 hooks | 30 views | 881 components
+> **Stats:** 246 tabelas | 217 paginas | 381 hooks | 30 views | 882 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **379 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **381 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -354,6 +354,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useEmpresaPessoas()` | `useEmpresaPessoas.ts` |
 | `useEmpresas()` | `useEmpresas.ts` |
 | `useEngajamentoConversas()` | `useEngajamentoConversas.ts` |
+| `useEntregarParaProducao()` | `useEntregarParaProducao.ts` |
 | `useEnvioStatus()` | `useEnvioStatus.ts` |
 | `useEnviosLotesDoDia()` | `useEnviosLotesDoDia.ts` |
 | `useEstelaScoringRules()` | `useEstelaScoringRules.ts` |
@@ -416,6 +417,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `usePosRpcs()` | `usePosRpcs.ts` |
 | `usePosVendaAlert()` | `usePosVendaAlert.ts` |
 | `usePremiumGifts()` | `usePremiumGifts.ts` |
+| `useProducaoWeddings()` | `useProducaoWeddings.ts` |
 | `useProductContext()` | `useProductContext.ts` |
 | `useProductScopedSettings()` | `useProductScopedSettings.ts` |
 | `useProducts()` | `useProducts.ts` |
@@ -627,7 +629,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 3.3 All Pages (AUTO-GENERATED)
 
-> **215 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
+> **217 pages** escaneadas de `src/pages/` — atualizado automaticamente via `npm run sync:fix`
 
 | Page | Path |
 |------|------|
@@ -834,6 +836,8 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `PlatformLayout` | `src/pages/platform/PlatformLayout.tsx` |
 | `SettingsPage` | `src/pages/platform/SettingsPage.tsx` |
 | `UsersPage` | `src/pages/platform/UsersPage.tsx` |
+| `ProducaoLayout` | `src/pages/producao/ProducaoLayout.tsx` |
+| `ProducaoPage` | `src/pages/producao/ProducaoPage.tsx` |
 | `CadastrarCasalPublico` | `src/pages/public/CadastrarCasalPublico.tsx` |
 | `ListaConvidadosPublic` | `src/pages/public/ListaConvidadosPublic.tsx` |
 | `ListaConvidadosSplash` | `src/pages/public/ListaConvidadosSplash.tsx` |
