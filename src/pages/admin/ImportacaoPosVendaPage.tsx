@@ -358,7 +358,7 @@ function computeAudit(trip: Pick<TripGroup,
                 issues.push(`Etapa é Pós-viagem mas status comercial está como "${statusLabel}" — deveria estar como "ganho".`)
             }
             if (trip.existingGanhoPos !== true) {
-                issues.push('Etapa é Pós-viagem mas o Ganho Pós-venda ainda não foi marcado.')
+                issues.push('Etapa é Pós-viagem mas a viagem ainda não foi encerrada (pós-venda).')
             }
         } else {
             // Etapas pré-Pós-viagem (App & Conteúdo, Pré-embarque, Em Viagem):
@@ -367,7 +367,7 @@ function computeAudit(trip: Pick<TripGroup,
                 issues.push(`Card marcado como Ganho comercial mas a viagem ainda não aconteceu (etapa atual${stageLabel}). Deveria estar como "aberto".`)
             }
             if (trip.existingGanhoPos === true) {
-                issues.push(`Card marcado como Ganho Pós-venda mas a viagem ainda não aconteceu (etapa atual${stageLabel}).`)
+                issues.push(`Card marcado como encerrado (pós-venda) mas a viagem ainda não aconteceu (etapa atual${stageLabel}).`)
             }
         }
     }

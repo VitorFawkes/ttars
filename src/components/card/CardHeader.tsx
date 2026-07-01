@@ -54,6 +54,7 @@ import LossReasonModal, { type FutureOpportunityData } from './LossReasonModal'
 import WinOptionsModal from './WinOptionsModal'
 import AtivarPosVendaModal from './AtivarPosVendaModal'
 import { useArchiveCard } from '../../hooks/useArchiveCard'
+import { useEncerrarViagem } from '../../hooks/useEncerrarViagem'
 import { SdrQualificationSheet } from '../sdr-qualification/SdrQualificationSheet'
 import { Target, CheckCircle2 } from 'lucide-react'
 import FieldConfirmationModal from './FieldConfirmationModal'
@@ -1028,6 +1029,25 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
     const { unarchive, isUnarchiving } = useArchiveCard()
     const isArchived = !!card.archived_at
 
+    // Encerrar viagem (TRIPS): disponível só na ÚLTIMA etapa de pós-venda
+    // ("Pós-viagem & Reativação" = pos_venda, não-terminal, maior ordem) e
+    // enquanto ainda não encerrada. A RPD valida escopo/org no banco.
+    const { encerrarViagem, isEncerrando } = useEncerrarViagem()
+    const lastPosVendaStageId = (() => {
+        const posStages = (stages ?? []).filter(
+            s => s.pipeline_phases?.slug === 'pos_venda' && s.is_terminal !== true
+        )
+        if (posStages.length === 0) return null
+        return posStages.reduce((max, s) => (s.ordem > max.ordem ? s : max), posStages[0]).id
+    })()
+    const isTripsCardHeader = card.produto === 'TRIPS' || !card.produto
+    const canEncerrarViagem =
+        isTripsCardHeader &&
+        !isArchived &&
+        card.ganho_pos !== true &&
+        !!currentStage &&
+        currentStage.id === lastPosVendaStageId
+
     const { data: archivedByProfile } = useQuery({
         queryKey: ['profile-min', card.archived_by],
         queryFn: async () => {
@@ -1540,6 +1560,23 @@ export default function CardHeader({ card, onScrollToAlerts }: CardHeaderProps) 
 
                             {/* Status Action Buttons — right side of title */}
                             <div className="flex items-center gap-2 shrink-0">
+                                {/* Encerrar viagem — última etapa de pós-venda (TRIPS). Tira do funil
+                                    e, se há venda, consolida como ganho. */}
+                                {canEncerrarViagem && (
+                                    <button
+                                        onClick={() => {
+                                            if (confirm('Encerrar esta viagem?\n\nEla sai do funil de pós-venda. Se a viagem foi vendida, o status é consolidado como ganho.')) {
+                                                encerrarViagem(card.id!)
+                                            }
+                                        }}
+                                        disabled={isEncerrando}
+                                        className="px-3 py-1 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-semibold hover:bg-emerald-100 transition-colors flex items-center gap-1.5"
+                                        title="Encerrar a viagem — sai do funil de pós-venda"
+                                    >
+                                        <CheckCircle2 className="h-3.5 w-3.5" />
+                                        {isEncerrando ? 'Encerrando...' : 'Encerrar viagem'}
+                                    </button>
+                                )}
                                 {/* Sem Pós-Venda — para cards em pós-venda com acompanhamento ativo (não-ganho ainda) */}
                                 {card.status_comercial !== 'ganho'
                                     && card.status_comercial !== 'perdido'

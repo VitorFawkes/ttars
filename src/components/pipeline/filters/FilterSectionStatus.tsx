@@ -40,7 +40,7 @@ export function FilterSectionStatus({ filters, onToggle }: FilterSectionStatusPr
     const milestoneOptions = useMemo(() => [
         { value: 'ganho_sdr', label: `Ganho ${getPhaseLabel(phases, SystemPhase.SDR)}`, description: `Qualificado pelo ${getPhaseLabel(phases, SystemPhase.SDR)}`, color: 'bg-blue-500 text-white border-blue-500' },
         { value: 'ganho_planner', label: `Ganho ${getPhaseLabel(phases, SystemPhase.PLANNER)}`, description: 'Venda fechada', color: 'bg-purple-500 text-white border-purple-500' },
-        { value: 'ganho_pos', label: `Ganho ${getPhaseLabel(phases, SystemPhase.POS_VENDA)}`, description: 'Entrega concluída', color: 'bg-emerald-500 text-white border-emerald-500' },
+        { value: 'ganho_pos', label: 'Encerrada', description: 'Saiu do funil (pós-venda encerrado)', color: 'bg-emerald-500 text-white border-emerald-500' },
     ], [phases])
     return (
         <>
