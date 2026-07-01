@@ -97,13 +97,22 @@ export function useLeadsQuery({ filters, enabled = true }: UseLeadsQueryProps) {
                 query = query.in('origem', filters.origem)
             }
 
-            // Creation date filter
-            if (filters.creationStartDate) {
-                query = query.gte('created_at', `${filters.creationStartDate}T00:00:00`)
-            }
+            // Date range filter — casa o lead se ele ENTROU (created_at) OU FECHOU
+            // (data_fechamento) dentro do intervalo. Assim leads perdidos/ganhos no período
+            // aparecem mesmo tendo entrado antes. NÃO usamos updated_at como fallback dos
+            // cards sem data_fechamento (é bumpado a cada sync do AC → falsos positivos).
+            const dateStart = filters.creationStartDate ? `${filters.creationStartDate}T00:00:00` : null
+            const dateEnd = filters.creationEndDate ? `${filters.creationEndDate}T23:59:59` : null
 
-            if (filters.creationEndDate) {
-                query = query.lte('created_at', `${filters.creationEndDate}T23:59:59`)
+            if (dateStart && dateEnd) {
+                query = query.or(
+                    `and(created_at.gte.${dateStart},created_at.lte.${dateEnd}),` +
+                    `and(data_fechamento.gte.${dateStart},data_fechamento.lte.${dateEnd})`
+                )
+            } else if (dateStart) {
+                query = query.or(`created_at.gte.${dateStart},data_fechamento.gte.${dateStart}`)
+            } else if (dateEnd) {
+                query = query.or(`created_at.lte.${dateEnd},data_fechamento.lte.${dateEnd}`)
             }
 
             // Trip date filter (new)

@@ -241,7 +241,7 @@ export function ActiveFilters() {
 
                 {(filters.creationStartDate || filters.creationEndDate) && (
                     <Chip
-                        label={`Criado: ${filters.creationStartDate ? format(new Date(filters.creationStartDate + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }) : '...'} - ${filters.creationEndDate ? format(new Date(filters.creationEndDate + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }) : '...'}`}
+                        label={`Período: ${filters.creationStartDate ? format(new Date(filters.creationStartDate + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }) : '...'} - ${filters.creationEndDate ? format(new Date(filters.creationEndDate + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }) : '...'}`}
                         onRemove={() => { removeFilter('creationStartDate'); removeFilter('creationEndDate'); }}
                     />
                 )}

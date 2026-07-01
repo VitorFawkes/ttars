@@ -251,12 +251,21 @@ export function usePipelineListCards({
                 }
             }
 
-            if (filters.creationStartDate) {
-                query = query.gte('created_at', `${filters.creationStartDate}T00:00:00`)
-            }
+            // Período — casa o card se ele ENTROU (created_at) OU FECHOU (data_fechamento)
+            // no intervalo, para leads perdidos/ganhos no período aparecerem mesmo tendo
+            // entrado antes (coerente com a tela de Leads).
+            const creationStart = filters.creationStartDate ? `${filters.creationStartDate}T00:00:00` : null
+            const creationEnd = filters.creationEndDate ? `${filters.creationEndDate}T23:59:59` : null
 
-            if (filters.creationEndDate) {
-                query = query.lte('created_at', `${filters.creationEndDate}T23:59:59`)
+            if (creationStart && creationEnd) {
+                query = query.or(
+                    `and(created_at.gte.${creationStart},created_at.lte.${creationEnd}),` +
+                    `and(data_fechamento.gte.${creationStart},data_fechamento.lte.${creationEnd})`
+                )
+            } else if (creationStart) {
+                query = query.or(`created_at.gte.${creationStart},data_fechamento.gte.${creationStart}`)
+            } else if (creationEnd) {
+                query = query.or(`created_at.lte.${creationEnd},data_fechamento.lte.${creationEnd}`)
             }
 
             // Status Comercial Filter — default: só cards ativos

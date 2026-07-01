@@ -45,11 +45,12 @@ export function FilterSectionDates({ filters, onUpdate }: FilterSectionDatesProp
             </div>
             )}
 
-            {/* Data de Criação */}
+            {/* Período (entrada ou fechamento) */}
             <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm space-y-3">
                 <label className="text-sm font-semibold text-gray-700 block flex items-center gap-2">
-                    <Clock className="h-3.5 w-3.5 text-gray-400" /> Data de Criação
+                    <Clock className="h-3.5 w-3.5 text-gray-400" /> Período
                 </label>
+                <p className="text-xs text-gray-500 -mt-1">Cards que entraram ou foram ganhos/perdidos no período.</p>
                 <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                         <span className="text-xs text-gray-500 ml-1">De</span>

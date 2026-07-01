@@ -148,9 +148,10 @@ export function LeadsFilterDrawer({ isOpen, onClose, filters, setFilters }: Lead
                             <Calendar className="h-3 w-3" /> Datas
                         </h3>
 
-                        {/* Data de Criação */}
+                        {/* Período (entrada ou fechamento) */}
                         <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm space-y-3">
-                            <label className="text-sm font-semibold text-gray-700 block">Data de Criação</label>
+                            <label className="text-sm font-semibold text-gray-700 block">Período</label>
+                            <p className="text-xs text-gray-500 -mt-1">Leads que entraram ou foram ganhos/perdidos no período.</p>
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1">
                                     <span className="text-xs text-gray-500 ml-1">De</span>

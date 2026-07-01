@@ -51,7 +51,7 @@ export default function LeadsActiveFilters({ filters, setFilters }: LeadsActiveF
             : '...'
         chips.push({
             id: 'creation-date',
-            label: `Criação: ${start} - ${end}`,
+            label: `Período: ${start} - ${end}`,
             onRemove: () => setFilters({ creationStartDate: undefined, creationEndDate: undefined })
         })
     }

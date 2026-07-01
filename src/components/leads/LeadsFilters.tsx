@@ -94,13 +94,16 @@ export default function LeadsFilters() {
                         )}
                     >
                         <Calendar className="h-4 w-4" />
-                        Data Criação
+                        Período
                         <ChevronDown className="h-3 w-3 opacity-50" />
                     </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-72 p-4" align="start">
                     <div className="space-y-3">
-                        <h4 className="font-medium text-sm">Data de Criação</h4>
+                        <h4 className="font-medium text-sm">Período</h4>
+                        <p className="text-xs text-gray-500">
+                            Mostra leads que entraram <strong>ou</strong> foram ganhos/perdidos neste período.
+                        </p>
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
                                 <label className="text-xs text-gray-500">De</label>
