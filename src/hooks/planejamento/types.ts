@@ -130,6 +130,10 @@ export const PLANEJ_FIELD = {
   // Override do prazo de planejamento (dias) DESTE casamento; NULL = usa o
   // padrão do workspace (wedding_planning_settings).
   prazoDiasOverride: 'ww_planej_prazo_dias',
+  // Itens do cartão "Pronto para a próxima fase" desativados NESTE casamento
+  // (ex.: Elopement sem bloqueio de hotel) — array de chaves do item. Ausente
+  // ou vazio = usa a lista padrão inteira (igual pra todos).
+  handoffDesativados: 'ww_planej_handoff_desativados',
 } as const
 
 /** Âncoras (id no DOM) dos blocos permanentes da tela do casamento. Os marcos
@@ -141,6 +145,7 @@ export const BLOCO = {
   promo: 'bloco-promo',
   convidados: 'bloco-convidados',
   spine: 'bloco-spine',
+  handoff: 'bloco-handoff',
 } as const
 
 // ── Marcos × Tarefas (hierarquia Etapa → Marco → Tarefa) ─────────────────────
