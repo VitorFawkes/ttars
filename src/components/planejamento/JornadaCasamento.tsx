@@ -30,13 +30,15 @@ export function JornadaCasamento({ wedding }: { wedding: WeddingPlanejamento }) 
   const travas = wedding.travaPendentes
   const blocked = travas.length > 0
 
-  const irParaTarefas = () => {
-    const el = document.getElementById(BLOCO.spine)
+  const scrollToBloco = (id: string) => {
+    const el = document.getElementById(id)
     if (!el) return
     el.scrollIntoView({ behavior: 'smooth', block: 'start' })
     el.classList.add('bloco-flash')
     window.setTimeout(() => el.classList.remove('bloco-flash'), 1400)
   }
+  const irParaTarefas = () => scrollToBloco(BLOCO.spine)
+  const irParaEntrega = () => scrollToBloco(BLOCO.handoff)
 
   const handleAdvance = () => {
     if (!next) return
@@ -95,9 +97,14 @@ export function JornadaCasamento({ wedding }: { wedding: WeddingPlanejamento }) 
           <span className="hidden md:inline">{blocked ? '· Avançar' : `para ${CURTO[next]}`}</span>
         </button>
       ) : (
-        <span className="inline-flex items-center gap-2 h-9 px-4 rounded-[10px] text-[13px] font-semibold bg-emerald-50 text-emerald-700 shrink-0">
-          <PartyPopper className="w-[15px] h-[15px]" /> Pronto para Produção
-        </span>
+        <button
+          type="button"
+          onClick={irParaEntrega}
+          className="inline-flex items-center gap-2 h-9 px-4 rounded-[10px] text-[13px] font-semibold bg-emerald-50 text-emerald-700 shrink-0 hover:bg-emerald-100 transition-colors"
+          title="Ver o cartão de entrega para a próxima fase"
+        >
+          <PartyPopper className="w-[15px] h-[15px]" /> Ver entrega <ArrowRight className="w-3.5 h-3.5" />
+        </button>
       )}
     </div>
   )

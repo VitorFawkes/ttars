@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ListChecks, Plus, Pencil, Trash2, Check, X, ChevronDown, ChevronRight, Paperclip, MessageSquare } from 'lucide-react'
+import { ListChecks, Plus, Pencil, Trash2, Check, X, ChevronDown, ChevronRight, Paperclip, MessageSquare, Repeat } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { daysUntil, isPast } from '../../lib/planejamento/format'
 import { WEDDING_TASK_TYPES, WEDDING_TASK_TIPO_LIST } from '../../hooks/planejamento/taskTypes'
@@ -170,7 +170,7 @@ export function CronogramaSpine({
             <button
               type="button"
               onClick={() => setModal({ marco: null, edit: null })}
-              className="self-start inline-flex items-center gap-1.5 h-7 px-2 text-xs font-medium text-indigo-600 border border-indigo-200 rounded-md hover:bg-indigo-50"
+              className="self-start inline-flex items-center gap-1.5 h-7 px-2 text-xs font-medium text-[#8A6A33] border border-[#E6D3B3] rounded-md hover:bg-[#FBF6E8]"
             >
               <Plus className="w-3.5 h-3.5" /> Adicionar tarefa avulsa
             </button>
@@ -246,79 +246,112 @@ function TaskRow({
   const Icon = meta.icon
   const past = !item.feito && item.prazo && isPast(item.prazo)
   const d = item.prazo ? daysUntil(item.prazo) : null
+  const [commentOpen, setCommentOpen] = useState(false)
 
   return (
-    <div className="flex items-center gap-2.5 rounded-lg border border-slate-100 bg-white px-2.5 py-2">
-      <button
-        type="button"
-        onClick={() => checklist.toggle.mutate({ id: item.id, feito: !item.feito })}
-        className={cn(
-          'w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors',
-          item.feito ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300 hover:border-slate-400',
-        )}
-        aria-label={item.feito ? 'Marcar como pendente' : 'Marcar como feita'}
-      >
-        {item.feito && <Check className="w-3.5 h-3.5" />}
-      </button>
+    <div className="rounded-lg border border-slate-100 bg-white">
+      <div className="flex items-center gap-2.5 px-2.5 py-2">
+        <button
+          type="button"
+          onClick={() => checklist.toggle.mutate({ id: item.id, feito: !item.feito })}
+          className={cn(
+            'w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors',
+            item.feito ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300 hover:border-slate-400',
+          )}
+          aria-label={item.feito ? 'Marcar como pendente' : 'Marcar como feita'}
+        >
+          {item.feito && <Check className="w-3.5 h-3.5" />}
+        </button>
 
-      <span className={cn('w-6 h-6 rounded-md grid place-items-center shrink-0 border', meta.bg, meta.border)} title={meta.label}>
-        <Icon className={cn('w-3.5 h-3.5', meta.color)} />
-      </span>
+        <span className={cn('w-6 h-6 rounded-md grid place-items-center shrink-0 border', meta.bg, meta.border)} title={meta.label}>
+          <Icon className={cn('w-3.5 h-3.5', meta.color)} />
+        </span>
 
-      <span className={cn('flex-1 min-w-0 text-[13px] truncate', item.feito ? 'text-slate-400 line-through' : 'text-slate-800')} title={item.titulo}>
-        {item.titulo}
-      </span>
+        <span className={cn('flex-1 min-w-0 text-[13px] truncate', item.feito ? 'text-slate-400 line-through' : 'text-slate-800')} title={item.titulo}>
+          {item.titulo}
+        </span>
 
-      {/* Ações discretas (sem tags coloridas): 📎 abrir documento · 💬 comentário.
-          Trava/cobrança não viram etiqueta — a trava aparece no botão Avançar e a
-          data vencida fica em vermelho aqui mesmo. */}
-      <div className="flex items-center gap-1 shrink-0">
-        {item.abre_doc && onOpenDoc && (
+        {/* Ações discretas (sem tags coloridas): 🔁 cobra sozinha · 📎 abrir documento ·
+            💬 comentário. A trava aparece no botão Avançar; a data vencida fica em
+            vermelho aqui mesmo — nada disso vira etiqueta colorida. */}
+        <div className="flex items-center gap-1 shrink-0">
+          {item.gera_cobranca && !item.feito && (
+            <span title="Cobra sozinha quando o prazo vence" className="w-6 h-6 rounded grid place-items-center text-slate-400">
+              <Repeat className="w-3.5 h-3.5" />
+            </span>
+          )}
+          {item.abre_doc && onOpenDoc && (
+            <button
+              type="button"
+              onClick={onOpenDoc}
+              title="Abrir os documentos do casamento (anexos)"
+              className="w-6 h-6 rounded grid place-items-center text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+            >
+              <Paperclip className="w-3.5 h-3.5" />
+            </button>
+          )}
           <button
             type="button"
-            onClick={onOpenDoc}
-            title="Abrir os documentos do casamento (anexos)"
-            className="w-6 h-6 rounded grid place-items-center text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+            onClick={() => setCommentOpen((v) => !v)}
+            title="Comentário rápido"
+            className={cn(
+              'w-6 h-6 rounded grid place-items-center hover:bg-slate-100',
+              item.observacoes && item.observacoes.trim().length > 0 ? 'text-[#8A6A33]' : 'text-slate-300 hover:text-slate-600',
+            )}
           >
-            <Paperclip className="w-3.5 h-3.5" />
-          </button>
-        )}
-        {item.observacoes && item.observacoes.trim().length > 0 && (
-          <span title={item.observacoes} className="w-6 h-6 rounded grid place-items-center text-slate-400">
             <MessageSquare className="w-3.5 h-3.5" />
-          </span>
-        )}
+          </button>
+        </div>
+
+        <input
+          type="date"
+          value={item.prazo ?? ''}
+          onChange={(e) => checklist.update.mutate({ ...item, prazo: e.target.value || null })}
+          className={cn(
+            'shrink-0 text-[11.5px] px-1.5 py-1 rounded-md border bg-white tabular-nums',
+            past ? 'border-rose-300 text-rose-600 font-semibold bg-rose-50' : d === 0 ? 'border-amber-200 text-amber-700' : 'border-slate-200 text-slate-600',
+          )}
+          title={past ? 'atrasada' : 'prazo'}
+        />
+
+        <button type="button" onClick={onEdit} className="p-1 rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700 shrink-0" title="Editar" aria-label="Editar tarefa">
+          <Pencil className="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => checklist.remove.mutate(item.id)}
+          disabled={checklist.remove.isPending}
+          className="p-1 rounded text-slate-400 hover:bg-rose-50 hover:text-rose-600 shrink-0"
+          title="Remover"
+          aria-label="Remover tarefa"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
       </div>
 
-      <input
-        type="date"
-        value={item.prazo ?? ''}
-        onChange={(e) => checklist.update.mutate({ ...item, prazo: e.target.value || null })}
-        className={cn(
-          'shrink-0 text-[11.5px] px-1.5 py-1 rounded-md border bg-white tabular-nums',
-          past ? 'border-rose-300 text-rose-600 font-semibold bg-rose-50' : d === 0 ? 'border-amber-200 text-amber-700' : 'border-slate-200 text-slate-600',
-        )}
-        title={past ? 'atrasada' : 'prazo'}
-      />
-
-      <button type="button" onClick={onEdit} className="p-1 rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700 shrink-0" title="Editar" aria-label="Editar tarefa">
-        <Pencil className="w-3.5 h-3.5" />
-      </button>
-      <button
-        type="button"
-        onClick={() => checklist.remove.mutate(item.id)}
-        disabled={checklist.remove.isPending}
-        className="p-1 rounded text-slate-400 hover:bg-rose-50 hover:text-rose-600 shrink-0"
-        title="Remover"
-        aria-label="Remover tarefa"
-      >
-        <Trash2 className="w-3.5 h-3.5" />
-      </button>
+      {/* Comentário rápido — 1 clique, sem abrir o modal inteiro. */}
+      {commentOpen && (
+        <div className="px-2.5 pb-2.5 pl-11">
+          <textarea
+            defaultValue={item.observacoes ?? ''}
+            rows={2}
+            autoFocus
+            placeholder="Escrever um comentário rápido…"
+            onBlur={(e) => {
+              const v = e.target.value.trim()
+              if (v !== (item.observacoes ?? '')) {
+                checklist.update.mutate({ ...item, observacoes: v || null })
+              }
+            }}
+            className="w-full text-[12.5px] px-2.5 py-1.5 rounded-md border border-[#E6D3B3] bg-[#FBF6E8]/40 focus:outline-none focus:ring-2 focus:ring-[#BD965C]/30"
+          />
+        </div>
+      )}
     </div>
   )
 }
 
-const FIELD = 'w-full mt-1 px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500'
+const FIELD = 'w-full mt-1 px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#BD965C]/30 focus:border-[#BD965C]'
 
 function TaskModal({
   initial,
@@ -414,7 +447,7 @@ function TaskModal({
           <button type="button" onClick={onClose} className="inline-flex items-center justify-center h-9 rounded-md px-3 text-sm font-medium border border-slate-200 bg-white hover:bg-slate-50 text-slate-700">
             Cancelar
           </button>
-          <button type="button" onClick={handleSave} disabled={!canSave || saving} className="inline-flex items-center justify-center h-9 rounded-md px-3 text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
+          <button type="button" onClick={handleSave} disabled={!canSave || saving} className="inline-flex items-center justify-center h-9 rounded-md px-3 text-sm font-medium bg-[#BD965C] text-white hover:bg-[#a37f47] disabled:opacity-50 disabled:cursor-not-allowed">
             {saving ? 'Salvando…' : isEdit ? 'Salvar' : 'Adicionar'}
           </button>
         </footer>

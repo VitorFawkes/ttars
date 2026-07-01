@@ -93,7 +93,7 @@ export function PlanejamentoColumn({
           ref={setNodeRef}
           className={cn(
             'flex-1 min-h-0 px-2 py-2 space-y-2 bg-slate-50/40 overflow-y-auto transition-colors',
-            isOver && 'bg-indigo-50/60 ring-2 ring-indigo-400 ring-inset',
+            isOver && 'bg-[#FBF6E8]/70 ring-2 ring-[#E6D3B3] ring-inset',
           )}
         >
           {children}

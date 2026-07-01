@@ -489,27 +489,49 @@ function planDeadlineTone(slaText: string): string {
   return 'text-[#5C5751]'
 }
 
+// Os 6 itens padrão do handoff — mesma lista pra todos os casamentos, salvo
+// ajuste por casamento (ver `handoffDesativados`). `key` é o que persiste.
+const HANDOFF_ITEM_KEYS = ['venue', 'contrato', 'sinal', 'hotel', 'promo', 'lista'] as const
+type HandoffItemKey = (typeof HANDOFF_ITEM_KEYS)[number]
+const HANDOFF_ITEM_LABEL: Record<HandoffItemKey, string> = {
+  venue: 'Venue fechado',
+  contrato: 'Contrato do casamento assinado',
+  sinal: 'Sinal pago',
+  hotel: 'Hotel bloqueado',
+  promo: 'Ação promocional',
+  lista: 'Lista de convidados',
+}
+
 // ── Cartão "Pronto para a próxima fase" (handoff) ────────────────────────────
 // O que está DEFINIDO × EM ABERTO pra entregar pros próximos times. Lê campos
-// que já existem (sem dado novo). A ação de entregar (mover pra Produção) entra
-// numa próxima leva.
+// que já existem (sem dado novo). A lista de itens é a mesma pra todo mundo,
+// mas dá pra desativar um item por casamento (ex.: Elopement sem hotel).
 function HandoffCard({ wedding }: { wedding: WeddingPlanejamento }) {
   const pd = wedding.produto_data
   const contrato = pdNum(pd, PLANEJ_FIELD.convidadosContrato)
   const sinalValor = pdNum(pd, PLANEJ_FIELD.sinalValor)
-  const itens: { ok: boolean; label: string; det?: string }[] = [
-    { ok: !!pdStr(pd, PLANEJ_FIELD.espaco), label: 'Venue fechado', det: pdStr(pd, PLANEJ_FIELD.espaco) || undefined },
-    { ok: pdBool(pd, PLANEJ_FIELD.contratoAssinado), label: 'Contrato do casamento assinado' },
-    { ok: !!pdStr(pd, PLANEJ_FIELD.sinalPagoEm), label: 'Sinal pago', det: sinalValor != null ? `R$ ${sinalValor.toLocaleString('pt-BR')}` : undefined },
-    { ok: wedding.hotelStatus === 'bloqueado' || wedding.hotelStatus === 'confirmado', label: 'Hotel bloqueado', det: wedding.hotelQuartos != null ? `${wedding.hotelQuartos} quartos` : undefined },
-    { ok: !!pdStr(pd, PLANEJ_FIELD.promoTarifa), label: 'Ação promocional', det: pdStr(pd, PLANEJ_FIELD.promoTarifa) ? `R$ ${pdStr(pd, PLANEJ_FIELD.promoTarifa)}/noite` : undefined },
-    { ok: pdBool(pd, PLANEJ_FIELD.listaPreenchida), label: 'Lista de convidados', det: `${wedding.counts.total}${contrato != null ? ` de ${contrato}` : ''}` },
+  const desativados = Array.isArray(pd?.[PLANEJ_FIELD.handoffDesativados])
+    ? (pd![PLANEJ_FIELD.handoffDesativados] as unknown[]).filter((x): x is string => typeof x === 'string')
+    : []
+
+  const todosItens: { key: HandoffItemKey; ok: boolean; det?: string }[] = [
+    { key: 'venue', ok: !!pdStr(pd, PLANEJ_FIELD.espaco), det: pdStr(pd, PLANEJ_FIELD.espaco) || undefined },
+    { key: 'contrato', ok: pdBool(pd, PLANEJ_FIELD.contratoAssinado) },
+    { key: 'sinal', ok: !!pdStr(pd, PLANEJ_FIELD.sinalPagoEm), det: sinalValor != null ? `R$ ${sinalValor.toLocaleString('pt-BR')}` : undefined },
+    { key: 'hotel', ok: wedding.hotelStatus === 'bloqueado' || wedding.hotelStatus === 'confirmado', det: wedding.hotelQuartos != null ? `${wedding.hotelQuartos} quartos` : undefined },
+    { key: 'promo', ok: !!pdStr(pd, PLANEJ_FIELD.promoTarifa), det: pdStr(pd, PLANEJ_FIELD.promoTarifa) ? `R$ ${pdStr(pd, PLANEJ_FIELD.promoTarifa)}/noite` : undefined },
+    // "Pronto" exige o número real de convidados, não só a marcação manual —
+    // senão o cartão diz "pronto" com a lista vazia (achado ao vivo 30/06).
+    { key: 'lista', ok: pdBool(pd, PLANEJ_FIELD.listaPreenchida) && wedding.counts.total > 0, det: `${wedding.counts.total}${contrato != null ? ` de ${contrato}` : ''}` },
   ]
+  const itens = todosItens.filter(i => !desativados.includes(i.key))
   const done = itens.filter(i => i.ok).length
 
   const navigate = useNavigate()
   const entregar = useEntregarParaProducao()
+  const campos = usePlanejamentoCampos()
   const [confirmando, setConfirmando] = useState(false)
+  const [ajustando, setAjustando] = useState(false)
   const handleEntregar = async () => {
     // mutateAsync (não o callback onSuccess) — ao entregar, o card sai do board e
     // este componente desmonta; navegar pelo callback corria com a invalidação.
@@ -521,27 +543,60 @@ function HandoffCard({ wedding }: { wedding: WeddingPlanejamento }) {
       /* erro já tratado no hook (toast) */
     }
   }
+  const toggleItem = (key: HandoffItemKey) => {
+    const next = desativados.includes(key) ? desativados.filter(k => k !== key) : [...desativados, key]
+    campos.save.mutate({ cardId: wedding.id, values: { [PLANEJ_FIELD.handoffDesativados]: next } })
+  }
 
   return (
-    <section className="rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50/60 to-white p-5 shadow-[0_1px_2px_rgba(78,24,32,0.05)]">
+    <section id={BLOCO.handoff} className="scroll-mt-6 rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50/60 to-white p-5 shadow-[0_1px_2px_rgba(78,24,32,0.05)]">
       <div className="flex items-center gap-2.5 flex-wrap">
         <span className="w-9 h-9 rounded-lg bg-emerald-600 text-white grid place-items-center shrink-0">
           <PackageCheck className="w-[18px] h-[18px]" />
         </span>
         <h2 className="text-[15px] font-bold text-[#211F1D]">Pronto para a próxima fase</h2>
+        <button
+          type="button"
+          onClick={() => setAjustando(v => !v)}
+          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-emerald-200 bg-white text-[11.5px] font-medium text-emerald-700 hover:bg-emerald-50"
+        >
+          <Pencil className="w-3 h-3" /> ajustar o que conta
+        </button>
         <span className="ml-auto text-[12px] font-bold text-emerald-700 [font-family:'Roboto']">{done} de {itens.length} definidos</span>
       </div>
+
+      {ajustando && (
+        <div className="mt-3 rounded-lg border border-emerald-200 bg-white p-3">
+          <p className="text-[11.5px] text-[#6B8A7F] mb-2">
+            Desmarque o que não se aplica a este casamento (ex.: Elopement sem bloqueio de hotel). Vale só pra ele.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+            {todosItens.map(it => (
+              <label key={it.key} className="flex items-center gap-2 text-[12.5px] text-[#5C5751] cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={!desativados.includes(it.key)}
+                  onChange={() => toggleItem(it.key)}
+                  className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/30"
+                />
+                {HANDOFF_ITEM_LABEL[it.key]}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {itens.map((it, i) => (
+        {itens.map((it) => (
           <div
-            key={i}
+            key={it.key}
             className={cn(
               'flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-[12.5px]',
               it.ok ? 'border-emerald-200 bg-emerald-50/70 text-emerald-800' : 'border-amber-200 bg-amber-50/70 text-amber-800',
             )}
           >
             {it.ok ? <Check className="w-4 h-4 text-emerald-600 shrink-0" /> : <Circle className="w-4 h-4 text-amber-500 shrink-0" />}
-            <span className="font-medium">{it.label}</span>
+            <span className="font-medium">{HANDOFF_ITEM_LABEL[it.key]}</span>
             {it.det && <span className="text-[#9A9082] truncate">— {it.det}</span>}
           </div>
         ))}

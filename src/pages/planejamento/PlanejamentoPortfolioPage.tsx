@@ -160,7 +160,7 @@ export default function PlanejamentoPortfolioPage() {
               <li key={w.id} className="flex items-center justify-between gap-3 py-2.5">
                 <Link to={`/planejamento/casamento/${w.id}`} className="flex items-center gap-2 min-w-0 group">
                   <Heart className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                  <span className="text-sm font-medium text-slate-800 truncate group-hover:text-indigo-600">{w.titulo}</span>
+                  <span className="text-sm font-medium text-slate-800 truncate group-hover:text-[#8A6A33]">{w.titulo}</span>
                 </Link>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-[11px] text-slate-500">{PLANEJAMENTO_LABEL[w.planejamentoEtapa]}</span>
