@@ -20,7 +20,7 @@ export function useWeddingChecklist(cardId: string | null | undefined) {
       if (!orgId || !cardId) return []
       const { data, error } = await sbAny
         .from('wedding_checklist')
-        .select('id, titulo, prazo, feito, observacoes, tipo, marco, ordem, stage_id, trava, gera_cobranca, abre_doc, updated_at')
+        .select('id, titulo, prazo, feito, observacoes, tipo, marco, ordem, stage_id, trava, gera_cobranca, abre_doc, data_hora, status_reuniao, resultado, transcricao, gravacao_path, gravacao_link, updated_at')
         .eq('org_id', orgId)
         .eq('card_id', cardId)
         .order('ordem', { ascending: true })
@@ -98,6 +98,7 @@ export function useWeddingChecklist(cardId: string | null | undefined) {
   }
 
   return {
+    cardId: cardId ?? null,
     items,
     isLoading: query.isLoading,
     add,

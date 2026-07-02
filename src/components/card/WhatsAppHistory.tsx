@@ -59,6 +59,9 @@ interface WhatsAppHistoryProps {
     cardId?: string | null;
     contactPhone?: string | null;
     className?: string;
+    /** Filtro de exibição (client-side): só as mensagens de UMA pessoa, ou só as do grupo.
+     *  Usado pela página do casamento (abas noivo/noiva/grupo). Não muda a query. */
+    viewFilter?: { contactId?: string | null; groupOnly?: boolean } | null;
 }
 
 // Parse buttons from text like "---BUTTONS---\n[URL:https://...]Label"
@@ -453,7 +456,7 @@ function MessageBubble({ message, contactNames }: { message: WhatsAppMessage; co
     );
 }
 
-export function WhatsAppHistory({ contactId, cardId, className }: WhatsAppHistoryProps) {
+export function WhatsAppHistory({ contactId, cardId, className, viewFilter }: WhatsAppHistoryProps) {
     const queryClient = useQueryClient();
     const scrollRef = useRef<HTMLDivElement>(null);
     // Contact names for multi-contact badges + used to build contact_id list
@@ -484,7 +487,12 @@ export function WhatsAppHistory({ contactId, cardId, className }: WhatsAppHistor
                 .order('created_at', { ascending: true })
                 .limit(200);
 
-            if (contactIds.length === 1) {
+            // Além das mensagens dos contatos do card, traz as ligadas ao card
+            // direto (ex.: grupo de WhatsApp do casal — membros que não são
+            // contato do card entram via whatsapp_groups → card_id).
+            if (cardId) {
+                query.or(`contact_id.in.(${contactIds.join(',')}),card_id.eq.${cardId}`);
+            } else if (contactIds.length === 1) {
                 query.eq('contact_id', contactIds[0]);
             } else {
                 query.in('contact_id', contactIds);
@@ -547,7 +555,18 @@ export function WhatsAppHistory({ contactId, cardId, className }: WhatsAppHistor
         };
     }, [contactIdsKey, contactIds, queryClient]);
 
-    const groupedMessages = messages ? groupMessagesByDate(messages) : [];
+    // Filtro de exibição (abas noivo/noiva/grupo da página do casamento)
+    const visibleMessages = useMemo(() => {
+        if (!messages) return messages;
+        if (!viewFilter) return messages;
+        return messages.filter(m => {
+            if (viewFilter.groupOnly) return !!m.is_group;
+            if (viewFilter.contactId) return m.contact_id === viewFilter.contactId && !m.is_group;
+            return true;
+        });
+    }, [messages, viewFilter]);
+
+    const groupedMessages = visibleMessages ? groupMessagesByDate(visibleMessages) : [];
 
     // Pre-compute which messages should show a fase change badge
     const faseChangeIds = new Set<string>();
@@ -620,7 +639,7 @@ export function WhatsAppHistory({ contactId, cardId, className }: WhatsAppHistor
                 <div className="flex items-center gap-2">
                     <MessageSquare className="w-4 h-4 text-green-600" />
                     <span className="text-sm font-medium">
-                        {messages?.filter(m => m.body || m.media_url).length || 0} mensagens
+                        {visibleMessages?.filter(m => m.body || m.media_url).length || 0} mensagens
                         {hasMultipleContacts && (
                             <span className="text-slate-500 ml-1">· {Object.keys(contactNames!).length} contatos</span>
                         )}

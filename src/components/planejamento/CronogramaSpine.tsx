@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ListChecks, Plus, Pencil, Trash2, Check, X, ChevronDown, ChevronRight, Paperclip, MessageSquare, Repeat } from 'lucide-react'
+import { ListChecks, Plus, Pencil, Trash2, Check, X, ChevronDown, ChevronRight, Paperclip, MessageSquare, Repeat, Video, Loader2, CalendarClock } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '../../lib/utils'
+import { supabase } from '../../lib/supabase'
 import { daysUntil, isPast } from '../../lib/planejamento/format'
 import { WEDDING_TASK_TYPES, WEDDING_TASK_TIPO_LIST } from '../../hooks/planejamento/taskTypes'
 import {
@@ -10,9 +12,12 @@ import {
   MARCOS_POR_ETAPA,
   MARCO_LABEL,
   WEDDING_TASK_TIPO_DEFAULT,
+  REUNIAO_STATUS_LABEL,
+  REUNIAO_STATUS_LIST,
   spineMarcoId,
   type ChecklistItem,
   type EtapaPlanejamento,
+  type ReuniaoStatus,
   type WeddingTaskTipo,
 } from '../../hooks/planejamento/types'
 import type { useWeddingChecklist } from '../../hooks/planejamento/useWeddingChecklist'
@@ -182,6 +187,7 @@ export function CronogramaSpine({
         <TaskModal
           initial={modal.edit}
           marco={modal.marco}
+          cardId={checklist.cardId}
           saving={checklist.add.isPending || checklist.update.isPending}
           nextOrdem={() => checklist.nextOrdem(modal.marco)}
           onClose={() => setModal(null)}
@@ -271,6 +277,10 @@ function TaskRow({
           {item.titulo}
         </span>
 
+        {/* Reunião: hora agendada + status do ciclo (agendar → realizar/…): a
+            mesma lógica do Trips. Editar abre o modal com resultado/transcrição/gravação. */}
+        {item.tipo === 'reuniao' && <ReuniaoBadges item={item} onEdit={onEdit} />}
+
         {/* Ações discretas (sem tags coloridas): 🔁 cobra sozinha · 📎 abrir documento ·
             💬 comentário. A trava aparece no botão Avançar; a data vencida fica em
             vermelho aqui mesmo — nada disso vira etiqueta colorida. */}
@@ -351,11 +361,53 @@ function TaskRow({
   )
 }
 
+// Badges de reunião na linha da tarefa: hora agendada, status e atalho da gravação.
+function ReuniaoBadges({ item, onEdit }: { item: ChecklistItem; onEdit: () => void }) {
+  const status = item.status_reuniao ?? (item.data_hora ? 'agendada' : null)
+  const statusTone: Record<ReuniaoStatus, string> = {
+    agendada: 'bg-[#FBF6E8] border-[#E6D3B3] text-[#8A6A33]',
+    realizada: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+    cancelada: 'bg-slate-100 border-slate-200 text-slate-500',
+    reagendada: 'bg-amber-50 border-amber-200 text-amber-700',
+    nao_compareceu: 'bg-rose-50 border-rose-200 text-rose-600',
+  }
+  const abrirGravacao = async () => {
+    if (item.gravacao_path) {
+      const { data, error } = await supabase.storage.from('meeting-recordings').createSignedUrl(item.gravacao_path, 3600)
+      if (error || !data?.signedUrl) { toast.error('Não consegui abrir a gravação.'); return }
+      window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+    } else if (item.gravacao_link) {
+      window.open(item.gravacao_link, '_blank', 'noopener,noreferrer')
+    }
+  }
+  return (
+    <div className="flex items-center gap-1 shrink-0">
+      {item.data_hora && (
+        <button type="button" onClick={onEdit} title="Reunião agendada — clique pra editar" className="inline-flex items-center gap-1 text-[10.5px] px-1.5 py-0.5 rounded-full border bg-white border-slate-200 text-slate-500 tabular-nums hover:border-[#E6D3B3]">
+          <CalendarClock className="w-3 h-3" />
+          {item.data_hora.slice(8, 10)}/{item.data_hora.slice(5, 7)} {item.data_hora.slice(11, 16)}
+        </button>
+      )}
+      {status && (
+        <button type="button" onClick={onEdit} title="Status da reunião — clique pra registrar como foi" className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded-full border', statusTone[status])}>
+          {REUNIAO_STATUS_LABEL[status]}
+        </button>
+      )}
+      {(item.gravacao_path || item.gravacao_link) && (
+        <button type="button" onClick={abrirGravacao} title="Assistir à gravação da reunião" className="w-6 h-6 rounded grid place-items-center text-[#8A6A33] hover:bg-[#FBF6E8]">
+          <Video className="w-3.5 h-3.5" />
+        </button>
+      )}
+    </div>
+  )
+}
+
 const FIELD = 'w-full mt-1 px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#BD965C]/30 focus:border-[#BD965C]'
 
 function TaskModal({
   initial,
   marco,
+  cardId,
   saving,
   nextOrdem,
   onClose,
@@ -363,6 +415,7 @@ function TaskModal({
 }: {
   initial: ChecklistItem | null
   marco: string | null
+  cardId: string | null
   saving: boolean
   nextOrdem: () => number
   onClose: () => void
@@ -376,17 +429,53 @@ function TaskModal({
     initial?.tipo ?? (marco ? TIPO_SUGERIDO[marco] ?? WEDDING_TASK_TIPO_DEFAULT : WEDDING_TASK_TIPO_DEFAULT),
   )
 
+  // ── Ciclo de reunião (tipo='reuniao') — igual ao Trips ──
+  const [dataHora, setDataHora] = useState(initial?.data_hora ? initial.data_hora.slice(0, 16) : '')
+  const [statusReuniao, setStatusReuniao] = useState<ReuniaoStatus | ''>(initial?.status_reuniao ?? '')
+  const [resultado, setResultado] = useState(initial?.resultado ?? '')
+  const [transcricao, setTranscricao] = useState(initial?.transcricao ?? '')
+  const [gravacaoLink, setGravacaoLink] = useState(initial?.gravacao_link ?? '')
+  const [gravacaoPath, setGravacaoPath] = useState(initial?.gravacao_path ?? '')
+  const [subindoGravacao, setSubindoGravacao] = useState(false)
+
+  const uploadGravacao = async (file: File | null) => {
+    if (!file || !cardId) return
+    if (file.size > 1024 * 1024 * 1024) { toast.error('Gravação muito grande (máx. 1GB).'); return }
+    setSubindoGravacao(true)
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const path = `${cardId}/reuniao_${Date.now()}_${safeName}`
+      const { data, error } = await supabase.storage.from('meeting-recordings').upload(path, file, { upsert: false })
+      if (error || !data?.path) throw error ?? new Error('upload falhou')
+      setGravacaoPath(data.path)
+      toast.success('Gravação anexada — salve pra guardar na reunião.')
+    } catch (e) {
+      toast.error(`Não consegui subir a gravação: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setSubindoGravacao(false)
+    }
+  }
+
+  const isReuniao = tipo === 'reuniao'
   const canSave = titulo.trim().length > 0
   const handleSave = () => {
     if (!canSave) return
+    const realizada = isReuniao && statusReuniao === 'realizada'
     onSubmit({
       titulo: titulo.trim(),
       prazo: prazo.trim() || null,
-      feito: initial?.feito ?? false,
+      // reunião realizada conta como tarefa feita (mesma régua do Trips)
+      feito: realizada ? true : initial?.feito ?? false,
       observacoes: observacoes.trim() || null,
       tipo,
       marco: initial?.marco ?? marco,
       ordem: initial?.ordem ?? nextOrdem(),
+      data_hora: isReuniao && dataHora ? new Date(dataHora).toISOString() : null,
+      status_reuniao: isReuniao && statusReuniao ? statusReuniao : isReuniao && dataHora ? 'agendada' : null,
+      resultado: isReuniao ? resultado.trim() || null : null,
+      transcricao: isReuniao ? transcricao.trim() || null : null,
+      gravacao_path: isReuniao ? gravacaoPath || null : null,
+      gravacao_link: isReuniao ? gravacaoLink.trim() || null : null,
     })
   }
 
@@ -397,13 +486,13 @@ function TaskModal({
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-md bg-white border border-slate-200 shadow-lg rounded-xl flex flex-col">
-        <header className="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-200">
+      <div className="w-full max-w-md max-h-[90vh] bg-white border border-slate-200 shadow-lg rounded-xl flex flex-col">
+        <header className="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-200 shrink-0">
           <h2 className="text-base font-semibold text-slate-900">{isEdit ? 'Editar tarefa' : 'Nova tarefa'}</h2>
           <button onClick={onClose} className="p-1 rounded hover:bg-slate-100 text-slate-500" aria-label="Fechar"><X className="w-4 h-4" /></button>
         </header>
 
-        <div className="px-5 py-4 flex flex-col gap-3">
+        <div className="px-5 py-4 flex flex-col gap-3 overflow-y-auto">
           <label className="text-xs font-medium text-slate-700 block">
             Tarefa *
             <input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ex.: Visitar o espaço, assinar contrato, reunião de alinhamento…" className={FIELD} />
@@ -441,9 +530,79 @@ function TaskModal({
             Observação (opcional)
             <textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} rows={2} placeholder="Detalhes, contexto, links…" className={FIELD} />
           </label>
+
+          {/* ── Reunião: agendar → registrar como foi (resultado/transcrição/gravação) ── */}
+          {isReuniao && (
+            <div className="rounded-xl border border-[#E6D3B3] bg-[#FCF9F2] p-3 flex flex-col gap-3">
+              <span className="text-[10.5px] font-bold uppercase tracking-[0.07em] text-[#A88C57]">Reunião</span>
+
+              <label className="text-xs font-medium text-slate-700 block">
+                Data e hora da reunião
+                <input type="datetime-local" value={dataHora} onChange={(e) => setDataHora(e.target.value)} className={FIELD} />
+              </label>
+
+              <div className="block">
+                <span className="text-xs font-medium text-slate-700">Como foi?</span>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {REUNIAO_STATUS_LIST.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setStatusReuniao(statusReuniao === s ? '' : s)}
+                      className={cn(
+                        'px-2 py-1 rounded-md border text-[12px] font-medium transition-colors',
+                        statusReuniao === s
+                          ? s === 'realizada' ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                            : s === 'cancelada' || s === 'nao_compareceu' ? 'bg-rose-50 border-rose-200 text-rose-600'
+                            : 'bg-[#FBF6E8] border-[#E6D3B3] text-[#8A6A33]'
+                          : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50',
+                      )}
+                    >
+                      {REUNIAO_STATUS_LABEL[s]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {statusReuniao === 'realizada' && (
+                <>
+                  <label className="text-xs font-medium text-slate-700 block">
+                    Resultado / resumo da reunião
+                    <textarea value={resultado} onChange={(e) => setResultado(e.target.value)} rows={3} placeholder="O que foi decidido, combinado, próximos passos…" className={FIELD} />
+                  </label>
+                  <label className="text-xs font-medium text-slate-700 block">
+                    Transcrição (colar o texto)
+                    <textarea value={transcricao} onChange={(e) => setTranscricao(e.target.value)} rows={3} placeholder="Cole aqui a transcrição da reunião…" className={FIELD} />
+                  </label>
+                </>
+              )}
+
+              <div className="block">
+                <span className="text-xs font-medium text-slate-700">Gravação da reunião (pra assistir depois)</span>
+                <div className="mt-1 flex flex-col gap-1.5">
+                  {gravacaoPath ? (
+                    <div className="flex items-center gap-2 text-[12.5px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-2.5 py-1.5">
+                      <Video className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate flex-1">{gravacaoPath.split('/').pop()}</span>
+                      <button type="button" onClick={() => setGravacaoPath('')} className="text-slate-400 hover:text-rose-600" title="Tirar a gravação" aria-label="Remover gravação">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className={cn('inline-flex items-center gap-1.5 self-start h-8 px-2.5 text-xs font-medium text-[#8A6A33] border border-dashed border-[#D9CFC2] rounded-md hover:bg-[#FBF6E8] cursor-pointer', subindoGravacao && 'opacity-60 pointer-events-none')}>
+                      {subindoGravacao ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Video className="w-3.5 h-3.5" />}
+                      {subindoGravacao ? 'Subindo gravação…' : 'Subir arquivo (vídeo ou áudio)'}
+                      <input type="file" accept="video/*,audio/*" className="hidden" onChange={(e) => uploadGravacao(e.target.files?.[0] ?? null)} />
+                    </label>
+                  )}
+                  <input value={gravacaoLink} onChange={(e) => setGravacaoLink(e.target.value)} placeholder="ou cole o link da gravação (Meet, Zoom, Drive…)" className={cn(FIELD, 'mt-0')} />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        <footer className="flex items-center justify-end gap-2 px-5 py-3 border-t border-slate-200 bg-slate-50">
+        <footer className="flex items-center justify-end gap-2 px-5 py-3 border-t border-slate-200 bg-slate-50 shrink-0">
           <button type="button" onClick={onClose} className="inline-flex items-center justify-center h-9 rounded-md px-3 text-sm font-medium border border-slate-200 bg-white hover:bg-slate-50 text-slate-700">
             Cancelar
           </button>

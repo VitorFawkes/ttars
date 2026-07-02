@@ -10,6 +10,10 @@ export interface Arquivo {
   card_id: string
   caminho_arquivo: string
   nome_original: string
+  /** Nome de exibição editável (fallback: nome_original). */
+  titulo: string | null
+  /** Anexo-padrão que este arquivo cumpre (wedding_default_attachments.slot_key). */
+  slot_key: string | null
   mime_type: string | null
   tamanho_bytes: number | null
   descricao: string | null
@@ -94,7 +98,12 @@ export function useCardAttachments(cardId: string) {
   }
 
   const uploadFiles = useMutation({
-    mutationFn: async (files: File[]) => {
+    // Aceita `File[]` (compat com os callers atuais) ou `{ files, slotKey, titulo }`
+    // pra subir um arquivo já ligado a um anexo-padrão / com nome de exibição.
+    mutationFn: async (input: File[] | { files: File[]; slotKey?: string | null; titulo?: string | null }) => {
+      const files = Array.isArray(input) ? input : input.files
+      const slotKey = Array.isArray(input) ? null : input.slotKey ?? null
+      const titulo = Array.isArray(input) ? null : input.titulo ?? null
       const validFiles = files.filter((f) => {
         if (f.size > MAX_FILE_SIZE) {
           toast.error(`${f.name}: arquivo muito grande (max 25MB)`)
@@ -138,6 +147,8 @@ export function useCardAttachments(cardId: string) {
             card_id: cardId,
             caminho_arquivo: uploadData.path,
             nome_original: file.name,
+            titulo,
+            slot_key: slotKey,
             mime_type: file.type || null,
             tamanho_bytes: file.size,
             created_by: user?.id ?? null,
@@ -189,12 +200,40 @@ export function useCardAttachments(cardId: string) {
     onSuccess: invalidateAll,
   })
 
+  // Renomeia o arquivo pro usuário (titulo de exibição). nome_original fica intacto.
+  const updateTitulo = useMutation({
+    mutationFn: async ({ id, titulo }: { id: string; titulo: string }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.from('arquivos') as any)
+        .update({ titulo: titulo.trim() || null })
+        .eq('id', id)
+
+      if (error) throw error
+    },
+    onSuccess: invalidateAll,
+  })
+
+  // Liga/desliga um arquivo a um anexo-padrão (slot).
+  const updateSlot = useMutation({
+    mutationFn: async ({ id, slotKey }: { id: string; slotKey: string | null }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.from('arquivos') as any)
+        .update({ slot_key: slotKey })
+        .eq('id', id)
+
+      if (error) throw error
+    },
+    onSuccess: invalidateAll,
+  })
+
   return {
     arquivos,
     isLoading,
     uploadFiles: uploadFiles.mutateAsync,
     deleteFile: deleteFile.mutateAsync,
     updateDescricao: updateDescricao.mutateAsync,
+    updateTitulo: updateTitulo.mutateAsync,
+    updateSlot: updateSlot.mutateAsync,
     isUploading: uploadFiles.isPending,
     uploadProgress,
     getSignedUrl,

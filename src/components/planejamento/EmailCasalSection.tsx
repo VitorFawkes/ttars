@@ -1,7 +1,9 @@
 import { useState } from 'react'
-import { Send, Info } from 'lucide-react'
+import { Send, Info, Copy, Check, Inbox } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '../../lib/utils'
 import { useCardEmails } from '../../hooks/planejamento/useCardEmails'
+import { emailCodigoDoCasamento } from '../../lib/planejamento/emailCodigo'
 import type { WeddingPlanejamento } from '../../hooks/planejamento/usePlanejamentoWeddings'
 const FIELD = 'w-full px-3 py-2 border border-[#E0D6C8] rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#BD965C]/30 focus:border-[#BD965C]'
 
@@ -22,9 +24,21 @@ export function EmailCasalSection({ wedding }: { wedding: WeddingPlanejamento })
   const [para, setPara] = useState('')
   const [assunto, setAssunto] = useState('')
   const [mensagem, setMensagem] = useState('')
+  const [copiado, setCopiado] = useState(false)
 
   const canSend = para.trim().length > 3 && assunto.trim().length > 0 && mensagem.trim().length > 0
   const algumTeste = emails.some((e) => e.metadados && (e.metadados as { dry_run?: boolean }).dry_run)
+  const emailCodigo = emailCodigoDoCasamento(wedding.id)
+
+  const copiarCodigo = async () => {
+    try {
+      await navigator.clipboard.writeText(emailCodigo)
+      setCopiado(true)
+      window.setTimeout(() => setCopiado(false), 2000)
+    } catch {
+      toast.error('Não consegui copiar — selecione e copie na mão.')
+    }
+  }
 
   const handleSend = () => {
     if (!canSend) return
@@ -36,9 +50,32 @@ export function EmailCasalSection({ wedding }: { wedding: WeddingPlanejamento })
 
   return (
     <div className="pt-3">
-      <p className="text-[12px] text-[#9A9082] mb-4 [font-family:'Roboto',sans-serif]">
-        A conversa formal por e-mail, dentro do casamento. (Receber e responder de dentro do card vem na próxima etapa.)
+      <p className="text-[12px] text-[#9A9082] mb-3 [font-family:'Roboto',sans-serif]">
+        A conversa formal por e-mail, dentro do casamento — o que você manda daqui e o que chega de fora, num lugar só.
       </p>
+
+      {/* E-mail-código do casamento: respostas e cópias caem direto aqui. */}
+      <div className="flex items-start gap-2.5 rounded-xl border border-[#EEE0C8] bg-[#FCF9F2] px-3 py-2.5 mb-4">
+        <Inbox className="w-4 h-4 text-[#BD965C] mt-0.5 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <p className="text-[12px] font-semibold text-[#5C5751]">E-mail de cópia deste casamento</p>
+          <p className="text-[11.5px] text-[#9A8F7B] mt-0.5">
+            Mandou e-mail por fora (Gmail, Outlook…)? Coloque este endereço em <b>Cc</b> que a mensagem
+            aparece aqui sozinha. As <b>respostas</b> do casal aos e-mails enviados daqui também caem aqui.
+          </p>
+          <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+            <code className="text-[11.5px] text-[#8A6A33] bg-white border border-[#E6D3B3] rounded-md px-2 py-1 break-all">{emailCodigo}</code>
+            <button
+              type="button"
+              onClick={copiarCodigo}
+              className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-[#E6D3B3] bg-white text-[11px] font-medium text-[#8A6A33] hover:bg-[#FBF6E8] shrink-0"
+            >
+              {copiado ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+              {copiado ? 'copiado!' : 'copiar'}
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Thread */}
       {emails.length > 0 && (

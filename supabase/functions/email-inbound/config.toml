@@ -1,0 +1,6 @@
+# email-inbound: recebe e-mails de fora (webhook do provedor, ex. Resend Inbound)
+# verify_jwt desabilitado porque o provedor não envia JWT — é um webhook externo.
+# Proteção: assinatura svix opcional (RESEND_INBOUND_SECRET) + só grava se
+# resolver um card válido.
+[auth]
+verify_jwt = false

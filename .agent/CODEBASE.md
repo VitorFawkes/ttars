@@ -7,7 +7,7 @@
 > **Purpose:** Source of Truth for the AI Agent. Read this BEFORE any implementation.
 > **Last Updated:** 2026-07-01
 > **Trigger:** ALWAYS ON
-> **Stats:** 210 tabelas | 217 paginas | 382 hooks | 23 views | 882 components
+> **Stats:** 260 tabelas | 217 paginas | 383 hooks | 30 views | 886 components
 
 ---
 
@@ -169,7 +169,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 
 ### 2.4 Frontend Hooks (AUTO-GENERATED)
 
-> **382 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
+> **383 hooks** escaneados de `src/hooks/*.ts` — atualizado automaticamente via `npm run sync:fix`
 
 #### AI & Search
 | Hook | File |
@@ -470,6 +470,7 @@ Permite bloquear campos individuais para impedir atualizações automáticas via
 | `useWedding()` | `useWedding.ts` |
 | `useWeddingChecklist()` | `useWeddingChecklist.ts` |
 | `useWeddingDecisoes()` | `useWeddingDecisoes.ts` |
+| `useWeddingDefaultAttachments()` | `useWeddingDefaultAttachments.ts` |
 | `useWeddingEditValues()` | `useWeddingEditValues.ts` |
 | `useWeddingFluxo()` | `useWeddingFluxo.ts` |
 | `useWeddingFornecedores()` | `useWeddingFornecedores.ts` |

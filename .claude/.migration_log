@@ -1357,3 +1357,6 @@ supabase/migrations/20260325_section_field_config.sql — já aplicada em stagin
 2026-07-01T13:11:22Z | supabase/migrations/20260701a_ww_card_layout_reuniao_dados.sql | applied_to_prod
 2026-07-01T13:29:15Z | supabase/migrations/20260701b_ww_secoes_nascem_fechadas.sql | applied_to_prod
 2026-07-01T17:49:25Z | supabase/migrations/20260701c_fix_motivo_viagem_trips_gate.sql | applied_to_prod
+2026-07-02T01:51:51Z | supabase/migrations/20260702a_ww_anexos_titulo_padrao.sql | applied_to_prod
+2026-07-02T01:52:25Z | supabase/migrations/20260702b_ww_checklist_reuniao_ciclo.sql | applied_to_prod
+2026-07-02T01:53:01Z | supabase/migrations/20260702c_ww_email_inbound_activity.sql | applied_to_prod
