@@ -516,20 +516,25 @@ export function WhatsAppHistory({ contactId, cardId, className, viewFilter }: Wh
         scrollToBottom();
     }, [messages, scrollToBottom]);
 
-    // Supabase Realtime subscription — one channel per contact_id
+    // Supabase Realtime subscription — one channel per contact_id (+ card_id,
+    // pra mensagens ligadas só ao card, ex. grupo com remetente fora dos contatos)
     useEffect(() => {
         if (contactIds.length === 0) return;
 
-        const channels = contactIds.map(cId => {
+        const keys = cardId ? [...contactIds, `card:${cardId}`] : contactIds;
+        const channels = keys.map(key => {
+            const byCard = key.startsWith('card:');
+            const cId = byCard ? key.slice(5) : key;
+            const filter = byCard ? `card_id=eq.${cId}` : `contact_id=eq.${cId}`;
             return supabase
-                .channel(`whatsapp-messages-contact-${cId}`)
+                .channel(`whatsapp-messages-${byCard ? 'card' : 'contact'}-${cId}`)
                 .on(
                     'postgres_changes',
                     {
                         event: 'INSERT',
                         schema: 'public',
                         table: 'whatsapp_messages',
-                        filter: `contact_id=eq.${cId}`
+                        filter
                     },
                     () => {
                         queryClient.invalidateQueries({ queryKey: ['whatsapp-messages', 'contacts', contactIdsKey] });
@@ -541,7 +546,7 @@ export function WhatsAppHistory({ contactId, cardId, className, viewFilter }: Wh
                         event: 'UPDATE',
                         schema: 'public',
                         table: 'whatsapp_messages',
-                        filter: `contact_id=eq.${cId}`
+                        filter
                     },
                     () => {
                         queryClient.invalidateQueries({ queryKey: ['whatsapp-messages', 'contacts', contactIdsKey] });
@@ -553,7 +558,7 @@ export function WhatsAppHistory({ contactId, cardId, className, viewFilter }: Wh
         return () => {
             channels.forEach(ch => supabase.removeChannel(ch));
         };
-    }, [contactIdsKey, contactIds, queryClient]);
+    }, [contactIdsKey, contactIds, cardId, queryClient]);
 
     // Filtro de exibição (abas noivo/noiva/grupo da página do casamento)
     const visibleMessages = useMemo(() => {

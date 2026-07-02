@@ -34,6 +34,22 @@ function json(status: number, body: Record<string, unknown>): Response {
   });
 }
 
+// Org do caller a partir do JWT (o gateway já validou a assinatura com
+// verify_jwt=true; aqui só lemos o payload). anon key não tem org → barrada.
+function callerFromJwt(authHeader: string): { role: string | null; orgId: string | null } {
+  try {
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    const b64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(atob(b64));
+    return {
+      role: payload?.role ?? null,
+      orgId: payload?.app_metadata?.org_id ?? null,
+    };
+  } catch {
+    return { role: null, orgId: null };
+  }
+}
+
 // ── Catálogo de campos que o assistente pode sugerir (chaves reais do card) ──
 // Curado a partir de PLANEJ_FIELD + campos base do funil Weddings. Tipos:
 // text | number | currency | date | datetime | boolean | select.
@@ -82,7 +98,7 @@ interface Ctx {
   reunioes: string;
 }
 
-async function buildContext(cardId: string): Promise<Ctx | { error: string }> {
+async function buildContext(cardId: string, callerOrgId: string | null): Promise<Ctx | { error: string }> {
   const { data: card, error: cardErr } = await supabase
     .from("cards")
     .select("id, titulo, produto, produto_data, pessoa_principal_id, org_id")
@@ -90,6 +106,8 @@ async function buildContext(cardId: string): Promise<Ctx | { error: string }> {
     .maybeSingle();
   if (cardErr || !card) return { error: "card não encontrado" };
   if (card.produto !== "WEDDING") return { error: "este assistente é só de casamentos (WEDDING)" };
+  // isolamento por workspace: o caller (JWT de usuário) só acessa cards da própria org
+  if (callerOrgId !== null && card.org_id !== callerOrgId) return { error: "sem acesso a este casamento" };
 
   // casal (pessoa principal + vinculados)
   const pessoas: Ctx["pessoas"] = [];
@@ -256,8 +274,16 @@ Se nada novo: {"campos": {}, "justificativas": {}}`;
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json(405, { error: "method not allowed" });
-  if (!req.headers.get("Authorization")) return json(401, { error: "não autorizado" });
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader) return json(401, { error: "não autorizado" });
   if (!OPENAI_API_KEY) return json(500, { error: "OPENAI_API_KEY não configurada" });
+
+  // service_role passa (uso interno); usuário precisa de org no JWT; anon é barrada.
+  const caller = callerFromJwt(authHeader);
+  const callerOrgId = caller.role === "service_role" ? null : caller.orgId;
+  if (caller.role !== "service_role" && !callerOrgId) {
+    return json(403, { error: "sem workspace no token" });
+  }
 
   let body: { action?: string; card_id?: string; question?: string; chat_history?: { role: string; content: string }[] };
   try {
@@ -268,7 +294,7 @@ Deno.serve(async (req) => {
   const { action, card_id } = body;
   if (!card_id) return json(400, { error: "card_id é obrigatório" });
 
-  const ctx = await buildContext(card_id);
+  const ctx = await buildContext(card_id, callerOrgId);
   if ("error" in ctx) return json(400, { error: ctx.error });
 
   try {
