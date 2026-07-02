@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { sbAny } from '../convidados/_supabaseUntyped'
 import { useOrg } from '../../contexts/OrgContext'
 import { useAuth } from '../../contexts/AuthContext'
+import { emailCodigoDoCasamento } from '../../lib/planejamento/emailCodigo'
 
 // E-mails do card (D-P6): toda a conversa por e-mail num lugar só, dentro do
 // casamento. Reusa a tabela NATIVA `mensagens` (canal='email') + a edge function
@@ -70,10 +71,11 @@ export function useCardEmails(cardId: string | null | undefined) {
       if (insErr) throw insErr
 
       // 2) tenta enviar de verdade via send-email (Resend). Sem Resend → dry-run.
+      // reply_to = e-mail-código do casamento: a resposta do casal volta pro card.
       let dryRun = false
       try {
         const { data: res, error: fnErr } = await supabase.functions.invoke('send-email', {
-          body: { to, subject: assunto, html, text: mensagem },
+          body: { to, subject: assunto, html, text: mensagem, reply_to: emailCodigoDoCasamento(cardId) },
         })
         if (fnErr) throw fnErr
         dryRun = !!(res && (res as { dry_run?: boolean }).dry_run)

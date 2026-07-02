@@ -285,8 +285,42 @@ export interface ChecklistItem {
   trava?: boolean
   gera_cobranca?: boolean
   abre_doc?: boolean
+  // Ciclo de reunião (tipo='reuniao') — paridade com o Trips: agendar com hora,
+  // registrar como foi, transcrição e gravação pra assistir depois.
+  data_hora?: string | null
+  status_reuniao?: ReuniaoStatus | null
+  resultado?: string | null
+  transcricao?: string | null
+  gravacao_path?: string | null
+  gravacao_link?: string | null
   /** Só leitura (não enviar em update) — usado para achar a última tarefa concluída. */
   updated_at?: string | null
+}
+
+/** Ciclo da reunião (espelha tarefas.status do Trips). */
+export type ReuniaoStatus = 'agendada' | 'realizada' | 'cancelada' | 'reagendada' | 'nao_compareceu'
+
+export const REUNIAO_STATUS_LABEL: Record<ReuniaoStatus, string> = {
+  agendada: 'Agendada',
+  realizada: 'Realizada',
+  cancelada: 'Cancelada',
+  reagendada: 'Reagendada',
+  nao_compareceu: 'Não compareceu',
+}
+
+export const REUNIAO_STATUS_LIST: ReuniaoStatus[] = [
+  'agendada', 'realizada', 'cancelada', 'reagendada', 'nao_compareceu',
+]
+
+/** Anexo-padrão esperado do casamento (catálogo editável por workspace). */
+export interface DefaultAttachment {
+  id: string
+  slot_key: string
+  titulo: string
+  descricao: string | null
+  obrigatorio: boolean
+  ordem: number
+  ativo: boolean
 }
 
 /** Entrada do banco de fornecedores (catálogo per-workspace, reutilizável

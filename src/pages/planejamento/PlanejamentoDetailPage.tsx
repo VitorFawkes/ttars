@@ -26,6 +26,8 @@ import {
   StickyNote,
   Scale,
   Mail,
+  MessageCircle,
+  Sparkles,
   BarChart3,
   PackageCheck,
 } from 'lucide-react'
@@ -50,8 +52,11 @@ import { BlocoColapsavel } from '../../components/planejamento/BlocoColapsavel'
 import { CronogramaSpine } from '../../components/planejamento/CronogramaSpine'
 import { DecisoesSection } from '../../components/planejamento/DecisoesSection'
 import { EmailCasalSection } from '../../components/planejamento/EmailCasalSection'
+import { AnexosCasamentoSection } from '../../components/planejamento/AnexosCasamentoSection'
+import { ConversaCasamentoSection } from '../../components/planejamento/ConversaCasamentoSection'
+import { AssistenteCasamentoSection } from '../../components/planejamento/AssistenteCasamentoSection'
+import { LinhaDoTempoMarcos } from '../../components/planejamento/LinhaDoTempoMarcos'
 import ActivityFeed from '../../components/card/ActivityFeed'
-import AttachmentsWidget from '../../components/card/attachments/AttachmentsWidget'
 import {
   AcaoPromoSection,
   ConvidadosResumoSection,
@@ -284,6 +289,11 @@ export default function PlanejamentoDetailPage() {
         <div id={BLOCO.equipe} className="scroll-mt-6"><WeddingEquipeSection cardId={wedding.id} /></div>
       </div>
 
+      {/* Documentos & Anexos — padrão do casamento (editável) + anexos livres */}
+      <BlocoColapsavel icon={Paperclip} titulo="Documentos & Anexos" resumo="contratos, comprovantes e arquivos — com a lista do que não pode faltar" storageKey={`${wedding.id}:anexos`} defaultOpen={false}>
+        <AnexosCasamentoSection cardId={wedding.id} />
+      </BlocoColapsavel>
+
       {/* As definições (papelada) — recolhidas embaixo, com bolinha de status. */}
       <BlocoColapsavel id={BLOCO.local} icon={MapPin} titulo="Local & Cerimônia" status={st('local')} resumo={resumoLocal} storageKey={`${wedding.id}:local`} defaultOpen={false}>
         <LocalCerimoniaBody wedding={wedding} />
@@ -313,8 +323,16 @@ export default function PlanejamentoDetailPage() {
         <DecisoesSection wedding={wedding} />
       </BlocoColapsavel>
 
+      <BlocoColapsavel icon={MessageCircle} titulo="Conversa no WhatsApp (casal & grupo)" resumo="as mensagens com cada um do casal e com o grupo, aqui dentro" storageKey={`${wedding.id}:whatsapp`} defaultOpen={false}>
+        <ConversaCasamentoSection cardId={wedding.id} />
+      </BlocoColapsavel>
+
       <BlocoColapsavel icon={Mail} titulo="E-mail com o casal" resumo="a conversa formal por e-mail, dentro do casamento" storageKey={`${wedding.id}:email`} defaultOpen={false}>
         <EmailCasalSection wedding={wedding} />
+      </BlocoColapsavel>
+
+      <BlocoColapsavel icon={Sparkles} titulo="Assistente IA do casamento" resumo="pergunte sobre as conversas ou atualize os campos com a IA (você confirma)" storageKey={`${wedding.id}:assistente`} defaultOpen={false}>
+        <AssistenteCasamentoSection cardId={wedding.id} />
       </BlocoColapsavel>
 
       <BlocoColapsavel icon={StickyNote} titulo="Notas da planejadora" resumo={resumoNotas} storageKey={`${wedding.id}:notas`} defaultOpen={false}>
@@ -325,8 +343,14 @@ export default function PlanejamentoDetailPage() {
         <RelatorioCasamento wedding={wedding} />
       </BlocoColapsavel>
 
-      <BlocoColapsavel icon={History} titulo="Linha do tempo do casamento" resumo="tudo que já aconteceu — entradas, mudanças de etapa e de decisões" storageKey={`${wedding.id}:timeline`} defaultOpen={false}>
-        <div className="pt-3"><ActivityFeed cardId={wedding.id} /></div>
+      <BlocoColapsavel icon={History} titulo="Linha do tempo do casamento" resumo="os grandes marcos — quando aconteceram e quanto tempo levou entre eles" storageKey={`${wedding.id}:timeline`} defaultOpen={false}>
+        <LinhaDoTempoMarcos wedding={wedding} checklistItems={checklist.items} />
+        <details className="mt-4 border-t border-[#F0E9DD] pt-3">
+          <summary className="text-[12px] font-medium text-[#8A6A33] cursor-pointer select-none hover:underline">
+            ver o histórico completo (cada mudança, campo a campo)
+          </summary>
+          <div className="pt-3"><ActivityFeed cardId={wedding.id} /></div>
+        </details>
       </BlocoColapsavel>
     </div>
   )
@@ -639,12 +663,13 @@ function HandoffCard({ wedding }: { wedding: WeddingPlanejamento }) {
 }
 
 // Gaveta lateral com os anexos NATIVOS do card (tabela arquivos + bucket
-// card-documents). O 📎 das tarefas "Ler/Receber o contrato" abre aqui.
+// card-documents). O 📎 das tarefas "Ler/Receber o contrato" abre aqui —
+// mesma seção do bloco "Documentos & Anexos" (padrões + livres).
 function DocsDrawer({ cardId, onClose }: { cardId: string; onClose: () => void }) {
   return createPortal(
     <div className="fixed inset-0 z-50 flex justify-end bg-black/30 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose() }} role="dialog" aria-modal="true">
-      <div className="w-full max-w-md h-full bg-[#F7F2EA] border-l border-[#E6DBC9] shadow-xl flex flex-col overflow-y-auto">
-        <header className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-[#E6DBC9] bg-white sticky top-0">
+      <div className="w-full max-w-lg h-full bg-[#F7F2EA] border-l border-[#E6DBC9] shadow-xl flex flex-col overflow-y-auto planej-champ">
+        <header className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-[#E6DBC9] bg-white sticky top-0 z-10">
           <div className="flex items-center gap-2">
             <Paperclip className="w-4 h-4 text-[#BD965C]" />
             <h2 className="text-[15px] font-semibold text-[#211F1D]">Documentos do casamento</h2>
@@ -652,10 +677,7 @@ function DocsDrawer({ cardId, onClose }: { cardId: string; onClose: () => void }
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500" aria-label="Fechar"><X className="w-4 h-4" /></button>
         </header>
         <div className="p-4">
-          <p className="text-[12px] text-[#9A9082] mb-3 [font-family:'Roboto',sans-serif]">
-            Contratos e arquivos deste casamento. Arraste pra cá ou clique pra subir; depois é só clicar pra abrir.
-          </p>
-          <AttachmentsWidget cardId={cardId} />
+          <AnexosCasamentoSection cardId={cardId} />
         </div>
       </div>
     </div>,
